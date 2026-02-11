@@ -4,8 +4,14 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Button from '../base/Button';
-import { HamburgerIcon, ListIcon, PhoneIcon, ShoppingBagIcon, UserIcon } from "@phosphor-icons/react";
+import { HamburgerIcon, ListIcon, HouseIcon, PathIcon, ShoppingBagIcon, UserIcon } from "@phosphor-icons/react";
 import Image from 'next/image';
+import LocationBadge from '../ui/LocationBadge';
+import { useBranch } from '../providers/BranchProvider';
+import { useLocation } from '../providers/LocationProvider';
+import { useModal } from '../providers/ModalProvider';
+
+
 
 const App = () => {
 
@@ -15,6 +21,7 @@ interface NavItem {
     label: string;
     href: string;
     active?: boolean;
+    icon: React.ReactNode;
 }
 
 interface NavbarProps {
@@ -36,13 +43,39 @@ export default function Navbar({
 }: NavbarProps) {
     const pathname = usePathname();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const { selectedBranch, getBranchesWithDistance } = useBranch();
+    const { openBranchSelector } = useModal();
+    const { coordinates, permissionStatus } = useLocation();
+    const [mounted, setMounted] = useState(false);
 
-    // Navigation items
+
+    const branchDistance = coordinates && selectedBranch
+        ? getBranchesWithDistance(coordinates.latitude, coordinates.longitude)
+            .find(b => b.id === selectedBranch.id)?.distance
+        : null;
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (isMobileMenuOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+    }, [isMobileMenuOpen]);
+
+    // 👇 Check if location is being requested
+    const isLocationLoading = permissionStatus === 'prompt' && !coordinates;
+
     const navItems: NavItem[] = [
-        { label: 'Home', href: '/' },
-        { label: 'Menu', href: '/menu' },
-        { label: 'Track Order', href: '/orders' },
+        { label: 'Home', icon: <HouseIcon weight="fill" size={32} />, href: '/' },
+        { label: 'Menu', icon: <HamburgerIcon weight="fill" size={32} />, href: '/menu' },
+        { label: 'Track Order', icon: <PathIcon weight="fill" size={32} />, href: '/orders' },
     ];
+
+    const isActive = (href: string) => pathname === href;
 
     const phoneNumbers = [
         '+233 24 123 4567',
@@ -73,39 +106,58 @@ export default function Navbar({
                     </div>
 
                     {/* NavRow 2 */}
-                    <div className='w-[95%] md:w-[80%] mx-auto my-4 rounded-xl bg-brand-darker dark:bg-brand-dark flex justify-between items-center py-4 px-6 '>
+                    <div className='w-[95%] md:w-[80%] mx-auto my- rounded-b-4xl bg-brand-darker dark:bg-brand-dark flex justify-between items-center py-6 px-12 '>
                         {/* left side */}
                         {/* Logo */}
                         <Link href="/" className='text-2xl font- flex items-center gap-2 text-primary' style={{ fontFamily: 'var(--font-family-brand)' }}>
                             <Image src="/cblogo.webp" alt="CediBites Logo" width={44} height={44} className='object-contain' />
-                            <p className='font-caprasimo'>CediBites</p>
+                            <p className='hidden md:flex uppercase font-caprasimo'>CediBites</p>
                         </Link>
 
                         {/* middle side */}
                         <div>
-                            <ul className='hidden md:flex items-center justify-center gap-8'>
+                            <ul className='hidden md:flex items-center justify-center gap-12'>
                                 {navItems.map((item, index) => (
                                     <li key={index}>
-                                        <Link href={item.href} className={` hover:text-primary ${pathname === item.href ? 'text-primary font-bold' : 'text-text-light'}`}>
-                                            {item.label}
-                                        </Link>
+                                        <div className=''>
+                                            <Link href={item.href} className={` hover:text-primary gap-2 flex text-base items-center   ${pathname === item.href ? 'text-primary font-extrabold px-6 py-2 backdrop-blur- ' : 'text-text-light font-bold'}`}>
+                                                {item.icon} {item.label}
+                                            </Link>
+                                        </div>
                                     </li>
                                 ))}
                             </ul>
-                        </div>
 
-
-                        {/* right side */}
-                        <div className='hidden md:flex items-center justify-end gap-4'>
-                            <div className='w-10 h-10 flex rounded-full bg-brand-dark cursor-pointer items-center justify-center'>
-                                <ShoppingBagIcon weight="bold" className="text-text-light" size={28} />
+                            <div className='flex md:hidden'>
+                                <LocationBadge
+                                    branch={selectedBranch}
+                                    distance={branchDistance}
+                                    onClick={openBranchSelector}
+                                    fullWidth={false}
+                                    isLoading={isLocationLoading}
+                                />
                             </div>
                         </div>
 
-                        {/* mobile */}
-                        <div className='flex md:hidden items-center justify-end gap-4'>
-                            <div className='w-10 h-10 flex rounded-full bg-brand-darker items-center justify-center'>
-                                <ListIcon weight="bold" className="text-text-light" size={24} />
+
+                        {/* right side - COMBINED */}
+                        <div className='flex items-center gap-3'>
+                            <div className='hidden md:flex'>
+                                <LocationBadge
+                                    branch={selectedBranch}
+                                    distance={branchDistance}
+                                    onClick={openBranchSelector}
+                                    fullWidth={false}
+                                    isLoading={isLocationLoading}
+
+                                />
+                            </div>
+
+                            {/* Mobile menu icon */}
+                            <div className='flex md:hidden items-center justify-end'>
+                                <div className='w-10 h-10 flex rounded-full bg-brand-darker items-center justify-center'>
+                                    <ListIcon weight="bold" className="text-primary" size={24} />
+                                </div>
                             </div>
                         </div>
                     </div>

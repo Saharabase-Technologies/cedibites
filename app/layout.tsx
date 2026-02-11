@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Caprasimo } from 'next/font/google';
+import { Cabin, Caprasimo } from 'next/font/google';
 import localFont from 'next/font/local';
 import "./globals.css";
 import { LocationProvider } from "./components/providers/LocationProvider";
@@ -15,7 +15,13 @@ const caprasimo = Caprasimo({
   variable: '--font-caprasimo',
   display: 'swap',
 });
-
+const cabin = Cabin({
+  weight: ['400', '500', '600', '700'],
+  style: ['normal', 'italic'],
+  subsets: ['latin'],
+  variable: '--font-cabin',
+  display: 'swap',
+});
 // Local Font - ABeeZee (for body text)
 const abeezee = localFont({
   src: [
@@ -46,7 +52,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${abeezee.variable} ${caprasimo.variable}  bg-neutral-light dark:bg-brand-darker antialiased`}>
+    <html lang="en" className={`${cabin.variable} ${caprasimo.variable}  bg-neutral-light dark:bg-brand-darker antialiased`}>
       <body
         className={``}
       >

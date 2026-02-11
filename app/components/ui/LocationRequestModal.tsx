@@ -11,7 +11,7 @@ import BranchSelectorModal from './BranchSelectorModal';
 export default function LocationRequestModal() {
     const { permissionStatus, error, requestLocation } = useLocation();
     const { openBranchSelector } = useModal(); // Get the function to open branch selector
-    const [isOpen, setIsOpen] = useState(true);
+    const [isOpen, setIsOpen] = useState(false);
     const [hasShown, setHasShown] = useState(false);
 
     // Show modal on mount if location not granted and hasn't been shown

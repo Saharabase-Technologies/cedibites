@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { MagnifyingGlass, MapPin, X, Clock, Phone, MagnifyingGlassIcon, MapPinIcon, ClockIcon, PhoneIcon } from '@phosphor-icons/react';
+import { useEffect, useState, useCallback } from 'react';
+import { MagnifyingGlass, MapPin, XIcon, Clock, Phone, MagnifyingGlassIcon, MapPinIcon, ClockIcon, PhoneIcon, GpsFixIcon } from '@phosphor-icons/react';
 import { useModal } from '../providers/ModalProvider';
 import { useBranch } from '../providers/BranchProvider';
+import Button from '../base/Button';
+import { useLocation } from '../providers/LocationProvider';
+
 
 interface Branch {
     id: string;
@@ -22,12 +25,15 @@ interface Branch {
 
 // 👇 No props needed - component manages its own state
 export default function BranchSelectorModal() {
-    const [searchQuery, setSearchQuery] = useState('');
 
     // Get state from providers
     const { isBranchSelectorOpen, closeBranchSelector } = useModal();
-    const { setSelectedBranch } = useBranch();
-
+    const [isOpen, setIsOpen] = useState(true);
+    const [hasShown, setHasShown] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isRequestingLocation, setIsRequestingLocation] = useState(false);
+    const { setSelectedBranch, getBranchesWithDistance, selectNearestBranchNow } = useBranch();
+    const { requestLocation, permissionStatus, coordinates, error } = useLocation();
     // Branches data
     const branches: Branch[] = [
         {
@@ -87,6 +93,34 @@ export default function BranchSelectorModal() {
         },
     ];
 
+    // Handle "Use My Location" click
+    const handleUseMyLocation = async () => {
+        setIsRequestingLocation(true);
+        requestLocation();
+    };
+
+    useEffect(() => {
+        if (isRequestingLocation && coordinates && permissionStatus === 'granted') {
+            console.log('Location obtained in modal, forcing branch selection...');
+
+            // 👇 FORCE BRANCH SELECTION
+            selectNearestBranchNow();
+
+            // Close modal after short delay
+            setTimeout(() => {
+                setIsRequestingLocation(false);
+                closeBranchSelector();
+            }, 800);
+        }
+
+        if (isRequestingLocation && permissionStatus === 'denied') {
+            setIsRequestingLocation(false);
+        }
+    }, [coordinates, permissionStatus, isRequestingLocation, selectNearestBranchNow, closeBranchSelector]);
+
+
+
+
     // Filter branches
     const filteredBranches = branches.filter(
         (branch) =>
@@ -116,7 +150,7 @@ export default function BranchSelectorModal() {
             <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
                 <div className="bg-neutral-light dark:bg-brand-darker rounded-t-3xl sm:rounded-3xl max-w-2xl w-full max-h-[90vh] sm:max-h-[80vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-300">
                     {/* Header */}
-                    <div className="flex items-center justify-between px-6 py-3 border-b border-neutral-gray">
+                    <div className="flex items-center justify-between px-6 pt-4 pb-3 border-b border-neutral-gray">
                         <div>
                             <h2 className="font-brand dark:text-text-light text-2xl text-text-dark">
                                 Choose Your Branch
@@ -130,7 +164,7 @@ export default function BranchSelectorModal() {
                             className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[var(--color-bg-secondary)] transition-colors"
                             aria-label="Close"
                         >
-                            <X size={24} className="text-[var(--color-text-secondary)]" />
+                            <XIcon size={24} className="text-[var(--color-text-secondary)]" />
                         </button>
                     </div>
 
@@ -149,6 +183,20 @@ export default function BranchSelectorModal() {
                                 className="w-full pl-12 pr-4 py-3 bg-[var(--color-bg-secondary)] dark:text-text-light border-2 border-text-text-gray dark:border-text-light focus:border-primary rounded-full text-[var(--color-text-primary)] transition-all outline-none"
                             />
                         </div>
+                    </div>
+
+                    <div onClick={handleUseMyLocation}
+                        className=' py-2 px-6 text wifull flex items-center justify-center gap-2 border-b border-neutral-gray cursor-pointer hover:bg-[var(--color-bg-secondary)] transition-all'>
+                        <div className='w-full hover:bg-primary-hover/15 dark:hover:bg-primary-hover/10 mx-auto flex items-center justify-center gap-2 rounded-full border-transparent py-2 '>
+                            <GpsFixIcon className='dark:text-text-light text-text-dark font-bold' size={24} />
+                            <p className='dark:text-text-light text-text-dark font-bold'>Use My Location</p>
+                        </div>
+                        {/* Error Message */}
+                        {error && !isRequestingLocation && (
+                            <p className="text-xs text-error mt-2 text-center">
+                                {error}
+                            </p>
+                        )}
                     </div>
 
                     {/* Branch List */}
