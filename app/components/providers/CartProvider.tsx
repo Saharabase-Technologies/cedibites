@@ -1,18 +1,22 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { SearchableItem } from './MenuDiscoveryProvider';
 
-// ============================================
-// TYPES
-// ============================================
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 export interface CartItem {
-    cartItemId: string; // unique: itemId + sizeKey
+    cartItemId: string;     // `${itemId}__${sizeKey}`
     item: SearchableItem;
     selectedSize: string;
     sizeLabel: string;
     price: number;
     quantity: number;
+}
+
+export interface CartValidationResult {
+    available: CartItem[];      // items that ARE available at the new branch
+    unavailable: CartItem[];    // items that are NOT available at the new branch
 }
 
 interface CartContextType {
@@ -21,128 +25,126 @@ interface CartContextType {
     removeFromCart: (cartItemId: string) => void;
     updateQuantity: (cartItemId: string, quantity: number) => void;
     clearCart: () => void;
-    isInCart: (itemId: string, sizeKey?: string) => boolean;
+    removeUnavailableItems: (unavailableIds: string[]) => void;
+    isInCart: (itemId: string, sizeKey: string) => boolean;
     getCartItem: (itemId: string, sizeKey: string) => CartItem | undefined;
+    validateCartForBranch: (branchMenuItemIds: string[]) => CartValidationResult;
     totalItems: number;
     subtotal: number;
 }
 
-// ============================================
-// CONTEXT
-// ============================================
 const CartContext = createContext<CartContextType | undefined>(undefined);
-const STORAGE_KEY = 'cedibites-cart';
+const CART_KEY = 'cedibites-cart';
 
-function makeCartItemId(itemId: string, sizeKey: string) {
-    return `${itemId}__${sizeKey}`;
-}
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
-function getPriceForSize(item: SearchableItem, sizeKey: string): number {
-    if (item.sizes?.length) {
-        return item.sizes.find((s: any) => s.key === sizeKey)?.price ?? item.price ?? 0;
-    }
-    return item.price ?? 0;
-}
-
-function getSizeLabel(item: SearchableItem, sizeKey: string): string {
-    return item.sizes?.find((s: any) => s.key === sizeKey)?.label ?? sizeKey;
-}
-
-// ============================================
-// PROVIDER
-// ============================================
 export function CartProvider({ children }: { children: ReactNode }) {
     const [items, setItems] = useState<CartItem[]>([]);
     const [hydrated, setHydrated] = useState(false);
 
-    // Load from localStorage on mount
+    // Hydrate from localStorage
     useEffect(() => {
         try {
-            const saved = localStorage.getItem(STORAGE_KEY);
+            const saved = localStorage.getItem(CART_KEY);
             if (saved) setItems(JSON.parse(saved));
         } catch { /* ignore */ }
         setHydrated(true);
     }, []);
 
-    // Persist to localStorage on change
+    // Persist to localStorage
     useEffect(() => {
-        if (!hydrated) return;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+        if (hydrated) localStorage.setItem(CART_KEY, JSON.stringify(items));
     }, [items, hydrated]);
 
-    // ── Add ──
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    const makeCartItemId = (itemId: string, sizeKey: string) => `${itemId}__${sizeKey}`;
+
     const addToCart = useCallback((item: SearchableItem, sizeKey: string) => {
         const cartItemId = makeCartItemId(item.id, sizeKey);
-        setItems((prev) => {
-            const existing = prev.find((i) => i.cartItemId === cartItemId);
+        const sizeData = item.sizes?.find((s: any) => s.key === sizeKey);
+        const price = sizeData?.price ?? item.price ?? 0;
+        const sizeLabel = sizeData?.label ?? sizeKey;
+
+        setItems(prev => {
+            const existing = prev.find(i => i.cartItemId === cartItemId);
             if (existing) {
-                return prev.map((i) =>
-                    i.cartItemId === cartItemId
-                        ? { ...i, quantity: i.quantity + 1 }
-                        : i
+                return prev.map(i =>
+                    i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i
                 );
             }
-            return [...prev, {
-                cartItemId,
-                item,
-                selectedSize: sizeKey,
-                sizeLabel: getSizeLabel(item, sizeKey),
-                price: getPriceForSize(item, sizeKey),
-                quantity: 1,
-            }];
+            return [...prev, { cartItemId, item, selectedSize: sizeKey, sizeLabel, price, quantity: 1 }];
         });
     }, []);
 
-    // ── Remove ──
     const removeFromCart = useCallback((cartItemId: string) => {
-        setItems((prev) => prev.filter((i) => i.cartItemId !== cartItemId));
+        setItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
     }, []);
 
-    // ── Update qty (0 = remove) ──
     const updateQuantity = useCallback((cartItemId: string, quantity: number) => {
         if (quantity <= 0) {
-            setItems((prev) => prev.filter((i) => i.cartItemId !== cartItemId));
+            setItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
         } else {
-            setItems((prev) =>
-                prev.map((i) => i.cartItemId === cartItemId ? { ...i, quantity } : i)
-            );
+            setItems(prev => prev.map(i =>
+                i.cartItemId === cartItemId ? { ...i, quantity } : i
+            ));
         }
     }, []);
 
-    // ── Clear ──
     const clearCart = useCallback(() => {
         setItems([]);
-        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(CART_KEY);
     }, []);
 
-    // ── Helpers ──
-    const isInCart = useCallback((itemId: string, sizeKey?: string) => {
-        if (sizeKey) return items.some((i) => i.cartItemId === makeCartItemId(itemId, sizeKey));
-        return items.some((i) => i.item.id === itemId);
+    // Remove a specific set of items by their cartItemIds
+    const removeUnavailableItems = useCallback((cartItemIds: string[]) => {
+        const idSet = new Set(cartItemIds);
+        setItems(prev => prev.filter(i => !idSet.has(i.cartItemId)));
+    }, []);
+
+    const isInCart = useCallback((itemId: string, sizeKey: string) =>
+        items.some(i => i.cartItemId === makeCartItemId(itemId, sizeKey)),
+        [items]);
+
+    const getCartItem = useCallback((itemId: string, sizeKey: string) =>
+        items.find(i => i.cartItemId === makeCartItemId(itemId, sizeKey)),
+        [items]);
+
+    // ── Branch validation ──────────────────────────────────────────────────────
+    // Given a branch's menuItemIds, split cart into available vs unavailable
+    const validateCartForBranch = useCallback((branchMenuItemIds: string[]): CartValidationResult => {
+        const availableSet = new Set(branchMenuItemIds);
+        const available: CartItem[] = [];
+        const unavailable: CartItem[] = [];
+
+        items.forEach(cartItem => {
+            if (availableSet.has(cartItem.item.id)) {
+                available.push(cartItem);
+            } else {
+                unavailable.push(cartItem);
+            }
+        });
+
+        return { available, unavailable };
     }, [items]);
 
-    const getCartItem = useCallback((itemId: string, sizeKey: string) => {
-        return items.find((i) => i.cartItemId === makeCartItemId(itemId, sizeKey));
-    }, [items]);
-
+    // ── Computed ───────────────────────────────────────────────────────────────
     const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
     const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
     return (
         <CartContext.Provider value={{
-            items, addToCart, removeFromCart, updateQuantity,
-            clearCart, isInCart, getCartItem, totalItems, subtotal,
+            items, addToCart, removeFromCart, updateQuantity, clearCart,
+            removeUnavailableItems, isInCart, getCartItem,
+            validateCartForBranch, totalItems, subtotal,
         }}>
             {children}
         </CartContext.Provider>
     );
 }
 
-// ============================================
-// HOOK
-// ============================================
 export function useCart() {
-    const ctx = useContext(CartContext);
-    if (!ctx) throw new Error('useCart must be used within CartProvider');
-    return ctx;
+    const context = useContext(CartContext);
+    if (!context) throw new Error('useCart must be used within CartProvider');
+    return context;
 }

@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, ReactNode } from 'react';
 import { sampleMenuItems } from '@/lib/data/SampleMenu';
+import { useBranch } from './BranchProvider';
 
 export interface SearchableItem {
     id: string;
@@ -27,19 +28,30 @@ interface MenuDiscoveryContextType {
     recentSearches: string[];
     addRecentSearch: (query: string) => void;
     clearRecentSearches: () => void;
-    allItems: SearchableItem[];
+    allItems: SearchableItem[];         // all items regardless of branch
+    branchItems: SearchableItem[];      // items available at selected branch only
 }
 
 const MenuDiscoveryContext = createContext<MenuDiscoveryContextType | undefined>(undefined);
 
 export function MenuDiscoveryProvider({ children }: { children: ReactNode }) {
+    const { selectedBranch } = useBranch();
+
     const [searchQuery, setSearchQueryState] = useState('');
-    const [selectedCategory, setSelectedCategoryState] = useState<string | null>(null); // ← null = show Mix
+    const [selectedCategory, setSelectedCategoryState] = useState<string | null>(null);
     const [recentSearches, setRecentSearches] = useState<string[]>([]);
     const [isSearching, setIsSearching] = useState(false);
 
     const allItems: SearchableItem[] = sampleMenuItems;
 
+    // ── Branch-filtered items — the source of truth for the menu grid ──
+    const branchItems = useMemo((): SearchableItem[] => {
+        if (!selectedBranch) return allItems; // no branch selected yet → show all
+        const ids = new Set(selectedBranch.menuItemIds);
+        return allItems.filter(item => ids.has(item.id));
+    }, [selectedBranch, allItems]);
+
+    // ── Load recent searches from localStorage ──
     useEffect(() => {
         const saved = localStorage.getItem('cedibites-recent-searches');
         if (saved) {
@@ -52,7 +64,6 @@ export function MenuDiscoveryProvider({ children }: { children: ReactNode }) {
         setIsSearching(query.trim().length > 0);
     }, []);
 
-    // ← No sessionStorage, just set state
     const setSelectedCategory = useCallback((categoryId: string | null) => {
         setSelectedCategoryState(categoryId);
     }, []);
@@ -64,8 +75,8 @@ export function MenuDiscoveryProvider({ children }: { children: ReactNode }) {
 
     const addRecentSearch = useCallback((query: string) => {
         if (!query.trim()) return;
-        setRecentSearches((prev) => {
-            const updated = [query, ...prev.filter((s) => s !== query)].slice(0, 10);
+        setRecentSearches(prev => {
+            const updated = [query, ...prev.filter(s => s !== query)].slice(0, 10);
             localStorage.setItem('cedibites-recent-searches', JSON.stringify(updated));
             return updated;
         });
@@ -76,46 +87,47 @@ export function MenuDiscoveryProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('cedibites-recent-searches');
     }, []);
 
-    const searchResults = useCallback((): SearchableItem[] => {
+    // ── Search results — searches within branch items only ──
+    const searchResults = useMemo((): SearchableItem[] => {
         if (!searchQuery.trim()) return [];
         const lower = searchQuery.toLowerCase();
-        return allItems.filter(
-            (item) =>
-                item.name.toLowerCase().includes(lower) ||
-                item.description?.toLowerCase().includes(lower) ||
-                item.category?.toLowerCase().includes(lower)
+        return branchItems.filter(item =>
+            item.name.toLowerCase().includes(lower) ||
+            item.description?.toLowerCase().includes(lower) ||
+            item.category?.toLowerCase().includes(lower)
         );
-    }, [searchQuery, allItems])();
+    }, [searchQuery, branchItems]);
 
-    const filteredItems = useCallback((): SearchableItem[] => {
-        let results = allItems;
+    // ── Filtered items — category + search applied to branch items ──
+    const filteredItems = useMemo((): SearchableItem[] => {
+        let results = branchItems;
 
         if (selectedCategory === 'Most Popular') {
-            results = results.filter((item) => item.popular === true);
+            results = results.filter(item => item.popular === true);
         } else if (selectedCategory) {
             results = results.filter(
-                (item) => item.category?.toLowerCase() === selectedCategory.toLowerCase()
+                item => item.category?.toLowerCase() === selectedCategory.toLowerCase()
             );
         }
 
         if (searchQuery.trim()) {
             const lower = searchQuery.toLowerCase();
-            results = results.filter(
-                (item) =>
-                    item.name.toLowerCase().includes(lower) ||
-                    item.description?.toLowerCase().includes(lower) ||
-                    item.category?.toLowerCase().includes(lower)
+            results = results.filter(item =>
+                item.name.toLowerCase().includes(lower) ||
+                item.description?.toLowerCase().includes(lower) ||
+                item.category?.toLowerCase().includes(lower)
             );
         }
 
         return results;
-    }, [selectedCategory, searchQuery, allItems])();
+    }, [selectedCategory, searchQuery, branchItems]);
 
     return (
         <MenuDiscoveryContext.Provider value={{
             searchQuery, setSearchQuery, searchResults, isSearching, clearSearch,
             selectedCategory, setSelectedCategory, filteredItems,
-            recentSearches, addRecentSearch, clearRecentSearches, allItems,
+            recentSearches, addRecentSearch, clearRecentSearches,
+            allItems, branchItems,
         }}>
             {children}
         </MenuDiscoveryContext.Provider>
@@ -124,6 +136,6 @@ export function MenuDiscoveryProvider({ children }: { children: ReactNode }) {
 
 export function useMenuDiscovery() {
     const context = useContext(MenuDiscoveryContext);
-    if (!context) throw new Error('useMenuDiscovery must be used within a MenuDiscoveryProvider');
+    if (!context) throw new Error('useMenuDiscovery must be used within MenuDiscoveryProvider');
     return context;
 }
