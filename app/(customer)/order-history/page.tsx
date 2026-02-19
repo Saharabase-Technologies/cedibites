@@ -1,9 +1,9 @@
-// app/order-history/page.tsx
+// app/(customer)/order-history/page.tsx
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useModal } from '../components/providers/ModalProvider';
+import { useModal } from '../../components/providers/ModalProvider';
 import {
     MagnifyingGlassIcon,
     XIcon,
@@ -14,7 +14,7 @@ import {
     ArrowsClockwiseIcon,
     UserIcon,
 } from '@phosphor-icons/react';
-import Navbar from '../components/layout/Navbar';
+import Navbar from '../../components/layout/Navbar';
 import {
     getMockOrdersForUser,
     type Order,

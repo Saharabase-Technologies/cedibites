@@ -15,7 +15,7 @@ import { useModal } from '@/app/components/providers/ModalProvider';
 import MenuItemCard from '@/app/components/ui/MenuItemCard';
 import ItemDetailModal from '@/app/components/ui/ItemDetailModal';
 import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryProvider';
-import Navbar from '../components/layout/Navbar';
+import Navbar from '../../components/layout/Navbar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type SortKey = 'default' | 'price_asc' | 'price_desc' | 'popular';
@@ -269,7 +269,6 @@ export default function MenuPage() {
             <Navbar />
             {/* ── Top bar ─────────────────────────────────────────────────── */}
             <div className="sticky top-20 w-full mt-20 z-20  bg-primary/10  dark:bg-brand-darker items-center backdrop-blur-md border-b border-neutral-gray/20">
-
 
 
 

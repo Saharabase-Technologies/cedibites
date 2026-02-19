@@ -1,4 +1,4 @@
-// app/orders/page.tsx
+// app/(customer)/orders/page.tsx
 'use client';
 
 import { useState } from 'react';
@@ -14,7 +14,7 @@ import {
     CaretRightIcon,
 } from '@phosphor-icons/react';
 import Image from 'next/image';
-import Navbar from '../components/layout/Navbar';
+import Navbar from '../../components/layout/Navbar';
 
 export default function TrackOrderPage() {
     const router = useRouter();

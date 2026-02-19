@@ -1,4 +1,4 @@
-// app/track/[orderCode]/page.tsx
+// app/(customer)/orders/[orderCode]/page.tsx
 'use client';
 
 import { useEffect, useState, use } from 'react';
