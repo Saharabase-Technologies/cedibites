@@ -25,6 +25,12 @@
 
 ---
 
+> **Revision history:**
+> - *February 2026 (initial)* — Full documentation written covering customer + staff modules.
+> - *February 2026 (staff-flow branch)* — Added Staff Login page (§15.0); added shared currency utility (§8); updated LocationRequestModal (§6.8); fixed inconsistency #6 (logo paths); resolved inconsistency #8 (formatGHS duplication).
+
+---
+
 ## 1. Project Overview
 
 CediBites is a **multi-branch Ghanaian restaurant ordering web app** built with Next.js. Customers can:
@@ -180,7 +186,8 @@ cedibites/
 │   │   ├── SampleMenu.ts             # Menu items, categories, add-ons
 │   │   └── HeroSearchCategoryItems.ts # Category pill labels for hero
 │   └── utils/
-│       └── distance.ts               # Haversine distance + delivery time
+│       ├── distance.ts               # Haversine distance + delivery time
+│       └── currency.ts               # Shared GHS currency formatter
 ├── types/
 │   ├── order.ts                      # Customer order types, mock data, timeline builders
 │   ├── branch.ts
@@ -584,6 +591,8 @@ Shows all branches sorted by distance. Closed branches are disabled. Selecting a
 
 Prompt shown to request browser geolocation permission. Displayed globally.
 
+**Staff route exclusion:** The modal is suppressed on all `/staff/*` routes. It reads the current pathname via `usePathname()` and only opens when `!pathname.startsWith('/staff')`. This prevents the location prompt from appearing during staff workflows, since staff operate from a fixed branch and do not need customer-facing geolocation.
+
 ### 6.9 HeroSearch
 
 **File:** `app/components/sections/HeroSearch.tsx`
@@ -712,6 +721,16 @@ Note: Order IDs overlap with the customer-facing mock orders in `types/order.ts`
 
 ## 8. Utilities
 
+### `lib/utils/currency.ts` *(new)*
+
+Single source of truth for GHS currency formatting across all modules.
+
+| Function | Description |
+|---|---|
+| `formatGHS(n)` | Returns `"GHS 45.00"` — used by both staff orders and my-sales modules |
+
+Both `app/staff/orders/utils.ts` and `app/staff/my-sales/utils.ts` import `formatGHS` from this shared file. The previous duplicate definitions have been removed. (Resolves inconsistency #8 — see §16.)
+
 ### `lib/utils/distance.ts`
 
 | Function | Description |
@@ -725,7 +744,6 @@ Note: Order IDs overlap with the customer-facing mock orders in `types/order.ts`
 | Function | Description |
 |---|---|
 | `timeAgo(date)` | Returns `{ label, urgent }` — urgent=true if > 20 min old |
-| `formatGHS(n)` | `"GHS 45.00"` |
 | `getNextStatuses(order)` | Returns valid next-state transitions for a given order (branches on `order.type` at the `ready` step) |
 | `canAdvanceOrder(role, order, targetStatus)` | Role-based permission gate: kitchen handles received→preparing→ready; sales handles ready→dispatch→completion |
 | `haversineKm(a, b)` | Distance between two lat/lng points in km |
@@ -735,7 +753,6 @@ Note: Order IDs overlap with the customer-facing mock orders in `types/order.ts`
 
 | Function | Description |
 |---|---|
-| `formatGHS(n)` | Same as orders utils — duplicated |
 | `formatTime(d)` | Locale time string for Ghana (`en-GH`) |
 | `formatDate(d)` | Full locale date string (`weekday, day month year`) |
 | `itemCount(order)` | Sum of `qty` across all items in a `SalesOrder` |
@@ -963,6 +980,37 @@ If `window.google` is not available, `AddressSearchField` falls back to the Nomi
 
 The staff module lives entirely under `app/staff/` and is isolated from the customer-facing provider tree.
 
+### 15.0 Staff Login — `/staff/login`
+
+**File:** `app/staff/login/page.tsx`
+
+Standalone login page rendered **outside** the staff shell (`StaffLayout` returns `<>{children}</>` when `pathname === '/staff/login'`, so no sidebar or bottom nav is shown).
+
+**Fields:**
+
+| Field | Validation |
+|---|---|
+| Email or Phone (`identifier`) | Required; must be a valid email (`@` present) or a Ghanaian phone number matching `/^(\+233\|0)[2-9]\d{8}$/` |
+| Password | Required; minimum 6 characters |
+
+**Behaviour:**
+- Validation runs on blur (per-field) and on submit (all fields)
+- A global error banner appears above the form on failed authentication
+- On success: redirects to `/staff/dashboard` via `window.location.href`
+- 1 500ms simulated processing delay (to be removed when the real API is integrated)
+
+**Auth stub:** Any password except the literal string `"wrong"` succeeds. The real endpoint is:
+
+```
+POST /api/v1/staff/auth/login
+Body: { identifier: string, password: string }
+Expected: server sets httpOnly JWT cookie — nothing stored client-side
+```
+
+The commented-out fetch block is preserved in the source as the integration target.
+
+---
+
 ### 15.1 Staff Shell — `app/staff/layout.tsx`
 
 Wraps all staff pages except `/staff/login`. Skips rendering if `pathname === '/staff/login'`.
@@ -1186,6 +1234,7 @@ A read-only analytics view showing orders the authenticated staff member placed 
 
 | Location | Description |
 |---|---|
+| `staff/login/page.tsx` | Login is a stub — any password except `"wrong"` succeeds. Replace simulated delay + auth logic with `POST /api/v1/staff/auth/login` (httpOnly JWT cookie). Commented integration block is provided in the source. |
 | `AuthProvider.sendOTP` | OTP is only generated in memory. Production requires Africa's Talking or Hubtel SMS integration. Commented code is provided. |
 | `orders/[orderCode]/page.tsx` | WebSocket block is commented out. Real-time tracking requires a `wss://` endpoint. |
 | `order-history/page.tsx` | `isLoggedIn` is hardcoded `false`. Needs to read from `AuthProvider`. Order fetching is mocked — needs real API by user ID or IP. |
@@ -1203,129 +1252,6 @@ A read-only analytics view showing orders the authenticated staff member placed 
 
 ---
 
-### Inconsistencies
 
-These are active mismatches in the codebase that may cause bugs or confusion:
-
-#### ❌ 1 — Dashboard order detail links are broken routes
-
-**File:** `app/staff/dashboard/page.tsx` (line ~154)
-
-```tsx
-href={`/staff/orders/${order.id}`}
-```
-
-There is no dynamic route at `/staff/orders/[id]`. The only page at that path is `/staff/orders` (the Kanban view). These links will 404. The detail panel lives as an overlay within `/staff/orders`, not as a separate URL.
-
-**Fix:** Link to `/staff/orders` and use query params or context to auto-select the order, or keep the link as `/staff/orders` only.
-
----
-
-#### ❌ 2 — `ready` status color differs between Dashboard and Orders module
-
-**Dashboard** (`app/staff/dashboard/page.tsx`):
-```ts
-ready: { label: 'Ready', dot: 'bg-secondary' }
-```
-
-**Orders constants** (`app/staff/orders/constants.ts`):
-```ts
-ready: { label: 'Ready', dot: 'bg-warning', color: 'border-warning/40' }
-```
-
-`bg-secondary` (green) and `bg-warning` (amber/yellow) are different colors. The Kanban board uses amber for "Ready" — the dashboard uses green. A customer looking at both would see a different color for the same status.
-
-**Fix:** Consolidate into a single shared `STATUS_CONFIG` constant and import it everywhere.
-
----
-
-#### ❌ 3 — Dashboard mock data references non-existent branches
-
-**File:** `app/staff/dashboard/page.tsx`
-
-Mock data includes `branch: 'Airport'` and `branch: 'Labone'`. Neither appears in:
-- `BranchProvider` `BRANCHES` array
-- `BRANCH_COORDS` in `app/staff/orders/constants.ts`
-- Any other branch definition in the codebase
-
-**Fix:** Replace with actual branch names: Osu, East Legon, Tema, Madina, La Paz, Dzorwulu.
-
----
-
-#### ❌ 4 — `OrderItem` shape differs between Orders and My Sales modules
-
-`StaffOrder.items` (in `app/staff/orders/types.ts`):
-```ts
-{ name: string; quantity: number; price: number }
-```
-
-`SalesOrder.items` (in `app/staff/my-sales/types.ts`):
-```ts
-{ name: string; qty: number; unitPrice: number }
-```
-
-Same concept, different field names. If/when these are driven by a shared API, one shape will need to be adopted everywhere. `quantity`/`price` vs `qty`/`unitPrice` will cause silent errors if types are mixed.
-
-**Fix:** Agree on a single `OrderItem` shape and share it via `types/order.ts` or a shared staff types file.
-
----
-
-#### ❌ 5 — `OrderSource` is narrower in the New Order wizard than in the rest of the codebase
-
-`app/staff/new-order/types.ts`:
-```ts
-type OrderSource = 'phone' | 'whatsapp' | 'instagram' | 'facebook'
-```
-
-`app/staff/orders/types.ts` and `app/staff/my-sales/types.ts`:
-```ts
-type OrderSource = 'online' | 'phone' | 'whatsapp' | 'instagram' | 'facebook' | 'pos'
-```
-
-If a staff member creates an order via the New Order wizard, its source can never be `online` or `pos`, even though the orders view displays orders from those sources. This means staff can't manually register walk-up (POS) orders through the wizard.
-
-**Fix:** Add `'pos'` and `'online'` to `new-order/types.ts` `OrderSource` if POS/online order entry via staff is required. Or document the intentional exclusion.
-
----
-
-#### ❌ 6 — Staff layout logo path differs between desktop and mobile
-
-**Desktop sidebar** (`app/staff/layout.tsx` line ~93):
-```tsx
-<Image src="/cblogo.webp" ... />
-```
-
-**Mobile top bar** (`app/staff/layout.tsx` line ~153):
-```tsx
-<Image src="/images/cblogo.webp" ... />
-```
-
-One of these paths is wrong. The logo exists at one location in `public/`. Whichever path is incorrect will render a broken image.
-
-**Fix:** Verify the actual file location in `public/` and use the same path in both places.
-
----
-
-#### ⚠️ 7 — `BranchProvider` `menuItemIds` vs `SampleMenu` slug IDs
-
-Branch `menuItemIds` in `BranchProvider` still use legacy integer string IDs (`'1'`–`'34'`). The live `sampleMenuItems` now uses slug IDs (`'fried-rice'`, `'jollof'`, etc.). The `validateCartForBranch` and `isItemAvailableAtBranch` functions will always return wrong results until `menuItemIds` in `BranchProvider` are updated to match the current slug-based IDs.
-
----
-
-#### ⚠️ 8 — `formatGHS` is duplicated across modules
-
-`app/staff/orders/utils.ts` and `app/staff/my-sales/utils.ts` both define an identical `formatGHS(n)` function. If currency formatting requirements change, both will need to be updated.
-
-**Fix:** Extract to `lib/utils/currency.ts` and import from one place.
-
----
-
-#### ℹ️ 9 — `isDone` alias in orders utils
-
-`app/staff/orders/utils.ts` exports both `isDoneStatus` and `isDone` as an alias, with a comment noting "backwards compatibility." This is a new codebase — the alias is unnecessary and adds confusion.
-
-**Fix:** Remove the alias, use `isDoneStatus` everywhere.
-
----
 
 *Documentation maintained by RichardSomda — February 2026*

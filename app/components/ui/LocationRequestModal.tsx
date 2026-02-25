@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { XIcon, MapPinIcon, MapTrifoldIcon } from '@phosphor-icons/react';
 import { useLocation } from '../providers/LocationProvider';
 import Button from '../base/Button';
@@ -9,12 +10,13 @@ import { useModal } from '../providers/ModalProvider';
 export default function LocationRequestModal() {
     const { permissionStatus, error, requestLocation } = useLocation();
     const { openBranchSelector } = useModal();
+    const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(false);
     const [hasShown, setHasShown] = useState(false);
 
     useEffect(() => {
         const hasSeenLocationPrompt = localStorage.getItem('location-prompt-shown');
-        if (!hasSeenLocationPrompt && permissionStatus === 'prompt' && !hasShown) {
+        if (!hasSeenLocationPrompt && permissionStatus === 'prompt' && !hasShown && !pathname.startsWith('/staff')) {
             setIsOpen(true);
             setHasShown(true);
         }
