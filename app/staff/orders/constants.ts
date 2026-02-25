@@ -13,7 +13,7 @@ import type { KanbanColumn, OrderSource, PaymentMethod, StaffOrder } from './typ
 export const STATUS_CONFIG: Record<string, { label: string; dot: string; color: string; pulse?: boolean }> = {
     received:         { label: 'Received',        dot: 'bg-neutral-gray', color: 'border-neutral-gray/40'              },
     preparing:        { label: 'Preparing',        dot: 'bg-primary',     color: 'border-primary/40',    pulse: true   },
-    ready:            { label: 'Ready',            dot: 'bg-secondary',   color: 'border-secondary/40'                 },
+    ready:            { label: 'Ready',            dot: 'bg-warning',     color: 'border-warning/40'                   },
     out_for_delivery: { label: 'Out for Delivery', dot: 'bg-teal-600',    color: 'border-teal-600/40',   pulse: true   },
     ready_for_pickup: { label: 'Ready for Pickup', dot: 'bg-teal-600',    color: 'border-teal-600/40'                  },
     delivered:        { label: 'Delivered',        dot: 'bg-secondary',   color: 'border-secondary/40'                 },
@@ -105,59 +105,81 @@ export const SOURCE_LABEL: Record<OrderSource, string> = {
 
 function minsAgo(m: number) { return new Date(Date.now() - m * 60000); }
 
+// ─── Branch coordinates (Accra, Ghana) ───────────────────────────────────────
+
+export const BRANCH_COORDS: Record<string, { latitude: number; longitude: number }> = {
+    'East Legon': { latitude: 5.6465, longitude: -0.1549 },
+    'Osu':        { latitude: 5.5557, longitude: -0.1769 },
+    'Tema':       { latitude: 5.6636, longitude: -0.0166 },
+    'Madina':     { latitude: 5.6681, longitude: -0.1769 },
+    'La Paz':     { latitude: 5.6150, longitude: -0.2350 },
+    'Dzorwulu':   { latitude: 5.6050, longitude: -0.1920 },
+};
+
 export const MOCK_ORDERS: StaffOrder[] = [
     {
         id: 'CB847291', status: 'received', source: 'whatsapp', type: 'delivery',
         branch: 'East Legon', customer: { name: 'Ama Serwaa', phone: '0244123456' },
-        items: [{ name: 'Jollof Rice', quantity: 2, price: 35 }, { name: 'Malt', quantity: 2, price: 12 }],
+        items: [{ name: 'Jollof Rice', qty: 2, unitPrice: 35 }, { name: 'Malt', qty: 2, unitPrice: 12 }],
         total: 94, payment: 'momo', notes: 'Extra spicy please', placedAt: minsAgo(8),
         address: 'Trassacco Valley, East Legon',
+        coords: { branch: BRANCH_COORDS['East Legon'], customer: { latitude: 5.6320, longitude: -0.1480 } },
     },
     {
         id: 'CB391045', status: 'received', source: 'phone', type: 'pickup',
         branch: 'Osu', customer: { name: 'Kweku Asante', phone: '0201987654' },
-        items: [{ name: 'Waakye', quantity: 1, price: 30 }, { name: 'Kelewele', quantity: 1, price: 20 }],
+        items: [{ name: 'Waakye', qty: 1, unitPrice: 30 }, { name: 'Kelewele', qty: 1, unitPrice: 20 }],
         total: 50, payment: 'cash_pickup', placedAt: minsAgo(22),
     },
     {
         id: 'CB204837', status: 'preparing', source: 'instagram', type: 'delivery',
         branch: 'Tema', customer: { name: 'Abena Boateng', phone: '0551234567' },
-        items: [{ name: 'Banku & Tilapia', quantity: 1, price: 55 }],
+        items: [{ name: 'Banku & Tilapia', qty: 1, unitPrice: 55 }],
         total: 73, payment: 'momo', placedAt: minsAgo(34),
         address: 'Community 5, Tema',
+        coords: { branch: BRANCH_COORDS['Tema'], customer: { latitude: 5.6525, longitude: -0.0080 } },
     },
     {
         id: 'CB173920', status: 'preparing', source: 'facebook', type: 'delivery',
         branch: 'Madina', customer: { name: 'Yaw Darko', phone: '0277654321' },
-        items: [{ name: 'Fufu & Light Soup', quantity: 2, price: 45 }, { name: 'Sobolo', quantity: 2, price: 10 }],
+        items: [{ name: 'Fufu & Light Soup', qty: 2, unitPrice: 45 }, { name: 'Sobolo', qty: 2, unitPrice: 10 }],
         total: 110, payment: 'cash_delivery', placedAt: minsAgo(19),
         address: 'Madina Market, near Mosque',
+        coords: { branch: BRANCH_COORDS['Madina'], customer: { latitude: 5.6750, longitude: -0.1650 } },
     },
     {
         id: 'CB998812', status: 'ready', source: 'phone', type: 'delivery',
         branch: 'East Legon', customer: { name: 'Efua Mensah', phone: '0244567890' },
-        items: [{ name: 'Fried Rice', quantity: 1, price: 35 }, { name: 'Coke', quantity: 1, price: 12 }],
+        items: [{ name: 'Fried Rice', qty: 1, unitPrice: 35 }, { name: 'Coke', qty: 1, unitPrice: 12 }],
         total: 59, payment: 'momo', placedAt: minsAgo(45),
         address: 'Airport Residential',
+        coords: { branch: BRANCH_COORDS['East Legon'], customer: { latitude: 5.6085, longitude: -0.1780 } },
     },
     {
+        // Already out for delivery — rider starts part-way between Osu and Cantonments
         id: 'CB774433', status: 'out_for_delivery', source: 'whatsapp', type: 'delivery',
         branch: 'Osu', customer: { name: 'Kojo Appiah', phone: '0200112233' },
-        items: [{ name: 'Jollof Rice', quantity: 3, price: 35 }],
+        items: [{ name: 'Jollof Rice', qty: 3, unitPrice: 35 }],
         total: 117, payment: 'momo', placedAt: minsAgo(62),
         address: 'Cantonments, Accra',
+        coords: {
+            branch:   BRANCH_COORDS['Osu'],
+            customer: { latitude: 5.5745, longitude: -0.1690 },
+            rider:    { latitude: 5.5651, longitude: -0.1730 }, // ~halfway
+        },
     },
     {
         id: 'CB556677', status: 'ready_for_pickup', source: 'phone', type: 'pickup',
         branch: 'La Paz', customer: { name: 'Adwoa Ofori', phone: '0245678901' },
-        items: [{ name: 'Combo Special', quantity: 2, price: 48 }],
+        items: [{ name: 'Combo Special', qty: 2, unitPrice: 48 }],
         total: 96, payment: 'cash_pickup', placedAt: minsAgo(38),
     },
     {
         id: 'CB112233', status: 'delivered', source: 'online', type: 'delivery',
         branch: 'Dzorwulu', customer: { name: 'Fiifi Annan', phone: '0266778899' },
-        items: [{ name: 'Waakye', quantity: 2, price: 30 }],
+        items: [{ name: 'Waakye', qty: 2, unitPrice: 30 }],
         total: 76, payment: 'momo', placedAt: minsAgo(95),
         address: 'Dzorwulu Junction, near Shell',
+        coords: { branch: BRANCH_COORDS['Dzorwulu'], customer: { latitude: 5.6030, longitude: -0.2050 } },
     },
 ];

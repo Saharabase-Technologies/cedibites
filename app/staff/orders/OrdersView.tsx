@@ -1,20 +1,24 @@
 'use client';
 
-import { MagnifyingGlassIcon, FunnelIcon } from '@phosphor-icons/react';
+import { useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { MagnifyingGlassIcon, FunnelIcon, SpeakerHighIcon, SpeakerSlashIcon, PlusIcon } from '@phosphor-icons/react';
 import { useOrders } from './context';
 import DateFilter from './components/DateFilter';
 import BranchFilter from './components/BranchFilter';
 import KanbanColumn from './components/KanbanColumn';
 import MobileTabView from './components/MobileTabView';
 import OrderDetailPanel from './components/OrderDetailPanel';
+import ToastStack from './components/ToastStack';
 import { COLUMNS } from './constants';
-import HeroSearch from '@/app/components/sections/HeroSearch';
 
 // ─── OrdersView ───────────────────────────────────────────────────────────────
 
 export default function OrdersView() {
     const {
+        orders,
         filteredOrders,
+        userRole,
         search, setSearch,
         branchFilter, setBranchFilter,
         dateRange, setDateRange,
@@ -24,7 +28,19 @@ export default function OrdersView() {
         draggingId, setDraggingId,
         handleDrop, handleAdvance,
         selectedOrder, setSelectedOrder,
+        soundEnabled, toggleSound, playSound,
+        notifications, dismissNotification,
+        simulateNewOrder,
     } = useOrders();
+
+    // ── Auto-select from ?select=<orderId> (used by dashboard quick-links) ──
+    const searchParams = useSearchParams();
+    useEffect(() => {
+        const selectId = searchParams.get('select');
+        if (!selectId) return;
+        const order = orders.find(o => o.id === selectId);
+        if (order) setSelectedOrder(order);
+    }, [searchParams, orders, setSelectedOrder]);
 
     return (
         <div className="flex flex-col bg-neutral-light dark:bg-brand-darker h-full">
@@ -43,21 +59,60 @@ export default function OrdersView() {
                         )}
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={() => setShowCancelled(s => !s)}
-                        className={`
-              flex items-center gap-1.5 px-3 py-1.5 rounded-full border
-              text-xs font-body transition-colors cursor-pointer shrink-0
-              ${showCancelled
-                                ? 'border-error/40 text-error bg-error/5'
-                                : 'border-brown-light text-text-dark hover:font-semibold dark:text-neutral-gray dark:hover:text-text-light'
+                    <div className="flex items-center gap-2 shrink-0">
+
+                        {/* Simulate new order (test/demo) */}
+                        <button
+                            type="button"
+                            onClick={simulateNewOrder}
+                            title="Simulate a new incoming order"
+                            className="
+                flex items-center gap-1.5 px-3 py-1.5 rounded-full border
+                border-primary/40 text-primary bg-primary/5 hover:bg-primary/10
+                text-xs font-semibold font-body transition-colors cursor-pointer
+              "
+                        >
+                            <PlusIcon size={12} weight="bold" />
+                            Test Order
+                        </button>
+
+                        {/* Sound toggle */}
+                        <button
+                            type="button"
+                            onClick={() => { toggleSound(); if (!soundEnabled) playSound('notification'); }}
+                            title={soundEnabled ? 'Mute sounds' : 'Unmute sounds'}
+                            className={`
+                flex items-center justify-center w-8 h-8 rounded-full border
+                transition-colors cursor-pointer
+                ${soundEnabled
+                                    ? 'border-brown-light/40 text-neutral-gray hover:text-text-light dark:hover:text-text-light'
+                                    : 'border-brown-light/20 text-neutral-gray/40 hover:text-neutral-gray'
+                                }
+              `}
+                        >
+                            {soundEnabled
+                                ? <SpeakerHighIcon size={13} weight="fill" />
+                                : <SpeakerSlashIcon size={13} weight="fill" />
                             }
-            `}
-                    >
-                        <FunnelIcon size={12} weight={showCancelled ? 'fill' : 'regular'} />
-                        {showCancelled ? 'Hide cancelled' : 'Show cancelled'}
-                    </button>
+                        </button>
+
+                        {/* Show/hide cancelled */}
+                        <button
+                            type="button"
+                            onClick={() => setShowCancelled(s => !s)}
+                            className={`
+                flex items-center gap-1.5 px-3 py-1.5 rounded-full border
+                text-xs font-body transition-colors cursor-pointer
+                ${showCancelled
+                                    ? 'border-error/40 text-error bg-error/5'
+                                    : 'border-brown-light text-text-dark hover:font-semibold dark:text-neutral-gray dark:hover:text-text-light'
+                                }
+              `}
+                        >
+                            <FunnelIcon size={12} weight={showCancelled ? 'fill' : 'regular'} />
+                            {showCancelled ? 'Hide cancelled' : 'Show cancelled'}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Filter row — search + branch + date */}
@@ -87,8 +142,6 @@ export default function OrdersView() {
                     {/* Branch filter */}
                     <BranchFilter value={branchFilter} onChange={setBranchFilter} branches={branches} />
 
-
-
                     {/* Date filter */}
                     <DateFilter value={dateRange} onChange={setDateRange} />
                 </div>
@@ -102,8 +155,9 @@ export default function OrdersView() {
                             key={col.id}
                             column={col}
                             orders={filteredOrders.filter(o => col.statuses.includes(o.status))}
+                            userRole={userRole}
                             draggingId={draggingId}
-                            onDragStart={(e, id) => { e.dataTransfer.setData('orderId', id); setDraggingId(id); }}
+                            onDragStart={(e, id) => { e.dataTransfer.setData('orderId', id); setDraggingId(id); playSound('pickup'); }}
                             onDragEnd={() => setDraggingId(null)}
                             onDrop={handleDrop}
                             onCardClick={setSelectedOrder}
@@ -117,6 +171,7 @@ export default function OrdersView() {
             <div className="md:hidden flex-1 overflow-y-auto px-4 py-4">
                 <MobileTabView
                     orders={filteredOrders}
+                    userRole={userRole}
                     onAdvance={handleAdvance}
                     onCardClick={setSelectedOrder}
                 />
@@ -124,6 +179,9 @@ export default function OrdersView() {
 
             {/* ── Detail panel ─────────────────────────────────────────────────── */}
             {selectedOrder && <OrderDetailPanel />}
+
+            {/* ── Toast notifications ──────────────────────────────────────────── */}
+            <ToastStack notifications={notifications} onDismiss={dismissNotification} />
         </div>
     );
 }

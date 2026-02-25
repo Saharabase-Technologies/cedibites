@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { KanbanColumn as KanbanColumnType, StaffOrder, OrderStatus } from '../types';
+import type { KanbanColumn as KanbanColumnType, StaffOrder, OrderStatus, UserRole } from '../types';
 import { STATUS_CONFIG } from '../constants';
 import OrderCard from './OrderCard';
 
@@ -10,6 +10,7 @@ import OrderCard from './OrderCard';
 interface KanbanColumnProps {
     column: KanbanColumnType;
     orders: StaffOrder[];
+    userRole: UserRole;
     draggingId: string | null;
     onDragStart: (e: React.DragEvent, id: string) => void;
     onDragEnd: () => void;
@@ -21,6 +22,7 @@ interface KanbanColumnProps {
 export default function KanbanColumn({
     column,
     orders,
+    userRole,
     draggingId,
     onDragStart,
     onDragEnd,
@@ -46,7 +48,7 @@ export default function KanbanColumn({
             <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl mb-3 bg-brown dark:bg-brand-dark border-2 ${STATUS_CONFIG[column.statuses[0]]?.color ?? column.color}`}>
                 <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_CONFIG[column.statuses[0]]?.dot ?? column.dot} ${STATUS_CONFIG[column.statuses[0]]?.pulse ? 'animate-pulse' : ''}`} />
                 <span className="text-text-light text-sm font-semibold font-body flex-1">{column.label}</span>
-                <span className="text-neutral-gray text-xs font-body bg-brand-dark px-2 py-0.5 rounded-full">
+                <span className="text-text-light text-xs font-body bg-neutral-gray/25 px-2 py-0.5 rounded-full">
                     {orders.length}
                 </span>
             </div>
@@ -65,17 +67,20 @@ export default function KanbanColumn({
                         <p className="text-neutral-gray/40 text-xs font-body">Empty</p>
                     </div>
                 )}
-                {orders.map(order => (
-                    <OrderCard
-                        key={order.id}
-                        order={order}
-                        onAdvance={onAdvance}
-                        onClick={onCardClick}
-                        isDragging={draggingId === order.id}
-                        onDragStart={onDragStart}
-                        onDragEnd={onDragEnd}
-                    />
-                ))}
+                <div className='overflow-y-auto custom-scrollbar'>
+                    {orders.map(order => (
+                        <OrderCard
+                            key={order.id}
+                            order={order}
+                            userRole={userRole}
+                            onAdvance={onAdvance}
+                            onClick={onCardClick}
+                            isDragging={draggingId === order.id}
+                            onDragStart={onDragStart}
+                            onDragEnd={onDragEnd}
+                        />
+                    ))}
+                </div>
                 {isOver && draggingId && (
                     <div className="h-16 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 flex items-center justify-center">
                         <p className="text-primary/60 text-xs font-body">Drop here</p>

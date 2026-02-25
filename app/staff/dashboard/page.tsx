@@ -5,6 +5,7 @@ import {
   PlusCircleIcon,
   ListIcon,
 } from '@phosphor-icons/react';
+import { STATUS_CONFIG } from '@/app/staff/orders/constants';
 
 // ─── Mock stats — replace with real API data ──────────────────────────────────
 
@@ -23,27 +24,10 @@ const RECENT_ORDERS = [
   },
   { id: 'CB100002', name: 'Kweku Asante', branch: 'Osu', source: 'Phone', status: 'preparing', time: '9 mins ago' },
   { id: 'CB100003', name: 'Abena Boateng', branch: 'Tema', source: 'Instagram', status: 'ready', time: '15 mins ago' },
-  { id: 'CB100004', name: 'Kojo Mensah', branch: 'Airport', source: 'Facebook', status: 'out_for_delivery', time: '22 mins ago' },
-  { id: 'CB100005', name: 'Adwoa Frimpong', branch: 'Labone', source: 'Walk-in', status: 'ready_for_pickup', time: '30 mins ago' },
-  { id: 'CB100006', name: 'Yaw Darko', branch: 'Spintex', source: 'WhatsApp', status: 'cancelled', time: '45 mins ago' },
+  { id: 'CB100004', name: 'Kojo Mensah', branch: 'Madina', source: 'Facebook', status: 'out_for_delivery', time: '22 mins ago' },
+  { id: 'CB100005', name: 'Adwoa Frimpong', branch: 'La Paz', source: 'POS', status: 'ready_for_pickup', time: '30 mins ago' },
+  { id: 'CB100006', name: 'Yaw Darko', branch: 'Dzorwulu', source: 'WhatsApp', status: 'cancelled', time: '45 mins ago' },
 ];
-
-// ─── Status config — matches types/order.ts OrderStatus ──────────────────────
-//
-//  Delivery path:  received → preparing → ready → out_for_delivery → delivered
-//  Pickup path:    received → preparing → ready → ready_for_pickup  → completed
-//  Either path:    → cancelled (at any stage)
-
-const STATUS_CONFIG: Record<string, { label: string; dot: string; pulse?: boolean }> = {
-  received:         { label: 'Received',        dot: 'bg-neutral-gray'                   },
-  preparing:        { label: 'Preparing',        dot: 'bg-primary',    pulse: true        },
-  ready:            { label: 'Ready',            dot: 'bg-secondary'                      },
-  out_for_delivery: { label: 'Out for Delivery', dot: 'bg-teal-600',   pulse: true        },
-  ready_for_pickup: { label: 'Ready for Pickup', dot: 'bg-teal-600'                       },
-  delivered:        { label: 'Delivered',        dot: 'bg-secondary'                      },
-  completed:        { label: 'Completed',        dot: 'bg-secondary'                      },
-  cancelled:        { label: 'Cancelled',        dot: 'bg-error'                          },
-};
 
 // ─── Source badge ─────────────────────────────────────────────────────────────
 
@@ -106,7 +90,7 @@ export default function StaffDashboardPage() {
           <div>
             <p className="font-semibold font-body text-base bg- leading-none">Create New Order</p>
             <p className="text-brand-darker/60 text-xs font-body mt-0.5">
-              Phone, WhatsApp, Instagram, Facebook
+              Phone, WhatsApp, Instagram, Facebook, POS & Online
             </p>
           </div>
         </div>
@@ -149,9 +133,9 @@ export default function StaffDashboardPage() {
           {RECENT_ORDERS.filter(o => o.status !== 'completed').map(order => (
             <Link
               key={order.id}
-              href={`/staff/orders/${order.id}`}
+              href={`/staff/orders?select=${order.id}`}
               className="
-                bg-transparent dark:bg-brand-dark
+                bg-neutral-card dark:bg-brand-dark
                 border-brown-light/30  border   rounded-2xl
                 px-4 py-3.5
                 flex items-center hover:bg-brown-light/5 justify-between gap-4

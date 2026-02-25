@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import {
+    SquaresFourIcon,
     PlusCircleIcon,
     ListIcon,
     ReceiptIcon,
@@ -15,7 +16,8 @@ import {
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-    { href: '/staff/new-order', label: 'New Order', icon: PlusCircleIcon },
+    { href: '/staff/dashboard', label: 'Dashboard', icon: SquaresFourIcon },
+    { href: '/staff/new-order', label: 'New Order', icon: PlusCircleIcon  },
     { href: '/staff/orders',    label: 'Orders',    icon: ListIcon        },
     { href: '/staff/my-sales',  label: 'My Sales',  icon: ReceiptIcon     },
 ];
@@ -147,7 +149,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
           sticky top-0 z-30
         ">
                     <div className="flex items-center gap-2">
-                        <Image src="/images/cblogo.webp" alt="CediBites" width={24} height={24} />
+                        <Image src="/cblogo.webp" alt="CediBites" width={24} height={24} />
                         <span className="font-brand text-primary text-base">CediBites</span>
                     </div>
                     <div className="flex items-center gap-1.5">

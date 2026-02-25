@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { useLocation } from './LocationProvider';
 import { calculateDistance, estimateDeliveryTime } from '@/lib/utils/distance';
+import { sampleMenuItems } from '@/lib/data/SampleMenu';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -17,7 +18,7 @@ export interface Branch {
     operatingHours: string;
     deliveryFee: number;
     isOpen: boolean;
-    menuItemIds: string[]; // Option B — branch owns its menu
+    menuItemIds: string[];
 }
 
 export interface BranchWithDistance extends Branch {
@@ -40,13 +41,24 @@ interface BranchContextType {
 const BranchContext = createContext<BranchContextType | undefined>(undefined);
 
 // ─── Branch Data ─────────────────────────────────────────────────────────────
-// menuItemIds reference the 'id' field in sampleMenuItems (strings '1'–'34')
-// Flagship branches: full menu | Smaller branches: limited menu
+// menuItemIds use slug IDs from sampleMenuItems
+// Flagship branches: full menu | Spintex: limited menu
 
-const ALL_ITEMS = Array.from({ length: 34 }, (_, i) => String(i + 1));
+const ALL_ITEMS = sampleMenuItems.map(item => item.id);
 
-// Items available at all branches (core menu)
-const CORE_ITEMS = ['1', '2', '3', '5', '7', '10', '11', '15', '16', '17', '20', '21', '29', '33', '34'];
+// Spintex is a smaller branch — core meals + street combos + basic drinks only
+const SPINTEX_ITEMS = [
+    // Basic Meals
+    'fried-rice', 'jollof', 'noodles', 'banku',
+    // Budget Bowls
+    'jollof-bowl', 'fried-rice-bowl',
+    // Combos
+    'banku-tilapia-combo', 'street-budget-fr-jollof', 'street-budget-assorted',
+    // Top Ups
+    'rotisserie-quarter', 'chicken-basket-10',
+    // Drinks
+    'sobolo', 'bottled-water',
+];
 
 export const BRANCHES: Branch[] = [
     {
@@ -73,11 +85,7 @@ export const BRANCHES: Branch[] = [
         deliveryFee: 15,
         operatingHours: '8:00 AM – 11:00 PM',
         isOpen: true,
-        // No Tuo Zaafi (8) — northern dish not stocked here
-        // No Kontomire (9), no Garden Egg Salad (19), no Bofrot (23), no Ofam (28)
-        menuItemIds: ['1', '2', '3', '4', '5', '6', '7', '10', '11', '12', '13', '14',
-            '15', '16', '17', '18', '20', '21', '22', '24',
-            '25', '26', '27', '29', '30', '31', '32', '33', '34'],
+        menuItemIds: ALL_ITEMS,
     },
     {
         id: '3',
@@ -90,9 +98,7 @@ export const BRANCHES: Branch[] = [
         deliveryFee: 12,
         operatingHours: '9:00 AM – 9:00 PM',
         isOpen: false,
-        // Smaller branch — core items + popular picks only
-        menuItemIds: ['1', '2', '3', '5', '7', '10', '11', '13', '15', '16', '17',
-            '20', '21', '22', '25', '29', '32', '33', '34'],
+        menuItemIds: SPINTEX_ITEMS, // smaller branch — limited menu
     },
     {
         id: '4',
@@ -118,10 +124,7 @@ export const BRANCHES: Branch[] = [
         deliveryFee: 15,
         operatingHours: '8:00 AM – 10:00 PM',
         isOpen: true,
-        // Strong on traditional & northern dishes, fewer combos
-        menuItemIds: ['1', '2', '3', '4', '5', '6', '8', '9', '10', '11', '14',
-            '15', '16', '18', '19', '20', '23', '24', '28',
-            '29', '30', '31', '34'],
+        menuItemIds: ALL_ITEMS,
     },
     {
         id: '6',
@@ -134,10 +137,7 @@ export const BRANCHES: Branch[] = [
         deliveryFee: 15,
         operatingHours: '8:00 AM – 10:00 PM',
         isOpen: true,
-        // Medium branch — good variety, limited desserts
-        menuItemIds: ['1', '2', '3', '4', '5', '6', '7', '10', '11', '12',
-            '15', '16', '17', '18', '19', '20', '21', '22', '23', '24',
-            '28', '29', '30', '32', '33', '34'],
+        menuItemIds: ALL_ITEMS,
     },
     {
         id: '7',

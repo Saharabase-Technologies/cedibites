@@ -1,6 +1,6 @@
 // ─── Types: Staff New Order Wizard ────────────────────────────────────────────
 
-export type OrderSource = 'phone' | 'whatsapp' | 'instagram' | 'facebook';
+export type OrderSource = 'online' | 'phone' | 'whatsapp' | 'instagram' | 'facebook' | 'pos';
 export type OrderType = 'delivery' | 'pickup';
 export type PaymentMethod = 'momo' | 'cash_delivery' | 'cash_pickup';
 

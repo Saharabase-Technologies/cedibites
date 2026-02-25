@@ -3,9 +3,12 @@ import {
     WhatsappLogoIcon,
     InstagramLogoIcon,
     FacebookLogoIcon,
+    GlobeIcon,
+    DeviceMobileIcon,
 } from '@phosphor-icons/react';
 import type { MenuItem } from '@/lib/data/SampleMenu';
 import type { OrderSource } from './types';
+export { formatGHS } from '@/lib/utils/currency';
 
 // ─── Order sources ────────────────────────────────────────────────────────────
 
@@ -14,13 +17,10 @@ export const ORDER_SOURCES: { id: OrderSource; label: string; icon: React.Elemen
     { id: 'whatsapp', label: 'WhatsApp', icon: WhatsappLogoIcon },
     { id: 'instagram', label: 'Instagram', icon: InstagramLogoIcon },
     { id: 'facebook', label: 'Facebook', icon: FacebookLogoIcon },
+    // { id: 'pos', label: 'POS', icon: DeviceMobileIcon },
 ];
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
-
-export function formatGHS(amount: number): string {
-    return `GHS ${amount.toFixed(2)}`;
-}
 
 export function formatPhone(raw: string): string {
     const digits = raw.replace(/\D/g, '');

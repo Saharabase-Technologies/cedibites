@@ -14,8 +14,9 @@ import {
 } from '@phosphor-icons/react';
 import { useOrders } from '../context';
 import { COLUMNS, PAY_LABEL, SOURCE_LABEL } from '../constants';
-import { formatGHS, timeAgo, getNextStatuses, isDoneStatus } from '../utils';
+import { formatGHS, timeAgo, getNextStatuses, isDoneStatus, haversineKm } from '../utils';
 import type { OrderStatus } from '../types';
+import LiveMap from '@/app/components/order/LiveMap';
 
 // ─── Refund modal ─────────────────────────────────────────────────────────────
 
@@ -240,8 +241,8 @@ export default function OrderDetailPanel() {
                         <div className="flex flex-col gap-2">
                             {order.items.map((item, i) => (
                                 <div key={i} className="flex items-center justify-between">
-                                    <span className="text-text-light text-sm font-body">{item.quantity}× {item.name}</span>
-                                    <span className="text-neutral-gray text-sm font-body">{formatGHS(item.price * item.quantity)}</span>
+                                    <span className="text-text-light text-sm font-body">{item.qty}× {item.name}</span>
+                                    <span className="text-neutral-gray text-sm font-body">{formatGHS(item.unitPrice * item.qty)}</span>
                                 </div>
                             ))}
                             <div className="flex items-center justify-between pt-2 border-t border-brown-light/15 mt-1">
@@ -269,6 +270,26 @@ export default function OrderDetailPanel() {
                             </div>
                         )}
                     </div>
+
+                    {/* Live Tracking */}
+                    {order.status === 'out_for_delivery' && order.type === 'delivery' && order.coords && (
+                        <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                                <p className="text-neutral-gray text-[10px] font-body uppercase tracking-wider">Live Tracking</p>
+                                {order.coords.rider && (
+                                    <span className="text-xs font-semibold font-body text-teal-400">
+                                        {haversineKm(order.coords.rider, order.coords.customer).toFixed(1)} km away
+                                    </span>
+                                )}
+                            </div>
+                            <LiveMap
+                                branchLocation={order.coords.branch}
+                                customerLocation={order.coords.customer}
+                                riderLocation={order.coords.rider ?? null}
+                                branchName={order.branch}
+                            />
+                        </div>
+                    )}
 
                     {/* ── Active order actions ── */}
                     {!isDone && (

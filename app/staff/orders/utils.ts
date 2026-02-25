@@ -1,4 +1,5 @@
-import type { OrderStatus, StaffOrder } from './types';
+import type { OrderStatus, StaffOrder, UserRole } from './types';
+export { formatGHS } from '@/lib/utils/currency';
 
 // ─── Time display ─────────────────────────────────────────────────────────────
 
@@ -8,12 +9,6 @@ export function timeAgo(date: Date): { label: string; urgent: boolean } {
     if (mins < 60) return { label: `${mins}m ago`, urgent: mins > 20 };
     const hrs = Math.floor(mins / 60);
     return { label: `${hrs}h ago`, urgent: false };
-}
-
-// ─── Currency ─────────────────────────────────────────────────────────────────
-
-export function formatGHS(n: number): string {
-    return `GHS ${n.toFixed(2)}`;
 }
 
 // ─── Next-status map ──────────────────────────────────────────────────────────
@@ -29,6 +24,42 @@ export function getNextStatuses(order: StaffOrder): { status: OrderStatus; label
     return [];
 }
 
+// ─── Role-based permission ────────────────────────────────────────────────────
+//
+// Kitchen: received → preparing → ready
+// Sales:   ready → out_for_delivery / ready_for_pickup → delivered / completed
+
+export function canAdvanceOrder(role: UserRole, order: StaffOrder, targetStatus: OrderStatus): boolean {
+    const { status } = order;
+    if (role === 'kitchen') {
+        return (status === 'received' && targetStatus === 'preparing') ||
+               (status === 'preparing' && targetStatus === 'ready');
+    }
+    if (role === 'sales') {
+        return (status === 'ready' && (targetStatus === 'out_for_delivery' || targetStatus === 'ready_for_pickup')) ||
+               (status === 'out_for_delivery' && targetStatus === 'delivered') ||
+               (status === 'ready_for_pickup' && targetStatus === 'completed');
+    }
+    return false;
+}
+
+// ─── Geolocation ──────────────────────────────────────────────────────────────
+
+export function haversineKm(
+    a: { latitude: number; longitude: number },
+    b: { latitude: number; longitude: number },
+): number {
+    const R = 6371;
+    const dLat = (b.latitude  - a.latitude)  * (Math.PI / 180);
+    const dLon = (b.longitude - a.longitude) * (Math.PI / 180);
+    const x =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(a.latitude * (Math.PI / 180)) *
+        Math.cos(b.latitude * (Math.PI / 180)) *
+        Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
 // ─── Terminal status check ────────────────────────────────────────────────────
 
 export const TERMINAL_STATUSES: OrderStatus[] = ['delivered', 'completed', 'cancelled'];
@@ -36,6 +67,3 @@ export const TERMINAL_STATUSES: OrderStatus[] = ['delivered', 'completed', 'canc
 export function isDoneStatus(status: OrderStatus): boolean {
     return TERMINAL_STATUSES.includes(status);
 }
-
-// Alias for backwards compatibility
-export const isDone = isDoneStatus;

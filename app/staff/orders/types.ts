@@ -1,5 +1,7 @@
 // ─── Types: Staff Orders ──────────────────────────────────────────────────────
 
+export type UserRole = 'sales' | 'kitchen';
+
 export type OrderStatus =
     | 'received'
     | 'preparing'
@@ -16,8 +18,8 @@ export type PaymentMethod = 'momo' | 'cash_delivery' | 'cash_pickup';
 
 export interface OrderItem {
     name: string;
-    quantity: number;
-    price: number;
+    qty: number;
+    unitPrice: number;
 }
 
 export interface StaffOrder {
@@ -33,6 +35,21 @@ export interface StaffOrder {
     notes?: string;
     placedAt: Date;
     address?: string;
+    kitchenConfirmed?: boolean; // true once kitchen has acknowledged the order
+    coords?: {
+        branch:   { latitude: number; longitude: number };
+        customer: { latitude: number; longitude: number };
+        rider?:   { latitude: number; longitude: number }; // live-updated position
+    };
+}
+
+export interface OrderNotification {
+    id: string;
+    type: 'info' | 'success' | 'warning' | 'kitchen';
+    title: string;
+    message: string;
+    orderId?: string;
+    createdAt: number;
 }
 
 export interface KanbanColumn {

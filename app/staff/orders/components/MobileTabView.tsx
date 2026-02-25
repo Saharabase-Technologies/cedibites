@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { TrayIcon } from '@phosphor-icons/react';
-import type { StaffOrder, OrderStatus } from '../types';
+import type { StaffOrder, OrderStatus, UserRole } from '../types';
 import { COLUMNS } from '../constants';
 import OrderCard from './OrderCard';
 
@@ -10,11 +10,12 @@ import OrderCard from './OrderCard';
 
 interface MobileTabViewProps {
     orders: StaffOrder[];
+    userRole: UserRole;
     onAdvance: (id: string, status: OrderStatus) => void;
     onCardClick: (order: StaffOrder) => void;
 }
 
-export default function MobileTabView({ orders, onAdvance, onCardClick }: MobileTabViewProps) {
+export default function MobileTabView({ orders, userRole, onAdvance, onCardClick }: MobileTabViewProps) {
     const [activeCol, setActiveCol] = useState(0);
     const col = COLUMNS[activeCol];
     const colOrders = orders.filter(o => col.statuses.includes(o.status));
@@ -63,6 +64,7 @@ export default function MobileTabView({ orders, onAdvance, onCardClick }: Mobile
                         <OrderCard
                             key={order.id}
                             order={order}
+                            userRole={userRole}
                             onAdvance={onAdvance}
                             onClick={onCardClick}
                             isDragging={false}
