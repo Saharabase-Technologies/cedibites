@@ -145,25 +145,25 @@ export default function POSTerminalPage() {
 
   if (!session) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-brand-darker">
+      <div className="min-h-dvh flex items-center justify-center bg-neutral-light">
         <SpinnerIcon className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-dvh flex flex-col lg:flex-row bg-brand-darker">
+    <div className="min-h-dvh flex flex-col lg:flex-row bg-neutral-light">
       {/* Main Content - Menu Grid */}
       <div className="flex-1 flex flex-col min-h-0">
         {/* Header */}
-        <header className="flex-shrink-0 px-4 py-3 border-b border-brown/30 flex items-center justify-between gap-4">
+        <header className="flex-shrink-0 px-4 py-3 border-b border-neutral-gray/20 flex items-center justify-between gap-4 bg-white">
           {/* Left - Branch & Staff */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
               <StorefrontIcon className="w-5 h-5 text-primary" />
             </div>
             <div className="hidden sm:block">
-              <p className="text-neutral-light font-medium text-sm">{branchInfo?.name}</p>
+              <p className="text-text-dark font-medium text-sm">{branchInfo?.name}</p>
               <p className="text-neutral-gray text-xs">{session.staffName}</p>
             </div>
           </div>
@@ -179,8 +179,8 @@ export default function POSTerminalPage() {
                 onChange={e => setSearchQuery(e.target.value)}
                 className="
                   w-full h-11 pl-10 pr-4 rounded-xl
-                  bg-brown/40 text-neutral-light placeholder:text-neutral-gray/60
-                  border border-transparent focus:border-primary/50
+                  bg-neutral-light text-text-dark placeholder:text-neutral-gray/60
+                  border border-neutral-gray/20 focus:border-primary/50
                   outline-none transition-colors
                 "
               />
@@ -189,12 +189,12 @@ export default function POSTerminalPage() {
 
           {/* Right - Stats & Actions */}
           <div className="flex items-center gap-2">
-            <div className="hidden md:flex items-center gap-4 px-4 py-2 rounded-xl bg-brown/30">
+            <div className="hidden md:flex items-center gap-4 px-4 py-2 rounded-xl bg-neutral-gray/10">
               <div className="text-center">
                 <p className="text-xs text-neutral-gray">Orders</p>
-                <p className="text-lg font-medium text-neutral-light">{todayStats.orderCount}</p>
+                <p className="text-lg font-medium text-text-dark">{todayStats.orderCount}</p>
               </div>
-              <div className="w-px h-8 bg-brown-light/30" />
+              <div className="w-px h-8 bg-neutral-gray/20" />
               <div className="text-center">
                 <p className="text-xs text-neutral-gray">Revenue</p>
                 <p className="text-lg font-medium text-primary">{formatGHS(todayStats.revenue)}</p>
@@ -208,7 +208,7 @@ export default function POSTerminalPage() {
                   router.replace('/pos');
                 }
               }}
-              className="w-10 h-10 rounded-xl bg-brown/40 flex items-center justify-center text-neutral-gray hover:text-error hover:bg-error/10 transition-colors"
+              className="w-10 h-10 rounded-xl bg-neutral-gray/10 flex items-center justify-center text-neutral-gray hover:text-error hover:bg-error/10 transition-colors"
               title="Sign Out"
             >
               <SignOutIcon className="w-5 h-5" />
@@ -217,7 +217,7 @@ export default function POSTerminalPage() {
         </header>
 
         {/* Category Tabs */}
-        <div className="flex-shrink-0 px-4 py-3 border-b border-brown/20">
+        <div className="flex-shrink-0 px-4 py-3 border-b border-neutral-gray/15 bg-white">
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {MENU_CATEGORIES.map(cat => (
               <button
@@ -228,7 +228,7 @@ export default function POSTerminalPage() {
                   transition-all duration-150
                   ${activeCategory === cat.id
                     ? 'bg-primary text-brown'
-                    : 'bg-brown/40 text-neutral-light hover:bg-brown/60'
+                    : 'bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20'
                   }
                 `}
               >
@@ -246,21 +246,21 @@ export default function POSTerminalPage() {
                 key={item.id}
                 onClick={() => handleItemTap(item)}
                 className="
-                  bg-brown/40 rounded-2xl p-3 text-left
-                  hover:bg-brown/60 active:scale-[0.97]
+                  bg-white rounded-2xl p-3 text-left border border-neutral-gray/15 shadow-sm
+                  hover:border-primary/30 hover:shadow-md active:scale-[0.97]
                   transition-all duration-100
                   group
                 "
               >
                 {/* Image placeholder */}
-                <div className="aspect-square rounded-xl bg-brown-light/20 mb-3 overflow-hidden relative">
-                  <div className="absolute inset-0 flex items-center justify-center text-neutral-gray/40">
+                <div className="aspect-square rounded-xl bg-neutral-gray/10 mb-3 overflow-hidden relative">
+                  <div className="absolute inset-0 flex items-center justify-center text-neutral-gray/30">
                     <ForkKnifeIcon className="w-10 h-10" />
                   </div>
                   {/* Uncomment when you have real images */}
                   {/* <Image src={item.image} alt={item.name} fill className="object-cover" /> */}
                 </div>
-                <p className="text-neutral-light font-medium text-sm line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+                <p className="text-text-dark font-medium text-sm line-clamp-2 mb-1 group-hover:text-primary transition-colors">
                   {item.name}
                 </p>
                 <p className="text-primary font-semibold">
@@ -280,12 +280,12 @@ export default function POSTerminalPage() {
       </div>
 
       {/* Cart Sidebar */}
-      <div className="w-full lg:w-96 xl:w-[420px] border-t lg:border-t-0 lg:border-l border-brown/30 flex flex-col bg-brand-dark">
+      <div className="w-full lg:w-96 xl:w-[420px] border-t lg:border-t-0 lg:border-l border-neutral-gray/20 flex flex-col bg-white">
         {/* Cart Header */}
-        <div className="flex-shrink-0 px-4 py-3 border-b border-brown/20 flex items-center justify-between">
+        <div className="flex-shrink-0 px-4 py-3 border-b border-neutral-gray/15 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ReceiptIcon className="w-5 h-5 text-primary" />
-            <span className="font-medium text-neutral-light">Current Order</span>
+            <span className="font-medium text-text-dark">Current Order</span>
             {cartCount > 0 && (
               <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-xs font-medium">
                 {cartCount}
@@ -304,7 +304,7 @@ export default function POSTerminalPage() {
         </div>
 
         {/* Order Type Toggle */}
-        <div className="flex-shrink-0 px-4 py-3 border-b border-brown/20">
+        <div className="flex-shrink-0 px-4 py-3 border-b border-neutral-gray/15">
           <div className="flex gap-2">
             <button
               onClick={() => setOrderType('dine_in')}
@@ -313,7 +313,7 @@ export default function POSTerminalPage() {
                 transition-all duration-150
                 ${orderType === 'dine_in'
                   ? 'bg-primary text-brown'
-                  : 'bg-brown/40 text-neutral-light hover:bg-brown/60'
+                  : 'bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20'
                 }
               `}
             >
@@ -326,7 +326,7 @@ export default function POSTerminalPage() {
                 transition-all duration-150
                 ${orderType === 'takeaway'
                   ? 'bg-primary text-brown'
-                  : 'bg-brown/40 text-neutral-light hover:bg-brown/60'
+                  : 'bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20'
                 }
               `}
             >
@@ -347,16 +347,16 @@ export default function POSTerminalPage() {
             cart.map(item => (
               <div
                 key={item.id}
-                className="flex items-center gap-3 p-3 rounded-xl bg-brown/30"
+                className="flex items-center gap-3 p-3 rounded-xl bg-neutral-light"
               >
                 {/* Item image placeholder */}
-                <div className="w-14 h-14 rounded-lg bg-brown-light/20 flex-shrink-0 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-lg bg-neutral-gray/10 flex-shrink-0 flex items-center justify-center">
                   <ForkKnifeIcon className="w-6 h-6 text-neutral-gray/40" />
                 </div>
 
                 {/* Item details */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-neutral-light font-medium text-sm truncate">
+                  <p className="text-text-dark font-medium text-sm truncate">
                     {item.name}
                   </p>
                   <p className="text-primary font-semibold text-sm">
@@ -368,16 +368,16 @@ export default function POSTerminalPage() {
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                    className="w-8 h-8 rounded-lg bg-brown/60 flex items-center justify-center text-neutral-light hover:bg-brown active:scale-95 transition-all"
+                    className="w-8 h-8 rounded-lg bg-neutral-gray/10 flex items-center justify-center text-text-dark hover:bg-neutral-gray/20 active:scale-95 transition-all"
                   >
                     <MinusIcon className="w-4 h-4" />
                   </button>
-                  <span className="w-8 text-center text-neutral-light font-medium">
+                  <span className="w-8 text-center text-text-dark font-medium">
                     {item.quantity}
                   </span>
                   <button
                     onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                    className="w-8 h-8 rounded-lg bg-brown/60 flex items-center justify-center text-neutral-light hover:bg-brown active:scale-95 transition-all"
+                    className="w-8 h-8 rounded-lg bg-neutral-gray/10 flex items-center justify-center text-text-dark hover:bg-neutral-gray/20 active:scale-95 transition-all"
                   >
                     <PlusIcon className="w-4 h-4" />
                   </button>
@@ -397,10 +397,10 @@ export default function POSTerminalPage() {
 
         {/* Order Details Toggle */}
         {cart.length > 0 && (
-          <div className="flex-shrink-0 px-4 py-2 border-t border-brown/20">
+          <div className="flex-shrink-0 px-4 py-2 border-t border-neutral-gray/15">
             <button
               onClick={() => setShowOrderDetails(!showOrderDetails)}
-              className="w-full flex items-center justify-between py-2 text-neutral-gray hover:text-neutral-light transition-colors"
+              className="w-full flex items-center justify-between py-2 text-neutral-gray hover:text-text-dark transition-colors"
             >
               <span className="text-sm">Customer details</span>
               <CaretRightIcon className={`w-4 h-4 transition-transform ${showOrderDetails ? 'rotate-90' : ''}`} />
@@ -417,8 +417,8 @@ export default function POSTerminalPage() {
                     onChange={e => setCustomerName(e.target.value)}
                     className="
                       w-full h-10 pl-9 pr-3 rounded-lg
-                      bg-brown/40 text-neutral-light placeholder:text-neutral-gray/60
-                      border border-transparent focus:border-primary/50
+                      bg-neutral-light text-text-dark placeholder:text-neutral-gray/60
+                      border border-neutral-gray/20 focus:border-primary/50
                       outline-none text-sm transition-colors
                     "
                   />
@@ -432,8 +432,8 @@ export default function POSTerminalPage() {
                     rows={2}
                     className="
                       w-full pl-9 pr-3 py-2 rounded-lg
-                      bg-brown/40 text-neutral-light placeholder:text-neutral-gray/60
-                      border border-transparent focus:border-primary/50
+                      bg-neutral-light text-text-dark placeholder:text-neutral-gray/60
+                      border border-neutral-gray/20 focus:border-primary/50
                       outline-none text-sm resize-none transition-colors
                     "
                   />
@@ -444,7 +444,7 @@ export default function POSTerminalPage() {
         )}
 
         {/* Total & Pay Button */}
-        <div className="flex-shrink-0 p-4 border-t border-brown/30 bg-brand-darker">
+        <div className="flex-shrink-0 p-4 border-t border-neutral-gray/20 bg-neutral-light">
           <div className="flex items-center justify-between mb-4">
             <span className="text-neutral-gray">Total</span>
             <span className="text-2xl font-bold text-primary">
@@ -552,21 +552,21 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
-      <div className="w-full max-w-md bg-brand-dark rounded-3xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-brown/30 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-neutral-light">Payment</h2>
+        <div className="px-6 py-4 border-b border-neutral-gray/20 flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-text-dark">Payment</h2>
           <button
             onClick={onClose}
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-neutral-gray hover:text-neutral-light hover:bg-brown/40 transition-all"
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-neutral-gray hover:text-text-dark hover:bg-neutral-gray/10 transition-all"
           >
             <XIcon className="w-5 h-5" />
           </button>
         </div>
 
         {/* Total */}
-        <div className="px-6 py-6 border-b border-brown/20 text-center">
+        <div className="px-6 py-6 border-b border-neutral-gray/15 text-center">
           <p className="text-neutral-gray text-sm mb-1">Amount Due</p>
           <p className="text-4xl font-bold text-primary">{formatGHS(total)}</p>
         </div>
@@ -588,8 +588,8 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
                   py-4 rounded-2xl flex flex-col items-center gap-2
                   transition-all duration-150
                   ${selectedMethod === method.id
-                    ? 'bg-primary text-brown ring-2 ring-primary ring-offset-2 ring-offset-brand-dark'
-                    : 'bg-brown/40 text-neutral-light hover:bg-brown/60'
+                    ? 'bg-primary text-brown ring-2 ring-primary ring-offset-2 ring-offset-white'
+                    : 'bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20'
                   }
                 `}
               >
@@ -609,8 +609,8 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
                 onChange={e => setCashAmount(e.target.value)}
                 className="
                   w-full h-14 px-4 rounded-xl text-center text-2xl font-semibold
-                  bg-brown/40 text-neutral-light placeholder:text-neutral-gray/60
-                  border border-transparent focus:border-primary/50
+                  bg-neutral-light text-text-dark placeholder:text-neutral-gray/60
+                  border border-neutral-gray/20 focus:border-primary/50
                   outline-none transition-colors
                 "
                 autoFocus
@@ -622,7 +622,7 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
                   <button
                     key={amt}
                     onClick={() => setCashAmount(amt.toString())}
-                    className="flex-1 py-2 rounded-lg bg-brown/60 text-neutral-light font-medium hover:bg-brown transition-colors"
+                    className="flex-1 py-2 rounded-lg bg-neutral-gray/10 text-text-dark font-medium hover:bg-neutral-gray/20 transition-colors"
                   >
                     {formatGHS(amt)}
                   </button>
@@ -649,8 +649,8 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
                 onChange={e => setMomoNumber(e.target.value)}
                 className="
                   w-full h-14 px-4 rounded-xl text-center text-xl
-                  bg-brown/40 text-neutral-light placeholder:text-neutral-gray/60
-                  border border-transparent focus:border-primary/50
+                  bg-neutral-light text-text-dark placeholder:text-neutral-gray/60
+                  border border-neutral-gray/20 focus:border-primary/50
                   outline-none transition-colors
                 "
                 autoFocus
@@ -716,8 +716,8 @@ function OrderSuccessModal({ order, onClose }: OrderSuccessModalProps) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
-      <div className="w-full max-w-sm bg-brand-dark rounded-3xl overflow-hidden text-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden text-center shadow-2xl">
         {/* Success Icon */}
         <div className="pt-8 pb-4">
           <div className="w-20 h-20 mx-auto rounded-full bg-secondary/20 flex items-center justify-center">
@@ -727,7 +727,7 @@ function OrderSuccessModal({ order, onClose }: OrderSuccessModalProps) {
 
         {/* Content */}
         <div className="px-6 pb-6">
-          <h2 className="text-2xl font-bold text-neutral-light mb-2">
+          <h2 className="text-2xl font-bold text-text-dark mb-2">
             Payment Complete
           </h2>
           <p className="text-neutral-gray mb-6">
@@ -735,22 +735,22 @@ function OrderSuccessModal({ order, onClose }: OrderSuccessModalProps) {
           </p>
 
           {/* Order Summary */}
-          <div className="bg-brown/30 rounded-2xl p-4 text-left mb-6">
+          <div className="bg-neutral-light rounded-2xl p-4 text-left mb-6">
             <div className="flex justify-between text-sm mb-2">
               <span className="text-neutral-gray">Items</span>
-              <span className="text-neutral-light">{order.items.length}</span>
+              <span className="text-text-dark">{order.items.length}</span>
             </div>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-neutral-gray">Type</span>
-              <span className="text-neutral-light capitalize">{order.orderType.replace('_', ' ')}</span>
+              <span className="text-text-dark capitalize">{order.orderType.replace('_', ' ')}</span>
             </div>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-neutral-gray">Payment</span>
-              <span className="text-neutral-light capitalize">{order.paymentMethod}</span>
+              <span className="text-text-dark capitalize">{order.paymentMethod}</span>
             </div>
-            <div className="border-t border-brown-light/30 my-2" />
+            <div className="border-t border-neutral-gray/20 my-2" />
             <div className="flex justify-between font-semibold">
-              <span className="text-neutral-light">Total</span>
+              <span className="text-text-dark">Total</span>
               <span className="text-primary">{formatGHS(order.total)}</span>
             </div>
           </div>
@@ -769,7 +769,7 @@ function OrderSuccessModal({ order, onClose }: OrderSuccessModalProps) {
         </div>
 
         {/* Auto close indicator */}
-        <div className="h-1 bg-brown/30">
+        <div className="h-1 bg-neutral-gray/20">
           <div
             className="h-full bg-primary animate-shrink"
             style={{ animationDuration: '5s' }}

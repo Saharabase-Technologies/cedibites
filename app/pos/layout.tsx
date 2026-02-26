@@ -9,7 +9,7 @@ interface POSLayoutProps {
 
 export default function POSLayout({ children }: POSLayoutProps) {
   return (
-    <div className="min-h-dvh bg-brand-darker text-neutral-light overflow-hidden select-none">
+    <div className="min-h-dvh bg-neutral-light text-text-dark overflow-hidden select-none">
       {children}
     </div>
   );

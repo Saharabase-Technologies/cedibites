@@ -122,7 +122,7 @@ export default function POSLoginPage() {
   }, [step, handlePinInput, handleBackspace]);
 
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center p-6 bg-brand-darker">
+    <div className="min-h-dvh flex flex-col items-center justify-center p-6 bg-neutral-light">
       {/* Logo */}
       <div className="mb-8">
         <Image
@@ -178,7 +178,7 @@ function PinEntryView({ pin, pinLength, error, isLoading, onPinInput, onBackspac
   return (
     <div className="w-full max-w-sm">
       {/* Title */}
-      <h1 className="text-2xl font-medium text-center text-neutral-light mb-2">
+      <h1 className="text-2xl font-medium text-center text-text-dark mb-2">
         Enter PIN
       </h1>
       <p className="text-neutral-gray text-center mb-8">
@@ -194,7 +194,7 @@ function PinEntryView({ pin, pinLength, error, isLoading, onPinInput, onBackspac
               w-4 h-4 rounded-full transition-all duration-150
               ${i < pin.length
                 ? 'bg-primary scale-110'
-                : 'bg-brown-light/40'
+                : 'bg-neutral-gray/25'
               }
               ${error && 'animate-shake bg-error'}
             `}
@@ -231,8 +231,8 @@ function PinEntryView({ pin, pinLength, error, isLoading, onPinInput, onBackspac
                 disabled={isLoading || pin.length === 0}
                 className="
                   h-16 rounded-2xl flex items-center justify-center
-                  bg-brown/60 text-neutral-light
-                  active:bg-brown active:scale-95
+                  bg-white text-text-dark border border-neutral-gray/20 shadow-sm
+                  active:bg-neutral-gray/10 active:scale-95
                   disabled:opacity-40 disabled:active:scale-100
                   transition-all duration-100
                 "
@@ -249,8 +249,8 @@ function PinEntryView({ pin, pinLength, error, isLoading, onPinInput, onBackspac
               disabled={isLoading}
               className="
                 h-16 rounded-2xl text-2xl font-medium
-                bg-brown/60 text-neutral-light
-                active:bg-primary active:scale-95
+                bg-white text-text-dark border border-neutral-gray/20 shadow-sm
+                active:bg-primary active:text-brown active:border-primary active:scale-95
                 disabled:opacity-40
                 transition-all duration-100
               "
@@ -294,7 +294,7 @@ function BranchSelectView({
         <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
           <UserIcon className="w-5 h-5 text-primary" />
         </div>
-        <span className="text-lg text-neutral-light">
+        <span className="text-lg text-text-dark">
           Welcome, <span className="font-medium">{staffName}</span>
         </span>
       </div>
@@ -313,14 +313,14 @@ function BranchSelectView({
               w-full p-4 rounded-2xl text-left transition-all duration-150
               flex items-center gap-4
               ${selectedBranch === branch.id
-                ? 'bg-primary text-brown ring-2 ring-primary ring-offset-2 ring-offset-brand-darker'
-                : 'bg-brown/60 text-neutral-light hover:bg-brown'
+                ? 'bg-primary text-brown ring-2 ring-primary ring-offset-2 ring-offset-neutral-light'
+                : 'bg-white text-text-dark border border-neutral-gray/20 shadow-sm hover:bg-neutral-light'
               }
             `}
           >
             <div className={`
               w-12 h-12 rounded-xl flex items-center justify-center
-              ${selectedBranch === branch.id ? 'bg-brown/20' : 'bg-brown-light/20'}
+              ${selectedBranch === branch.id ? 'bg-brown/20' : 'bg-neutral-gray/10'}
             `}>
               <StorefrontIcon className="w-6 h-6" />
             </div>
@@ -340,8 +340,8 @@ function BranchSelectView({
           onClick={onBack}
           className="
             flex-1 h-14 rounded-2xl font-medium
-            bg-brown/60 text-neutral-light
-            hover:bg-brown active:scale-[0.98]
+            bg-neutral-gray/10 text-text-dark border border-neutral-gray/20
+            hover:bg-neutral-gray/20 active:scale-[0.98]
             transition-all duration-150
           "
         >
