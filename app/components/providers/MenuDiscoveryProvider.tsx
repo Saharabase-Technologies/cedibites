@@ -2,9 +2,49 @@
 
 import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from 'react';
 import type { MenuItem } from '@/lib/data/SampleMenu';
+import type { MenuItem as ApiMenuItem } from '@/types/api';
+import { useMenu } from '@/lib/api/hooks/useMenu';
 
 // Export the type that matches our MenuItem exactly
 export type SearchableItem = MenuItem;
+
+/**
+ * Transform API MenuItem to local SearchableItem format
+ */
+function transformApiMenuItemToSearchable(apiItem: ApiMenuItem): SearchableItem {
+    const categoryMap: Record<number, SearchableItem['category']> = {
+        1: 'Basic Meals',
+        2: 'Budget Bowls',
+        3: 'Combos',
+        4: 'Top Ups',
+        5: 'Drinks',
+    };
+
+    // Transform sizes if they exist
+    const sizes = apiItem.sizes?.map(size => ({
+        key: size.size_key as any,
+        label: size.size_label,
+        price: size.price,
+    }));
+
+    // Determine pricing structure
+    const hasMultipleSizes = sizes && sizes.length > 0;
+    const price = !hasMultipleSizes ? apiItem.base_price : undefined;
+
+    return {
+        id: apiItem.id.toString(),
+        name: apiItem.name,
+        description: apiItem.description,
+        category: categoryMap[apiItem.category_id] || 'Basic Meals',
+        price,
+        sizes: hasMultipleSizes ? sizes : undefined,
+        image: apiItem.image_url,
+        url: `/menu?item=${apiItem.id}`,
+        popular: apiItem.is_popular,
+        isNew: apiItem.is_new,
+        // Note: API doesn't have variants or add-ons yet, so we omit them
+    };
+}
 
 const RECENT_SEARCHES_KEY = 'cedibites-recent-searches';
 const MAX_RECENT = 8;
@@ -21,6 +61,8 @@ interface MenuDiscoveryContextType {
     recentSearches: string[];
     addRecentSearch: (term: string) => void;
     clearRecentSearches: () => void;
+    error: Error | null;
+    retryFetch: () => void;
 }
 
 const MenuDiscoveryContext = createContext<MenuDiscoveryContextType | null>(null);
@@ -31,9 +73,20 @@ interface MenuDiscoveryProviderProps {
 }
 
 export function MenuDiscoveryProvider({ children, items }: MenuDiscoveryProviderProps) {
+    // Fetch menu data from API
+    const { items: apiItems, isLoading: isLoadingMenu, error, refetch } = useMenu();
+    
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [recentSearches, setRecentSearches] = useState<string[]>([]);
+    
+    // Transform API items to SearchableItem format
+    const transformedApiItems = useMemo(() => {
+        return apiItems.map(transformApiMenuItemToSearchable);
+    }, [apiItems]);
+    
+    // Use only transformed API items (no fallback to sample data)
+    const menuItems = transformedApiItems;
 
     // Load recent searches from localStorage on mount
     useEffect(() => {
@@ -46,7 +99,7 @@ export function MenuDiscoveryProvider({ children, items }: MenuDiscoveryProvider
     }, []);
 
     const filteredItems = useMemo(() => {
-        let result = items;
+        let result = menuItems;
 
         // Filter by category
         if (selectedCategory) {
@@ -75,7 +128,7 @@ export function MenuDiscoveryProvider({ children, items }: MenuDiscoveryProvider
         }
 
         return result;
-    }, [items, searchQuery, selectedCategory]);
+    }, [menuItems, searchQuery, selectedCategory]);
 
     // searchResults: only populated when there's an active query
     const searchResults = useMemo(() => {
@@ -106,10 +159,10 @@ export function MenuDiscoveryProvider({ children, items }: MenuDiscoveryProvider
     }, []);
 
     const value: MenuDiscoveryContextType = {
-        allItems: items,
+        allItems: menuItems,
         filteredItems,
         searchResults,
-        isSearching: false, // filtering is synchronous
+        isSearching: isLoadingMenu,
         searchQuery,
         setSearchQuery: handleSetSearchQuery,
         selectedCategory,
@@ -117,6 +170,8 @@ export function MenuDiscoveryProvider({ children, items }: MenuDiscoveryProvider
         recentSearches,
         addRecentSearch,
         clearRecentSearches,
+        error: error as Error | null,
+        retryFetch: refetch,
     };
 
     return (

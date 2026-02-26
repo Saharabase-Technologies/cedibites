@@ -11,7 +11,10 @@ interface ItemDetailModalProps {
     onClose: () => void;
 }
 
-const formatPrice = (price: number) => `GHS ${price.toFixed(2)}`;
+const formatPrice = (price: number | undefined) => {
+    if (price === undefined || price === null || typeof price !== 'number') return 'GHS 0.00';
+    return `GHS ${price.toFixed(2)}`;
+};
 
 export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps) {
     const { addToCart, removeFromCart, getCartItem, updateQuantity } = useCart();
@@ -85,10 +88,24 @@ export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps)
             >
                 {/* Image */}
                 <div className="relative w-full aspect-[16/9] bg-brand-dark overflow-hidden shrink-0">
-                    {item.image && !imgError ? (
-                        <Image src={item.image} alt={item.name} fill sizes="(max-width: 640px) 100vw, 448px" className="object-cover" onError={() => setImgError(true)} priority />
+                    {!imgError ? (
+                        <Image 
+                            src={item.image || '/menu_placeholder.png'} 
+                            alt={item.name} 
+                            fill 
+                            sizes="(max-width: 640px) 100vw, 448px" 
+                            className="object-cover" 
+                            onError={() => setImgError(true)} 
+                            priority 
+                        />
                     ) : (
-                        <div className="w-full h-full" />
+                        <Image 
+                            src="/menu_placeholder.png" 
+                            alt={item.name} 
+                            fill 
+                            sizes="(max-width: 640px) 100vw, 448px" 
+                            className="object-cover" 
+                        />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
                     <div className="absolute top-3 left-3 flex gap-2">

@@ -2,11 +2,16 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { SearchableItem } from './MenuDiscoveryProvider';
+import { useCart as useApiCart } from '@/lib/api/hooks/useCart';
+import { useAuth } from './AuthProvider';
+import { useBranch } from './BranchProvider';
+import { transformApiCartToLocal, transformLocalToApiRequest } from '@/lib/api/transformers/cart.transformer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface CartItem {
-    cartItemId: string;     // `${itemId}__${sizeKey}`
+    cartItemId: string;     // `${itemId}__${sizeKey}` for local identification
+    apiCartItemId?: number; // Actual database cart_item.id from API (for deletion)
     item: SearchableItem;
     selectedSize: string;
     sizeLabel: string;
@@ -21,16 +26,19 @@ export interface CartValidationResult {
 
 interface CartContextType {
     items: CartItem[];
-    addToCart: (item: SearchableItem, sizeKey: string) => void;
-    removeFromCart: (cartItemId: string) => void;
-    updateQuantity: (cartItemId: string, quantity: number) => void;
-    clearCart: () => void;
+    addToCart: (item: SearchableItem, sizeKey: string) => Promise<void>;
+    removeFromCart: (cartItemId: string) => Promise<void>;
+    updateQuantity: (cartItemId: string, quantity: number) => Promise<void>;
+    clearCart: () => Promise<void>;
     removeUnavailableItems: (unavailableIds: string[]) => void;
     isInCart: (itemId: string, sizeKey: string) => boolean;
     getCartItem: (itemId: string, sizeKey: string) => CartItem | undefined;
     validateCartForBranch: (branchMenuItemIds: string[]) => CartValidationResult;
     totalItems: number;
     subtotal: number;
+    isLoading: boolean;
+    isSyncing: boolean;
+    mode: 'api' | 'local';
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -41,6 +49,24 @@ const CART_KEY = 'cedibites-cart';
 export function CartProvider({ children }: { children: ReactNode }) {
     const [items, setItems] = useState<CartItem[]>([]);
     const [hydrated, setHydrated] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
+    
+    // Get auth and branch context
+    const { isLoggedIn } = useAuth();
+    const { selectedBranch } = useBranch();
+    
+    // Determine mode based on auth status
+    const mode: 'api' | 'local' = isLoggedIn ? 'api' : 'local';
+    
+    // API cart hook (only enabled when authenticated)
+    const apiCart = useApiCart();
+    
+    // Use API cart data when authenticated, otherwise use local state
+    const effectiveItems = mode === 'api' && apiCart.cart 
+        ? transformApiCartToLocal(apiCart.cart)
+        : items;
+    
+    const isLoading = mode === 'api' ? apiCart.isLoading : false;
 
     // Hydrate from localStorage
     useEffect(() => {
@@ -53,19 +79,101 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     // Persist to localStorage
     useEffect(() => {
-        if (hydrated) localStorage.setItem(CART_KEY, JSON.stringify(items));
-    }, [items, hydrated]);
+        if (hydrated && mode === 'local') {
+            localStorage.setItem(CART_KEY, JSON.stringify(items));
+        }
+    }, [items, hydrated, mode]);
+
+    // ── Cart Synchronization on Login ──────────────────────────────────────────
+    useEffect(() => {
+        const syncCartOnLogin = async () => {
+            if (!isLoggedIn || !selectedBranch || isSyncing) return;
+            
+            // Check if we have local cart items to sync
+            const localCartJson = localStorage.getItem(CART_KEY);
+            if (!localCartJson) return;
+            
+            try {
+                const localCart: CartItem[] = JSON.parse(localCartJson);
+                if (localCart.length === 0) return;
+                
+                setIsSyncing(true);
+                
+                // Add each local cart item to the backend
+                for (const localItem of localCart) {
+                    try {
+                        await apiCart.addItem({
+                            branch_id: selectedBranch.id,
+                            menu_item_id: parseInt(localItem.item.id),
+                            quantity: localItem.quantity,
+                            unit_price: localItem.price,
+                            menu_item_size_id: localItem.selectedSize !== 'default' 
+                                ? localItem.item.sizes?.find(s => s.key === localItem.selectedSize)?.id 
+                                : undefined,
+                        });
+                    } catch (error) {
+                        console.error('Failed to sync cart item:', error);
+                    }
+                }
+                
+                // Clear local cart after successful sync
+                localStorage.removeItem(CART_KEY);
+                setItems([]);
+            } catch (error) {
+                console.error('Failed to sync cart on login:', error);
+            } finally {
+                setIsSyncing(false);
+            }
+        };
+        
+        syncCartOnLogin();
+    }, [isLoggedIn, selectedBranch, isSyncing, apiCart]);
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     const makeCartItemId = (itemId: string, sizeKey: string) => `${itemId}__${sizeKey}`;
 
-    const addToCart = useCallback((item: SearchableItem, sizeKey: string) => {
+    const addToCart = useCallback(async (item: SearchableItem, sizeKey: string) => {
         const cartItemId = makeCartItemId(item.id, sizeKey);
         const sizeData = item.sizes?.find((s: any) => s.key === sizeKey);
         const price = sizeData?.price ?? item.price ?? 0;
         const sizeLabel = sizeData?.label ?? sizeKey;
 
+        if (mode === 'api' && selectedBranch) {
+            // API mode: use backend
+            try {
+                const existing = effectiveItems.find(i => i.cartItemId === cartItemId);
+                
+                if (existing) {
+                    // Update quantity
+                    await apiCart.updateItem({
+                        itemId: parseInt(item.id),
+                        data: { quantity: existing.quantity + 1 }
+                    });
+                } else {
+                    // Add new item - find the menu_item_size_id if size exists
+                    const menuItemSizeId = sizeData?.id ? parseInt(String(sizeData.id)) : undefined;
+                    
+                    await apiCart.addItem({
+                        branch_id: selectedBranch.id,
+                        menu_item_id: parseInt(item.id),
+                        menu_item_size_id: menuItemSizeId,
+                        quantity: 1,
+                        unit_price: price,
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to add to cart via API, falling back to local:', error);
+                // Fallback to local storage
+                addToLocalCart(item, sizeKey, cartItemId, price, sizeLabel);
+            }
+        } else {
+            // Local mode: use localStorage
+            addToLocalCart(item, sizeKey, cartItemId, price, sizeLabel);
+        }
+    }, [mode, selectedBranch, effectiveItems, apiCart]);
+
+    const addToLocalCart = (item: SearchableItem, sizeKey: string, cartItemId: string, price: number, sizeLabel: string) => {
         setItems(prev => {
             const existing = prev.find(i => i.cartItemId === cartItemId);
             if (existing) {
@@ -75,26 +183,89 @@ export function CartProvider({ children }: { children: ReactNode }) {
             }
             return [...prev, { cartItemId, item, selectedSize: sizeKey, sizeLabel, price, quantity: 1 }];
         });
-    }, []);
+    };
 
-    const removeFromCart = useCallback((cartItemId: string) => {
-        setItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
-    }, []);
-
-    const updateQuantity = useCallback((cartItemId: string, quantity: number) => {
-        if (quantity <= 0) {
-            setItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
+    const removeFromCart = useCallback(async (cartItemId: string) => {
+        if (mode === 'api') {
+            // API mode: use backend
+            try {
+                // Find the cart item to get the actual API cart_item_id
+                const cartItem = effectiveItems.find(i => i.cartItemId === cartItemId);
+                if (!cartItem?.apiCartItemId) {
+                    console.error('No API cart item ID found for:', cartItemId);
+                    // Fallback to local storage
+                    setItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
+                    return;
+                }
+                
+                await apiCart.removeItem(cartItem.apiCartItemId);
+            } catch (error) {
+                console.error('Failed to remove from cart via API, falling back to local:', error);
+                // Fallback to local storage
+                setItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
+            }
         } else {
+            // Local mode: use localStorage
+            setItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
+        }
+    }, [mode, apiCart, effectiveItems]);
+
+    const updateQuantity = useCallback(async (cartItemId: string, quantity: number) => {
+        if (quantity <= 0) {
+            await removeFromCart(cartItemId);
+            return;
+        }
+
+        if (mode === 'api') {
+            // API mode: use backend
+            try {
+                // Find the cart item to get the actual API cart_item_id
+                const cartItem = effectiveItems.find(i => i.cartItemId === cartItemId);
+                if (!cartItem?.apiCartItemId) {
+                    console.error('No API cart item ID found for:', cartItemId);
+                    // Fallback to local storage
+                    setItems(prev => prev.map(i =>
+                        i.cartItemId === cartItemId ? { ...i, quantity } : i
+                    ));
+                    return;
+                }
+                
+                await apiCart.updateItem({
+                    itemId: cartItem.apiCartItemId,
+                    data: { quantity }
+                });
+            } catch (error) {
+                console.error('Failed to update quantity via API, falling back to local:', error);
+                // Fallback to local storage
+                setItems(prev => prev.map(i =>
+                    i.cartItemId === cartItemId ? { ...i, quantity } : i
+                ));
+            }
+        } else {
+            // Local mode: use localStorage
             setItems(prev => prev.map(i =>
                 i.cartItemId === cartItemId ? { ...i, quantity } : i
             ));
         }
-    }, []);
+    }, [mode, apiCart, removeFromCart, effectiveItems]);
 
-    const clearCart = useCallback(() => {
-        setItems([]);
-        localStorage.removeItem(CART_KEY);
-    }, []);
+    const clearCart = useCallback(async () => {
+        if (mode === 'api') {
+            // API mode: use backend
+            try {
+                await apiCart.clearCart();
+            } catch (error) {
+                console.error('Failed to clear cart via API, falling back to local:', error);
+                // Fallback to local storage
+                setItems([]);
+                localStorage.removeItem(CART_KEY);
+            }
+        } else {
+            // Local mode: use localStorage
+            setItems([]);
+            localStorage.removeItem(CART_KEY);
+        }
+    }, [mode, apiCart]);
 
     // Remove a specific set of items by their cartItemIds
     const removeUnavailableItems = useCallback((cartItemIds: string[]) => {
@@ -103,12 +274,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const isInCart = useCallback((itemId: string, sizeKey: string) =>
-        items.some(i => i.cartItemId === makeCartItemId(itemId, sizeKey)),
-        [items]);
+        effectiveItems.some(i => i.cartItemId === makeCartItemId(itemId, sizeKey)),
+        [effectiveItems]);
 
     const getCartItem = useCallback((itemId: string, sizeKey: string) =>
-        items.find(i => i.cartItemId === makeCartItemId(itemId, sizeKey)),
-        [items]);
+        effectiveItems.find(i => i.cartItemId === makeCartItemId(itemId, sizeKey)),
+        [effectiveItems]);
 
     // ── Branch validation ──────────────────────────────────────────────────────
     // Given a branch's menuItemIds, split cart into available vs unavailable
@@ -117,7 +288,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const available: CartItem[] = [];
         const unavailable: CartItem[] = [];
 
-        items.forEach(cartItem => {
+        effectiveItems.forEach(cartItem => {
             if (availableSet.has(cartItem.item.id)) {
                 available.push(cartItem);
             } else {
@@ -126,17 +297,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
         });
 
         return { available, unavailable };
-    }, [items]);
+    }, [effectiveItems]);
 
     // ── Computed ───────────────────────────────────────────────────────────────
-    const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
-    const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    const totalItems = effectiveItems.reduce((sum, i) => sum + i.quantity, 0);
+    const subtotal = effectiveItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
     return (
         <CartContext.Provider value={{
-            items, addToCart, removeFromCart, updateQuantity, clearCart,
-            removeUnavailableItems, isInCart, getCartItem,
-            validateCartForBranch, totalItems, subtotal,
+            items: effectiveItems,
+            addToCart,
+            removeFromCart,
+            updateQuantity,
+            clearCart,
+            removeUnavailableItems,
+            isInCart,
+            getCartItem,
+            validateCartForBranch,
+            totalItems,
+            subtotal,
+            isLoading,
+            isSyncing,
+            mode,
         }}>
             {children}
         </CartContext.Provider>

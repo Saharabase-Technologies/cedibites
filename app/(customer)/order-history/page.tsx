@@ -4,6 +4,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useModal } from '../../components/providers/ModalProvider';
+import { useAuth } from '../../components/providers/AuthProvider';
+import { useOrders } from '@/lib/api/hooks/useOrders';
 import {
     MagnifyingGlassIcon,
     XIcon,
@@ -15,70 +17,81 @@ import {
     UserIcon,
 } from '@phosphor-icons/react';
 import Navbar from '../../components/layout/Navbar';
-import {
-    getMockOrdersForUser,
-    type Order,
-    STATUS_CONFIG,
-    formatPrice,
-    timeAgo,
-} from '@/types/order';
 import { UserCheckIcon } from '@phosphor-icons/react/dist/ssr';
+import type { Order as ApiOrder, OrderStatus as ApiOrderStatus } from '@/types/api';
+
+// Status configuration matching API statuses
+const STATUS_CONFIG: Record<ApiOrderStatus, {
+    label: string; color: string; bg: string;
+}> = {
+    pending: { label: 'Pending', color: 'text-info', bg: 'bg-info/8' },
+    confirmed: { label: 'Confirmed', color: 'text-info', bg: 'bg-info/8' },
+    preparing: { label: 'Preparing', color: 'text-warning', bg: 'bg-warning/8' },
+    ready: { label: 'Ready', color: 'text-primary', bg: 'bg-primary/8' },
+    ready_for_pickup: { label: 'Ready for pickup', color: 'text-primary', bg: 'bg-primary/8' },
+    out_for_delivery: { label: 'On the way', color: 'text-primary', bg: 'bg-primary/8' },
+    delivered: { label: 'Delivered', color: 'text-secondary', bg: 'bg-secondary/8' },
+    completed: { label: 'Completed', color: 'text-secondary', bg: 'bg-secondary/8' },
+    cancelled: { label: 'Cancelled', color: 'text-error', bg: 'bg-error/8' },
+};
+
+const formatPrice = (p: number | undefined) => {
+    if (p === undefined || p === null || typeof p !== 'number') return 'GHS 0.00';
+    return `GHS ${p.toFixed(2)}`;
+};
+
+function timeAgo(dateString: string): string {
+    const d = Date.now() - new Date(dateString).getTime();
+    const m = Math.floor(d / 60_000);
+    const h = Math.floor(m / 60);
+    const dy = Math.floor(h / 24);
+    if (m < 1) return 'Just now';
+    if (m < 60) return `${m}m ago`;
+    if (h < 24) return `${h}h ago`;
+    if (dy === 1) return 'Yesterday';
+    return `${dy}d ago`;
+}
 
 export default function OrderHistoryPage() {
     const router = useRouter();
     const { openAuth } = useModal();
+    const { isLoggedIn } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
-    const [userIP, setUserIP] = useState<string | null>(null);
+    const [statusFilter, setStatusFilter] = useState<ApiOrderStatus | undefined>(undefined);
+    const [page, setPage] = useState(1);
 
-    // TODO: Replace with actual user check and IP detection
-    const isLoggedIn = false; // Change this to your actual auth state
-
-    // Get user IP for guest orders
-    useEffect(() => {
-        if (!isLoggedIn) {
-            // TODO: Fetch actual IP from API
-            // For now, mock it
-            setUserIP('192.168.1.1');
-        }
-    }, [isLoggedIn]);
-
-    // Get orders - either by user auth or IP
-    const allOrders = useMemo(() => {
-        if (isLoggedIn) {
-            // TODO: Fetch orders by user ID
-            return getMockOrdersForUser();
-        } else if (userIP) {
-            // TODO: Fetch orders by IP address
-            return getMockOrdersForUser(); // Mock for now
-        }
-        return [];
-    }, [isLoggedIn, userIP]);
+    // Fetch orders from API
+    const { orders, meta, isLoading, error } = useOrders({
+        status: statusFilter,
+        page,
+        per_page: 20,
+    });
 
     // Filter orders by search
     const filteredOrders = useMemo(() => {
-        if (!searchQuery.trim()) return allOrders;
+        if (!searchQuery.trim()) return orders;
 
         const query = searchQuery.toLowerCase();
-        return allOrders.filter(order =>
-            order.orderNumber.toLowerCase().includes(query) ||
-            order.items.some(item => item.name.toLowerCase().includes(query)) ||
-            order.branch.name.toLowerCase().includes(query)
+        return orders.filter(order =>
+            order.order_number.toLowerCase().includes(query) ||
+            order.items.some(item => item.menu_item.name.toLowerCase().includes(query)) ||
+            order.branch?.name.toLowerCase().includes(query)
         );
-    }, [allOrders, searchQuery]);
+    }, [orders, searchQuery]);
 
     const handleOrderClick = (orderNumber: string) => {
         router.push(`/orders/${orderNumber}?from=order-history`);
     };
 
-    const handleReorder = (e: React.MouseEvent, order: Order) => {
+    const handleReorder = (e: React.MouseEvent, order: ApiOrder) => {
         e.stopPropagation();
         // TODO: Add items to cart and redirect to checkout
         console.log('Reorder:', order);
         router.push('/');
     };
 
-    // Loading state while fetching IP
-    if (!isLoggedIn && !userIP) {
+    // Loading state
+    if (isLoading) {
         return (
             <div className="min-h-screen bg-neutral-light dark:bg-brand-darker">
                 <Navbar />
@@ -105,9 +118,7 @@ export default function OrderHistoryPage() {
                         Order History
                     </h1>
                     <p className="text-neutral-gray">
-                        {isLoggedIn
-                            ? `${allOrders.length} order${allOrders.length !== 1 ? 's' : ''} total`
-                            : `Orders from this device`}
+                        {meta ? `${meta.total} order${meta.total !== 1 ? 's' : ''} total` : 'Loading...'}
                     </p>
                 </div>
 
@@ -191,7 +202,7 @@ export default function OrderHistoryPage() {
                             return (
                                 <button
                                     key={order.id}
-                                    onClick={() => handleOrderClick(order.orderNumber)}
+                                    onClick={() => handleOrderClick(order.order_number)}
                                     className="w-full bg-white/50 cursor-pointer dark:bg-brand-dark rounded-2xl p-5 border border-neutral-gray/10 hover:border-primary/30 hover:shadow-md transition-all text-left group"
                                 >
                                     {/* Header */}
@@ -199,7 +210,7 @@ export default function OrderHistoryPage() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-3 mb-2">
                                                 <h3 className="font-bold text-text-dark dark:text-text-light">
-                                                    {order.orderNumber}
+                                                    {order.order_number}
                                                 </h3>
                                                 <span
                                                     className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusConfig.bg} ${statusConfig.color}`}
@@ -210,15 +221,15 @@ export default function OrderHistoryPage() {
                                             <div className="flex items-center gap-4 text-sm text-neutral-gray">
                                                 <div className="flex items-center gap-1.5">
                                                     <CalendarIcon size={16} />
-                                                    <span>{timeAgo(order.placedAt)}</span>
+                                                    <span>{timeAgo(order.created_at)}</span>
                                                 </div>
-                                                {order.orderType === 'delivery' && order.contact.address && (
+                                                {order.order_type === 'delivery' && order.delivery_address && (
                                                     <>
                                                         <span>•</span>
                                                         <div className="flex items-center gap-1.5 truncate">
                                                             <MapPinIcon size={16} />
                                                             <span className="truncate">
-                                                                {order.contact.address.split(',')[0]}
+                                                                {order.delivery_address.split(',')[0]}
                                                             </span>
                                                         </div>
                                                     </>
@@ -239,7 +250,7 @@ export default function OrderHistoryPage() {
                                                 className="flex items-center gap-2 px-3 py-1.5 bg-neutral-light dark:bg-brand-darker rounded-full shrink-0"
                                             >
                                                 <span className="text-sm text-text-dark dark:text-text-light">
-                                                    {item.name}
+                                                    {item.menu_item.name}
                                                 </span>
                                                 {item.quantity > 1 && (
                                                     <span className="text-xs text-neutral-gray">

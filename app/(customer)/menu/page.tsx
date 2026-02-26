@@ -6,7 +6,7 @@ import {
     MagnifyingGlassIcon, XIcon, FunnelIcon, SlidersIcon,
     StorefrontIcon, MapPinIcon, CaretDownIcon, SparkleIcon,
     FireIcon, ArrowUpIcon, CheckIcon, ListIcon,
-    SquaresFourIcon, ClockIcon, ArrowRightIcon,
+    SquaresFourIcon, ClockIcon, ArrowRightIcon, SpinnerGapIcon,
 } from '@phosphor-icons/react';
 import { useMenuDiscovery } from '@/app/components/providers/MenuDiscoveryProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
@@ -45,6 +45,41 @@ function sortItems(items: SearchableItem[], sort: SortKey): SearchableItem[] {
     if (sort === 'price_asc') return [...items].sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
     if (sort === 'price_desc') return [...items].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
     return items;
+}
+
+// ─── Loading state ────────────────────────────────────────────────────────────
+function LoadingState() {
+    return (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <SpinnerGapIcon size={48} className="animate-spin text-primary" />
+            <p className="text-sm text-neutral-gray">Loading menu...</p>
+        </div>
+    );
+}
+
+// ─── Error state ──────────────────────────────────────────────────────────────
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+    return (
+        <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+            <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center text-4xl">
+                😞
+            </div>
+            <div className="space-y-2">
+                <p className="text-base font-bold text-text-dark dark:text-text-light">
+                    Failed to load menu
+                </p>
+                <p className="text-sm text-neutral-gray">
+                    We couldn't fetch the menu. Please check your connection and try again.
+                </p>
+            </div>
+            <button
+                onClick={onRetry}
+                className="px-6 py-2.5 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-colors"
+            >
+                Retry
+            </button>
+        </div>
+    );
 }
 
 // ─── Back to top button ───────────────────────────────────────────────────────
@@ -154,16 +189,21 @@ function EmptyState({ query, category }: { query: string; category: string | nul
 // ─── List view item row ───────────────────────────────────────────────────────
 function ListItemRow({ item, onOpen }: { item: SearchableItem; onOpen: (item: SearchableItem) => void }) {
     const price = item.sizes?.[0]?.price ?? item.price ?? 0;
+    const priceDisplay = typeof price === 'number' ? price.toFixed(2) : '0.00';
+    
     return (
         <button
             onClick={() => onOpen(item)}
             className="flex items-center gap-4 w-full p-3.5 rounded-2xl bg-white dark:bg-brand-dark hover:bg-primary/4 border border-neutral-gray/10 hover:border-primary/20 transition-all text-left group"
         >
             <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-primary/10 shrink-0">
-                {item.image
-                    ? <Image src={item.image} alt={item.name} fill sizes="64px" className="object-cover group-hover:scale-105 transition-transform duration-300" />
-                    : <div className="w-full h-full" />
-                }
+                <Image 
+                    src={item.image || '/menu_placeholder.png'} 
+                    alt={item.name} 
+                    fill 
+                    sizes="64px" 
+                    className="object-cover group-hover:scale-105 transition-transform duration-300" 
+                />
                 {item.popular && (
                     <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
                         <FireIcon weight="fill" size={10} className="text-white" />
@@ -181,7 +221,7 @@ function ListItemRow({ item, onOpen }: { item: SearchableItem; onOpen: (item: Se
                 </div>
             </div>
             <div className="text-right shrink-0">
-                <p className="text-base font-bold text-primary">GHS {price.toFixed(2)}</p>
+                <p className="text-base font-bold text-primary">GHS {priceDisplay}</p>
                 <p className="text-xs text-neutral-gray mt-0.5 group-hover:text-primary transition-colors">View →</p>
             </div>
         </button>
@@ -220,6 +260,9 @@ export default function MenuPage() {
         setSelectedCategory,
         searchQuery,
         setSearchQuery,
+        isSearching,
+        error,
+        retryFetch,
     } = useMenuDiscovery();
 
     // Derive unique categories from all items
@@ -412,7 +455,11 @@ export default function MenuPage() {
                     </div>
 
                     {/* Items */}
-                    {displayItems.length === 0 ? (
+                    {error && allItems.length === 0 ? (
+                        <ErrorState onRetry={retryFetch} />
+                    ) : isSearching && allItems.length === 0 ? (
+                        <LoadingState />
+                    ) : displayItems.length === 0 ? (
                         <EmptyState query={searchQuery} category={selectedCategory} />
                     ) : viewMode === 'list' ? (
                         // List view

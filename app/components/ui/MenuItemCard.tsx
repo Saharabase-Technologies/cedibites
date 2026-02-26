@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { PlusIcon, MinusIcon, FireIcon, StarIcon } from '@phosphor-icons/react';
+import { PlusIcon, MinusIcon, FireIcon, StarIcon, SpinnerGapIcon } from '@phosphor-icons/react';
 import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryProvider';
 import { useCart } from '@/app/components/providers/CartProvider';
 
@@ -11,7 +11,10 @@ interface MenuItemCardProps {
     onOpenDetail?: (item: SearchableItem) => void;
 }
 
-const formatPrice = (price: number) => `GHS ${price.toFixed(0)}`;
+const formatPrice = (price: number | undefined) => {
+    if (price === undefined || price === null || typeof price !== 'number') return 'GHS 0';
+    return `GHS ${price.toFixed(0)}`;
+};
 
 export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) {
     const { addToCart, removeFromCart, getCartItem } = useCart();
@@ -31,6 +34,7 @@ export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) 
         hasVariants ? variantOptions[0] : 'regular'
     );
     const [imgError, setImgError] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     // Calculate active price
     let activePrice = 0;
@@ -46,12 +50,19 @@ export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) 
     const cartItem = getCartItem(item.id, cartItemId);
     const inCart = !!cartItem;
 
-    const handleToggle = (e: React.MouseEvent) => {
+    const handleToggle = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (inCart) {
-            removeFromCart(cartItem.cartItemId);
-        } else {
-            addToCart(item, cartItemId);
+        setIsLoading(true);
+        try {
+            if (inCart) {
+                await removeFromCart(cartItem.cartItemId);
+            } else {
+                await addToCart(item, cartItemId);
+            }
+        } catch (error) {
+            console.error('Failed to update cart:', error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -62,9 +73,9 @@ export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) 
         >
             {/* Image */}
             <div className="relative w-full aspect-4/3 bg-primary/20 dark:bg-brand-dark overflow-hidden shrink-0">
-                {item.image && !imgError ? (
+                {!imgError ? (
                     <Image
-                        src={item.image}
+                        src={item.image || '/menu_placeholder.png'}
                         alt={item.name}
                         fill
                         sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
@@ -72,7 +83,13 @@ export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) 
                         onError={() => setImgError(true)}
                     />
                 ) : (
-                    <div className="w-full h-full" />
+                    <Image
+                        src="/menu_placeholder.png"
+                        alt={item.name}
+                        fill
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                        className="object-cover"
+                    />
                 )}
 
                 <div className="absolute top-2 left-2 flex flex-col gap-1">
@@ -153,17 +170,21 @@ export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) 
                     </span>
                     <button
                         onClick={handleToggle}
-                        className={`w-8 h-8 cursor-pointer flex items-center justify-center rounded-full transition-all duration-200 active:scale-90
+                        disabled={isLoading}
+                        className={`w-8 h-8 cursor-pointer flex items-center justify-center rounded-full transition-all duration-200 active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed
                             ${inCart
                                 ? 'bg-secondary hover:bg-error text-white'
                                 : 'bg-primary hover:bg-primary-hover text-white'
                             }`}
                         aria-label={inCart ? `Remove ${item.name} from cart` : `Add ${item.name} to cart`}
                     >
-                        {inCart
-                            ? <MinusIcon weight="bold" size={14} />
-                            : <PlusIcon weight="bold" size={14} />
-                        }
+                        {isLoading ? (
+                            <SpinnerGapIcon weight="bold" size={14} className="animate-spin" />
+                        ) : inCart ? (
+                            <MinusIcon weight="bold" size={14} />
+                        ) : (
+                            <PlusIcon weight="bold" size={14} />
+                        )}
                     </button>
                 </div>
             </div>

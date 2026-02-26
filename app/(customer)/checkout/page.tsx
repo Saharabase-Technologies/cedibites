@@ -16,6 +16,7 @@ import { useCart, CartItem } from '@/app/components/providers/CartProvider';
 import { useBranch, Branch, BranchWithDistance } from '@/app/components/providers/BranchProvider';
 import { useLocation } from '@/app/components/providers/LocationProvider';
 import { useAuth } from '@/app/components/providers/AuthProvider';
+import { useCreateOrder } from '@/lib/api/hooks/useOrders';
 
 type OrderType = 'delivery' | 'pickup';
 type PaymentMethod = 'momo' | 'cash_delivery' | 'cash_pickup';
@@ -26,7 +27,10 @@ interface ContactDetails { name: string; phone: string; address: string; note: s
 
 const DELIVERY_FEE = 15;
 const TAX_RATE = 0.025;
-const formatPrice = (p: number) => `GHS ${p.toFixed(2)}`;
+const formatPrice = (p: number | undefined) => {
+    if (p === undefined || p === null || typeof p !== 'number') return 'GHS 0.00';
+    return `GHS ${p.toFixed(2)}`;
+};
 
 // ─── Input Field ──────────────────────────────────────────────────────────────
 function InputField({ icon, label, required, children }: { icon: React.ReactNode; label: string; required?: boolean; children: React.ReactNode }) {
@@ -481,9 +485,9 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
 }
 
 // ─── Step 2 ───────────────────────────────────────────────────────────────────
-function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBack, onPlace, placing }: {
+function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBack, onPlace, placing, orderError }: {
     paymentMethod: PaymentMethod; setPaymentMethod: (m: PaymentMethod) => void;
-    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: () => void; placing: boolean;
+    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: () => void; placing: boolean; orderError?: string | null;
 }) {
     const { subtotal } = useCart();
     const { selectedBranch } = useBranch();
@@ -566,6 +570,16 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                         </div>
                     ))}
                 </div>
+
+                {orderError && (
+                    <div className="bg-error/10 border border-error/25 rounded-2xl p-4 flex items-start gap-3">
+                        <WarningCircleIcon weight="fill" size={20} className="text-error shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-sm font-bold text-text-dark dark:text-text-light">Order Failed</p>
+                            <p className="text-xs text-neutral-gray mt-1">{orderError}</p>
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex gap-3">
                     <button onClick={onBack} className="flex cursor-pointer items-center gap-2 px-5 py-4 rounded-2xl border-2 border-neutral-gray/20 font-bold text-neutral-gray hover:border-primary/40 hover:text-primary transition-all">
@@ -735,19 +749,69 @@ function EmptyCartGuard() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CheckoutPage() {
     const { items, clearCart } = useCart();
+    const { selectedBranch } = useBranch();
+    const { coordinates } = useLocation();
+    const { createOrder, isLoading: isCreatingOrder, error: createOrderError } = useCreateOrder();
+    
     const [step, setStep] = useState<Step>(1);
     const [orderType, setOrderType] = useState<OrderType>('delivery');
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('momo');
     const [placing, setPlacing] = useState(false);
     const [orderNumber, setOrderNumber] = useState('');
     const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });
+    const [orderError, setOrderError] = useState<string | null>(null);
 
     const handlePlaceOrder = useCallback(async () => {
+        if (!selectedBranch) {
+            setOrderError('Please select a branch');
+            return;
+        }
+
+        // Validate required fields
+        if (!contact.name.trim() || !contact.phone.trim()) {
+            setOrderError('Please fill in all required fields');
+            return;
+        }
+
+        if (orderType === 'delivery' && !contact.address.trim()) {
+            setOrderError('Please provide a delivery address');
+            return;
+        }
+
         setPlacing(true);
-        await new Promise(r => setTimeout(r, 1800));
-        setOrderNumber(`CB${Date.now().toString().slice(-6)}`);
-        clearCart(); setPlacing(false); setStep(3);
-    }, [clearCart]);
+        setOrderError(null);
+
+        try {
+            // Create order via API
+            const response = await createOrder({
+                branch_id: selectedBranch.id,
+                order_type: orderType,
+                customer_name: contact.name,
+                customer_phone: contact.phone,
+                delivery_address: orderType === 'delivery' ? contact.address : undefined,
+                delivery_latitude: orderType === 'delivery' && coordinates ? coordinates.latitude : undefined,
+                delivery_longitude: orderType === 'delivery' && coordinates ? coordinates.longitude : undefined,
+                special_instructions: contact.note || undefined,
+                payment_method: paymentMethod,
+                momo_number: paymentMethod === 'momo' ? contact.phone : undefined,
+                momo_network: paymentMethod === 'momo' ? 'mtn' : undefined,
+            });
+
+            // Set order number from response
+            setOrderNumber(response.data.order_number);
+            
+            // Clear cart after successful order
+            clearCart();
+            
+            // Move to confirmation step
+            setStep(3);
+        } catch (error: any) {
+            console.error('Order creation failed:', error);
+            setOrderError(error.response?.data?.message || 'Failed to create order. Please try again.');
+        } finally {
+            setPlacing(false);
+        }
+    }, [selectedBranch, contact, orderType, paymentMethod, coordinates, createOrder, clearCart]);
 
     if (items.length === 0 && step !== 3) return <EmptyCartGuard />;
 
@@ -770,7 +834,7 @@ export default function CheckoutPage() {
                     <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
                         <div>
                             {step === 1 && <StepDetails orderType={orderType} setOrderType={setOrderType} contact={contact} setContact={setContact} onNext={() => setStep(2)} />}
-                            {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} />}
+                            {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} orderError={orderError} />}
                         </div>
                         <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} /></div>
                     </div>
