@@ -11,25 +11,19 @@ import {
   SpinnerIcon
 } from '@phosphor-icons/react';
 import { BRANCHES, Branch } from '@/app/components/providers/BranchProvider';
-
-// Mock staff - replace with real auth
-// Branch IDs match BRANCHES: '1'=Osu, '2'=East Legon, '3'=Spintex, '4'=Tema, '5'=Madina, '6'=La Paz, '7'=Dzorwulu
-const MOCK_STAFF: Record<string, { name: string; pin: string; branches: string[] }> = {
-  '1234': { name: 'Kofi Mensah', pin: '1234', branches: ['1', '2'] },
-  '5678': { name: 'Ama Serwaa', pin: '5678', branches: ['3', '4'] },
-  '0000': { name: 'Admin User', pin: '0000', branches: BRANCHES.map(b => b.id) },
-  '4321': { name: 'Chef Akua', pin: '4321', branches: ['1', '2'] },
-};
+import { resolveByPin } from '@/lib/data/mockStaff';
+import { usePOS } from './context';
 
 type LoginStep = 'pin' | 'branch';
 
 export default function POSLoginPage() {
   const router = useRouter();
+  const { login } = usePOS();
   const [step, setStep] = useState<LoginStep>('pin');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [staffInfo, setStaffInfo] = useState<{ name: string; branches: string[] } | null>(null);
+  const [staffInfo, setStaffInfo] = useState<{ id: string; name: string; branches: string[] } | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
 
   // Auto-submit when PIN is 4 digits
@@ -60,14 +54,14 @@ export default function POSLoginPage() {
     // Simulate API delay - replace with real auth
     await new Promise(resolve => setTimeout(resolve, 300));
 
-    const staff = MOCK_STAFF[pinToVerify];
+    const staff = resolveByPin(pinToVerify);
 
     if (staff) {
-      setStaffInfo({ name: staff.name, branches: staff.branches });
+      setStaffInfo({ id: staff.id, name: staff.name, branches: staff.branchIds });
 
       // If staff only has one branch, auto-select and proceed
-      if (staff.branches.length === 1) {
-        proceedToTerminal(staff.branches[0], staff.name);
+      if (staff.branchIds.length === 1) {
+        proceedToTerminal(staff.branchIds[0], staff.id, staff.name);
       } else {
         setStep('branch');
       }
@@ -79,14 +73,8 @@ export default function POSLoginPage() {
     setIsLoading(false);
   };
 
-  const proceedToTerminal = (branchId: string, staffName: string) => {
-    // Store session info
-    sessionStorage.setItem('pos-session', JSON.stringify({
-      branchId,
-      staffName,
-      loginTime: Date.now()
-    }));
-
+  const proceedToTerminal = (branchId: string, staffId: string, staffName: string) => {
+    login({ staffId, branchId, staffName, loginTime: Date.now() });
     router.push('/pos/terminal');
   };
 
@@ -96,7 +84,7 @@ export default function POSLoginPage() {
 
   const handleBranchConfirm = () => {
     if (selectedBranch && staffInfo) {
-      proceedToTerminal(selectedBranch, staffInfo.name);
+      proceedToTerminal(selectedBranch, staffInfo.id, staffInfo.name);
     }
   };
 

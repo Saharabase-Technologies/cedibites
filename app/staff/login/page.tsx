@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
     EnvelopeIcon,
@@ -10,13 +11,14 @@ import {
     SpinnerIcon,
 } from '@phosphor-icons/react';
 import Input from '@/app/components/base/Input';
+import { useStaffAuth, resolveMockStaff, roleHomeRoute } from '@/app/components/providers/StaffAuthProvider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type LoginField = 'identifier' | 'password';
 
 interface FormState {
-    identifier: string; // email or phone
+    identifier: string;
     password: string;
 }
 
@@ -53,6 +55,9 @@ function validate(form: FormState): FormErrors {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function StaffLoginPage() {
+    const router = useRouter();
+    const { login } = useStaffAuth();
+
     const [form, setForm] = useState<FormState>({ identifier: '', password: '' });
     const [errors, setErrors] = useState<FormErrors>({});
     const [touched, setTouched] = useState<Set<LoginField>>(new Set());
@@ -90,28 +95,25 @@ export default function StaffLoginPage() {
             // ── TODO: swap with real API call ─────────────────────────────────────
             // const res = await fetch('/api/v1/staff/auth/login', {
             //   method: 'POST',
-            //   credentials: 'include', // sends/receives httpOnly cookie
+            //   credentials: 'include',
             //   headers: { 'Content-Type': 'application/json' },
-            //   body: JSON.stringify({
-            //     identifier: form.identifier.trim().toLowerCase(),
-            //     password: form.password,
-            //   }),
+            //   body: JSON.stringify({ identifier: form.identifier.trim(), password: form.password }),
             // });
-            // if (!res.ok) {
-            //   const data = await res.json();
-            //   throw new Error(data.error?.message || 'Invalid credentials');
-            // }
-            // // JWT is set as httpOnly cookie by the server — nothing stored client-side
-            // router.replace('/staff/dashboard');
+            // if (!res.ok) throw new Error((await res.json()).error?.message || 'Invalid credentials');
+            // const { user } = await res.json();
+            // login(user);
+            // router.replace(roleHomeRoute(user.role));
             // ─────────────────────────────────────────────────────────────────────
 
-            await new Promise(r => setTimeout(r, 1500)); // remove when API is live
+            await new Promise(r => setTimeout(r, 1200));
 
-            if (form.password === 'wrong') {
+            const staffUser = resolveMockStaff(form.identifier.trim(), form.password);
+            if (!staffUser) {
                 throw new Error('Invalid credentials. Please check and try again.');
             }
 
-            window.location.href = '/staff/dashboard';
+            login(staffUser);
+            router.replace(roleHomeRoute(staffUser.role));
 
         } catch (err) {
             setErrors({
@@ -135,12 +137,12 @@ export default function StaffLoginPage() {
             <div
                 className="fixed inset-0 opacity-[0.03] pointer-events-none"
                 style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23e49925' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23e49925' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C%2Fg%3E%3C%2Fsvg%3E")`,
                 }}
                 aria-hidden="true"
             />
 
-            <div className="relative w-full max-w-md ">
+            <div className="relative w-full max-w-md">
 
                 {/* Logo block */}
                 <div className="flex flex-col items-center mb-10">
@@ -152,7 +154,7 @@ export default function StaffLoginPage() {
                         className="mb-4"
                         priority
                     />
-                    <h1 className=" text-primary text-3xl font-bold font-body tracking-tight">CediBites</h1>
+                    <h1 className="text-primary text-3xl font-bold font-body tracking-tight">CediBites</h1>
                     <p className="text-neutral-gray text-sm mt-1 font-body">Staff Portal</p>
                 </div>
 
@@ -200,9 +202,6 @@ export default function StaffLoginPage() {
                                 errorText={showIdentifierError ? errors.identifier : undefined}
                                 autoComplete="username"
                                 required
-                                className="
-                  
-                "
                             />
                         </div>
 
@@ -227,9 +226,6 @@ export default function StaffLoginPage() {
                                 errorText={showPasswordError ? errors.password : undefined}
                                 autoComplete="current-password"
                                 required
-                                className="
-                 
-                "
                             />
                         </div>
 
@@ -262,13 +258,22 @@ export default function StaffLoginPage() {
 
                     </form>
 
-                    {/* Help text */}
-                    <p className="text-center text-neutral-gray text-xs mt-6 font-body leading-relaxed">
-                        No credentials yet?{' '}
-                        <span className="text-primary">
-                            Contact your branch manager or admin.
-                        </span>
-                    </p>
+                    {/* Dev hint */}
+                    <div className="mt-6 rounded-2xl border border-brown-light/20 bg-brown-light/5 px-4 py-3">
+                        <p className="text-neutral-gray text-[11px] font-body font-medium mb-1.5">
+                            Test accounts
+                        </p>
+                        <div className="flex flex-col gap-0.5">
+                            {[
+                                { label: 'Manager', hint: 'manager@cedibites.com · manager123' },
+                                { label: 'Sales',   hint: 'sales@cedibites.com · sales123'     },
+                            ].map(a => (
+                                <p key={a.label} className="text-neutral-gray/70 text-[10px] font-body">
+                                    <span className="text-primary/80 font-semibold">{a.label}:</span> {a.hint}
+                                </p>
+                            ))}
+                        </div>
+                    </div>
 
                 </div>
 

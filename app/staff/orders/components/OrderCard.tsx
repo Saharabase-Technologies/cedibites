@@ -2,7 +2,7 @@
 
 import { CaretRightIcon } from '@phosphor-icons/react';
 import type { StaffOrder, OrderStatus, UserRole } from '../types';
-import { COLUMNS, SOURCE_ICON } from '../constants';
+import { COLUMNS, SOURCE_ICON, STATUS_CONFIG } from '../constants';
 import { timeAgo, formatGHS, getNextStatuses, isDoneStatus, canAdvanceOrder } from '../utils';
 
 // ─── Order card ───────────────────────────────────────────────────────────────
@@ -51,6 +51,7 @@ export default function OrderCard({
             <div className="flex items-start  justify-between gap-2 mb-2.5">
                 <div className="flex items-center gap-1.5 min-w-0">
                     <SourceIcon size={13} weight="fill" className="text-neutral-gray shrink-0" />
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_CONFIG[order.status]?.dot ?? 'bg-neutral-gray'} ${STATUS_CONFIG[order.status]?.pulse ? 'animate-pulse' : ''}`} />
                     <span className="text-text-dark dark:text-text-light text-xs font-bold font-body tracking-wide">
                         #{order.id}
                     </span>

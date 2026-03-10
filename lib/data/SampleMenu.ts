@@ -12,6 +12,7 @@ export interface MenuItemSize {
     key: SizeKey;
     label: string;
     price: number;
+    image?: string;
 }
 
 export interface MenuAddOn {

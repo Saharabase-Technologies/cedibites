@@ -16,82 +16,64 @@ import {
     CaretDownIcon,
     CaretUpIcon,
 } from '@phosphor-icons/react';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type StaffRole = 'Sales Staff' | 'Kitchen Staff' | 'Rider';
-type StaffStatus = 'active' | 'inactive';
-
-interface StaffMember {
-    id: string;
-    name: string;
-    role: StaffRole;
-    phone: string;
-    email: string;
-    status: StaffStatus;
-    joinedAt: Date;
-    ordersToday: number;
-    archived?: boolean;
-}
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-function monthsAgo(m: number) {
-    const d = new Date();
-    d.setMonth(d.getMonth() - m);
-    return d;
-}
-
-const INITIAL_STAFF: StaffMember[] = [
-    { id: 's01', name: 'Kofi Mensah',     role: 'Sales Staff',   phone: '0244123456', email: 'kofi@cedibites.com',     status: 'active',   joinedAt: monthsAgo(8),  ordersToday: 7 },
-    { id: 's02', name: 'Esi Darko',       role: 'Sales Staff',   phone: '0201987654', email: 'esi@cedibites.com',      status: 'active',   joinedAt: monthsAgo(5),  ordersToday: 6 },
-    { id: 's03', name: 'Kwame Frimpong',  role: 'Kitchen Staff', phone: '0277654321', email: 'kwame@cedibites.com',    status: 'active',   joinedAt: monthsAgo(12), ordersToday: 0 },
-    { id: 's04', name: 'Abena Osei',      role: 'Kitchen Staff', phone: '0551234567', email: 'abena@cedibites.com',    status: 'active',   joinedAt: monthsAgo(4),  ordersToday: 0 },
-    { id: 's05', name: 'Yaw Asante',      role: 'Rider',         phone: '0266778899', email: 'yaw@cedibites.com',      status: 'active',   joinedAt: monthsAgo(6),  ordersToday: 4 },
-    { id: 's06', name: 'Akua Boateng',    role: 'Rider',         phone: '0245678901', email: 'akua@cedibites.com',     status: 'active',   joinedAt: monthsAgo(3),  ordersToday: 3 },
-    { id: 's07', name: 'Nana Agyemang',   role: 'Sales Staff',   phone: '0200112233', email: 'nana@cedibites.com',     status: 'inactive', joinedAt: monthsAgo(14), ordersToday: 0 },
-    { id: 's08', name: 'Adjoa Appiah',    role: 'Kitchen Staff', phone: '0244567890', email: 'adjoa@cedibites.com',    status: 'inactive', joinedAt: monthsAgo(2),  ordersToday: 0 },
-];
-
-const ROLE_OPTIONS: StaffRole[] = ['Sales Staff', 'Kitchen Staff', 'Rider'];
+import {
+    type StaffMember,
+    type StaffRole,
+    MOCK_STAFF,
+} from '@/lib/data/mockStaff';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(d: Date) {
-    return d.toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' });
+const BRANCH_ROLES: StaffRole[] = ['sales', 'kitchen', 'rider'];
+
+function inBranch(s: StaffMember, branchName: string): boolean {
+    return Array.isArray(s.branch) ? s.branch.includes(branchName) : s.branch === branchName;
 }
 
 function getRoleColor(role: StaffRole): string {
-    if (role === 'Sales Staff')   return 'bg-info/10 text-info border-info/20';
-    if (role === 'Kitchen Staff') return 'bg-warning/10 text-warning border-warning/20';
+    if (role === 'sales')   return 'bg-info/10 text-info border-info/20';
+    if (role === 'kitchen') return 'bg-warning/10 text-warning border-warning/20';
     return 'bg-secondary/10 text-secondary border-secondary/20';
 }
+
+const ROLE_LABELS: Partial<Record<StaffRole, string>> = {
+    sales:   'Sales Staff',
+    kitchen: 'Kitchen Staff',
+    rider:   'Rider',
+};
 
 // ─── Staff form modal ─────────────────────────────────────────────────────────
 
 interface StaffFormState {
-    name: string;
-    role: StaffRole;
+    name:  string;
+    role:  StaffRole;
     phone: string;
     email: string;
+    pin:   string;
 }
 
 function StaffModal({
     member,
     onSave,
     onClose,
+    currentBranch,
 }: {
     member: StaffMember | null;
-    onSave: (data: Omit<StaffMember, 'id' | 'joinedAt' | 'ordersToday' | 'status'> & { id?: string }) => void;
+    onSave: (data: Partial<StaffMember> & { id?: string }) => void;
     onClose: () => void;
+    currentBranch: string;
 }) {
     const [form, setForm] = useState<StaffFormState>({
         name:  member?.name  ?? '',
-        role:  member?.role  ?? 'Sales Staff',
+        role:  member?.role  ?? 'sales',
         phone: member?.phone ?? '',
         email: member?.email ?? '',
+        pin:   member?.pin   ?? '',
     });
     const [errors, setErrors] = useState<Partial<Record<keyof StaffFormState, string>>>({});
+
+    const isPOS = form.role === 'sales';
 
     function validate() {
         const e: typeof errors = {};
@@ -101,13 +83,24 @@ function StaffModal({
                                  e.phone = 'Enter a valid Ghanaian number';
         if (!form.email.trim()) e.email = 'Email is required';
         else if (!form.email.includes('@')) e.email = 'Enter a valid email';
+        if (isPOS && form.pin && !/^\d{4}$/.test(form.pin))
+                                 e.pin   = 'PIN must be exactly 4 digits';
         return e;
     }
 
     function handleSubmit() {
         const e = validate();
         if (Object.keys(e).length > 0) { setErrors(e); return; }
-        onSave({ id: member?.id, name: form.name.trim(), role: form.role, phone: form.phone.trim(), email: form.email.trim() });
+        onSave({
+            id:        member?.id,
+            name:      form.name.trim(),
+            role:      form.role,
+            phone:     form.phone.trim(),
+            email:     form.email.trim(),
+            pin:       form.pin,
+            posAccess: isPOS && !!form.pin,
+            branch:    currentBranch,
+        });
     }
 
     return (
@@ -142,10 +135,12 @@ function StaffModal({
                         </label>
                         <select
                             value={form.role}
-                            onChange={e => setForm(p => ({ ...p, role: e.target.value as StaffRole }))}
+                            onChange={e => setForm(p => ({ ...p, role: e.target.value as StaffRole, pin: '' }))}
                             className="w-full bg-neutral-light border border-brown-light/20 rounded-xl px-4 py-3 text-sm font-body text-text-dark focus:outline-none focus:border-primary transition-colors cursor-pointer"
                         >
-                            {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                            {BRANCH_ROLES.map(r => (
+                                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                            ))}
                         </select>
                     </div>
 
@@ -184,6 +179,26 @@ function StaffModal({
                         </div>
                         {errors.email && <p className="text-error text-xs font-body mt-1">{errors.email}</p>}
                     </div>
+
+                    {/* POS PIN — sales staff only */}
+                    {isPOS && (
+                        <div>
+                            <label className="block text-sm font-medium font-body text-text-dark mb-1.5">
+                                POS PIN
+                                <span className="text-neutral-gray text-xs font-normal ml-1">(4 digits · leave blank to disable POS access)</span>
+                            </label>
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={4}
+                                value={form.pin}
+                                onChange={e => setForm(p => ({ ...p, pin: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                                placeholder="e.g. 1234"
+                                className={`w-full bg-neutral-light border rounded-xl px-4 py-3 text-sm font-body font-mono tracking-widest text-text-dark placeholder:text-neutral-gray/50 focus:outline-none focus:border-primary transition-colors ${errors.pin ? 'border-error/50' : 'border-brown-light/20'}`}
+                            />
+                            {errors.pin && <p className="text-error text-xs font-body mt-1">{errors.pin}</p>}
+                        </div>
+                    )}
                 </div>
 
                 {!member && (
@@ -244,18 +259,12 @@ function DeactivateConfirm({
                     </div>
                 </div>
                 <div className="flex gap-3">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="flex-1 py-3 rounded-xl border border-brown-light/20 text-sm font-medium font-body text-neutral-gray hover:text-text-dark transition-colors cursor-pointer"
-                    >
+                    <button type="button" onClick={onClose}
+                        className="flex-1 py-3 rounded-xl border border-brown-light/20 text-sm font-medium font-body text-neutral-gray hover:text-text-dark transition-colors cursor-pointer">
                         Cancel
                     </button>
-                    <button
-                        type="button"
-                        onClick={onConfirm}
-                        className="flex-1 py-3 rounded-xl bg-error hover:bg-error/80 text-white text-sm font-bold font-body transition-colors cursor-pointer"
-                    >
+                    <button type="button" onClick={onConfirm}
+                        className="flex-1 py-3 rounded-xl bg-error hover:bg-error/80 text-white text-sm font-bold font-body transition-colors cursor-pointer">
                         Deactivate
                     </button>
                 </div>
@@ -291,18 +300,12 @@ function ArchiveConfirm({
                     </div>
                 </div>
                 <div className="flex gap-3">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="flex-1 py-3 rounded-xl border border-brown-light/20 text-sm font-medium font-body text-neutral-gray hover:text-text-dark transition-colors cursor-pointer"
-                    >
+                    <button type="button" onClick={onClose}
+                        className="flex-1 py-3 rounded-xl border border-brown-light/20 text-sm font-medium font-body text-neutral-gray hover:text-text-dark transition-colors cursor-pointer">
                         Cancel
                     </button>
-                    <button
-                        type="button"
-                        onClick={onConfirm}
-                        className="flex-1 py-3 rounded-xl bg-warning hover:bg-warning/80 text-white text-sm font-bold font-body transition-colors cursor-pointer"
-                    >
+                    <button type="button" onClick={onConfirm}
+                        className="flex-1 py-3 rounded-xl bg-warning hover:bg-warning/80 text-white text-sm font-bold font-body transition-colors cursor-pointer">
                         Archive
                     </button>
                 </div>
@@ -314,32 +317,47 @@ function ArchiveConfirm({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ManagerStaffPage() {
-    const [staff, setStaff] = useState<StaffMember[]>(INITIAL_STAFF);
+    const { staffUser } = useStaffAuth();
+    const currentBranch = staffUser?.branch ?? 'East Legon';
+
+    const [staff, setStaff] = useState<StaffMember[]>(() =>
+        MOCK_STAFF.filter(s => BRANCH_ROLES.includes(s.role) && inBranch(s, currentBranch))
+    );
+
     const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
     const [editingMember, setEditingMember] = useState<StaffMember | null | 'new'>(null);
     const [deactivatingMember, setDeactivatingMember] = useState<StaffMember | null>(null);
     const [archivingMember, setArchivingMember] = useState<StaffMember | null>(null);
     const [archiveOpen, setArchiveOpen] = useState(false);
 
-    const activeStaff   = useMemo(() => staff.filter(s => !s.archived && s.status === 'active'),   [staff]);
-    const inactiveStaff = useMemo(() => staff.filter(s => !s.archived && s.status === 'inactive'), [staff]);
-    const archivedStaff = useMemo(() => staff.filter(s => s.archived),                             [staff]);
+    const activeStaff   = useMemo(() => staff.filter(s => s.status === 'active'),   [staff]);
+    const inactiveStaff = useMemo(() => staff.filter(s => s.status === 'inactive'), [staff]);
+    const archivedStaff = useMemo(() => staff.filter(s => s.status === 'archived'), [staff]);
 
     const filtered = useMemo(() => {
         if (filter === 'active')   return activeStaff;
         if (filter === 'inactive') return inactiveStaff;
         return [...activeStaff, ...inactiveStaff];
-    }, [staff, filter, activeStaff, inactiveStaff]);
+    }, [filter, activeStaff, inactiveStaff]);
 
-    function handleSave(data: Omit<StaffMember, 'id' | 'joinedAt' | 'ordersToday' | 'status'> & { id?: string }) {
+    function handleSave(data: Partial<StaffMember> & { id?: string }) {
         if (data.id) {
             setStaff(prev => prev.map(s => s.id === data.id ? { ...s, ...data } : s));
         } else {
             const newMember: StaffMember = {
-                ...data,
-                id: `s${Date.now()}`,
-                status: 'active',
-                joinedAt: new Date(),
+                id:          `u${Date.now()}`,
+                name:        data.name ?? '',
+                role:        data.role ?? 'sales',
+                phone:       data.phone ?? '',
+                email:       data.email ?? '',
+                branch:      currentBranch,
+                branchIds:   [],
+                status:      'active',
+                pin:         data.pin ?? '',
+                password:    'temp123',
+                posAccess:   data.posAccess ?? false,
+                joinedAt:    new Date().toLocaleDateString('en-GH', { month: 'short', year: 'numeric' }),
+                lastLogin:   'Never',
                 ordersToday: 0,
             };
             setStaff(prev => [...prev, newMember]);
@@ -349,9 +367,7 @@ export default function ManagerStaffPage() {
 
     function handleDeactivate() {
         if (!deactivatingMember) return;
-        setStaff(prev => prev.map(s =>
-            s.id === deactivatingMember.id ? { ...s, status: 'inactive' } : s
-        ));
+        setStaff(prev => prev.map(s => s.id === deactivatingMember.id ? { ...s, status: 'inactive' } : s));
         setDeactivatingMember(null);
     }
 
@@ -361,14 +377,12 @@ export default function ManagerStaffPage() {
 
     function handleArchive() {
         if (!archivingMember) return;
-        setStaff(prev => prev.map(s =>
-            s.id === archivingMember.id ? { ...s, archived: true, status: 'inactive' } : s
-        ));
+        setStaff(prev => prev.map(s => s.id === archivingMember.id ? { ...s, status: 'archived' } : s));
         setArchivingMember(null);
     }
 
     function handleRestoreFromArchive(id: string) {
-        setStaff(prev => prev.map(s => s.id === id ? { ...s, archived: false, status: 'inactive' } : s));
+        setStaff(prev => prev.map(s => s.id === id ? { ...s, status: 'inactive' } : s));
     }
 
     function handlePermanentDelete(id: string) {
@@ -385,7 +399,7 @@ export default function ManagerStaffPage() {
                         <h1 className="text-text-dark text-xl font-bold font-body">Staff Management</h1>
                         <p className="text-neutral-gray text-sm font-body mt-0.5 flex items-center gap-1.5">
                             <UsersThreeIcon size={13} weight="fill" />
-                            East Legon &middot; {activeStaff.length + inactiveStaff.length} staff &middot;{' '}
+                            {currentBranch} &middot; {activeStaff.length + inactiveStaff.length} staff &middot;{' '}
                             <span className="text-secondary font-medium">{activeStaff.length} active</span>
                             {inactiveStaff.length > 0 && (
                                 <>, <span className="text-neutral-gray font-medium">{inactiveStaff.length} inactive</span></>
@@ -395,11 +409,7 @@ export default function ManagerStaffPage() {
                     <button
                         type="button"
                         onClick={() => setEditingMember('new')}
-                        className="
-                            flex items-center gap-2 bg-primary hover:bg-primary-hover
-                            text-brand-darker font-semibold font-body text-sm
-                            px-4 py-2.5 rounded-xl transition-colors cursor-pointer shrink-0
-                        "
+                        className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-brand-darker font-semibold font-body text-sm px-4 py-2.5 rounded-xl transition-colors cursor-pointer shrink-0"
                     >
                         <PlusIcon size={16} weight="bold" />
                         Add Staff
@@ -413,13 +423,7 @@ export default function ManagerStaffPage() {
                             key={f}
                             type="button"
                             onClick={() => setFilter(f)}
-                            className={`
-                                px-4 py-2 rounded-xl text-sm font-medium font-body transition-all duration-150 capitalize cursor-pointer
-                                ${filter === f
-                                    ? 'bg-primary text-brand-darker shadow-sm'
-                                    : 'text-neutral-gray hover:text-text-dark'
-                                }
-                            `}
+                            className={`px-4 py-2 rounded-xl text-sm font-medium font-body transition-all duration-150 capitalize cursor-pointer ${filter === f ? 'bg-primary text-brand-darker shadow-sm' : 'text-neutral-gray hover:text-text-dark'}`}
                         >
                             {f === 'all'
                                 ? `All (${activeStaff.length + inactiveStaff.length})`
@@ -442,11 +446,7 @@ export default function ManagerStaffPage() {
                         {filtered.map(member => (
                             <div
                                 key={member.id}
-                                className={`
-                                    bg-neutral-card border border-brown-light/15 rounded-2xl px-4 py-4
-                                    flex items-center gap-4
-                                    ${member.status === 'inactive' ? 'opacity-60' : ''}
-                                `}
+                                className={`bg-neutral-card border border-brown-light/15 rounded-2xl px-4 py-4 flex items-center gap-4 ${member.status === 'inactive' ? 'opacity-60' : ''}`}
                             >
                                 {/* Avatar */}
                                 <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
@@ -460,8 +460,13 @@ export default function ManagerStaffPage() {
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <p className="text-text-dark text-sm font-semibold font-body">{member.name}</p>
                                         <span className={`text-[10px] font-bold font-body border rounded-full px-2 py-0.5 ${getRoleColor(member.role)}`}>
-                                            {member.role}
+                                            {ROLE_LABELS[member.role] ?? member.role}
                                         </span>
+                                        {member.posAccess && member.pin && (
+                                            <span className="text-[10px] font-bold font-body bg-primary/8 text-primary/70 rounded-full px-2 py-0.5">
+                                                POS · ****
+                                            </span>
+                                        )}
                                         {member.status === 'inactive' && (
                                             <span className="text-[10px] font-bold font-body border border-neutral-gray/30 text-neutral-gray rounded-full px-2 py-0.5">
                                                 Inactive
@@ -474,7 +479,7 @@ export default function ManagerStaffPage() {
                                         <span className="text-neutral-gray text-xs font-body truncate">{member.email}</span>
                                     </div>
                                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                                        <span className="text-neutral-gray/60 text-[10px] font-body">Since {formatDate(member.joinedAt)}</span>
+                                        <span className="text-neutral-gray/60 text-[10px] font-body">Since {member.joinedAt}</span>
                                         {member.status === 'active' && member.ordersToday > 0 && (
                                             <>
                                                 <span className="text-brown-light/30 text-xs">&middot;</span>
@@ -558,10 +563,10 @@ export default function ManagerStaffPage() {
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <p className="text-neutral-gray text-sm font-semibold font-body">{member.name}</p>
                                                 <span className={`text-[10px] font-bold font-body border rounded-full px-2 py-0.5 ${getRoleColor(member.role)}`}>
-                                                    {member.role}
+                                                    {ROLE_LABELS[member.role] ?? member.role}
                                                 </span>
                                             </div>
-                                            <span className="text-neutral-gray/60 text-xs font-body">Since {formatDate(member.joinedAt)}</span>
+                                            <span className="text-neutral-gray/60 text-xs font-body">Since {member.joinedAt}</span>
                                         </div>
                                         <div className="flex items-center gap-1 shrink-0">
                                             <button
@@ -589,7 +594,7 @@ export default function ManagerStaffPage() {
                 )}
 
                 <p className="text-neutral-gray/40 text-xs font-body text-center mt-6">
-                    Deactivated staff lose portal access immediately &middot; East Legon branch
+                    Deactivated staff lose portal access immediately &middot; {currentBranch} branch
                 </p>
 
             </div>
@@ -600,6 +605,7 @@ export default function ManagerStaffPage() {
                     member={editingMember === 'new' ? null : editingMember}
                     onSave={handleSave}
                     onClose={() => setEditingMember(null)}
+                    currentBranch={currentBranch}
                 />
             )}
             {deactivatingMember && (

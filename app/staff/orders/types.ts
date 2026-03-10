@@ -1,6 +1,6 @@
 // ─── Types: Staff Orders ──────────────────────────────────────────────────────
 
-export type UserRole = 'sales' | 'kitchen';
+export type UserRole = 'sales' | 'manager';
 
 export type OrderStatus =
     | 'received'

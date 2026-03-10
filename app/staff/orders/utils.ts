@@ -26,21 +26,19 @@ export function getNextStatuses(order: StaffOrder): { status: OrderStatus; label
 
 // ─── Role-based permission ────────────────────────────────────────────────────
 //
-// Kitchen: received → preparing → ready
-// Sales:   ready → out_for_delivery / ready_for_pickup → delivered / completed
+// Kitchen (not in portal yet): received → preparing → ready
+// Sales:                        ready → out_for_delivery / ready_for_pickup → delivered / completed
+// Manager:                      full access across all transitions
 
 export function canAdvanceOrder(role: UserRole, order: StaffOrder, targetStatus: OrderStatus): boolean {
     const { status } = order;
-    if (role === 'kitchen') {
-        return (status === 'received' && targetStatus === 'preparing') ||
-               (status === 'preparing' && targetStatus === 'ready');
-    }
-    if (role === 'sales') {
-        return (status === 'ready' && (targetStatus === 'out_for_delivery' || targetStatus === 'ready_for_pickup')) ||
-               (status === 'out_for_delivery' && targetStatus === 'delivered') ||
-               (status === 'ready_for_pickup' && targetStatus === 'completed');
-    }
-    return false;
+
+    if (role === 'manager') return true;
+
+    // Sales only handles post-kitchen stages — cannot touch received/preparing/ready transitions
+    return (status === 'ready' && (targetStatus === 'out_for_delivery' || targetStatus === 'ready_for_pickup')) ||
+           (status === 'out_for_delivery' && targetStatus === 'delivered') ||
+           (status === 'ready_for_pickup' && targetStatus === 'completed');
 }
 
 // ─── Geolocation ──────────────────────────────────────────────────────────────

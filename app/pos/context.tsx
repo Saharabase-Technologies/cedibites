@@ -51,7 +51,8 @@ interface POSContextValue {
   updateOrderStatus: (orderId: string, status: POSOrder['status']) => void;
   seedTestOrders: () => void;
 
-  // Logout
+  // Login / Logout
+  login: (session: POSSession) => void;
   logout: () => void;
 }
 
@@ -297,6 +298,11 @@ export function POSProvider({ children }: POSProviderProps) {
     setTodayOrders(prev => [...mockOrders, ...prev]);
   }, []);
 
+  const login = useCallback((newSession: POSSession) => {
+    sessionStorage.setItem('pos-session', JSON.stringify(newSession));
+    setSession(newSession);
+  }, []);
+
   const logout = useCallback(() => {
     sessionStorage.removeItem('pos-session');
     setSession(null);
@@ -329,6 +335,7 @@ export function POSProvider({ children }: POSProviderProps) {
     todayOrders,
     updateOrderStatus,
     seedTestOrders,
+    login,
     logout,
   };
 

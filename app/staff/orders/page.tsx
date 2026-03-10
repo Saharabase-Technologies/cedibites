@@ -1,21 +1,30 @@
 'use client';
 
-import { Suspense } from 'react';
-import { OrdersProvider } from './context';
-import OrdersView from './OrdersView';
+import { useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 
-function OrdersPageInner() {
-    return (
-        <OrdersProvider>
-            <OrdersView />
-        </OrdersProvider>
-    );
+function OrdersRedirectInner() {
+    const router = useRouter();
+    const { staffUser, isLoading } = useStaffAuth();
+    const params = useSearchParams();
+    const qs = params.get('select') ? `?select=${params.get('select')}` : '';
+
+    useEffect(() => {
+        if (isLoading) return;
+        const base = staffUser?.role === 'manager'
+            ? '/staff/manager/orders'
+            : '/staff/sales/orders';
+        router.replace(`${base}${qs}`);
+    }, [staffUser, isLoading, router, qs]);
+
+    return null;
 }
 
-export default function StaffOrdersPage() {
+export default function OrdersRedirect() {
     return (
         <Suspense>
-            <OrdersPageInner />
+            <OrdersRedirectInner />
         </Suspense>
     );
 }

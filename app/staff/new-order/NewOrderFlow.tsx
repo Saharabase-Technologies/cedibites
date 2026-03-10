@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { CaretLeftIcon, CheckCircleIcon } from '@phosphor-icons/react';
 import { useNewOrder } from './context';
+import { useStaffRoutes } from '@/app/components/providers/StaffAuthProvider';
 import StepSetup from './steps/StepSetup';
 import StepMenu from './steps/StepMenu';
 import StepCustomer from './steps/StepCustomer';
@@ -53,6 +54,7 @@ function StepIndicator({ current }: { current: number }) {
 export default function NewOrderFlow() {
     const router = useRouter();
     const { step, orderCode, setStep } = useNewOrder();
+    const { dashboard } = useStaffRoutes();
 
     // Confirmation screen — full scrollable view
     if (orderCode) {
@@ -76,7 +78,7 @@ export default function NewOrderFlow() {
                     {/* the back button */}
                     <button
                         type="button"
-                        onClick={() => step > 1 ? setStep((step - 1) as 1 | 2 | 3 | 4) : router.push('/staff/dashboard')}
+                        onClick={() => step > 1 ? setStep((step - 1) as 1 | 2 | 3 | 4) : router.push(dashboard)}
                         className="w-8 h-8 flex items-center justify-center rounded-full border border-brown-light/25 text-neutral-gray hover:text-text-light hover:border-brown-light/50 transition-colors cursor-pointer shrink-0"
                     >
                         <CaretLeftIcon size={16} weight="bold" />

@@ -1,13 +1,16 @@
 'use client';
 
+import Link from 'next/link';
 import { CheckCircleIcon, ClockIcon } from '@phosphor-icons/react';
 import { BRANCHES } from '@/app/components/providers/BranchProvider';
 import { useNewOrder } from '../context';
+import { useStaffRoutes } from '@/app/components/providers/StaffAuthProvider';
 
 // ─── Confirmation screen ──────────────────────────────────────────────────────
 
 export default function OrderConfirmed() {
     const { orderCode, branchId, resetOrder } = useNewOrder();
+    const { orders } = useStaffRoutes();
     const branch = BRANCHES.find(b => b.id === branchId);
 
     return (
@@ -40,12 +43,12 @@ export default function OrderConfirmed() {
                 >
                     Create Another Order
                 </button>
-                <a
-                    href="/staff/orders"
+                <Link
+                    href={orders}
                     className="w-full border-brand-dark/50 dark:border-neutral-gray/50 dark:text-text-light border cursor-pointer hover:bg-primary/10 text-text-dark dark:hover:text-text-light font-body py-4 rounded-full transition-colors text-sm text-center block"
                 >
                     View All Orders
-                </a>
+                </Link>
             </div>
         </div>
     );

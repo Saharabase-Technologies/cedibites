@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
     ForkKnifeIcon,
     PlusIcon,
@@ -18,6 +18,9 @@ import {
     GearSixIcon,
     ArrowCounterClockwiseIcon,
     ArchiveIcon,
+    ImageIcon,
+    EyeIcon,
+    EyeSlashIcon,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { sampleMenuItems } from '@/lib/data/SampleMenu';
@@ -36,7 +39,7 @@ type ManagedMenuItem = MenuItem & { available: boolean; archived?: boolean };
 // We always serialise multi-option items as `sizes` in the MenuItem structure.
 type PricingType = 'simple' | 'options';
 
-interface OptionRow { label: string; price: string; }
+interface OptionRow { label: string; price: string; image?: string; }
 
 // ─── Seed data ────────────────────────────────────────────────────────────────
 
@@ -59,7 +62,7 @@ function getOptionRows(item: MenuItem): OptionRow[] {
         return rows;
     }
     if (item.sizes?.length) {
-        return item.sizes.map(s => ({ label: s.label, price: String(s.price) }));
+        return item.sizes.map(s => ({ label: s.label, price: String(s.price), image: s.image }));
     }
     return [{ label: '', price: '' }];
 }
@@ -106,6 +109,7 @@ interface ItemFormState {
     newCategory: string;       // filled when category === '__new__'
     pricingType: PricingType;
     simplePrice: string;
+    image?: string;
     options: OptionRow[];  // used when pricingType === 'options'
     addOns: string[];
     popular: boolean;
@@ -116,7 +120,7 @@ interface ItemFormState {
 function blankForm(): ItemFormState {
     return {
         name: '', description: '', category: 'Basic Meals', newCategory: '',
-        pricingType: 'simple', simplePrice: '',
+        pricingType: 'simple', simplePrice: '', image: undefined,
         options: [{ label: '', price: '' }, { label: '', price: '' }],
         addOns: [], popular: false, isNew: false, available: true,
     };
@@ -131,6 +135,7 @@ function itemToForm(item: ManagedMenuItem): ItemFormState {
         newCategory: '',
         pricingType: isMulti ? 'options' : 'simple',
         simplePrice: !isMulti && item.price != null ? String(item.price) : '',
+        image: !isMulti ? item.image : undefined,
         options: isMulti ? getOptionRows(item) : [{ label: '', price: '' }, { label: '', price: '' }],
         addOns: item.availableAddOns ?? [],
         popular: item.popular ?? false,
@@ -160,6 +165,7 @@ function formToItem(form: ItemFormState, allCategories: string[], existing?: Man
 
     if (form.pricingType === 'simple') {
         base.price = Number(form.simplePrice);
+        base.image = form.image;
     } else {
         // Serialise options as `sizes` — flexible and forward-compatible
         const validOptions = form.options.filter(o => o.label.trim() && o.price);
@@ -167,10 +173,31 @@ function formToItem(form: ItemFormState, allCategories: string[], existing?: Man
             key: o.label.trim().toLowerCase().replace(/\s+/g, '-') as SizeKey,
             label: o.label.trim(),
             price: Number(o.price),
+            image: o.image,
         }));
     }
 
     return base;
+}
+
+// ─── Image picker ─────────────────────────────────────────────────────────────
+
+function ImagePicker({ value, onChange, size = 'md' }: { value?: string; onChange: (url: string) => void; size?: 'sm' | 'md' }) {
+    const ref = useRef<HTMLInputElement>(null);
+    const dim = size === 'sm' ? 'w-9 h-9 rounded-lg' : 'w-20 h-20 rounded-xl';
+    return (
+        <>
+            <button type="button" onClick={() => ref.current?.click()}
+                className={`${dim} border-2 border-dashed border-brown-light/20 hover:border-primary/40 flex items-center justify-center overflow-hidden shrink-0 transition-colors cursor-pointer bg-neutral-light`}>
+                {value
+                    ? <img src={value} alt="" className="w-full h-full object-cover" />
+                    : <ImageIcon size={size === 'sm' ? 14 : 22} className="text-neutral-gray/40" />
+                }
+            </button>
+            <input type="file" ref={ref} accept="image/*" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) onChange(URL.createObjectURL(f)); }} />
+        </>
+    );
 }
 
 // ─── Item form modal ──────────────────────────────────────────────────────────
@@ -379,24 +406,34 @@ function ItemModal({
                             <label className="block text-sm font-medium font-body text-text-dark mb-1.5">
                                 Price (GHS) <span className="text-primary">*</span>
                             </label>
-                            <input type="number" min="0" step="1" value={form.simplePrice}
-                                onChange={e => set('simplePrice', e.target.value)}
-                                placeholder="0" className={inputCls} />
-                            {errors.simplePrice && <p className="text-error text-xs font-body mt-1">{errors.simplePrice}</p>}
+                            <div className="flex items-start gap-3">
+                                <div className="flex-1">
+                                    <input type="number" min="0" step="1" value={form.simplePrice}
+                                        onChange={e => set('simplePrice', e.target.value)}
+                                        placeholder="0" className={inputCls} />
+                                    {errors.simplePrice && <p className="text-error text-xs font-body mt-1">{errors.simplePrice}</p>}
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                    <ImagePicker value={form.image} onChange={url => set('image', url)} size="md" />
+                                    <span className="text-[10px] text-neutral-gray font-body">Photo</span>
+                                </div>
+                            </div>
                         </div>
                     )}
 
                     {/* ── Named options ─────────────────────────────────────── */}
                     {form.pricingType === 'options' && (
                         <div>
-                            <div className="grid grid-cols-[1fr_100px_24px] gap-2 mb-1.5 px-0.5">
+                            <div className="grid grid-cols-[36px_1fr_100px_24px] gap-2 mb-1.5 px-0.5">
+                                <span className="text-xs font-medium font-body text-neutral-gray">Img</span>
                                 <span className="text-xs font-medium font-body text-neutral-gray">Option name</span>
                                 <span className="text-xs font-medium font-body text-neutral-gray">Price (GHS)</span>
                                 <span />
                             </div>
                             <div className="flex flex-col gap-2">
                                 {form.options.map((opt, i) => (
-                                    <div key={i} className="grid grid-cols-[1fr_100px_24px] gap-2 items-center">
+                                    <div key={i} className="grid grid-cols-[36px_1fr_100px_24px] gap-2 items-center">
+                                        <ImagePicker value={opt.image} onChange={url => updateOption(i, 'image', url)} size="sm" />
                                         <input type="text" value={opt.label}
                                             onChange={e => updateOption(i, 'label', e.target.value)}
                                             placeholder="e.g. Small, Plain, Spicy…"
@@ -691,15 +728,15 @@ export default function ManagerMenuPage() {
                                             key={item.id}
                                             className={`flex items-center gap-3 px-4 py-3.5 ${i < catItems.length - 1 ? 'border-b border-brown-light/10' : ''} ${!item.available ? 'opacity-55' : ''}`}
                                         >
-                                            {/* Availability toggle */}
-                                            <button type="button" onClick={() => toggleAvailability(item.id)}
-                                                title={item.available ? 'Hide from menu' : 'Show on menu'}
-                                                className="shrink-0 cursor-pointer">
-                                                {item.available
-                                                    ? <CheckCircleIcon size={22} weight="fill" className="text-secondary" />
-                                                    : <XCircleIcon size={22} weight="fill" className="text-neutral-gray/40" />
+                                            {/* Thumbnail */}
+                                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                                {item.image
+                                                    ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                                    : item.sizes?.some(s => s.image)
+                                                        ? <img src={item.sizes.find(s => s.image)!.image} alt={item.name} className="w-full h-full object-cover" />
+                                                        : <ForkKnifeIcon size={16} weight="fill" className="text-primary" />
                                                 }
-                                            </button>
+                                            </div>
 
                                             {/* Info */}
                                             <div className="flex-1 min-w-0">
@@ -731,6 +768,14 @@ export default function ManagerMenuPage() {
 
                                             {/* Actions */}
                                             <div className="flex items-center gap-1 shrink-0">
+                                                <button type="button" onClick={() => toggleAvailability(item.id)}
+                                                    title={item.available ? 'Hide from menu' : 'Show on menu'}
+                                                    className="p-1.5 rounded-lg transition-colors cursor-pointer hover:bg-neutral-light">
+                                                    {item.available
+                                                        ? <EyeIcon size={18} weight="bold" className="text-secondary" />
+                                                        : <EyeSlashIcon size={18} weight="bold" className="text-neutral-gray/40" />
+                                                    }
+                                                </button>
                                                 <button type="button" onClick={() => setEditingItem(item)}
                                                     className="p-1.5 rounded-lg text-neutral-gray hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer" title="Edit">
                                                     <PencilSimpleIcon size={16} weight="bold" />

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
     SquaresFourIcon,
@@ -16,25 +16,34 @@ import {
     UsersThreeIcon,
     GearSixIcon,
 } from '@phosphor-icons/react';
+import { StaffAuthProvider, useStaffAuth, type StaffRole } from '@/app/components/providers/StaffAuthProvider';
 
-// ─── Nav config ───────────────────────────────────────────────────────────────
+// ─── Nav configs per role ──────────────────────────────────────────────────────
 
-const STAFF_NAV = [
-    { href: '/staff/dashboard',         label: 'Dashboard',  icon: SquaresFourIcon },
-    { href: '/staff/new-order',         label: 'New Order',  icon: PlusCircleIcon  },
-    { href: '/staff/orders',            label: 'Orders',     icon: ListIcon        },
-    { href: '/staff/my-sales',          label: 'My Sales',   icon: ReceiptIcon     },
+const SALES_NAV = [
+    { href: '/staff/sales/dashboard', label: 'Dashboard', icon: SquaresFourIcon },
+    { href: '/staff/sales/new-order', label: 'New Order', icon: PlusCircleIcon  },
+    { href: '/staff/sales/orders',    label: 'Orders',    icon: ListIcon        },
+    { href: '/staff/sales/my-sales',  label: 'My Sales',  icon: ReceiptIcon     },
 ];
 
-const MANAGER_NAV = [
-    { href: '/staff/manager/dashboard', label: 'Dashboard',  icon: SquaresFourIcon },
-    { href: '/staff/new-order',         label: 'New Order',  icon: PlusCircleIcon  },
-    { href: '/staff/orders',            label: 'Orders',     icon: ListIcon        },
-    { href: '/staff/manager/analytics', label: 'Analytics',  icon: ChartBarIcon    },
-    { href: '/staff/manager/menu',      label: 'Menu',       icon: ForkKnifeIcon   },
-    { href: '/staff/manager/staff',     label: 'Staff',      icon: UsersThreeIcon  },
-    { href: '/staff/manager/settings',  label: 'Configure',  icon: GearSixIcon     },
+const MANAGER_NAV_MAIN = [
+    { href: '/staff/manager/dashboard', label: 'Dashboard', icon: SquaresFourIcon },
+    { href: '/staff/manager/new-order', label: 'New Order', icon: PlusCircleIcon  },
+    { href: '/staff/manager/orders',    label: 'Orders',    icon: ListIcon        },
 ];
+
+const MANAGER_NAV_TOOLS = [
+    { href: '/staff/manager/analytics', label: 'Analytics', icon: ChartBarIcon  },
+    { href: '/staff/manager/menu',      label: 'Menu',       icon: ForkKnifeIcon },
+    { href: '/staff/manager/staff',     label: 'Staff',      icon: UsersThreeIcon },
+    { href: '/staff/manager/settings',  label: 'Configure',  icon: GearSixIcon   },
+];
+
+function navItemsForRole(role: StaffRole) {
+    if (role === 'manager') return { main: MANAGER_NAV_MAIN, tools: MANAGER_NAV_TOOLS };
+    return { main: SALES_NAV, tools: [] };
+}
 
 // ─── Sidebar link ─────────────────────────────────────────────────────────────
 
@@ -79,23 +88,44 @@ function BottomNavLink({
       `}
         >
             <Icon size={22} weight={active ? 'fill' : 'regular'} className="shrink-0" />
-            <span>{label}</span>
+            <span className="truncate max-w-13 text-center">{label}</span>
         </Link>
     );
 }
 
-// ─── Layout ───────────────────────────────────────────────────────────────────
+// ─── Role label ───────────────────────────────────────────────────────────────
 
-export default function StaffLayout({ children }: { children: React.ReactNode }) {
+function roleLabel(role: StaffRole): string {
+    return role === 'manager' ? 'Branch Manager' : 'Sales Staff';
+}
+
+// ─── Inner shell (consumes StaffAuthProvider) ─────────────────────────────────
+
+function StaffLayoutShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
+    const router = useRouter();
+    const { staffUser, isLoading, logout } = useStaffAuth();
 
-    // Skip the shell entirely on the login page
+    // Login page gets no chrome
     if (pathname === '/staff/login') return <>{children}</>;
 
-    // TODO: replace with real staff auth context
-    const staff = { name: 'Ama Boateng', role: 'Branch Manager', branch: 'East Legon' };
-    const isManager = staff.role === 'Branch Manager';
-    const NAV_ITEMS = isManager ? MANAGER_NAV : STAFF_NAV;
+    // While reading localStorage, render nothing to avoid flash
+    if (isLoading) return null;
+
+    // Not logged in → redirect
+    if (!staffUser) {
+        router.replace('/staff/login');
+        return null;
+    }
+
+    const { main: mainNav, tools: toolsNav } = navItemsForRole(staffUser.role);
+    const isManager = staffUser.role === 'manager';
+    const allMobileNav = [...mainNav, ...toolsNav];
+
+    const handleLogout = () => {
+        logout();
+        router.replace('/staff/login');
+    };
 
     return (
         <div className="h-screen overflow-hidden bg-neutral-light dark:bg-brand-darker w-full flex">
@@ -114,22 +144,23 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
 
                 {/* Nav */}
                 <nav className="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto">
-                    {isManager ? (
+                    {mainNav.map(item => (
+                        <SidebarLink
+                            key={item.href}
+                            href={item.href}
+                            label={item.label}
+                            icon={item.icon}
+                            active={pathname.startsWith(item.href)}
+                        />
+                    ))}
+
+                    {isManager && toolsNav.length > 0 && (
                         <>
-                            {MANAGER_NAV.slice(0, 3).map(item => (
-                                <SidebarLink
-                                    key={item.href}
-                                    href={item.href}
-                                    label={item.label}
-                                    icon={item.icon}
-                                    active={pathname.startsWith(item.href)}
-                                />
-                            ))}
                             <div className="my-2 border-t border-brown-light/15" />
                             <p className="text-[10px] font-body font-medium text-neutral-gray/60 uppercase tracking-wider px-3 pb-1">
                                 Manager
                             </p>
-                            {MANAGER_NAV.slice(3).map(item => (
+                            {toolsNav.map(item => (
                                 <SidebarLink
                                     key={item.href}
                                     href={item.href}
@@ -139,35 +170,25 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                                 />
                             ))}
                         </>
-                    ) : (
-                        STAFF_NAV.map(item => (
-                            <SidebarLink
-                                key={item.href}
-                                href={item.href}
-                                label={item.label}
-                                icon={item.icon}
-                                active={pathname.startsWith(item.href)}
-                            />
-                        ))
                     )}
                 </nav>
 
                 {/* Staff info + logout */}
                 <div className="px-3 py-4 border-t border-brown-light/50">
-                    <div className="flex items-center gap-2.5 px-3 py-2.5 mb-2">
+                    <Link href="/staff/profile" className="flex items-center gap-2.5 px-3 py-2.5 mb-2 rounded-xl hover:bg-brown-light/10 transition-colors group">
                         <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
                             <UserCircleIcon size={18} weight="fill" className="text-primary" />
                         </div>
-                        <div className="min-w-0">
-                            <p className="text-text-light text-xs font-medium font-body truncate">{staff.name}</p>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-text-light text-xs font-medium font-body truncate group-hover:text-primary transition-colors">{staffUser.name}</p>
                             <p className="text-neutral-gray text-[10px] font-body truncate">
-                                {staff.role} · {staff.branch}
+                                {roleLabel(staffUser.role)} · {staffUser.branch}
                             </p>
                         </div>
-                    </div>
+                    </Link>
                     <button
                         type="button"
-                        onClick={() => { window.location.href = '/staff/login'; }}
+                        onClick={handleLogout}
                         className="
               w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl
               text-neutral-gray hover:text-error hover:bg-error/10
@@ -195,12 +216,12 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                         <Image src="/cblogo.webp" alt="CediBites" width={24} height={24} />
                         <span className="font-brand text-primary text-base">CediBites</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <Link href="/staff/profile" className="flex items-center gap-1.5">
                         <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
                             <UserCircleIcon size={14} weight="fill" className="text-primary" />
                         </div>
-                        <p className="text-text-light text-xs font-body">{staff.name.split(' ')[0]}</p>
-                    </div>
+                        <p className="text-text-light text-xs font-body">{staffUser.name.split(' ')[0]}</p>
+                    </Link>
                 </header>
 
                 {/* Page content */}
@@ -217,7 +238,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
         bg-brown border-t border-brown-light/15
         px-2 pb-safe
       ">
-                {(isManager ? MANAGER_NAV : STAFF_NAV).map(item => (
+                {allMobileNav.map(item => (
                     <BottomNavLink
                         key={item.href}
                         href={item.href}
@@ -228,7 +249,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                 ))}
                 <button
                     type="button"
-                    onClick={() => { window.location.href = '/staff/login'; }}
+                    onClick={handleLogout}
                     className="flex flex-col items-center gap-1 flex-1 py-2 text-xs font-medium font-body text-neutral-gray cursor-pointer"
                 >
                     <SignOutIcon size={22} weight="regular" />
@@ -237,5 +258,15 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
             </nav>
 
         </div>
+    );
+}
+
+// ─── Layout root (provides StaffAuthProvider) ─────────────────────────────────
+
+export default function StaffLayout({ children }: { children: React.ReactNode }) {
+    return (
+        <StaffAuthProvider>
+            <StaffLayoutShell>{children}</StaffLayoutShell>
+        </StaffAuthProvider>
     );
 }

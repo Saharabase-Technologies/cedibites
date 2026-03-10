@@ -108,18 +108,11 @@ function StatCard({
     );
 }
 
-function SourceBadge({ source }: { source: string }) {
-    return (
-        <span className="text-[10px] font-medium font-body text-text-dark border border-brown-light/20 px-2 py-0.5 rounded-full">
-            {source}
-        </span>
-    );
-}
 
 function StatusBadge({ status }: { status: string }) {
     const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.received;
     return (
-        <span className="inline-flex items-center gap-1.5 py-2 text-xs text-text-dark font-bold font-body px-2.5">
+        <span className="inline-flex items-center gap-1.5 text-xs font-body font-medium text-text-dark">
             <span className={`h-2 w-2 rounded-full shrink-0 ${config.dot} ${config.pulse ? 'animate-pulse' : ''}`} />
             {config.label}
         </span>
@@ -218,7 +211,7 @@ export default function ManagerDashboardPage() {
                     <div className="flex items-center justify-between mb-3">
                         <h2 className="text-text-dark font-bold text-base font-body">Active Orders</h2>
                         <Link
-                            href="/staff/orders"
+                            href="/staff/manager/orders"
                             className="text-primary text-xs font-body hover:text-primary-hover flex items-center gap-1 transition-colors"
                         >
                             <ListIcon size={14} weight="bold" />
@@ -230,7 +223,7 @@ export default function ManagerDashboardPage() {
                         {ACTIVE_ORDERS.map(order => (
                             <Link
                                 key={order.id}
-                                href={`/staff/orders?select=${order.id}`}
+                                href={`/staff/manager/orders?select=${order.id}`}
                                 className="
                                     bg-neutral-card border border-brown-light/30
                                     rounded-2xl px-4 py-3 flex items-center justify-between gap-3
@@ -240,7 +233,7 @@ export default function ManagerDashboardPage() {
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2 mb-0.5">
                                         <span className="text-text-dark text-sm font-bold font-body">{order.name}</span>
-                                        <SourceBadge source={order.source} />
+                                        <span className="text-neutral-gray text-xs font-body">{order.source}</span>
                                     </div>
                                     <span className="text-neutral-gray text-xs font-body">#{order.id} &middot; {order.time}</span>
                                 </div>

@@ -1,6 +1,7 @@
 // POS Terminal Types
 
 export interface POSSession {
+  staffId: string;
   branchId: string;
   staffName: string;
   loginTime: number;
