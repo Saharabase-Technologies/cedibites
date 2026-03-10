@@ -1,0 +1,828 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import {
+    ForkKnifeIcon,
+    PlusIcon,
+    PencilSimpleIcon,
+    TrashIcon,
+    CheckCircleIcon,
+    XCircleIcon,
+    MagnifyingGlassIcon,
+    WarningCircleIcon,
+    StarIcon,
+    SparkleIcon,
+    TagIcon,
+    CaretDownIcon,
+    CaretRightIcon,
+    GearSixIcon,
+    ArrowCounterClockwiseIcon,
+    ArchiveIcon,
+} from '@phosphor-icons/react';
+import Link from 'next/link';
+import { sampleMenuItems } from '@/lib/data/SampleMenu';
+import type { MenuItem, SizeKey } from '@/lib/data/SampleMenu';
+import { useMenuConfig, DEFAULT_CONFIG } from '@/lib/hooks/useMenuConfig';
+import type { OptionTemplate, AddOn } from '@/lib/hooks/useMenuConfig';
+
+const BASE_CATEGORIES = DEFAULT_CONFIG.categories;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type ManagedMenuItem = MenuItem & { available: boolean; archived?: boolean };
+
+// Pricing is either a single flat price, or a flexible list of named options
+// (replaces both the old 'sizes' array and 'hasVariants/plain/assorted').
+// We always serialise multi-option items as `sizes` in the MenuItem structure.
+type PricingType = 'simple' | 'options';
+
+interface OptionRow { label: string; price: string; }
+
+// ─── Seed data ────────────────────────────────────────────────────────────────
+
+const INITIAL_ITEMS: ManagedMenuItem[] = sampleMenuItems.map(item => ({
+    ...item,
+    available: true,
+}));
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function hasPricingOptions(item: MenuItem): boolean {
+    return !!(item.sizes?.length) || !!(item.hasVariants && item.variants);
+}
+
+function getOptionRows(item: MenuItem): OptionRow[] {
+    if (item.hasVariants && item.variants) {
+        const rows: OptionRow[] = [];
+        if (item.variants.plain != null) rows.push({ label: 'Plain', price: String(item.variants.plain) });
+        if (item.variants.assorted != null) rows.push({ label: 'Assorted', price: String(item.variants.assorted) });
+        return rows;
+    }
+    if (item.sizes?.length) {
+        return item.sizes.map(s => ({ label: s.label, price: String(s.price) }));
+    }
+    return [{ label: '', price: '' }];
+}
+
+function PriceDisplay({ item }: { item: MenuItem }) {
+    if (hasPricingOptions(item)) {
+        const rows = getOptionRows(item);
+        if (rows.length === 1) {
+            return <span className="text-text-dark text-xs font-bold font-body">GHS {rows[0].price}</span>;
+        }
+        const prices = rows.map(r => Number(r.price)).filter(Boolean);
+        if (!prices.length) return <span className="text-neutral-gray text-xs font-body">—</span>;
+        const min = Math.min(...prices);
+        const max = Math.max(...prices);
+        if (min === max) {
+            return <span className="text-text-dark text-xs font-bold font-body">GHS {min}</span>;
+        }
+        if (rows.length <= 4) {
+            return (
+                <div className="flex flex-wrap gap-1">
+                    {rows.map(r => (
+                        <span key={r.label} className="inline-flex items-center gap-1 bg-neutral-gray/15 border border-neutral-gray/20 rounded-full px-2 py-0.5 text-[10px] font-body font-medium text-text-dark whitespace-nowrap">
+                            {r.label}
+                            <span className="text-primary font-bold">GHS {r.price}</span>
+                        </span>
+                    ))}
+                </div>
+            );
+        }
+        return <span className="text-text-dark text-xs font-bold font-body">GHS {min} – {max}</span>;
+    }
+    if (item.price != null) {
+        return <span className="text-text-dark text-xs font-bold font-body">GHS {item.price}</span>;
+    }
+    return <span className="text-neutral-gray text-xs font-body">—</span>;
+}
+
+// ─── Form state ───────────────────────────────────────────────────────────────
+
+interface ItemFormState {
+    name: string;
+    description: string;
+    category: string;
+    newCategory: string;       // filled when category === '__new__'
+    pricingType: PricingType;
+    simplePrice: string;
+    options: OptionRow[];  // used when pricingType === 'options'
+    addOns: string[];
+    popular: boolean;
+    isNew: boolean;
+    available: boolean;
+}
+
+function blankForm(): ItemFormState {
+    return {
+        name: '', description: '', category: 'Basic Meals', newCategory: '',
+        pricingType: 'simple', simplePrice: '',
+        options: [{ label: '', price: '' }, { label: '', price: '' }],
+        addOns: [], popular: false, isNew: false, available: true,
+    };
+}
+
+function itemToForm(item: ManagedMenuItem): ItemFormState {
+    const isMulti = hasPricingOptions(item);
+    return {
+        name: item.name,
+        description: item.description,
+        category: item.category,
+        newCategory: '',
+        pricingType: isMulti ? 'options' : 'simple',
+        simplePrice: !isMulti && item.price != null ? String(item.price) : '',
+        options: isMulti ? getOptionRows(item) : [{ label: '', price: '' }, { label: '', price: '' }],
+        addOns: item.availableAddOns ?? [],
+        popular: item.popular ?? false,
+        isNew: item.isNew ?? false,
+        available: item.available,
+    };
+}
+
+function formToItem(form: ItemFormState, allCategories: string[], existing?: ManagedMenuItem): ManagedMenuItem {
+    const id = existing?.id ?? `custom-${Date.now()}`;
+    const category = form.category === '__new__'
+        ? form.newCategory.trim() || 'Uncategorised'
+        : form.category;
+
+    const base: ManagedMenuItem = {
+        id,
+        name: form.name.trim(),
+        description: form.description.trim(),
+        category: category as MenuItem['category'],
+        url: existing?.url ?? `/menu?item=${id}`,
+        image: existing?.image,
+        popular: form.popular || undefined,
+        isNew: form.isNew || undefined,
+        availableAddOns: form.addOns.length > 0 ? form.addOns : undefined,
+        available: form.available,
+    };
+
+    if (form.pricingType === 'simple') {
+        base.price = Number(form.simplePrice);
+    } else {
+        // Serialise options as `sizes` — flexible and forward-compatible
+        const validOptions = form.options.filter(o => o.label.trim() && o.price);
+        base.sizes = validOptions.map(o => ({
+            key: o.label.trim().toLowerCase().replace(/\s+/g, '-') as SizeKey,
+            label: o.label.trim(),
+            price: Number(o.price),
+        }));
+    }
+
+    return base;
+}
+
+// ─── Item form modal ──────────────────────────────────────────────────────────
+
+function ItemModal({
+    item,
+    categories,
+    optionTemplates,
+    addOns,
+    onSave,
+    onClose,
+}: {
+    item: ManagedMenuItem | null;
+    categories: string[];
+    optionTemplates: OptionTemplate[];
+    addOns: AddOn[];
+    onSave: (item: ManagedMenuItem) => void;
+    onClose: () => void;
+}) {
+    const [form, setForm] = useState<ItemFormState>(item ? itemToForm(item) : blankForm());
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+
+    function set<K extends keyof ItemFormState>(key: K, value: ItemFormState[K]) {
+        setForm(prev => ({ ...prev, [key]: value }));
+        setErrors(prev => { const e = { ...prev }; delete e[key]; return e; });
+    }
+
+    function validate(): boolean {
+        const e: Record<string, string> = {};
+        if (!form.name.trim())
+            e.name = 'Name is required';
+        if (form.category === '__new__' && !form.newCategory.trim())
+            e.newCategory = 'Enter a category name';
+        if (form.pricingType === 'simple') {
+            if (!form.simplePrice || isNaN(Number(form.simplePrice)) || Number(form.simplePrice) <= 0)
+                e.simplePrice = 'Enter a valid price';
+        } else {
+            const valid = form.options.filter(o => o.label.trim() && o.price && Number(o.price) > 0);
+            if (valid.length < 1)
+                e.options = 'Add at least one option with a name and price';
+        }
+        setErrors(e);
+        return Object.keys(e).length === 0;
+    }
+
+    function handleSubmit() {
+        if (!validate()) return;
+        onSave(formToItem(form, categories, item ?? undefined));
+    }
+
+    function updateOption(i: number, field: keyof OptionRow, value: string) {
+        set('options', form.options.map((o, idx) => idx === i ? { ...o, [field]: value } : o));
+    }
+
+    function addOption() {
+        set('options', [...form.options, { label: '', price: '' }]);
+    }
+
+    function removeOption(i: number) {
+        if (form.options.length <= 1) return;
+        set('options', form.options.filter((_, idx) => idx !== i));
+    }
+
+    function toggleAddOn(id: string) {
+        set('addOns', form.addOns.includes(id)
+            ? form.addOns.filter(a => a !== id)
+            : [...form.addOns, id]
+        );
+    }
+
+    function loadTemplate(tpl: OptionTemplate) {
+        set('pricingType', 'options');
+        set('options', tpl.options.map(o => ({ label: o.label, price: o.price })));
+        setShowTemplatePicker(false);
+    }
+
+    const inputCls = 'w-full bg-neutral-light border border-brown-light/20 rounded-xl px-4 py-3 text-sm font-body text-text-dark placeholder:text-neutral-gray/50 focus:outline-none focus:border-primary transition-colors';
+    const checkboxCls = (checked: boolean) =>
+        `w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${checked ? 'bg-primary border-primary' : 'border-brown-light/30'}`;
+
+    const Tick = () => (
+        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+            <path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-darker" />
+        </svg>
+    );
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-brand-dar backdrop-blur-sm">
+            <div className="bg-neutral-light border border-brown-light/20 rounded-3xl p-6 w-full max-w-lg shadow-xl max-h-[92vh] overflow-y-auto">
+
+                <div className="flex items-center justify-between mb-5">
+                    <h2 className="text-text-dark text-lg font-bold font-body">
+                        {item ? 'Edit Menu Item' : 'Add Menu Item'}
+                    </h2>
+                    <button type="button" onClick={onClose}
+                        className="p-1.5 rounded-xl text-neutral-gray hover:text-text-dark  hover:bg-brown-light/15 transition-colors cursor-pointer">
+                        <XCircleIcon size={20} weight="fill" />
+                    </button>
+                </div>
+
+                <div className="flex flex-col gap-4">
+
+                    {/* ── Name ──────────────────────────────────────────────── */}
+                    <div>
+                        <label className="block text-sm font-medium font-body text-text-dark mb-1.5">
+                            Item Name <span className="text-primary">*</span>
+                        </label>
+                        <input type="text" value={form.name}
+                            onChange={e => set('name', e.target.value)}
+                            placeholder="e.g. Jollof Rice with Chicken Drumsticks"
+                            className={inputCls} />
+                        {errors.name && <p className="text-error text-xs font-body mt-1">{errors.name}</p>}
+                    </div>
+
+                    {/* ── Description ───────────────────────────────────────── */}
+                    <div>
+                        <label className="block text-sm font-medium font-body text-text-dark mb-1.5">
+                            Description
+                        </label>
+                        <textarea value={form.description}
+                            onChange={e => set('description', e.target.value)}
+                            placeholder="Short description shown on the menu..."
+                            rows={2} className={`${inputCls} resize-none`} />
+                    </div>
+
+                    {/* ── Category ──────────────────────────────────────────── */}
+                    <div>
+                        <label className="block text-sm font-medium font-body text-text-dark mb-1.5">
+                            Category <span className="text-primary">*</span>
+                        </label>
+                        <select value={form.category}
+                            onChange={e => set('category', e.target.value)}
+                            className={`${inputCls} cursor-pointer`}>
+                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                            <option value="__new__">+ Add new category...</option>
+                        </select>
+                        {form.category === '__new__' && (
+                            <div className="mt-2">
+                                <input type="text" value={form.newCategory}
+                                    onChange={e => set('newCategory', e.target.value)}
+                                    placeholder="e.g. Breakfast, Specials, Snacks..."
+                                    className={inputCls} autoFocus />
+                                {errors.newCategory && <p className="text-error text-xs font-body mt-1">{errors.newCategory}</p>}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── Pricing type ──────────────────────────────────────── */}
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium font-body text-text-dark">
+                                Pricing <span className="text-primary">*</span>
+                            </label>
+                            {optionTemplates.length > 0 && (
+                                <div className="relative">
+                                    <button type="button"
+                                        onClick={() => setShowTemplatePicker(p => !p)}
+                                        className="flex items-center gap-1.5 text-xs font-medium font-body text-primary hover:text-primary-hover transition-colors cursor-pointer">
+                                        Load template
+                                        <CaretDownIcon size={11} weight="bold" className={`transition-transform ${showTemplatePicker ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {showTemplatePicker && (
+                                        <div className="absolute right-0 top-full mt-1 z-10 bg-neutral-light border border-brown-light/20 rounded-2xl shadow-xl overflow-hidden min-w-50">
+                                            {optionTemplates.map(tpl => (
+                                                <button key={tpl.id} type="button"
+                                                    onClick={() => loadTemplate(tpl)}
+                                                    className="w-full text-left px-4 py-3 hover:bg-brown-light/10 transition-colors cursor-pointer border-b border-brown-light/10 last:border-b-0">
+                                                    <p className="text-text-dark text-sm font-medium font-body">{tpl.name}</p>
+                                                    <p className="text-neutral-gray text-xs font-body mt-0.5">
+                                                        {tpl.options.map(o => o.label).join(' · ')}
+                                                    </p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex gap-2">
+                            {([
+                                { key: 'simple', label: 'Single price' },
+                                { key: 'options', label: 'Named options' },
+                            ] as { key: PricingType; label: string }[]).map(opt => (
+                                <button key={opt.key} type="button"
+                                    onClick={() => set('pricingType', opt.key)}
+                                    className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-medium font-body border transition-all cursor-pointer
+                                        ${form.pricingType === opt.key
+                                            ? 'bg-primary/15 border-primary text-primary'
+                                            : 'border-brown-light/20 text-neutral-gray hover:text-text-dark'
+                                        }`}>
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                        {form.pricingType === 'options' && (
+                            <p className="text-neutral-gray/60 text-xs font-body mt-1.5">
+                                Name each option yourself — or load a saved template above.
+                            </p>
+                        )}
+                    </div>
+
+                    {/* ── Single price input ────────────────────────────────── */}
+                    {form.pricingType === 'simple' && (
+                        <div>
+                            <label className="block text-sm font-medium font-body text-text-dark mb-1.5">
+                                Price (GHS) <span className="text-primary">*</span>
+                            </label>
+                            <input type="number" min="0" step="1" value={form.simplePrice}
+                                onChange={e => set('simplePrice', e.target.value)}
+                                placeholder="0" className={inputCls} />
+                            {errors.simplePrice && <p className="text-error text-xs font-body mt-1">{errors.simplePrice}</p>}
+                        </div>
+                    )}
+
+                    {/* ── Named options ─────────────────────────────────────── */}
+                    {form.pricingType === 'options' && (
+                        <div>
+                            <div className="grid grid-cols-[1fr_100px_24px] gap-2 mb-1.5 px-0.5">
+                                <span className="text-xs font-medium font-body text-neutral-gray">Option name</span>
+                                <span className="text-xs font-medium font-body text-neutral-gray">Price (GHS)</span>
+                                <span />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                {form.options.map((opt, i) => (
+                                    <div key={i} className="grid grid-cols-[1fr_100px_24px] gap-2 items-center">
+                                        <input type="text" value={opt.label}
+                                            onChange={e => updateOption(i, 'label', e.target.value)}
+                                            placeholder="e.g. Small, Plain, Spicy…"
+                                            className={inputCls} />
+                                        <input type="number" min="0" step="1" value={opt.price}
+                                            onChange={e => updateOption(i, 'price', e.target.value)}
+                                            placeholder="0"
+                                            className={inputCls} />
+                                        <button type="button" onClick={() => removeOption(i)}
+                                            className={`flex items-center justify-center transition-colors ${form.options.length > 1 ? 'text-neutral-gray/40 hover:text-error cursor-pointer' : 'opacity-20 cursor-not-allowed'}`}>
+                                            <XCircleIcon size={18} weight="fill" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                            <button type="button" onClick={addOption}
+                                className="flex items-center gap-1.5 text-xs font-medium font-body text-primary hover:text-primary-hover transition-colors cursor-pointer w-fit mt-2">
+                                <PlusIcon size={13} weight="bold" />
+                                Add option
+                            </button>
+                            {errors.options && <p className="text-error text-xs font-body mt-1">{errors.options}</p>}
+                        </div>
+                    )}
+
+                    {/* ── Add-ons ───────────────────────────────────────────── */}
+                    <div>
+                        <label className="block text-sm font-medium font-body text-text-dark mb-2">
+                            Available Add-ons
+                        </label>
+                        <div className="flex flex-col gap-2.5">
+                            {addOns.length === 0 && (
+                                <p className="text-neutral-gray text-xs font-body italic">
+                                    No add-ons configured. <Link href="/staff/manager/settings" className="text-primary hover:underline">Add some in Configure.</Link>
+                                </p>
+                            )}
+                            {addOns.map(addon => (
+                                <button key={addon.id} type="button" onClick={() => toggleAddOn(addon.id)}
+                                    className="flex items-center gap-3 cursor-pointer w-fit">
+                                    <div className={checkboxCls(form.addOns.includes(addon.id))}>
+                                        {form.addOns.includes(addon.id) && <Tick />}
+                                    </div>
+                                    <span className="text-sm font-body text-text-dark">
+                                        {addon.name}
+                                        <span className="text-neutral-gray ml-1.5 text-xs">
+                                            GHS {addon.price}{addon.perPiece ? '/pc' : ''}
+                                        </span>
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* ── Flags ─────────────────────────────────────────────── */}
+                    <div className="flex gap-6">
+                        <button type="button" onClick={() => set('popular', !form.popular)}
+                            className="flex items-center gap-2.5 cursor-pointer">
+                            <div className={checkboxCls(form.popular)}>
+                                {form.popular && <Tick />}
+                            </div>
+                            <span className="text-sm font-body text-text-dark flex items-center gap-1.5">
+                                <StarIcon size={13} weight="fill" className="text-primary" />
+                                Popular
+                            </span>
+                        </button>
+                        <button type="button" onClick={() => set('isNew', !form.isNew)}
+                            className="flex items-center gap-2.5 cursor-pointer">
+                            <div className={checkboxCls(form.isNew)}>
+                                {form.isNew && <Tick />}
+                            </div>
+                            <span className="text-sm font-body text-text-dark flex items-center gap-1.5">
+                                <SparkleIcon size={13} weight="fill" className="text-secondary" />
+                                New item
+                            </span>
+                        </button>
+                    </div>
+
+                    {/* ── Availability ──────────────────────────────────────── */}
+                    <button type="button" onClick={() => set('available', !form.available)}
+                        className="flex items-center gap-3 cursor-pointer w-fit">
+                        <div className={`w-10 h-6 rounded-full transition-colors duration-200 flex items-center px-0.5 ${form.available ? 'bg-secondary' : 'bg-brown-light/30'}`}>
+                            <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${form.available ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </div>
+                        <span className="text-sm font-medium font-body text-text-dark">
+                            {form.available ? 'Available on menu' : 'Hidden from menu'}
+                        </span>
+                    </button>
+
+                </div>
+
+                {/* ── Actions ───────────────────────────────────────────────── */}
+                <div className="flex gap-3 mt-6">
+                    <button type="button" onClick={onClose}
+                        className="flex-1 py-3 rounded-xl border border-brown-light/20 text-sm font-medium font-body text-neutral-gray hover:text-text-dark transition-colors cursor-pointer">
+                        Cancel
+                    </button>
+                    <button type="button" onClick={handleSubmit}
+                        className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary-hover text-brand-darker text-sm font-bold font-body transition-colors cursor-pointer">
+                        {item ? 'Save Changes' : 'Add Item'}
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    );
+}
+
+// ─── Archive confirm ──────────────────────────────────────────────────────────
+
+function ArchiveConfirm({ name, onConfirm, onClose }: { name: string; onConfirm: () => void; onClose: () => void }) {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-darker/60 backdrop-blur-sm">
+            <div className="bg-neutral-light border border-brown-light/20 rounded-3xl p-6 w-full max-w-sm shadow-xl">
+                <div className="flex flex-col items-center text-center gap-3 mb-6">
+                    <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
+                        <WarningCircleIcon size={28} weight="fill" className="text-warning" />
+                    </div>
+                    <div>
+                        <h2 className="text-text-dark text-base font-bold font-body">Archive Item?</h2>
+                        <p className="text-neutral-gray text-sm font-body mt-1">
+                            <span className="font-semibold text-text-dark">{name}</span> will be hidden from the menu and moved to your archive. You can restore it any time.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex gap-3">
+                    <button type="button" onClick={onClose}
+                        className="flex-1 py-3 rounded-xl border border-brown-light/20 text-sm font-medium font-body text-neutral-gray hover:text-text-dark transition-colors cursor-pointer">
+                        Cancel
+                    </button>
+                    <button type="button" onClick={onConfirm}
+                        className="flex-1 py-3 rounded-xl bg-warning hover:bg-warning/80 text-white text-sm font-bold font-body transition-colors cursor-pointer">
+                        Archive
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function ManagerMenuPage() {
+    const { config } = useMenuConfig();
+    const [items, setItems] = useState<ManagedMenuItem[]>(INITIAL_ITEMS);
+    const [search, setSearch] = useState('');
+    const [categoryFilter, setFilter] = useState<string>('All');
+    const [editingItem, setEditingItem] = useState<ManagedMenuItem | null | 'new'>(null);
+    const [deletingItem, setDeletingItem] = useState<ManagedMenuItem | null>(null);
+    const [showArchive, setShowArchive] = useState(false);
+
+    const categories = config.categories;
+    const optionTemplates = config.optionTemplates;
+    const addOns = config.addOns;
+
+    const filtered = useMemo(() => items.filter(item => {
+        if (item.archived) return false;
+        const matchSearch = item.name.toLowerCase().includes(search.toLowerCase());
+        const matchCategory = categoryFilter === 'All' || item.category === categoryFilter;
+        return matchSearch && matchCategory;
+    }), [items, search, categoryFilter]);
+
+    const archived = useMemo(() => items.filter(i => i.archived), [items]);
+
+    // Group by category order (from config, then any unconfigured categories on items)
+    const grouped = useMemo(() => {
+        const order = [...categories, ...items.map(i => i.category).filter(c => !categories.includes(c))];
+        const map = new Map<string, ManagedMenuItem[]>();
+        order.forEach(c => map.set(c, []));
+        filtered.forEach(item => {
+            if (!map.has(item.category)) map.set(item.category, []);
+            map.get(item.category)!.push(item);
+        });
+        return map;
+    }, [filtered, items, categories]);
+
+    function toggleAvailability(id: string) {
+        setItems(prev => prev.map(item => item.id === id ? { ...item, available: !item.available } : item));
+    }
+
+    function handleSave(updated: ManagedMenuItem) {
+        setItems(prev => {
+            const exists = prev.some(item => item.id === updated.id);
+            return exists
+                ? prev.map(item => item.id === updated.id ? updated : item)
+                : [...prev, updated];
+        });
+        setEditingItem(null);
+    }
+
+    function handleArchive() {
+        if (!deletingItem) return;
+        setItems(prev => prev.map(item => item.id === deletingItem.id ? { ...item, archived: true, available: false } : item));
+        setDeletingItem(null);
+    }
+
+    function handleRestore(id: string) {
+        setItems(prev => prev.map(item => item.id === id ? { ...item, archived: false, available: true } : item));
+    }
+
+    function handlePermanentDelete(id: string) {
+        setItems(prev => prev.filter(item => item.id !== id));
+    }
+
+    const allCategoryOptions = ['All', ...categories];
+    const activeItems = items.filter(i => !i.archived);
+    const availableCount = activeItems.filter(i => i.available).length;
+    const unavailableCount = activeItems.length - availableCount;
+
+    return (
+        <>
+            <div className="px-4 md:px-8 py-6 max-w-4xl mx-auto">
+
+                {/* ── Header ──────────────────────────────────────────────────── */}
+                <div className="flex items-start justify-between gap-4 mb-6">
+                    <div>
+                        <h1 className="text-text-dark text-xl font-bold font-body">Menu Management</h1>
+                        <p className="text-neutral-gray text-sm font-body mt-0.5 flex items-center gap-1.5">
+                            <ForkKnifeIcon size={13} weight="fill" />
+                            East Legon &middot; {activeItems.length} items &middot;{' '}
+                            <span className="text-secondary font-medium">{availableCount} available</span>
+                            {unavailableCount > 0 && (
+                                <>, <span className="text-warning font-medium">{unavailableCount} hidden</span></>
+                            )}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Link
+                            href="/staff/manager/settings"
+                            className="flex items-center gap-1.5 border border-brown-light/20 text-neutral-gray hover:text-text-dark hover:border-brown-light/40 font-medium font-body text-sm px-3 py-2.5 rounded-xl transition-colors"
+                            title="Manage categories &amp; templates"
+                        >
+                            <GearSixIcon size={16} weight="bold" />
+                            <span className="hidden sm:inline">Configure</span>
+                        </Link>
+                        <button
+                            type="button"
+                            onClick={() => setEditingItem('new')}
+                            className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-brand-darker font-semibold font-body text-sm px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+                        >
+                            <PlusIcon size={16} weight="bold" />
+                            Add Item
+                        </button>
+                    </div>
+                </div>
+
+                {/* ── Filters ─────────────────────────────────────────────────── */}
+                <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                    <div className="relative flex-1">
+                        <MagnifyingGlassIcon size={16} weight="bold" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-gray pointer-events-none" />
+                        <input
+                            type="text"
+                            placeholder="Search menu items..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="w-full bg-neutral-light border border-brown-light/15 rounded-xl pl-9 pr-4 py-2.5 text-sm font-body text-text-dark placeholder:text-neutral-gray/50 focus:outline-none focus:border-primary transition-colors"
+                        />
+                    </div>
+                    <select
+                        value={categoryFilter}
+                        onChange={e => setFilter(e.target.value)}
+                        className="bg-neutral-light border border-brown-light/15 rounded-xl px-4 py-2.5 text-sm font-body text-text-dark focus:outline-none focus:border-primary transition-colors cursor-pointer"
+                    >
+                        {allCategoryOptions.map(c => (
+                            <option key={c} value={c}>{c === 'All' ? 'All categories' : c}</option>
+                        ))}
+                    </select>
+                </div>
+
+
+
+                {/* ── Menu groups ─────────────────────────────────────────────── */}
+                {[...grouped.values()].every(arr => arr.length === 0) ? (
+                    <div className="text-center py-16">
+                        <ForkKnifeIcon size={36} weight="duotone" className="text-neutral-gray/30 mx-auto mb-3" />
+                        <p className="text-neutral-gray text-sm font-body">No items match your search.</p>
+                    </div>
+                ) : (
+                    [...grouped.entries()].map(([category, catItems]) => {
+                        if (!catItems.length) return null;
+                        return (
+                            <div key={category} className="mb-6">
+                                <div className="flex items-center gap-2 mb-2 px-1">
+                                    <p className="text-text-dark text-sm font-bold font-body">{category}</p>
+                                    {!BASE_CATEGORIES.includes(category) && (
+                                        <span className="flex items-center gap-1 text-[10px] font-bold font-body text-info bg-info/10 border border-info/20 rounded-full px-2 py-0.5">
+                                            <TagIcon size={9} weight="fill" /> Custom
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="bg-neutral-card border py-2 border-brown-light/15 rounded-2xl overflow-hidden">
+                                    {catItems.map((item, i) => (
+                                        <div
+                                            key={item.id}
+                                            className={`flex items-center gap-3 px-4 py-3.5 ${i < catItems.length - 1 ? 'border-b border-brown-light/10' : ''} ${!item.available ? 'opacity-55' : ''}`}
+                                        >
+                                            {/* Availability toggle */}
+                                            <button type="button" onClick={() => toggleAvailability(item.id)}
+                                                title={item.available ? 'Hide from menu' : 'Show on menu'}
+                                                className="shrink-0 cursor-pointer">
+                                                {item.available
+                                                    ? <CheckCircleIcon size={22} weight="fill" className="text-secondary" />
+                                                    : <XCircleIcon size={22} weight="fill" className="text-neutral-gray/40" />
+                                                }
+                                            </button>
+
+                                            {/* Info */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <p className="text-text-dark text-sm font-semibold font-body">{item.name}</p>
+                                                    {item.popular && (
+                                                        <span className="flex items-center gap-0.5 text-[10px] font-bold font-body text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5">
+                                                            <StarIcon size={9} weight="fill" /> Popular
+                                                        </span>
+                                                    )}
+                                                    {item.isNew && (
+                                                        <span className="flex items-center gap-0.5 text-[10px] font-bold font-body text-secondary bg-secondary/10 border border-secondary/20 rounded-full px-2 py-0.5">
+                                                            <SparkleIcon size={9} weight="fill" /> New
+                                                        </span>
+                                                    )}
+                                                    {!item.available && (
+                                                        <span className="text-[10px] font-bold font-body text-warning bg-warning/10 border border-warning/20 rounded-full px-2 py-0.5">
+                                                            Hidden
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {item.description && (
+                                                    <p className="text-neutral-gray text-xs font-body truncate mt-0.5">{item.description}</p>
+                                                )}
+                                                <div className="mt-1.5">
+                                                    <PriceDisplay item={item} />
+                                                </div>
+                                            </div>
+
+                                            {/* Actions */}
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <button type="button" onClick={() => setEditingItem(item)}
+                                                    className="p-1.5 rounded-lg text-neutral-gray hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer" title="Edit">
+                                                    <PencilSimpleIcon size={16} weight="bold" />
+                                                </button>
+                                                <button type="button" onClick={() => setDeletingItem(item)}
+                                                    className="p-1.5 rounded-lg text-neutral-gray hover:text-error hover:bg-error/10 transition-colors cursor-pointer" title="Remove">
+                                                    <TrashIcon size={16} weight="bold" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
+
+                <p className="text-neutral-gray/40 text-xs font-body text-center mt-4">
+                    Hiding an item removes it from the customer menu &middot; East Legon branch only
+                </p>
+
+                {/* ── Archived items ──────────────────────────────────────────── */}
+                {archived.length > 0 && (
+                    <div className="mt-8 border-t border-brown-light/15 pt-6">
+                        <button
+                            type="button"
+                            onClick={() => setShowArchive(p => !p)}
+                            className="flex items-center gap-2 text-sm font-semibold font-body text-neutral-gray hover:text-text-dark transition-colors cursor-pointer mb-4"
+                        >
+                            <ArchiveIcon size={16} weight="fill" />
+                            Archived items
+                            <span className="bg-brown-light/20 text-neutral-gray text-[10px] font-bold rounded-full px-2 py-0.5">{archived.length}</span>
+                            <CaretRightIcon size={12} weight="bold" className={`ml-auto transition-transform ${showArchive ? 'rotate-90' : ''}`} />
+                        </button>
+
+                        {showArchive && (
+                            <div className="bg-neutral-card border border-brown-light/15 rounded-2xl overflow-hidden">
+                                {archived.map((item, i) => (
+                                    <div
+                                        key={item.id}
+                                        className={`flex items-center gap-3 px-4 py-3.5 opacity-60 ${i < archived.length - 1 ? 'border-b border-brown-light/10' : ''}`}
+                                    >
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-text-dark text-sm font-semibold font-body line-through">{item.name}</p>
+                                            <p className="text-neutral-gray text-xs font-body mt-0.5">{item.category}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRestore(item.id)}
+                                                title="Restore to menu"
+                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium font-body text-secondary hover:bg-secondary/10 transition-colors cursor-pointer"
+                                            >
+                                                <ArrowCounterClockwiseIcon size={14} weight="bold" />
+                                                Restore
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handlePermanentDelete(item.id)}
+                                                title="Delete permanently"
+                                                className="p-1.5 rounded-lg text-neutral-gray/40 hover:text-error hover:bg-error/10 transition-colors cursor-pointer"
+                                            >
+                                                <TrashIcon size={15} weight="bold" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+            </div>
+
+            {/* ── Modals ──────────────────────────────────────────────────────── */}
+            {editingItem !== null && (
+                <ItemModal
+                    item={editingItem === 'new' ? null : editingItem}
+                    categories={categories}
+                    optionTemplates={optionTemplates}
+                    addOns={addOns}
+                    onSave={handleSave}
+                    onClose={() => setEditingItem(null)}
+                />
+            )}
+            {deletingItem && (
+                <ArchiveConfirm
+                    name={deletingItem.name}
+                    onConfirm={handleArchive}
+                    onClose={() => setDeletingItem(null)}
+                />
+            )}
+        </>
+    );
+}

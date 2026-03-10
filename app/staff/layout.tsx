@@ -14,6 +14,7 @@ import {
     ChartBarIcon,
     ForkKnifeIcon,
     UsersThreeIcon,
+    GearSixIcon,
 } from '@phosphor-icons/react';
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
@@ -32,6 +33,7 @@ const MANAGER_NAV = [
     { href: '/staff/manager/analytics', label: 'Analytics',  icon: ChartBarIcon    },
     { href: '/staff/manager/menu',      label: 'Menu',       icon: ForkKnifeIcon   },
     { href: '/staff/manager/staff',     label: 'Staff',      icon: UsersThreeIcon  },
+    { href: '/staff/manager/settings',  label: 'Configure',  icon: GearSixIcon     },
 ];
 
 // ─── Sidebar link ─────────────────────────────────────────────────────────────
