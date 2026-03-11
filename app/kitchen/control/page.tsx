@@ -21,7 +21,8 @@ import {
   XIcon,
 } from '@phosphor-icons/react';
 import { useKitchen } from '../context';
-import { KitchenOrder, KitchenOrderStatus, STATUS_CONFIG } from '../types';
+import type { Order, OrderStatus, FulfillmentType } from '@/types/order';
+import { STATUS_CONFIG, KITCHEN_STATUS_LABELS, FULFILLMENT_LABELS } from '@/lib/constants/order.constants';
 
 function formatTimeAgo(timestamp: number): string {
   const minutes = Math.floor((Date.now() - timestamp) / 60000);
@@ -30,28 +31,22 @@ function formatTimeAgo(timestamp: number): string {
   return `${minutes} min`;
 }
 
-function formatDuration(startTime: number): string {
-  const seconds = Math.floor((Date.now() - startTime) / 1000);
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-const ORDER_TYPE_LABELS: Record<KitchenOrder['orderType'], { icon: React.ElementType; label: string }> = {
+const ORDER_TYPE_LABELS: Record<FulfillmentType, { icon: React.ElementType; label: string }> = {
   dine_in: { icon: ForkKnifeIcon, label: 'Dine In' },
   takeaway: { icon: PackageIcon, label: 'Takeaway' },
   delivery: { icon: BicycleIcon, label: 'Delivery' },
   pickup: { icon: StorefrontIcon, label: 'Pickup' },
 };
 
-type TabFilter = KitchenOrderStatus;
+// Kitchen only shows these 4 statuses
+type KitchenStatus = 'received' | 'accepted' | 'preparing' | 'ready';
 
 export default function KitchenControlPage() {
   const router = useRouter();
   const { orders, ordersByStatus, stats, acceptOrder, startOrder, markReady, completeOrder, completeAllReady, soundEnabled, setSoundEnabled, simulateNewOrder } = useKitchen();
 
-  const [activeTab, setActiveTab] = useState<TabFilter>('received');
-  const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
+  const [activeTab, setActiveTab] = useState<KitchenStatus>('received');
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   // Keep timers fresh
   const [, setTick] = useState(0);
@@ -71,14 +66,14 @@ export default function KitchenControlPage() {
     return ordersByStatus[activeTab] || [];
   }, [activeTab, ordersByStatus]);
 
-  const handleAction = (order: KitchenOrder) => {
+  const handleAction = (order: Order) => {
     if (order.status === 'received') acceptOrder(order.id);
     if (order.status === 'accepted') startOrder(order.id);
     if (order.status === 'preparing') markReady(order.id);
     if (order.status === 'ready') completeOrder(order.id);
   };
 
-  const tabs: { id: TabFilter; label: string; count: number }[] = [
+  const tabs: { id: KitchenStatus; label: string; count: number }[] = [
     { id: 'received', label: 'New', count: stats.received },
     { id: 'accepted', label: 'Accepted', count: stats.accepted },
     { id: 'preparing', label: 'Cooking', count: stats.preparing },
@@ -212,21 +207,24 @@ export default function KitchenControlPage() {
 // ─── Control Order Card ───────────────────────────────────────────────────────
 
 interface ControlOrderCardProps {
-  order: KitchenOrder;
+  order: Order;
   isSelected: boolean;
   onSelect: () => void;
   onAction: () => void;
 }
 
 function ControlOrderCard({ order, isSelected, onSelect, onAction }: ControlOrderCardProps) {
-  const config = STATUS_CONFIG[order.status];
+  const statusCfg = STATUS_CONFIG[order.status];
+  const kitchenLabel = KITCHEN_STATUS_LABELS[order.status] ?? statusCfg.label;
 
   const actionConfig = {
     received: { label: 'Accept', icon: CheckIcon, color: 'bg-brown hover:bg-brown-light text-text-light' },
     accepted: { label: 'Start Cooking', icon: PlayIcon, color: 'bg-teal-600 hover:bg-teal-700 text-white' },
     preparing: { label: 'Ready', icon: CheckIcon, color: 'bg-secondary hover:bg-secondary-hover text-white' },
     ready: { label: 'Done', icon: CheckCircleIcon, color: 'bg-primary hover:bg-primary-hover text-white' },
-  }[order.status];
+  }[order.status as KitchenStatus];
+
+  if (!actionConfig) return null;
 
   return (
     <div
@@ -247,13 +245,13 @@ function ControlOrderCard({ order, isSelected, onSelect, onAction }: ControlOrde
             <div className="flex items-center gap-2">
               <span className="text-xl font-bold text-text-dark font-body">{order.orderNumber}</span>
             </div>
-            {order.customerName && <p className="text-text-dark text-sm font-medium font-body ml-4">{order.customerName}</p>}
+            {order.contact.name && <p className="text-text-dark text-sm font-medium font-body ml-4">{order.contact.name}</p>}
           </div>
           <div className="flex flex-col items-end gap-1">
-            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-bold font-body ${config.bgColor} ${config.textColor}`}>
-              {config.label}
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-bold font-body ${statusCfg.bg} ${statusCfg.dot.replace('bg-', 'text-')}`}>
+              {kitchenLabel}
             </span>
-            <span className="text-xs font-body text-neutral-gray">{ORDER_TYPE_LABELS[order.orderType].label}</span>
+            <span className="text-xs font-body text-neutral-gray">{ORDER_TYPE_LABELS[order.fulfillmentType].label}</span>
           </div>
         </div>
 
@@ -273,10 +271,10 @@ function ControlOrderCard({ order, isSelected, onSelect, onAction }: ControlOrde
         </div>
 
         {/* Notes */}
-        {order.notes && (
+        {order.contact.notes && (
           <div className="flex items-center gap-1.5 text-text-gray text-xs mb-3 font-body">
             <WarningCircleIcon className="w-4 h-4 shrink-0" />
-            <span className="truncate">{order.notes}</span>
+            <span className="truncate">{order.contact.notes}</span>
           </div>
         )}
 
@@ -296,21 +294,24 @@ function ControlOrderCard({ order, isSelected, onSelect, onAction }: ControlOrde
 // ─── Order Detail Panel ───────────────────────────────────────────────────────
 
 interface OrderDetailPanelProps {
-  order: KitchenOrder;
+  order: Order;
   onAction: () => void;
   onClose: () => void;
 }
 
 function OrderDetailPanel({ order, onAction, onClose }: OrderDetailPanelProps) {
-  const config = STATUS_CONFIG[order.status];
-  const TypeIcon = ORDER_TYPE_LABELS[order.orderType].icon;
+  const statusCfg = STATUS_CONFIG[order.status];
+  const kitchenLabel = KITCHEN_STATUS_LABELS[order.status] ?? statusCfg.label;
+  const TypeIcon = ORDER_TYPE_LABELS[order.fulfillmentType].icon;
 
   const actionConfig = {
     received: { label: 'Accept Order', icon: CheckIcon, color: 'bg-brown text-text-light hover:bg-brown-light' },
     accepted: { label: 'Start Cooking', icon: PlayIcon, color: 'bg-teal-600 text-white hover:bg-teal-700' },
     preparing: { label: 'Mark Ready', icon: CheckIcon, color: 'bg-secondary text-white hover:bg-secondary-hover' },
     ready: { label: 'Complete Order', icon: CheckCircleIcon, color: 'bg-primary text-white hover:bg-primary-hover' },
-  }[order.status];
+  }[order.status as KitchenStatus];
+
+  if (!actionConfig) return null;
 
   return (
     <div className="flex flex-col h-full">
@@ -319,8 +320,8 @@ function OrderDetailPanel({ order, onAction, onClose }: OrderDetailPanelProps) {
         <div className="flex items-center justify-between mb-2">
           <span className="text-2xl font-bold text-text-dark font-body">#{order.orderNumber}</span>
           <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-body ${config.bgColor} ${config.textColor}`}>
-              {config.label}
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-body ${statusCfg.bg} ${statusCfg.dot.replace('bg-', 'text-')}`}>
+              {kitchenLabel}
             </span>
             <button
               onClick={onClose}
@@ -331,14 +332,14 @@ function OrderDetailPanel({ order, onAction, onClose }: OrderDetailPanelProps) {
           </div>
         </div>
         <div className="flex items-center gap-4 text-sm text-neutral-gray font-body flex-wrap">
-          {order.customerName && <span className="text-text-dark font-medium">{order.customerName}</span>}
+          {order.contact.name && <span className="text-text-dark font-medium">{order.contact.name}</span>}
           <span className="flex items-center gap-1">
             <TypeIcon className="w-4 h-4" />
-            {ORDER_TYPE_LABELS[order.orderType].label}
+            {ORDER_TYPE_LABELS[order.fulfillmentType].label}
           </span>
           <span className="flex items-center gap-1">
             <ClockIcon className="w-4 h-4" />
-            {formatTimeAgo(order.createdAt)}
+            {formatTimeAgo(order.placedAt)}
           </span>
         </div>
       </div>
@@ -360,11 +361,11 @@ function OrderDetailPanel({ order, onAction, onClose }: OrderDetailPanelProps) {
           ))}
         </div>
 
-        {order.notes && (
+        {order.contact.notes && (
           <div className="mt-4">
             <h3 className="text-xs font-semibold text-neutral-gray mb-2 uppercase tracking-wide font-body">Notes</h3>
             <div className="p-3 rounded-xl bg-warning/8 border border-warning/20">
-              <p className="text-warning text-sm font-body">{order.notes}</p>
+              <p className="text-warning text-sm font-body">{order.contact.notes}</p>
             </div>
           </div>
         )}
@@ -373,7 +374,7 @@ function OrderDetailPanel({ order, onAction, onClose }: OrderDetailPanelProps) {
         <div className="mt-4 space-y-2 text-sm border-t border-brown-light/15 pt-4 font-body">
           <div className="flex justify-between text-neutral-gray">
             <span>Received</span>
-            <span className="font-medium text-text-dark">{new Date(order.createdAt).toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit' })}</span>
+            <span className="font-medium text-text-dark">{new Date(order.placedAt).toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
           {order.startedAt && (
             <div className="flex justify-between text-neutral-gray">

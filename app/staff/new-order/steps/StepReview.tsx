@@ -14,7 +14,7 @@ import {
     LockSimpleIcon,
 } from '@phosphor-icons/react';
 import { BRANCHES } from '@/app/components/providers/BranchProvider';
-import type { PaymentMethod } from '../types';
+import type { PaymentMethod } from '@/types/order';
 import { useNewOrder } from '../context';
 import { formatGHS, ORDER_SOURCES } from '../utils';
 
@@ -28,8 +28,8 @@ const PAYMENT_OPTIONS: {
     only?: 'delivery' | 'pickup';
 }[] = [
         { id: 'momo', label: 'Mobile Money', sub: 'MTN, Telecel, AirtelTigo', icon: DeviceMobileIcon },
-        { id: 'cash_delivery', label: 'Cash on Delivery', sub: 'Paid when delivered', icon: MoneyIcon, only: 'delivery' },
-        { id: 'cash_pickup', label: 'Cash at Pickup', sub: 'Paid at branch', icon: HandCoinsIcon, only: 'pickup' },
+        { id: 'cash', label: 'Cash on Delivery', sub: 'Paid when delivered', icon: MoneyIcon, only: 'delivery' },
+        { id: 'cash', label: 'Cash at Pickup', sub: 'Paid at branch', icon: HandCoinsIcon, only: 'pickup' },
     ];
 
 export default function StepReview() {
@@ -132,8 +132,8 @@ export default function StepReview() {
             <div>
                 <h2 className="text-text-dark dark:text-text-light text-sm font-semibold font-body mb-3">Payment Method</h2>
                 <div className="flex flex-col gap-2">
-                    {availablePayments.map(({ id, label, sub, icon: Icon }) => (
-                        <Fragment key={id}>
+                    {availablePayments.map(({ id, label, sub, icon: Icon }, idx) => (
+                        <Fragment key={`${id}-${label}`}>
                             <button
                                 type="button"
                                 onClick={() => setPayment(id)}
@@ -159,7 +159,7 @@ export default function StepReview() {
                                 </div>
                             </button>
 
-                            {id === 'momo' && payment === 'momo' && (
+                            {id === 'momo' && payment === 'momo' && idx === 0 && (
                                 <div className="flex flex-col gap-3 px-4 py-3.5 rounded-2xl border-2 border-brown-light/20">
                                     <div>
                                         <label className="text-xs font-semibold text-neutral-gray mb-1.5 block">Mobile Network</label>

@@ -1,8 +1,8 @@
-import type { SalesOrder } from './types';
+import type { Order } from '@/types/order';
 export { formatGHS } from '@/lib/utils/currency';
 
-export function formatTime(d: Date) {
-    return d.toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit' });
+export function formatTime(ts: number) {
+    return new Date(ts).toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit' });
 }
 
 export function formatDate(d: Date) {
@@ -14,6 +14,6 @@ export function formatDate(d: Date) {
     });
 }
 
-export function itemCount(order: SalesOrder) {
-    return order.items.reduce((s, i) => s + i.qty, 0);
+export function itemCount(order: Order) {
+    return order.items.reduce((s, i) => s + i.quantity, 0);
 }

@@ -1,22 +1,65 @@
-// lib/types/order.ts
+// ─── CediBites Unified Order Types ───────────────────────────────────────────
+// Single source of truth for ALL order-related types across every module:
+// Customer, Staff (Sales/Manager), POS, Kitchen, Admin
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
 
 export type OrderStatus =
-    | 'received' | 'preparing' | 'ready'
-    | 'out_for_delivery' | 'delivered'
-    | 'ready_for_pickup' | 'completed' | 'cancelled';
+    | 'received'
+    | 'accepted'            // kitchen acknowledged
+    | 'preparing'
+    | 'ready'
+    | 'out_for_delivery'
+    | 'ready_for_pickup'
+    | 'delivered'
+    | 'completed'
+    | 'cancelled';
 
 export type OrderSource = 'online' | 'phone' | 'whatsapp' | 'instagram' | 'facebook' | 'pos';
-export type OrderType = 'delivery' | 'pickup';
-export type PaymentMethod = 'momo' | 'cash_delivery' | 'cash_pickup';
+
+export type FulfillmentType = 'delivery' | 'pickup' | 'dine_in' | 'takeaway';
+
+export type PaymentMethod = 'momo' | 'cash' | 'card';
+
+export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
+
+// ─── Sub-types ───────────────────────────────────────────────────────────────
 
 export interface OrderItem {
-    id: string;
+    id: string;                 // line-item ID (unique within order)
+    menuItemId: string;         // references SampleMenu item.id
     name: string;
+    quantity: number;
+    unitPrice: number;
     image?: string;
     icon?: string;
-    sizeLabel: string;
-    price: number;
-    quantity: number;
+    sizeLabel?: string;         // display label: "Large", "350ml"
+    variantKey?: string;        // lookup key: "plain", "large", "fried-rice"
+    notes?: string;             // per-item kitchen notes
+    category?: string;          // menu category for grouping
+}
+
+export interface OrderContact {
+    name: string;
+    phone: string;
+    email?: string;
+    address?: string;           // delivery address
+    gpsCoords?: string;         // Ghana Post GPS code
+    notes?: string;             // customer delivery notes
+}
+
+export interface OrderBranch {
+    id: string;
+    name: string;
+    address: string;
+    phone: string;
+    coordinates: { latitude: number; longitude: number };
+}
+
+export interface OrderCoords {
+    branch: { latitude: number; longitude: number };
+    customer?: { latitude: number; longitude: number };
+    rider?: { latitude: number; longitude: number };
 }
 
 export interface OrderTimelineEvent {
@@ -28,58 +71,134 @@ export interface OrderTimelineEvent {
     active: boolean;
 }
 
+// ─── The Unified Order ───────────────────────────────────────────────────────
+
 export interface Order {
+    // Identity
     id: string;
     orderNumber: string;
+
+    // Workflow
     status: OrderStatus;
     source: OrderSource;
-    orderType: OrderType;
+    fulfillmentType: FulfillmentType;
+
+    // Payment
     paymentMethod: PaymentMethod;
     isPaid: boolean;
+    paymentStatus: PaymentStatus;
+
+    // Items & pricing
     items: OrderItem[];
     subtotal: number;
     deliveryFee: number;
+    discount: number;
+    promoCode?: string;
     tax: number;
     total: number;
-    contact: { name: string; phone: string; address?: string; note?: string; };
-    branch: {
-        id: string; name: string; address: string; phone: string;
-        coordinates: { latitude: number; longitude: number };
-    };
+
+    // People
+    contact: OrderContact;
+    branch: OrderBranch;
+    staffId?: string;               // who created/owns this order
+    staffName?: string;
+
+    // Timestamps (all Unix ms)
     placedAt: number;
-    estimatedMinutes: number;
-    timeline: OrderTimelineEvent[];
+    acceptedAt?: number;            // kitchen accepted
+    startedAt?: number;             // kitchen started preparing
+    readyAt?: number;               // kitchen marked ready
+    completedAt?: number;           // order completed/delivered
+    estimatedMinutes?: number;
+
+    // Tracking
+    kitchenConfirmed?: boolean;
+    coords?: OrderCoords;
+
+    // Notes & metadata
+    allergyFlags?: string[];
+    staffNotes?: string;
+
+    // Customer-facing timeline (computed on read, not stored)
+    timeline?: OrderTimelineEvent[];
 }
 
-export const STATUS_CONFIG: Record<OrderStatus, {
-    label: string; color: string; bg: string; textColor: string;
-}> = {
-    received: { label: 'Received', color: 'text-info', bg: 'bg-info/8', textColor: '#1976d2' },
-    preparing: { label: 'Preparing', color: 'text-warning', bg: 'bg-warning/8', textColor: '#f9a61a' },
-    ready: { label: 'Ready', color: 'text-primary', bg: 'bg-primary/8', textColor: '#e49925' },
-    out_for_delivery: { label: 'On the way', color: 'text-primary', bg: 'bg-primary/8', textColor: '#e49925' },
-    delivered: { label: 'Delivered', color: 'text-secondary', bg: 'bg-secondary/8', textColor: '#6c833f' },
-    ready_for_pickup: { label: 'Ready for pickup', color: 'text-primary', bg: 'bg-primary/8', textColor: '#e49925' },
-    completed: { label: 'Completed', color: 'text-secondary', bg: 'bg-secondary/8', textColor: '#6c833f' },
-    cancelled: { label: 'Cancelled', color: 'text-error', bg: 'bg-error/8', textColor: '#d32f2f' },
-};
+// ─── Notification (used by kanban + kitchen) ─────────────────────────────────
 
-export const SOURCE_CONFIG: Record<OrderSource, { label: string }> = {
-    online: { label: 'Online' },
-    phone: { label: 'Phone' },
-    whatsapp: { label: 'WhatsApp' },
-    instagram: { label: 'Instagram' },
-    facebook: { label: 'Facebook' },
-    pos: { label: 'Walk-in' },
-};
+export interface OrderNotification {
+    id: string;
+    type: 'info' | 'success' | 'warning' | 'kitchen';
+    title: string;
+    message: string;
+    orderId?: string;
+    createdAt: number;
+}
 
-export const PAY_LABEL: Record<PaymentMethod, string> = {
-    momo: 'Mobile Money',
-    cash_delivery: 'Cash on delivery',
-    cash_pickup: 'Cash at pickup',
-};
+// ─── Kanban column config ────────────────────────────────────────────────────
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+export interface KanbanColumn {
+    id: string;
+    label: string;
+    statuses: OrderStatus[];
+    dot: string;
+    nextStatus: OrderStatus | null;
+    nextLabel: string | null;
+    color: string;
+}
+
+// ─── User roles for permissions ──────────────────────────────────────────────
+
+export type StaffRole = 'admin' | 'manager' | 'sales' | 'kitchen' | 'rider' | 'call_center';
+export type UserRole = 'sales' | 'manager';
+
+// ─── Filter type (for service layer) ─────────────────────────────────────────
+
+export interface OrderFilter {
+    branchId?: string;
+    branchName?: string;
+    staffId?: string;
+    status?: OrderStatus[];
+    fulfillmentType?: FulfillmentType[];
+    source?: OrderSource[];
+    contactPhone?: string;
+    dateFrom?: number;
+    dateTo?: number;
+    search?: string;
+}
+
+// ─── Create order input ──────────────────────────────────────────────────────
+
+export interface CreateOrderInput {
+    source: OrderSource;
+    fulfillmentType: FulfillmentType;
+    paymentMethod: PaymentMethod;
+    items: Omit<OrderItem, 'id'>[];
+    contact: OrderContact;
+    branchId: string;
+    branchName: string;
+    branchAddress?: string;
+    branchPhone?: string;
+    branchCoordinates?: { latitude: number; longitude: number };
+    staffId?: string;
+    staffName?: string;
+    notes?: string;
+    allergyFlags?: string[];
+    discount?: number;
+    promoCode?: string;
+    deliveryFee?: number;
+    tax?: number;
+}
+
+// ─── Terminal statuses ───────────────────────────────────────────────────────
+
+export const TERMINAL_STATUSES: readonly OrderStatus[] = ['delivered', 'completed', 'cancelled'] as const;
+
+export function isDoneStatus(status: OrderStatus): boolean {
+    return TERMINAL_STATUSES.includes(status);
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 export const formatPrice = (p: number) => `GHS ${p.toFixed(2)}`;
 
 export function timeAgo(ts: number): string {
@@ -94,11 +213,26 @@ export function timeAgo(ts: number): string {
     return `${dy}d ago`;
 }
 
+export function timeAgoWithUrgency(ts: number): { label: string; urgent: boolean } {
+    const d = Date.now() - ts;
+    const m = Math.floor(d / 60_000);
+    const h = Math.floor(m / 60);
+    const dy = Math.floor(h / 24);
+    let label: string;
+    if (m < 1) label = 'Just now';
+    else if (m < 60) label = `${m} min${m > 1 ? 's' : ''} ago`;
+    else if (h < 24) label = `${h} hour${h > 1 ? 's' : ''} ago`;
+    else if (dy === 1) label = 'Yesterday';
+    else label = `${dy}d ago`;
+    return { label, urgent: m > 30 };
+}
+
 export function formatTime(ts: number): string {
     return new Date(ts).toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
-// ─── Maps ─────────────────────────────────────────────────────────────────────
+// ─── Maps ────────────────────────────────────────────────────────────────────
+
 export function staticMapUrl(lat: number, lng: number, zoom = 15, size = '600x280'): string {
     const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     if (!key) return '';
@@ -115,11 +249,12 @@ export function staticMapUrl(lat: number, lng: number, zoom = 15, size = '600x28
     ].join('');
 }
 
-export function directionsUrl(lat: number, lng: number, name: string): string {
+export function directionsUrl(lat: number, lng: number, _name: string): string {
     return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 }
 
-// ─── Timeline builders ────────────────────────────────────────────────────────
+// ─── Timeline builders ──────────────────────────────────────────────────────
+
 function buildTimeline(
     steps: { status: OrderStatus; label: string; description: string; offsetMins: number }[],
     current: OrderStatus,
@@ -154,73 +289,124 @@ export function buildPickupTimeline(status: OrderStatus, placedAt: number) {
     ], status, placedAt);
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-type RawOrder = Omit<Order, 'timeline'>;
-
-const RAW: RawOrder[] = [
-    {
-        id: 'CB847291', orderNumber: 'CB847291',
-        status: 'out_for_delivery', source: 'online', orderType: 'delivery',
-        paymentMethod: 'momo', isPaid: true,
-        items: [
-            { id: '1', name: 'Jollof Rice & Chicken', icon: '🍛', sizeLabel: 'Large', price: 45, quantity: 2 },
-            { id: '4', name: 'Kelewele', icon: '🍌', sizeLabel: 'Regular', price: 15, quantity: 1 },
-            { id: '11', name: 'Malta Guinness', icon: '🥤', sizeLabel: 'Regular', price: 8, quantity: 2 },
-        ],
-        subtotal: 121, deliveryFee: 15, tax: 3.03, total: 139.03,
-        contact: { name: 'Kwame Mensah', phone: '+233241234567', address: '14 Osu Badu Street, Osu, Accra', note: 'Blue gate — call on arrival' },
-        branch: { id: 'accra-central', name: 'Accra Central', address: 'Ring Road Central, Accra', phone: '+233241234567', coordinates: { latitude: 5.5557, longitude: -0.1769 } },
-        placedAt: Date.now() - 22 * 60_000, estimatedMinutes: 35,
-    },
-    {
-        id: 'CB391045', orderNumber: 'CB391045',
-        status: 'delivered', source: 'whatsapp', orderType: 'delivery',
-        paymentMethod: 'cash_delivery', isPaid: true,
-        items: [
-            { id: '2', name: 'Waakye Special', icon: '🍚', sizeLabel: 'Regular', price: 35, quantity: 1 },
-            { id: '12', name: 'Fresh Coconut Water', icon: '🥥', sizeLabel: 'Regular', price: 12, quantity: 1 },
-        ],
-        subtotal: 47, deliveryFee: 15, tax: 1.18, total: 63.18,
-        contact: { name: 'Kwame Mensah', phone: '+233241234567', address: '14 Osu Badu Street, Osu, Accra' },
-        branch: { id: 'east-legon', name: 'East Legon', address: 'American House Junction, Accra', phone: '+233509876543', coordinates: { latitude: 5.6465, longitude: -0.1549 } },
-        placedAt: Date.now() - 2 * 24 * 60 * 60_000, estimatedMinutes: 35,
-    },
-    {
-        id: 'CB204837', orderNumber: 'CB204837',
-        status: 'completed', source: 'pos', orderType: 'pickup',
-        paymentMethod: 'cash_pickup', isPaid: true,
-        items: [
-            { id: '3', name: 'Banku & Tilapia', icon: '🐟', sizeLabel: 'Regular', price: 55, quantity: 1 },
-        ],
-        subtotal: 55, deliveryFee: 0, tax: 1.38, total: 56.38,
-        contact: { name: 'Kwame Mensah', phone: '+233241234567' },
-        branch: { id: 'labadi', name: 'Labadi', address: 'Labadi Road, Near Labadi Beach, Accra', phone: '+233205551234', coordinates: { latitude: 5.6372, longitude: -0.0924 } },
-        placedAt: Date.now() - 5 * 24 * 60 * 60_000, estimatedMinutes: 15,
-    },
-    {
-        id: 'CB173920', orderNumber: 'CB173920',
-        status: 'completed', source: 'online', orderType: 'delivery',
-        paymentMethod: 'momo', isPaid: true,
-        items: [
-            { id: '5', name: 'Fufu & Light Soup', icon: '🥘', sizeLabel: 'Regular', price: 40, quantity: 1 },
-            { id: '11', name: 'Malta Guinness', icon: '🥤', sizeLabel: 'Regular', price: 8, quantity: 1 },
-        ],
-        subtotal: 48, deliveryFee: 15, tax: 1.20, total: 64.20,
-        contact: { name: 'Kwame Mensah', phone: '+233241234567', address: 'East Legon Hills, Accra' },
-        branch: { id: 'east-legon', name: 'East Legon', address: 'American House Junction, Accra', phone: '+233509876543', coordinates: { latitude: 5.6465, longitude: -0.1549 } },
-        placedAt: Date.now() - 12 * 24 * 60 * 60_000, estimatedMinutes: 35,
-    },
-];
-
-export const MOCK_ORDERS: Order[] = RAW.map(o => ({
-    ...o,
-    timeline: o.orderType === 'delivery'
-        ? buildDeliveryTimeline(o.status, o.placedAt)
-        : buildPickupTimeline(o.status, o.placedAt),
-}));
-
-export function getMockOrder(id: string): Order | null {
-    return MOCK_ORDERS.find(o => o.id.toUpperCase() === id.toUpperCase()) ?? null;
+export function buildDineInTimeline(status: OrderStatus, placedAt: number) {
+    return buildTimeline([
+        { status: 'received', label: 'Order received', description: 'Your order is in', offsetMins: 0 },
+        { status: 'preparing', label: 'Preparing', description: 'Kitchen is cooking your food', offsetMins: 2 },
+        { status: 'ready', label: 'Ready', description: 'Your food is ready', offsetMins: 15 },
+        { status: 'completed', label: 'Completed', description: 'Enjoy your meal!', offsetMins: 20 },
+    ], status, placedAt);
 }
 
-export function getMockOrdersForUser(): Order[] { return MOCK_ORDERS; }
+export function buildOrderTimeline(order: Pick<Order, 'fulfillmentType' | 'status' | 'placedAt'>): OrderTimelineEvent[] {
+    switch (order.fulfillmentType) {
+        case 'delivery':
+            return buildDeliveryTimeline(order.status, order.placedAt);
+        case 'pickup':
+            return buildPickupTimeline(order.status, order.placedAt);
+        case 'dine_in':
+        case 'takeaway':
+            return buildDineInTimeline(order.status, order.placedAt);
+    }
+}
+
+// ─── Order ID generation ─────────────────────────────────────────────────────
+
+export function generateOrderId(): string {
+    return `CB${Date.now().toString().slice(-6)}`;
+}
+
+// ─── Haversine distance (km) ─────────────────────────────────────────────────
+
+export function haversineKm(
+    a: { latitude: number; longitude: number },
+    b: { latitude: number; longitude: number },
+): number {
+    const R = 6371;
+    const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+    const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
+    const sin2 = Math.sin(dLat / 2) ** 2
+        + Math.cos((a.latitude * Math.PI) / 180)
+        * Math.cos((b.latitude * Math.PI) / 180)
+        * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(sin2), Math.sqrt(1 - sin2));
+}
+
+// ─── Helper: get payment label with fulfillment context ──────────────────────
+
+export function getPaymentLabel(method: PaymentMethod, fulfillment?: FulfillmentType): string {
+    if (method === 'momo') return 'Mobile Money';
+    if (method === 'card') return 'Card';
+    if (method === 'cash') {
+        if (fulfillment === 'delivery') return 'Cash on Delivery';
+        if (fulfillment === 'pickup') return 'Cash at Pickup';
+        return 'Cash';
+    }
+    return method;
+}
+
+// ─── Helper: get next possible statuses for an order ─────────────────────────
+
+export function getNextStatuses(order: Pick<Order, 'status' | 'fulfillmentType'>): OrderStatus[] {
+    const { status, fulfillmentType } = order;
+    const next: OrderStatus[] = [];
+
+    switch (status) {
+        case 'received':
+            next.push('accepted');
+            break;
+        case 'accepted':
+            next.push('preparing');
+            break;
+        case 'preparing':
+            next.push('ready');
+            break;
+        case 'ready':
+            if (fulfillmentType === 'delivery') next.push('out_for_delivery');
+            else if (fulfillmentType === 'pickup') next.push('ready_for_pickup');
+            else next.push('completed'); // dine_in / takeaway
+            break;
+        case 'out_for_delivery':
+            next.push('delivered');
+            break;
+        case 'ready_for_pickup':
+            next.push('completed');
+            break;
+        case 'delivered':
+            next.push('completed');
+            break;
+        default:
+            break;
+    }
+
+    // Any non-terminal status can be cancelled
+    if (!isDoneStatus(status)) {
+        next.push('cancelled');
+    }
+
+    return next;
+}
+
+// ─── Permission check ────────────────────────────────────────────────────────
+
+export function canAdvanceOrder(
+    role: UserRole,
+    order: Pick<Order, 'status' | 'fulfillmentType'>,
+    targetStatus: OrderStatus,
+): boolean {
+    const allowed = getNextStatuses(order);
+    if (!allowed.includes(targetStatus)) return false;
+
+    if (role === 'manager') return true;
+
+    // Sales can only handle: ready → dispatch → complete
+    if (role === 'sales') {
+        const salesAllowed: OrderStatus[] = [
+            'out_for_delivery', 'ready_for_pickup',
+            'delivered', 'completed', 'cancelled',
+        ];
+        return salesAllowed.includes(targetStatus);
+    }
+
+    return false;
+}

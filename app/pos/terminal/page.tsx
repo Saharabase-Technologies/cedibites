@@ -28,7 +28,7 @@ import {
 import Link from 'next/link';
 import { usePOS } from '../context';
 import { formatGHS } from '@/lib/utils/currency';
-import { PaymentMethod, POSOrder } from '../types';
+import type { PaymentMethod, Order } from '@/types/order';
 import { sampleMenuItems, menuCategories, MenuItem } from '@/lib/data/SampleMenu';
 import { BRANCHES } from '@/app/components/providers/BranchProvider';
 import { printReceipt } from '@/lib/utils/printReceipt';
@@ -78,7 +78,7 @@ export default function POSTerminalPage() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showOrderDetails, setShowOrderDetails] = useState(false);
-  const [completedOrder, setCompletedOrder] = useState<POSOrder | null>(null);
+  const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
   const [pickerItem, setPickerItem] = useState<MenuItem | null>(null);
   const [showCart, setShowCart] = useState(false);
 
@@ -967,7 +967,7 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
 // ─── Order Success Modal ──────────────────────────────────────────────────────
 
 interface OrderSuccessModalProps {
-  order: POSOrder;
+  order: Order;
   branchName: string;
   onClose: () => void;
 }
@@ -995,7 +995,7 @@ function OrderSuccessModal({ order, branchName, onClose }: OrderSuccessModalProp
             Payment Complete
           </h2>
           <p className="text-neutral-gray mb-6">
-            Order #{order.id} has been placed
+            Order #{order.orderNumber} has been placed
           </p>
 
           {/* Order Summary */}
@@ -1006,7 +1006,7 @@ function OrderSuccessModal({ order, branchName, onClose }: OrderSuccessModalProp
             </div>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-neutral-gray">Type</span>
-              <span className="text-text-dark capitalize">{order.orderType.replace('_', ' ')}</span>
+              <span className="text-text-dark capitalize">{order.fulfillmentType.replace('_', ' ')}</span>
             </div>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-neutral-gray">Payment</span>

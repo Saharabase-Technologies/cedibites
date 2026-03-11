@@ -1,8 +1,5 @@
-// ─── Types: Staff New Order Wizard ────────────────────────────────────────────
-
-export type OrderSource = 'online' | 'phone' | 'whatsapp' | 'instagram' | 'facebook' | 'pos';
-export type OrderType = 'delivery' | 'pickup';
-export type PaymentMethod = 'momo' | 'cash_delivery' | 'cash_pickup';
+// ─── Types: Staff New Order Wizard (UI-only) ──────────────────────────────────
+// OrderSource, FulfillmentType, PaymentMethod come from @/types/order
 
 export interface StaffCartItem {
     cartKey: string;       // unique: `${itemId}|${variantKey}` — allows multiple variants in cart

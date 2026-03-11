@@ -12,7 +12,8 @@ import {
     SpinnerGapIcon,
 } from '@phosphor-icons/react';
 import Navbar from '@/app/components/layout/Navbar';
-import { getMockOrder, type Order, timeAgo } from '@/types/order';
+import { type Order, timeAgo, buildOrderTimeline } from '@/types/order';
+import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import OrderTimeline from '@/app/components/order/OrderTimeline';
 import LiveMap from '@/app/components/order/LiveMap';
 import OrderDetails from '@/app/components/order/OrderDetails';
@@ -27,13 +28,14 @@ export default function OrderTrackingPage({ params }: PageProps) {
     const searchParams = useSearchParams();
     const resolvedParams = use(params);
     const backPath = searchParams.get('from') === 'order-history' ? '/order-history' : '/orders';
+    const { getOrderById } = useOrderStore();
     const [order, setOrder] = useState<Order | null>(null);
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
 
     useEffect(() => {
         // Fetch order
-        const orderData = getMockOrder(resolvedParams.orderCode);
+        const orderData = getOrderById(resolvedParams.orderCode) ?? null;
 
         if (!orderData) {
             setNotFound(true);
@@ -51,7 +53,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
         //     setOrder(prev => prev ? { ...prev, ...update } : null);
         // };
         // return () => ws.close();
-    }, [resolvedParams.orderCode]);
+    }, [resolvedParams.orderCode, getOrderById]);
 
     if (loading) {
         return (
@@ -100,7 +102,8 @@ export default function OrderTrackingPage({ params }: PageProps) {
     }
 
     const isOutForDelivery = order.status === 'out_for_delivery';
-    const isDelivery = order.orderType === 'delivery';
+    const isDelivery = order.fulfillmentType === 'delivery';
+    const timeline = order.timeline ?? buildOrderTimeline(order);
 
     return (
         <div className="min-h-screen bg-neutral-light dark:bg-brand-darker">
@@ -173,7 +176,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
                             <div className="bg-white dark:bg-brand-dark rounded-2xl overflow-hidden border border-neutral-gray/10">
                                 <LiveMap
                                     branchLocation={order.branch.coordinates}
-                                    customerLocation={order.orderType === 'delivery' ? {
+                                    customerLocation={order.fulfillmentType === 'delivery' ? {
                                         latitude: 5.6372,
                                         longitude: -0.0924,
                                     } : null}
@@ -198,7 +201,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
                             <h2 className="text-lg font-bold text-text-dark dark:text-text-light mb-6">
                                 Order Status
                             </h2>
-                            <OrderTimeline timeline={order.timeline} />
+                            <OrderTimeline timeline={timeline} />
                         </div>
 
                         {/* Delivery Info */}
@@ -213,9 +216,9 @@ export default function OrderTrackingPage({ params }: PageProps) {
                                         <p className="text-sm text-text-dark dark:text-text-light">
                                             {order.contact.address}
                                         </p>
-                                        {order.contact.note && (
+                                        {order.contact.notes && (
                                             <p className="text-xs text-neutral-gray mt-2">
-                                                Note: {order.contact.note}
+                                                Note: {order.contact.notes}
                                             </p>
                                         )}
                                     </div>

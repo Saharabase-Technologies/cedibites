@@ -9,8 +9,8 @@ import {
     TrendUpIcon,
     WarningCircleIcon,
 } from '@phosphor-icons/react';
-import type { SalesOrder } from './types';
-import { MY_SALES_TODAY } from './constants';
+import type { Order } from '@/types/order';
+import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { formatGHS, formatDate, itemCount } from './utils';
 import StatCard from './components/StatCard';
 import SourcePills from './components/SourcePills';
@@ -18,13 +18,13 @@ import SalesTable from './components/SalesTable';
 import OrderDrawer from './components/OrderDrawer';
 
 export default function MySalesView() {
-    // TODO: fetch from GET /api/v1/staff/my-sales?period=today
-    const orders = MY_SALES_TODAY;
+    // TODO: filter by staffId once auth is in place (useMySalesOrders hook)
+    const { orders } = useOrderStore();
 
-    const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
+    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
     const handleClose = useCallback(() => setSelectedOrder(null), []);
-    const handleSelect = useCallback((order: SalesOrder) => {
+    const handleSelect = useCallback((order: Order) => {
         setSelectedOrder(prev => prev?.id === order.id ? null : order);
     }, []);
 

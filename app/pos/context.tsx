@@ -9,11 +9,13 @@ import {
   useEffect,
   ReactNode
 } from 'react';
-import { POSSession, POSCartItem, PaymentMethod, POSOrder } from './types';
+import type { Order, PaymentMethod, CreateOrderInput } from '@/types/order';
+import type { POSSession, POSCartItem } from './types';
+import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
+import { BRANCHES } from '@/app/components/providers/BranchProvider';
 
-// Generate unique IDs
+// Generate unique IDs for cart items
 const generateId = () => `pos-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-const generateOrderNumber = () => `CB${Date.now().toString().slice(-6)}`;
 
 interface POSContextValue {
   // Session
@@ -44,11 +46,11 @@ interface POSContextValue {
   isPaymentOpen: boolean;
   openPayment: () => void;
   closePayment: () => void;
-  processPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string) => Promise<POSOrder>;
+  processPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string) => Promise<Order>;
 
   // Order history (today)
-  todayOrders: POSOrder[];
-  updateOrderStatus: (orderId: string, status: POSOrder['status']) => void;
+  todayOrders: Order[];
+  updateOrderStatus: (orderId: string, status: Order['status']) => void;
   seedTestOrders: () => void;
 
   // Login / Logout
@@ -85,8 +87,12 @@ export function POSProvider({ children }: POSProviderProps) {
   // Payment modal
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
 
-  // Today's orders
-  const [todayOrders, setTodayOrders] = useState<POSOrder[]>([]);
+  // OrderStore
+  const {
+    orders: allOrders,
+    createOrder,
+    updateOrderStatus: storeUpdateStatus,
+  } = useOrderStore();
 
   // Load session on mount
   useEffect(() => {
@@ -94,7 +100,6 @@ export function POSProvider({ children }: POSProviderProps) {
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as POSSession;
-        // Check if session is still valid (within 12 hours)
         const isValid = Date.now() - parsed.loginTime < 12 * 60 * 60 * 1000;
         if (isValid) {
           setSession(parsed);
@@ -105,34 +110,25 @@ export function POSProvider({ children }: POSProviderProps) {
         sessionStorage.removeItem('pos-session');
       }
     }
-
-    // Load today's orders from localStorage
-    const storedOrders = localStorage.getItem(`pos-orders-${new Date().toDateString()}`);
-    if (storedOrders) {
-      try {
-        setTodayOrders(JSON.parse(storedOrders));
-      } catch {
-        // Ignore parse errors
-      }
-    }
-
     setIsSessionLoaded(true);
   }, []);
-
-  // Persist orders
-  useEffect(() => {
-    if (todayOrders.length > 0) {
-      localStorage.setItem(
-        `pos-orders-${new Date().toDateString()}`,
-        JSON.stringify(todayOrders)
-      );
-    }
-  }, [todayOrders]);
 
   const isSessionValid = useMemo(() => {
     if (!session) return false;
     return Date.now() - session.loginTime < 12 * 60 * 60 * 1000;
   }, [session]);
+
+  // Today's POS orders from OrderStore
+  const todayOrders = useMemo(() => {
+    if (!session) return [];
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    return allOrders.filter(o =>
+      o.source === 'pos' &&
+      o.branch.id === session.branchId &&
+      o.placedAt >= startOfDay.getTime()
+    );
+  }, [allOrders, session]);
 
   // Cart calculations
   const cartTotal = useMemo(() => {
@@ -149,14 +145,12 @@ export function POSProvider({ children }: POSProviderProps) {
     quantity = 1
   ) => {
     setCart(prev => {
-      // Check if item already exists (same menuItemId and variantKey)
       const key = `${item.menuItemId}|${item.variantKey || 'default'}`;
       const existingIndex = prev.findIndex(
         c => `${c.menuItemId}|${c.variantKey || 'default'}` === key
       );
 
       if (existingIndex >= 0) {
-        // Update quantity
         const updated = [...prev];
         updated[existingIndex] = {
           ...updated[existingIndex],
@@ -165,7 +159,6 @@ export function POSProvider({ children }: POSProviderProps) {
         return updated;
       }
 
-      // Add new item
       return [...prev, { ...item, id: generateId(), quantity }];
     });
   }, []);
@@ -207,96 +200,91 @@ export function POSProvider({ children }: POSProviderProps) {
     method: PaymentMethod,
     amountPaid?: number,
     momoNumber?: string
-  ): Promise<POSOrder> => {
-    // Simulate payment processing
+  ): Promise<Order> => {
+    // Simulate payment processing delay
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // For momo, we'd call Hubtel API here
-    // For card, we'd integrate with POS terminal
-    // For cash, instant success
+    const branch = BRANCHES.find(b => b.id === session?.branchId);
 
-    const order: POSOrder = {
-      id: generateOrderNumber(),
-      items: [...cart],
-      subtotal: cartTotal,
-      total: cartTotal, // Add tax/discounts here if needed
-      customerName: customerName || undefined,
-      customerPhone: customerPhone || undefined,
-      notes: orderNotes || undefined,
+    const input: CreateOrderInput = {
+      source: 'pos',
+      fulfillmentType: orderType,
       paymentMethod: method,
-      paymentStatus: 'completed',
-      orderType,
-      status: 'received',
-      createdAt: new Date(),
+      items: cart.map(item => ({
+        menuItemId: item.menuItemId,
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        image: item.image,
+        variantKey: item.variantKey,
+      })),
+      contact: {
+        name: customerName || 'Walk-in',
+        phone: customerPhone || '',
+        notes: orderNotes || undefined,
+      },
+      branchId: session?.branchId ?? '',
+      branchName: branch?.name ?? '',
+      branchAddress: branch?.address,
+      branchPhone: branch?.phone,
+      branchCoordinates: branch?.coordinates,
+      staffId: session?.staffId,
+      staffName: session?.staffName,
     };
 
-    // Add to today's orders
-    setTodayOrders(prev => [order, ...prev]);
+    const order = await createOrder(input);
 
     // Clear cart
     clearCart();
     setIsPaymentOpen(false);
 
     return order;
-  }, [cart, cartTotal, customerName, customerPhone, orderNotes, orderType, clearCart]);
+  }, [cart, customerName, customerPhone, orderNotes, orderType, session, createOrder, clearCart]);
 
-  const updateOrderStatus = useCallback((orderId: string, status: POSOrder['status']) => {
-    setTodayOrders(prev =>
-      prev.map(o => o.id === orderId ? { ...o, status } : o)
-    );
-  }, []);
+  const updateOrderStatus = useCallback((orderId: string, status: Order['status']) => {
+    const timestamps: Partial<Pick<Order, 'acceptedAt' | 'startedAt' | 'readyAt' | 'completedAt'>> = {};
+    if (status === 'completed') timestamps.completedAt = Date.now();
+    storeUpdateStatus(orderId, status, timestamps);
+  }, [storeUpdateStatus]);
 
   const seedTestOrders = useCallback(() => {
-    const now = Date.now();
-    const mockOrders: POSOrder[] = [
+    if (!session) return;
+    const branch = BRANCHES.find(b => b.id === session.branchId);
+
+    const testOrders: CreateOrderInput[] = [
       {
-        id: `CB${(now - 2400000).toString().slice(-6)}`,
+        source: 'pos', fulfillmentType: 'dine_in', paymentMethod: 'cash',
         items: [
-          { id: generateId(), menuItemId: 'm1', name: 'Jollof Rice with Chicken', price: 85, quantity: 2 },
-          { id: generateId(), menuItemId: 'm2', name: 'Pineapple Ginger Juice', price: 28, quantity: 1 },
+          { menuItemId: 'm1', name: 'Jollof Rice with Chicken', quantity: 2, unitPrice: 85 },
+          { menuItemId: 'm2', name: 'Pineapple Ginger Juice', quantity: 1, unitPrice: 28 },
         ],
-        subtotal: 198, total: 198,
-        customerName: 'Ama Darko', customerPhone: '0244123456',
-        paymentMethod: 'cash', paymentStatus: 'completed',
-        orderType: 'dine_in', status: 'ready',
-        createdAt: new Date(now - 2400000),
+        contact: { name: 'Ama Darko', phone: '0244123456' },
+        branchId: session.branchId, branchName: branch?.name ?? '',
+        staffId: session.staffId, staffName: session.staffName,
       },
       {
-        id: `CB${(now - 1800000).toString().slice(-6)}`,
+        source: 'pos', fulfillmentType: 'takeaway', paymentMethod: 'momo',
         items: [
-          { id: generateId(), menuItemId: 'm3', name: 'Waakye Special', price: 65, quantity: 1 },
+          { menuItemId: 'm3', name: 'Waakye Special', quantity: 1, unitPrice: 65 },
         ],
-        subtotal: 65, total: 65,
-        customerName: 'Kweku Asante',
-        paymentMethod: 'momo', paymentStatus: 'completed',
-        orderType: 'takeaway', status: 'preparing',
-        createdAt: new Date(now - 1800000),
+        contact: { name: 'Kweku Asante', phone: '' },
+        branchId: session.branchId, branchName: branch?.name ?? '',
+        staffId: session.staffId, staffName: session.staffName,
       },
       {
-        id: `CB${(now - 900000).toString().slice(-6)}`,
+        source: 'pos', fulfillmentType: 'dine_in', paymentMethod: 'card',
         items: [
-          { id: generateId(), menuItemId: 'm4', name: 'Grilled Tilapia', price: 120, quantity: 1 },
-          { id: generateId(), menuItemId: 'm5', name: 'Fried Plantain', price: 25, quantity: 2 },
+          { menuItemId: 'm4', name: 'Grilled Tilapia', quantity: 1, unitPrice: 120 },
+          { menuItemId: 'm5', name: 'Fried Plantain', quantity: 2, unitPrice: 25 },
         ],
-        subtotal: 170, total: 170,
-        notes: 'Extra pepper please',
-        paymentMethod: 'card', paymentStatus: 'completed',
-        orderType: 'dine_in', status: 'ready',
-        createdAt: new Date(now - 900000),
-      },
-      {
-        id: `CB${(now - 300000).toString().slice(-6)}`,
-        items: [
-          { id: generateId(), menuItemId: 'm6', name: 'Banku with Tilapia', price: 95, quantity: 1 },
-        ],
-        subtotal: 95, total: 95,
-        paymentMethod: 'cash', paymentStatus: 'completed',
-        orderType: 'takeaway', status: 'received',
-        createdAt: new Date(now - 300000),
+        contact: { name: 'Walk-in', phone: '', notes: 'Extra pepper please' },
+        branchId: session.branchId, branchName: branch?.name ?? '',
+        staffId: session.staffId, staffName: session.staffName,
       },
     ];
-    setTodayOrders(prev => [...mockOrders, ...prev]);
-  }, []);
+
+    testOrders.forEach(input => createOrder(input));
+  }, [session, createOrder]);
 
   const login = useCallback((newSession: POSSession) => {
     sessionStorage.setItem('pos-session', JSON.stringify(newSession));

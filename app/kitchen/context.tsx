@@ -10,124 +10,28 @@ import {
   useRef,
   ReactNode,
 } from 'react';
-import { KitchenOrder, KitchenOrderStatus, KitchenStats } from './types';
+import type { Order, OrderStatus, FulfillmentType, OrderSource, CreateOrderInput } from '@/types/order';
+import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
+import { useKitchenOrders } from './hooks/useKitchenOrders';
 import { useKitchenSounds } from './hooks/useSounds';
 
-const KITCHEN_CHANNEL = 'cedibites-kitchen';
-const KITCHEN_STORAGE_KEY = 'cedibites-kitchen-orders';
+// ─── Kitchen-specific stats (UI only) ──────────────────────────────────────
 
-function loadOrders(): KitchenOrder[] | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const stored = localStorage.getItem(KITCHEN_STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
-  } catch { /* ignore */ }
-  return null;
+export interface KitchenStats {
+  received: number;
+  accepted: number;
+  preparing: number;
+  ready: number;
+  avgPrepTime: number; // in seconds
 }
-
-function saveOrders(orders: KitchenOrder[]) {
-  try {
-    localStorage.setItem(KITCHEN_STORAGE_KEY, JSON.stringify(orders));
-  } catch { /* ignore */ }
-}
-
-// Mock orders for development - replace with WebSocket data
-const MOCK_ORDERS: KitchenOrder[] = [
-  {
-    id: 'ko-001',
-    orderNumber: 'CB1234',
-    items: [
-      { id: '1', name: 'Jollof Rice', quantity: 2 },
-      { id: '2', name: 'Fried Chicken', quantity: 2 },
-      { id: '3', name: 'Coleslaw', quantity: 1 },
-    ],
-    status: 'received',
-    orderType: 'dine_in',
-    customerName: 'Kwame',
-    source: 'pos',
-    createdAt: Date.now() - 3 * 60 * 1000,
-  },
-  {
-    id: 'ko-002',
-    orderNumber: 'CB1235',
-    items: [
-      { id: '4', name: 'Waakye', quantity: 1 },
-      { id: '5', name: 'Kelewele', quantity: 1 },
-      { id: '6', name: 'Malta Guinness', quantity: 2 },
-    ],
-    status: 'received',
-    orderType: 'takeaway',
-    notes: 'Extra spicy please',
-    source: 'pos',
-    createdAt: Date.now() - 5 * 60 * 1000,
-  },
-  {
-    id: 'ko-003',
-    orderNumber: 'CB1236',
-    items: [
-      { id: '7', name: 'Banku & Tilapia', quantity: 1 },
-      { id: '8', name: 'Pepper Sauce (Extra)', quantity: 1 },
-    ],
-    status: 'accepted',
-    orderType: 'delivery',
-    customerName: 'Ama',
-    source: 'online',
-    createdAt: Date.now() - 6 * 60 * 1000,
-    acceptedAt: Date.now() - 4 * 60 * 1000,
-  },
-  {
-    id: 'ko-006',
-    orderNumber: 'CB1239',
-    items: [
-      { id: '13', name: 'Red Red & Plantain', quantity: 2 },
-      { id: '14', name: 'Sobolo', quantity: 2 },
-    ],
-    status: 'preparing',
-    orderType: 'dine_in',
-    customerName: 'Yaw',
-    source: 'pos',
-    createdAt: Date.now() - 10 * 60 * 1000,
-    acceptedAt: Date.now() - 7 * 60 * 1000,
-    startedAt: Date.now() - 5 * 60 * 1000,
-  },
-  {
-    id: 'ko-004',
-    orderNumber: 'CB1237',
-    items: [
-      { id: '9', name: 'Fried Rice', quantity: 3 },
-      { id: '10', name: 'Grilled Chicken', quantity: 3 },
-      { id: '11', name: 'Coca Cola', quantity: 3 },
-    ],
-    status: 'preparing',
-    orderType: 'dine_in',
-    notes: 'Table 5 - Family order',
-    source: 'pos',
-    createdAt: Date.now() - 12 * 60 * 1000,
-    startedAt: Date.now() - 6 * 60 * 1000,
-  },
-  {
-    id: 'ko-005',
-    orderNumber: 'CB1238',
-    items: [
-      { id: '12', name: 'Fufu & Light Soup', quantity: 2 },
-    ],
-    status: 'ready',
-    orderType: 'pickup',
-    customerName: 'Kofi Asante',
-    source: 'phone',
-    createdAt: Date.now() - 15 * 60 * 1000,
-    startedAt: Date.now() - 10 * 60 * 1000,
-    readyAt: Date.now() - 2 * 60 * 1000,
-  },
-];
 
 interface KitchenContextValue {
-  orders: KitchenOrder[];
+  orders: Order[];
   ordersByStatus: {
-    received: KitchenOrder[];
-    accepted: KitchenOrder[];
-    preparing: KitchenOrder[];
-    ready: KitchenOrder[];
+    received: Order[];
+    accepted: Order[];
+    preparing: Order[];
+    ready: Order[];
   };
   stats: KitchenStats;
   acceptOrder: (orderId: string) => void;
@@ -151,38 +55,14 @@ export function useKitchen() {
 }
 
 export function KitchenProvider({ children }: { children: ReactNode }) {
-  const [orders, setOrders] = useState<KitchenOrder[]>(() => loadOrders() || MOCK_ORDERS);
+  const kitchenOrders = useKitchenOrders();
+  const { updateOrderStatus, createOrder } = useOrderStore();
+
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const sounds = useKitchenSounds();
-  const prevOrderCountRef = useRef(orders.length);
-  const channelRef = useRef<BroadcastChannel | null>(null);
-  const isExternalUpdate = useRef(false);
-
-  // Set up BroadcastChannel for cross-tab sync
-  useEffect(() => {
-    const channel = new BroadcastChannel(KITCHEN_CHANNEL);
-    channelRef.current = channel;
-
-    channel.onmessage = (event) => {
-      const incomingOrders = event.data as KitchenOrder[];
-      isExternalUpdate.current = true;
-      setOrders(incomingOrders);
-    };
-
-    return () => channel.close();
-  }, []);
-
-  // Persist & broadcast whenever orders change (skip if it came from another tab)
-  useEffect(() => {
-    saveOrders(orders);
-    if (isExternalUpdate.current) {
-      isExternalUpdate.current = false;
-      return;
-    }
-    channelRef.current?.postMessage(orders);
-  }, [orders]);
+  const prevOrderCountRef = useRef(kitchenOrders.length);
 
   // Sync sound enabled state
   useEffect(() => {
@@ -191,35 +71,35 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
 
   // Play sound when new order arrives
   useEffect(() => {
-    if (orders.length > prevOrderCountRef.current) {
+    if (kitchenOrders.length > prevOrderCountRef.current) {
       sounds.playNewOrder();
     }
-    prevOrderCountRef.current = orders.length;
-  }, [orders.length, sounds]);
+    prevOrderCountRef.current = kitchenOrders.length;
+  }, [kitchenOrders.length, sounds]);
 
   // Group and sort orders by status
   const ordersByStatus = useMemo(() => {
     const grouped = {
-      received: [] as KitchenOrder[],
-      accepted: [] as KitchenOrder[],
-      preparing: [] as KitchenOrder[],
-      ready: [] as KitchenOrder[],
+      received: [] as Order[],
+      accepted: [] as Order[],
+      preparing: [] as Order[],
+      ready: [] as Order[],
     };
 
-    const sorted = [...orders].sort((a, b) => a.createdAt - b.createdAt);
+    const sorted = [...kitchenOrders].sort((a, b) => a.placedAt - b.placedAt);
 
     sorted.forEach(order => {
       if (order.status in grouped) {
-        grouped[order.status].push(order);
+        grouped[order.status as keyof typeof grouped].push(order);
       }
     });
 
     return grouped;
-  }, [orders]);
+  }, [kitchenOrders]);
 
   // Stats
   const stats = useMemo((): KitchenStats => {
-    const completedOrders = orders.filter(o => o.readyAt && o.startedAt);
+    const completedOrders = kitchenOrders.filter(o => o.readyAt && o.startedAt);
     const avgPrepTime = completedOrders.length > 0
       ? completedOrders.reduce((sum, o) => sum + (o.readyAt! - o.startedAt!), 0) / completedOrders.length / 1000
       : 0;
@@ -231,47 +111,34 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
       ready: ordersByStatus.ready.length,
       avgPrepTime: Math.round(avgPrepTime),
     };
-  }, [orders, ordersByStatus]);
+  }, [kitchenOrders, ordersByStatus]);
 
   const acceptOrder = useCallback((orderId: string) => {
-    setOrders(prev => prev.map(order => {
-      if (order.id === orderId && order.status === 'received') {
-        sounds.playTap();
-        return { ...order, status: 'accepted' as KitchenOrderStatus, acceptedAt: Date.now() };
-      }
-      return order;
-    }));
-  }, [sounds]);
+    sounds.playTap();
+    updateOrderStatus(orderId, 'accepted', { acceptedAt: Date.now() });
+  }, [sounds, updateOrderStatus]);
 
   const startOrder = useCallback((orderId: string) => {
-    setOrders(prev => prev.map(order => {
-      if (order.id === orderId && order.status === 'accepted') {
-        sounds.playOrderStarted();
-        return { ...order, status: 'preparing' as KitchenOrderStatus, startedAt: Date.now() };
-      }
-      return order;
-    }));
-  }, [sounds]);
+    sounds.playOrderStarted();
+    updateOrderStatus(orderId, 'preparing', { startedAt: Date.now() });
+  }, [sounds, updateOrderStatus]);
 
   const markReady = useCallback((orderId: string) => {
-    setOrders(prev => prev.map(order => {
-      if (order.id === orderId && order.status === 'preparing') {
-        sounds.playOrderReady();
-        return { ...order, status: 'ready' as KitchenOrderStatus, readyAt: Date.now() };
-      }
-      return order;
-    }));
-  }, [sounds]);
+    sounds.playOrderReady();
+    updateOrderStatus(orderId, 'ready', { readyAt: Date.now() });
+  }, [sounds, updateOrderStatus]);
 
   const completeOrder = useCallback((orderId: string) => {
-    setOrders(prev => prev.filter(order => order.id !== orderId));
     sounds.playTap();
-  }, [sounds]);
+    updateOrderStatus(orderId, 'completed', { completedAt: Date.now() });
+  }, [sounds, updateOrderStatus]);
 
   const completeAllReady = useCallback(() => {
-    setOrders(prev => prev.filter(order => order.status !== 'ready'));
     sounds.playTap();
-  }, [sounds]);
+    ordersByStatus.ready.forEach(order => {
+      updateOrderStatus(order.id, 'completed', { completedAt: Date.now() });
+    });
+  }, [sounds, ordersByStatus.ready, updateOrderStatus]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -291,33 +158,37 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
 
   const simulateNewOrder = useCallback(() => {
     const mockItems = [
-      { id: '1', name: 'Jollof Rice', quantity: Math.ceil(Math.random() * 3) },
-      { id: '2', name: 'Fried Chicken', quantity: Math.ceil(Math.random() * 2) },
-      { id: '3', name: 'Waakye', quantity: 1 },
-      { id: '4', name: 'Banku & Tilapia', quantity: 1 },
+      { menuItemId: 'm1', name: 'Jollof Rice', quantity: Math.ceil(Math.random() * 3), unitPrice: 35 },
+      { menuItemId: 'm2', name: 'Fried Chicken', quantity: Math.ceil(Math.random() * 2), unitPrice: 25 },
+      { menuItemId: 'm3', name: 'Waakye', quantity: 1, unitPrice: 30 },
+      { menuItemId: 'm4', name: 'Banku & Tilapia', quantity: 1, unitPrice: 55 },
     ];
 
-    const orderTypes: KitchenOrder['orderType'][] = ['dine_in', 'takeaway', 'delivery', 'pickup'];
-    const sources: KitchenOrder['source'][] = ['pos', 'online', 'phone', 'whatsapp'];
+    const fulfillmentTypes: FulfillmentType[] = ['dine_in', 'takeaway', 'delivery', 'pickup'];
+    const sources: OrderSource[] = ['pos', 'online', 'phone', 'whatsapp'];
     const names = ['Kwame', 'Ama', 'Kofi', 'Akua', 'Yaw', 'Abena'];
 
-    const newOrder: KitchenOrder = {
-      id: `ko-${Date.now()}`,
-      orderNumber: `CB${Math.floor(1000 + Math.random() * 9000)}`,
-      items: mockItems.slice(0, Math.ceil(Math.random() * 3) + 1),
-      status: 'received',
-      orderType: orderTypes[Math.floor(Math.random() * orderTypes.length)],
-      customerName: names[Math.floor(Math.random() * names.length)],
+    const selectedItems = mockItems.slice(0, Math.ceil(Math.random() * 3) + 1);
+
+    const input: CreateOrderInput = {
       source: sources[Math.floor(Math.random() * sources.length)],
-      createdAt: Date.now(),
+      fulfillmentType: fulfillmentTypes[Math.floor(Math.random() * fulfillmentTypes.length)],
+      paymentMethod: 'cash',
+      items: selectedItems,
+      contact: {
+        name: names[Math.floor(Math.random() * names.length)],
+        phone: '024' + Math.floor(1000000 + Math.random() * 9000000),
+      },
+      branchId: 'osu',
+      branchName: 'Osu',
     };
 
-    setOrders(prev => [newOrder, ...prev]);
-  }, []);
+    createOrder(input);
+  }, [createOrder]);
 
   return (
     <KitchenContext.Provider value={{
-      orders, ordersByStatus, stats,
+      orders: kitchenOrders, ordersByStatus, stats,
       acceptOrder, startOrder, markReady, completeOrder, completeAllReady,
       soundEnabled, setSoundEnabled,
       isFullscreen, toggleFullscreen,

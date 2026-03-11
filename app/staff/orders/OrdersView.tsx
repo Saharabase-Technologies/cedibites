@@ -10,7 +10,7 @@ import KanbanColumn from './components/KanbanColumn';
 import MobileTabView from './components/MobileTabView';
 import OrderDetailPanel from './components/OrderDetailPanel';
 import ToastStack from './components/ToastStack';
-import { COLUMNS } from './constants';
+import { KANBAN_COLUMNS } from '@/lib/constants/order.constants';
 
 // ─── OrdersView ───────────────────────────────────────────────────────────────
 
@@ -150,7 +150,7 @@ export default function OrdersView() {
             {/* ── Desktop Kanban ───────────────────────────────────────────────── */}
             <div className="hidden md:flex flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
                 <div className="flex gap-4 px-8 py-5 min-w-max h-full">
-                    {COLUMNS.map(col => (
+                    {KANBAN_COLUMNS.map(col => (
                         <KanbanColumn
                             key={col.id}
                             column={col}

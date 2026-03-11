@@ -12,6 +12,7 @@ import { sampleMenuItems } from "@/lib/data/SampleMenu";
 import LocationRequestModal from "./components/ui/LocationRequestModal";
 import BranchSelectorModal from "./components/ui/BranchSelectorModal";
 import { AuthProvider } from "./components/providers/AuthProvider";
+import { OrderStoreProvider } from "./components/providers/OrderStoreProvider";
 
 const caprasimo = Caprasimo({
   weight: '400',
@@ -54,13 +55,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <AuthProvider>
             <LocationProvider autoRequest={false}>
               <BranchProvider>
-                <MenuDiscoveryProvider items={sampleMenuItems}>
-                  <CartProvider>
+                <OrderStoreProvider>
+                  <MenuDiscoveryProvider items={sampleMenuItems}>
+                    <CartProvider>
                     <LocationRequestModal />
                     <BranchSelectorModal />
                     {children}
-                  </CartProvider>
-                </MenuDiscoveryProvider>
+                    </CartProvider>
+                  </MenuDiscoveryProvider>
+                </OrderStoreProvider>
               </BranchProvider>
             </LocationProvider>
           </AuthProvider>

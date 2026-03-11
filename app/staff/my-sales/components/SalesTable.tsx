@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ReceiptIcon, CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
-import type { SalesOrder } from '../types';
+import type { Order } from '@/types/order';
 import { formatGHS } from '../utils';
 import SalesRow from './SalesRow';
 
@@ -10,11 +10,11 @@ const HEADERS = ['#', 'Time', 'Order', 'Customer', 'Branch', 'Source', 'Items', 
 const PAGE_SIZE = 10;
 
 interface SalesTableProps {
-    activeOrders: SalesOrder[];
-    cancelledOrders: SalesOrder[];
+    activeOrders: Order[];
+    cancelledOrders: Order[];
     totalRevenue: number;
     selectedId: string | null;
-    onSelect: (order: SalesOrder) => void;
+    onSelect: (order: Order) => void;
 }
 
 export default function SalesTable({ activeOrders, cancelledOrders, totalRevenue, selectedId, onSelect }: SalesTableProps) {

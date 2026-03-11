@@ -17,19 +17,16 @@ import {
   FlaskIcon,
 } from '@phosphor-icons/react';
 import { usePOS } from '../context';
-import { POSOrder } from '../types';
+import type { Order } from '@/types/order';
 import { formatGHS } from '@/lib/utils/currency';
 import { BRANCHES } from '@/app/components/providers/BranchProvider';
 import { printReceipt } from '@/lib/utils/printReceipt';
-import { STATUS_CONFIG } from '@/app/staff/orders/constants';
+import { STATUS_CONFIG, FULFILLMENT_LABELS } from '@/lib/constants/order.constants';
 
 type FilterTab = 'all' | 'active' | 'ready' | 'done';
 
-// Cashier can only mark an order complete once the kitchen marks it ready.
-// Status transitions received→preparing→ready are the kitchen's responsibility.
-
-function formatOrderTime(createdAt: Date | string): string {
-  const d = new Date(createdAt);
+function formatOrderTime(placedAt: number): string {
+  const d = new Date(placedAt);
   return d.toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
@@ -148,7 +145,7 @@ export default function POSOrdersPage() {
 
       {/* Page title + tabs */}
       <div className="shrink-0 px-4 pt-4 pb-0 bg-white border-b border-neutral-gray/15">
-        <h1 className="text-xl font-bold text-text-dark mb-3">Today's Orders</h1>
+        <h1 className="text-xl font-bold text-text-dark mb-3">Today&apos;s Orders</h1>
         <div className="flex gap-1 overflow-x-auto pb-0 scrollbar-hide">
           {TABS.map(tab => (
             <button
@@ -210,7 +207,7 @@ export default function POSOrdersPage() {
 // ─── Order Card ──────────────────────────────────────────────────────────────
 
 interface OrderCardProps {
-  order: POSOrder;
+  order: Order;
   branchName: string;
   onComplete: () => void;
 }
@@ -218,6 +215,7 @@ interface OrderCardProps {
 function OrderCard({ order, branchName, onComplete }: OrderCardProps) {
   const isReady = order.status === 'ready';
   const isCompleted = order.status === 'completed';
+  const statusCfg = STATUS_CONFIG[order.status];
 
   const itemSummary = order.items
     .map(i => `${i.name} ×${i.quantity}`)
@@ -231,20 +229,20 @@ function OrderCard({ order, branchName, onComplete }: OrderCardProps) {
       {/* Top row: order ID, type, time */}
       <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono font-bold text-text-dark text-sm">#{order.id}</span>
+          <span className="font-mono font-bold text-text-dark text-sm">#{order.orderNumber}</span>
           <span className={`
             text-[11px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wide
-            ${order.orderType === 'dine_in' ? 'bg-info/10 text-info' : 'bg-secondary/10 text-secondary'}
+            ${order.fulfillmentType === 'dine_in' ? 'bg-info/10 text-info' : 'bg-secondary/10 text-secondary'}
           `}>
-            {order.orderType === 'dine_in' ? 'Dine In' : 'Takeaway'}
+            {FULFILLMENT_LABELS[order.fulfillmentType]}
           </span>
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-brown border-2 ${STATUS_CONFIG[order.status].color}`}>
-            <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${STATUS_CONFIG[order.status].dot} ${STATUS_CONFIG[order.status].pulse ? 'animate-pulse' : ''}`} />
-            <span className="text-text-light text-[11px] font-semibold">{STATUS_CONFIG[order.status].label}</span>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-brown border-2 ${statusCfg.color}`}>
+            <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${statusCfg.dot} ${statusCfg.pulse ? 'animate-pulse' : ''}`} />
+            <span className="text-text-light text-[11px] font-semibold">{statusCfg.label}</span>
           </span>
         </div>
         <span className="text-xs text-neutral-gray whitespace-nowrap shrink-0 mt-0.5">
-          {formatOrderTime(order.createdAt)}
+          {formatOrderTime(order.placedAt)}
         </span>
       </div>
 
@@ -254,22 +252,22 @@ function OrderCard({ order, branchName, onComplete }: OrderCardProps) {
       </div>
 
       {/* Customer info + notes (if set) */}
-      {(order.customerName || order.customerPhone || order.notes) && (
+      {(order.contact.name || order.contact.phone || order.contact.notes) && (
         <div className="px-4 pb-2 flex flex-col gap-0.5">
-          {order.customerName && (
+          {order.contact.name && order.contact.name !== 'Walk-in' && (
             <p className="text-xs text-neutral-gray flex items-center gap-1">
-              <UserIcon className="w-3 h-3" /> {order.customerName}
-              {order.customerPhone && <span className="text-neutral-gray/60">· {order.customerPhone}</span>}
+              <UserIcon className="w-3 h-3" /> {order.contact.name}
+              {order.contact.phone && <span className="text-neutral-gray/60">· {order.contact.phone}</span>}
             </p>
           )}
-          {!order.customerName && order.customerPhone && (
+          {(!order.contact.name || order.contact.name === 'Walk-in') && order.contact.phone && (
             <p className="text-xs text-neutral-gray flex items-center gap-1">
-              <PhoneIcon className="w-3 h-3" /> {order.customerPhone}
+              <PhoneIcon className="w-3 h-3" /> {order.contact.phone}
             </p>
           )}
-          {order.notes && (
+          {order.contact.notes && (
             <p className="text-xs text-neutral-gray flex items-center gap-1">
-              <NoteIcon className="w-3 h-3" /> {order.notes}
+              <NoteIcon className="w-3 h-3" /> {order.contact.notes}
             </p>
           )}
         </div>

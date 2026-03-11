@@ -16,17 +16,18 @@ import {
 } from '@phosphor-icons/react';
 import Navbar from '../components/layout/Navbar';
 import {
-    getMockOrdersForUser,
     type Order,
-    STATUS_CONFIG,
     formatPrice,
     timeAgo,
 } from '@/types/order';
+import { STATUS_CONFIG } from '@/lib/constants/order.constants';
+import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { UserCheckIcon } from '@phosphor-icons/react/dist/ssr';
 
 export default function OrderHistoryPage() {
     const router = useRouter();
     const { openAuth } = useModal();
+    const { orders: storeOrders } = useOrderStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [userIP, setUserIP] = useState<string | null>(null);
 
@@ -42,17 +43,12 @@ export default function OrderHistoryPage() {
         }
     }, [isLoggedIn]);
 
-    // Get orders - either by user auth or IP
-    const allOrders = useMemo(() => {
-        if (isLoggedIn) {
-            // TODO: Fetch orders by user ID
-            return getMockOrdersForUser();
-        } else if (userIP) {
-            // TODO: Fetch orders by IP address
-            return getMockOrdersForUser(); // Mock for now
-        }
-        return [];
-    }, [isLoggedIn, userIP]);
+    // Get orders from unified OrderStore
+    const allOrders = useMemo<Order[]>(() => {
+        // TODO: Filter by user ID when auth is connected
+        // For now, return all orders from the store
+        return storeOrders;
+    }, [storeOrders]);
 
     // Filter orders by search
     const filteredOrders = useMemo(() => {
@@ -212,7 +208,7 @@ export default function OrderHistoryPage() {
                                                     <CalendarIcon size={16} />
                                                     <span>{timeAgo(order.placedAt)}</span>
                                                 </div>
-                                                {order.orderType === 'delivery' && order.contact.address && (
+                                                {order.fulfillmentType === 'delivery' && order.contact.address && (
                                                     <>
                                                         <span>•</span>
                                                         <div className="flex items-center gap-1.5 truncate">

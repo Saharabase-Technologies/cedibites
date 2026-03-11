@@ -1,7 +1,7 @@
 'use client';
 
 import { XIcon, CheckCircleIcon, WarningCircleIcon, BellIcon, ForkKnifeIcon } from '@phosphor-icons/react';
-import type { OrderNotification } from '../types';
+import type { OrderNotification } from '@/types/order';
 
 // ─── Per-type style config ────────────────────────────────────────────────────
 

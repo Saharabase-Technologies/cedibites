@@ -1,12 +1,5 @@
-import { POSOrder } from '@/app/pos/types';
-
-function padEnd(str: string, len: number): string {
-  return str.length >= len ? str.slice(0, len) : str + ' '.repeat(len - str.length);
-}
-
-function padStart(str: string, len: number): string {
-  return str.length >= len ? str.slice(0, len) : ' '.repeat(len - str.length) + str;
-}
+import type { Order } from '@/types/order';
+import { FULFILLMENT_LABELS } from '@/lib/constants/order.constants';
 
 function formatTime(d: Date): string {
   return d.toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -16,19 +9,15 @@ function formatDate(d: Date): string {
   return d.toLocaleDateString('en-GH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function receiptHTML(order: POSOrder, branchName: string): string {
-  const createdAt = new Date(order.createdAt);
-  const COL = 32; // receipt char width
+function receiptHTML(order: Order, branchName: string): string {
+  const createdAt = new Date(order.placedAt);
 
   const itemLines = order.items.map(item => {
     const qty = `${item.quantity}×`;
-    const unitPrice = `GHS ${item.price.toFixed(2)}`;
-    const lineTotal = `GHS ${(item.price * item.quantity).toFixed(2)}`;
-    // Name line (may wrap)
+    const unitPrice = `GHS ${item.unitPrice.toFixed(2)}`;
+    const lineTotal = `GHS ${(item.unitPrice * item.quantity).toFixed(2)}`;
     const nameLine = `${qty} ${item.name}`;
-    // Price line right-aligned
-    const priceRow = padEnd(unitPrice, COL - lineTotal.length) + lineTotal;
-    return `<div class="item-name">${nameLine}</div><div class="item-price">${priceRow}</div>`;
+    return `<div class="item-name">${nameLine}</div><div class="item-price">${unitPrice} → ${lineTotal}</div>`;
   }).join('');
 
   const paymentLabel: Record<string, string> = {
@@ -41,7 +30,7 @@ function receiptHTML(order: POSOrder, branchName: string): string {
 <html>
 <head>
 <meta charset="utf-8">
-<title>Receipt #${order.id}</title>
+<title>Receipt #${order.orderNumber}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -73,12 +62,12 @@ function receiptHTML(order: POSOrder, branchName: string): string {
   <div class="center" style="font-size:11px; margin-bottom:4px;">${branchName}</div>
   <div class="divider"></div>
 
-  <div class="row"><span>Order</span><span class="bold">#${order.id}</span></div>
+  <div class="row"><span>Order</span><span class="bold">#${order.orderNumber}</span></div>
   <div class="row"><span>Date</span><span>${formatDate(createdAt)}</span></div>
   <div class="row"><span>Time</span><span>${formatTime(createdAt)}</span></div>
-  <div class="row"><span>Type</span><span>${order.orderType === 'dine_in' ? 'Dine In' : 'Takeaway'}</span></div>
-  ${order.customerName ? `<div class="row"><span>Customer</span><span>${order.customerName}</span></div>` : ''}
-  ${order.customerPhone ? `<div class="row"><span>Phone</span><span>${order.customerPhone}</span></div>` : ''}
+  <div class="row"><span>Type</span><span>${FULFILLMENT_LABELS[order.fulfillmentType]}</span></div>
+  ${order.contact.name ? `<div class="row"><span>Customer</span><span>${order.contact.name}</span></div>` : ''}
+  ${order.contact.phone ? `<div class="row"><span>Phone</span><span>${order.contact.phone}</span></div>` : ''}
   <div class="divider"></div>
 
   ${itemLines}
@@ -87,7 +76,7 @@ function receiptHTML(order: POSOrder, branchName: string): string {
   <div class="row"><span>Subtotal</span><span>GHS ${order.subtotal.toFixed(2)}</span></div>
   <div class="total-row"><span>TOTAL</span><span>GHS ${order.total.toFixed(2)}</span></div>
   <div class="row" style="margin-top:4px;"><span>Payment</span><span>${paymentLabel[order.paymentMethod] ?? order.paymentMethod}</span></div>
-  ${order.notes ? `<div class="divider"></div><div style="font-size:11px;">Note: ${order.notes}</div>` : ''}
+  ${order.contact.notes ? `<div class="divider"></div><div style="font-size:11px;">Note: ${order.contact.notes}</div>` : ''}
 
   <div class="divider"></div>
   <div class="footer">Thank you for dining with us!</div>
@@ -97,13 +86,12 @@ function receiptHTML(order: POSOrder, branchName: string): string {
 </html>`;
 }
 
-export function printReceipt(order: POSOrder, branchName: string): void {
+export function printReceipt(order: Order, branchName: string): void {
   const win = window.open('', '_blank', 'width=400,height=600');
   if (!win) return;
   win.document.write(receiptHTML(order, branchName));
   win.document.close();
   win.focus();
-  // Small delay so content renders before print dialog opens
   setTimeout(() => {
     win.print();
     win.close();

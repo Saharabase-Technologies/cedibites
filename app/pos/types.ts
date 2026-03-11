@@ -1,4 +1,5 @@
-// POS Terminal Types
+// POS-specific types (session, cart, view)
+// Order types come from @/types/order
 
 export interface POSSession {
   staffId: string;
@@ -18,26 +19,8 @@ export interface POSCartItem {
   variantKey?: string;
 }
 
-export interface POSOrder {
-  id: string;
-  items: POSCartItem[];
-  subtotal: number;
-  total: number;
-  customerName?: string;
-  customerPhone?: string;
-  notes?: string;
-  paymentMethod: PaymentMethod;
-  paymentStatus: 'pending' | 'completed' | 'failed';
-  orderType: 'dine_in' | 'takeaway';
-  status: 'received' | 'preparing' | 'ready' | 'completed';
-  createdAt: Date;
-  completedAt?: Date;
-}
-
-export type PaymentMethod = 'cash' | 'card' | 'momo';
-
 export interface PaymentDetails {
-  method: PaymentMethod;
+  method: 'cash' | 'card' | 'momo';
   amountPaid?: number; // For cash - to calculate change
   momoNumber?: string; // For mobile money
   reference?: string;  // Transaction reference

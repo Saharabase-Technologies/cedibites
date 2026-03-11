@@ -13,9 +13,9 @@ import {
     SpinnerIcon,
 } from '@phosphor-icons/react';
 import { useOrders } from '../context';
-import { COLUMNS, PAY_LABEL, SOURCE_LABEL } from '../constants';
+import { KANBAN_COLUMNS, PAYMENT_LABELS, SOURCE_LABEL } from '@/lib/constants/order.constants';
 import { formatGHS, timeAgo, getNextStatuses, isDoneStatus, haversineKm } from '../utils';
-import type { OrderStatus } from '../types';
+import type { OrderStatus } from '@/types/order';
 import LiveMap from '@/app/components/order/LiveMap';
 
 // ─── Refund modal ─────────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ export default function OrderDetailPanel() {
     if (!selectedOrder) return null;
 
     const order = selectedOrder;
-    const col = COLUMNS.find(c => c.statuses.includes(order.status))!;
+    const col = KANBAN_COLUMNS.find(c => c.statuses.includes(order.status))!;
     const time = timeAgo(order.placedAt);
     const nexts = getNextStatuses(order);
 
@@ -171,7 +171,7 @@ export default function OrderDetailPanel() {
                 {/* Header — sticky */}
                 <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-brown-light/15 sticky top-0 bg-brown z-10">
                     <div>
-                        <p className="text-text-light text-base font-bold font-body">#{order.id}</p>
+                        <p className="text-text-light text-base font-bold font-body">#{order.orderNumber}</p>
                         <p className="text-neutral-gray text-xs font-body mt-0.5">
                             {time.label} · via {SOURCE_LABEL[order.source]}
                         </p>
@@ -200,7 +200,7 @@ export default function OrderDetailPanel() {
                         <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${col.dot}`} />
                         <span className="text-text-light text-sm font-semibold font-body">{col.label}</span>
                         <span className="text-neutral-gray text-xs font-body">·</span>
-                        <span className="text-neutral-gray text-xs font-body capitalize">{order.type}</span>
+                        <span className="text-neutral-gray text-xs font-body capitalize">{order.fulfillmentType}</span>
                     </div>
 
                     {/* Customer */}
@@ -208,29 +208,29 @@ export default function OrderDetailPanel() {
                         <p className="text-neutral-gray text-[10px] font-body uppercase tracking-wider">Customer</p>
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-text-light text-sm font-semibold font-body">{order.customer.name}</p>
-                                <p className="text-neutral-gray text-xs font-body mt-0.5">{order.customer.phone}</p>
+                                <p className="text-text-light text-sm font-semibold font-body">{order.contact.name}</p>
+                                <p className="text-neutral-gray text-xs font-body mt-0.5">{order.contact.phone}</p>
                             </div>
                             <a
-                                href={`tel:${order.customer.phone}`}
+                                href={`tel:${order.contact.phone}`}
                                 onClick={e => e.stopPropagation()}
                                 className="w-9 h-9 flex items-center justify-center rounded-full bg-secondary/15 hover:bg-secondary/25 border border-secondary/25 text-secondary transition-colors"
-                                aria-label={`Call ${order.customer.name}`}
+                                aria-label={`Call ${order.contact.name}`}
                             >
                                 <PhoneIcon size={16} weight="fill" />
                             </a>
                         </div>
 
-                        {order.type === 'delivery' && order.address && (
+                        {order.fulfillmentType === 'delivery' && order.contact.address && (
                             <div className="flex items-start gap-2 pt-2 border-t border-brown-light/15">
                                 <MapPinIcon size={14} weight="fill" className="text-neutral-gray shrink-0 mt-0.5" />
-                                <p className="text-text-light text-xs font-body leading-relaxed">{order.address}</p>
+                                <p className="text-text-light text-xs font-body leading-relaxed">{order.contact.address}</p>
                             </div>
                         )}
-                        {order.type === 'pickup' && (
+                        {order.fulfillmentType === 'pickup' && (
                             <div className="flex items-center gap-2 pt-2 border-t border-brown-light/15">
                                 <MapPinIcon size={14} weight="fill" className="text-neutral-gray shrink-0" />
-                                <p className="text-text-light text-xs font-body">Pickup at {order.branch}</p>
+                                <p className="text-text-light text-xs font-body">Pickup at {order.branch.name}</p>
                             </div>
                         )}
                     </div>
@@ -241,8 +241,8 @@ export default function OrderDetailPanel() {
                         <div className="flex flex-col gap-2">
                             {order.items.map((item, i) => (
                                 <div key={i} className="flex items-center justify-between">
-                                    <span className="text-text-light text-sm font-body">{item.qty}× {item.name}</span>
-                                    <span className="text-neutral-gray text-sm font-body">{formatGHS(item.unitPrice * item.qty)}</span>
+                                    <span className="text-text-light text-sm font-body">{item.quantity}× {item.name}</span>
+                                    <span className="text-neutral-gray text-sm font-body">{formatGHS(item.unitPrice * item.quantity)}</span>
                                 </div>
                             ))}
                             <div className="flex items-center justify-between pt-2 border-t border-brown-light/15 mt-1">
@@ -261,22 +261,22 @@ export default function OrderDetailPanel() {
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
                             <DeviceMobileIcon size={14} className="text-neutral-gray shrink-0" />
-                            <span className="text-neutral-gray text-xs font-body">{PAY_LABEL[order.payment]}</span>
+                            <span className="text-neutral-gray text-xs font-body">{PAYMENT_LABELS[order.paymentMethod].short}</span>
                         </div>
-                        {order.notes && (
+                        {order.contact.notes && (
                             <div className="flex items-start gap-2">
                                 <NoteIcon size={14} className="text-neutral-gray shrink-0 mt-0.5" />
-                                <span className="text-neutral-gray text-xs font-body italic">{order.notes}</span>
+                                <span className="text-neutral-gray text-xs font-body italic">{order.contact.notes}</span>
                             </div>
                         )}
                     </div>
 
                     {/* Live Tracking */}
-                    {order.status === 'out_for_delivery' && order.type === 'delivery' && order.coords && (
+                    {order.status === 'out_for_delivery' && order.fulfillmentType === 'delivery' && order.coords && (
                         <div className="flex flex-col gap-3">
                             <div className="flex items-center justify-between">
                                 <p className="text-neutral-gray text-[10px] font-body uppercase tracking-wider">Live Tracking</p>
-                                {order.coords.rider && (
+                                {order.coords.rider && order.coords.customer && (
                                     <span className="text-xs font-semibold font-body text-teal-400">
                                         {haversineKm(order.coords.rider, order.coords.customer).toFixed(1)} km away
                                     </span>
@@ -284,9 +284,9 @@ export default function OrderDetailPanel() {
                             </div>
                             <LiveMap
                                 branchLocation={order.coords.branch}
-                                customerLocation={order.coords.customer}
+                                customerLocation={order.coords.customer ?? null}
                                 riderLocation={order.coords.rider ?? null}
-                                branchName={order.branch}
+                                branchName={order.branch.name}
                             />
                         </div>
                     )}
@@ -348,10 +348,10 @@ export default function OrderDetailPanel() {
             {showRefund && (
                 <RefundModal
                     total={order.total}
-                    customerName={order.customer.name}
-                    customerPhone={order.customer.phone}
-                    orderId={order.id}
-                    payment={order.payment}
+                    customerName={order.contact.name}
+                    customerPhone={order.contact.phone}
+                    orderId={order.orderNumber}
+                    payment={order.paymentMethod}
                     onConfirm={handleRefundConfirm}
                     onCancel={() => setShowRefund(false)}
                     isProcessing={isRefunding}

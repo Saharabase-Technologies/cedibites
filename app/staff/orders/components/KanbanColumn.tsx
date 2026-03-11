@@ -1,21 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import type { KanbanColumn as KanbanColumnType, StaffOrder, OrderStatus, UserRole } from '../types';
-import { STATUS_CONFIG } from '../constants';
+import type { KanbanColumn as KanbanColumnType, Order, OrderStatus, UserRole } from '@/types/order';
+import { STATUS_CONFIG } from '@/lib/constants/order.constants';
 import OrderCard from './OrderCard';
 
 // ─── Kanban column ────────────────────────────────────────────────────────────
 
 interface KanbanColumnProps {
     column: KanbanColumnType;
-    orders: StaffOrder[];
+    orders: Order[];
     userRole: UserRole;
     draggingId: string | null;
     onDragStart: (e: React.DragEvent, id: string) => void;
     onDragEnd: () => void;
     onDrop: (e: React.DragEvent, targetStatus: OrderStatus) => void;
-    onCardClick: (order: StaffOrder) => void;
+    onCardClick: (order: Order) => void;
     onAdvance: (id: string, status: OrderStatus) => void;
 }
 

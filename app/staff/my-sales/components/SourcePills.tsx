@@ -1,7 +1,7 @@
 'use client';
 
-import type { OrderSource } from '../types';
-import { SOURCE_ICON, SOURCE_LABEL } from '../constants';
+import type { OrderSource } from '@/types/order';
+import { SOURCE_ICON, SOURCE_LABEL } from '@/lib/constants/order.constants';
 
 interface SourcePillsProps {
     breakdown: [string, number][];

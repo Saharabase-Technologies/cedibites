@@ -1,12 +1,12 @@
 'use client';
 
 import { CaretRightIcon } from '@phosphor-icons/react';
-import type { SalesOrder } from '../types';
-import { SOURCE_ICON, SOURCE_LABEL, STATUS, PAY_LABEL } from '../constants';
+import type { Order } from '@/types/order';
+import { SOURCE_ICON, SOURCE_LABEL, STATUS_CONFIG, PAYMENT_LABELS } from '@/lib/constants/order.constants';
 import { formatGHS, formatTime, itemCount } from '../utils';
 
 interface SalesRowProps {
-    order: SalesOrder;
+    order: Order;
     index: number;
     isSelected: boolean;
     onSelect: () => void;
@@ -14,7 +14,7 @@ interface SalesRowProps {
 
 export default function SalesRow({ order, index, isSelected, onSelect }: SalesRowProps) {
     const SourceIcon = SOURCE_ICON[order.source];
-    const status = STATUS[order.status];
+    const status = STATUS_CONFIG[order.status];
     const isCancelled = order.status === 'cancelled';
     const qty = itemCount(order);
 
@@ -39,18 +39,18 @@ export default function SalesRow({ order, index, isSelected, onSelect }: SalesRo
 
             {/* Order ID */}
             <td className="px-4 py-3.5">
-                <span className="text-text-dark dark:text-text-light text-xs font-bold font-body tracking-wide">#{order.id}</span>
+                <span className="text-text-dark dark:text-text-light text-xs font-bold font-body tracking-wide">#{order.orderNumber}</span>
             </td>
 
             {/* Customer */}
             <td className="px-4 py-3.5 min-w-[150px]">
-                <p className="text-text-dark dark:text-text-light text-sm font-semibold font-body leading-none">{order.customer.name}</p>
-                <p className="text-text-dark dark:text-text-light text-[10px] font-body mt-0.5">{order.customer.phone}</p>
+                <p className="text-text-dark dark:text-text-light text-sm font-semibold font-body leading-none">{order.contact.name}</p>
+                <p className="text-text-dark dark:text-text-light text-[10px] font-body mt-0.5">{order.contact.phone}</p>
             </td>
 
             {/* Branch */}
             <td className="px-4 py-3.5 text-text-dark dark:text-text-light text-xs font-body whitespace-nowrap hidden lg:table-cell">
-                {order.branch}
+                {order.branch.name}
             </td>
 
             {/* Source */}
@@ -68,7 +68,7 @@ export default function SalesRow({ order, index, isSelected, onSelect }: SalesRo
 
             {/* Payment */}
             <td className="px-4 py-3.5 text-text-dark dark:text-text-light text-xs font-body hidden md:table-cell">
-                {PAY_LABEL[order.payment]}
+                {PAYMENT_LABELS[order.paymentMethod].short}
             </td>
 
             {/* Total */}

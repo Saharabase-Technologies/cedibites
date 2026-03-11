@@ -2,29 +2,29 @@
 
 import { useState } from 'react';
 import { TrayIcon } from '@phosphor-icons/react';
-import type { StaffOrder, OrderStatus, UserRole } from '../types';
-import { COLUMNS } from '../constants';
+import type { Order, OrderStatus, UserRole } from '@/types/order';
+import { KANBAN_COLUMNS } from '@/lib/constants/order.constants';
 import OrderCard from './OrderCard';
 
 // ─── Mobile tab view ──────────────────────────────────────────────────────────
 
 interface MobileTabViewProps {
-    orders: StaffOrder[];
+    orders: Order[];
     userRole: UserRole;
     onAdvance: (id: string, status: OrderStatus) => void;
-    onCardClick: (order: StaffOrder) => void;
+    onCardClick: (order: Order) => void;
 }
 
 export default function MobileTabView({ orders, userRole, onAdvance, onCardClick }: MobileTabViewProps) {
     const [activeCol, setActiveCol] = useState(0);
-    const col = COLUMNS[activeCol];
+    const col = KANBAN_COLUMNS[activeCol];
     const colOrders = orders.filter(o => col.statuses.includes(o.status));
 
     return (
         <div className="flex flex-col gap-4">
             {/* Tab pills */}
             <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                {COLUMNS.map((c, i) => {
+                {KANBAN_COLUMNS.map((c, i) => {
                     const count = orders.filter(o => c.statuses.includes(o.status)).length;
                     return (
                         <button

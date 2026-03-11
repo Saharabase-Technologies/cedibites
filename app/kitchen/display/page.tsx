@@ -1,7 +1,7 @@
 'use client';
 
 import { useKitchen } from '../context';
-import { KitchenOrder } from '../types';
+import type { Order } from '@/types/order';
 
 export default function KitchenDisplayPage() {
   const { ordersByStatus } = useKitchen();
@@ -19,7 +19,7 @@ export default function KitchenDisplayPage() {
 
 interface StatusColumnProps {
   title: string;
-  orders: KitchenOrder[];
+  orders: Order[];
 }
 
 function StatusColumn({ title, orders }: StatusColumnProps) {

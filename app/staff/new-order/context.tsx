@@ -2,14 +2,10 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import type { MenuItem } from '@/lib/data/SampleMenu';
-import type {
-    OrderSource,
-    OrderType,
-    PaymentMethod,
-    StaffCartItem,
-    CustomerDetails,
-} from './types';
-import { generateOrderCode } from './utils';
+import type { OrderSource, FulfillmentType, PaymentMethod } from '@/types/order';
+import type { StaffCartItem, CustomerDetails } from './types';
+import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
+import { BRANCHES } from '@/app/components/providers/BranchProvider';
 
 // ─── Context shape ────────────────────────────────────────────────────────────
 
@@ -19,7 +15,7 @@ interface NewOrderContextType {
     source: OrderSource | null;
     branchId: string | null;
     cart: StaffCartItem[];
-    orderType: OrderType;
+    orderType: FulfillmentType;
     customer: CustomerDetails;
     payment: PaymentMethod | null;
     isSubmitting: boolean;
@@ -32,7 +28,7 @@ interface NewOrderContextType {
     addItem: (item: MenuItem, variantKey: string, price: number, variantLabel?: string) => void;
     removeItem: (cartKey: string) => void;
     clearItem: (cartKey: string) => void;
-    setOrderType: (t: OrderType) => void;
+    setOrderType: (t: FulfillmentType) => void;
     patchCustomer: (patch: Partial<CustomerDetails>) => void;
     setPayment: (p: PaymentMethod) => void;
     submit: () => Promise<void>;
@@ -52,11 +48,13 @@ const NewOrderContext = createContext<NewOrderContextType | undefined>(undefined
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function NewOrderProvider({ children }: { children: ReactNode }) {
+    const { createOrder } = useOrderStore();
+
     const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
     const [source, setSource] = useState<OrderSource | null>(null);
     const [branchId, setBranchId] = useState<string | null>(null);
     const [cart, setCart] = useState<StaffCartItem[]>([]);
-    const [orderType, setOrderType] = useState<OrderType>('delivery');
+    const [orderType, setOrderType] = useState<FulfillmentType>('delivery');
     const [customer, setCustomer] = useState<CustomerDetails>(DEFAULT_CUSTOMER);
     const [payment, setPayment] = useState<PaymentMethod | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -99,30 +97,44 @@ export function NewOrderProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const submit = useCallback(async () => {
+        if (!source || !branchId || !payment) return;
         setIsSubmitting(true);
         try {
-            // TODO: replace with real API call ──────────────────────────────────
-            // const res = await fetch('/api/v1/staff/orders', {
-            //   method: 'POST',
-            //   credentials: 'include',
-            //   headers: { 'Content-Type': 'application/json' },
-            //   body: JSON.stringify({
-            //     source, branchId, orderType,
-            //     items: cart.map(i => ({ id: i.id, quantity: i.quantity })),
-            //     customer, payment,
-            //   }),
-            // });
-            // const { data } = await res.json();
-            // setOrderCode(data.orderCode);
-            // ──────────────────────────────────────────────────────────────────
-            await new Promise(r => setTimeout(r, 2000)); // remove when API is live
-            setOrderCode(generateOrderCode());
+            const branch = BRANCHES.find(b => b.id === branchId);
+            const order = await createOrder({
+                source,
+                fulfillmentType: orderType,
+                paymentMethod: payment,
+                items: cart.map(i => ({
+                    menuItemId: i.id,
+                    name: i.name,
+                    quantity: i.quantity,
+                    unitPrice: i.price,
+                    variantKey: i.cartKey.split('|')[1],
+                    sizeLabel: i.variantLabel,
+                    category: i.category,
+                })),
+                contact: {
+                    name: customer.name,
+                    phone: customer.phone,
+                    email: customer.email || undefined,
+                    address: orderType === 'delivery' ? customer.address : undefined,
+                    notes: customer.notes || undefined,
+                },
+                branchId,
+                branchName: branch?.name ?? branchId,
+                branchAddress: branch?.address,
+                branchPhone: branch?.phone,
+                branchCoordinates: branch?.coordinates,
+                deliveryFee: orderType === 'delivery' ? (branch?.deliveryFee ?? 0) : 0,
+            });
+            setOrderCode(order.orderNumber);
         } catch {
             // Handle error — show toast or inline error
         } finally {
             setIsSubmitting(false);
         }
-    }, []);
+    }, [source, branchId, payment, orderType, cart, customer, createOrder]);
 
     const resetOrder = useCallback(() => {
         setStep(1);

@@ -12,7 +12,8 @@ import {
 } from '@phosphor-icons/react';
 import Input from '@/app/components/base/Input';
 import AddressSearchField from '@/app/components/base/AddressSearchField';
-import type { OrderType, CustomerDetails } from '../types';
+import type { FulfillmentType } from '@/types/order';
+import type { CustomerDetails } from '../types';
 import { useNewOrder } from '../context';
 import { formatPhone } from '../utils';
 
@@ -53,7 +54,7 @@ export default function StepCustomer() {
             <div>
                 <h2 className="text-text-dark dark:text-text-light text-sm font-semibold font-body mb-3">Order type</h2>
                 <div className="flex gap-2 p-1 bg-brown rounded-2xl">
-                    {(['delivery', 'pickup'] as OrderType[]).map(t => (
+                    {(['delivery', 'pickup'] as FulfillmentType[]).map(t => (
                         <button
                             key={t}
                             type="button"

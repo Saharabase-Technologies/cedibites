@@ -12,12 +12,12 @@ import {
     StorefrontIcon,
     WarningCircleIcon,
 } from '@phosphor-icons/react';
-import type { SalesOrder } from '../types';
-import { SOURCE_ICON, SOURCE_LABEL, STATUS, PAY_LABEL_FULL } from '../constants';
+import type { Order } from '@/types/order';
+import { SOURCE_ICON, SOURCE_LABEL, STATUS_CONFIG, PAYMENT_LABELS } from '@/lib/constants/order.constants';
 import { formatGHS, formatTime, itemCount } from '../utils';
 
 interface OrderDrawerProps {
-    order: SalesOrder | null;
+    order: Order | null;
     onClose: () => void;
 }
 
@@ -35,7 +35,7 @@ export default function OrderDrawer({ order, onClose }: OrderDrawerProps) {
         };
     }, [isOpen, onClose]);
 
-    const status = order ? STATUS[order.status] : null;
+    const status = order ? STATUS_CONFIG[order.status] : null;
     const SourceIcon = order ? SOURCE_ICON[order.source] : null;
     const isCancelled = order?.status === 'cancelled';
 
@@ -61,7 +61,7 @@ export default function OrderDrawer({ order, onClose }: OrderDrawerProps) {
                         <div className="px-5 py-4 border-b border-brown-light/15 flex items-start justify-between gap-3 shrink-0">
                             <div>
                                 <div className="flex items-center gap-2 mb-1.5">
-                                    <span className="text-text-light text-base font-bold font-body">#{order.id}</span>
+                                    <span className="text-text-light text-base font-bold font-body">#{order.orderNumber}</span>
                                     <span className="inline-flex items-center gap-1.5 bg-brown border border-brown-light/15 rounded-full px-2 py-0.5 text-[10px] font-semibold font-body text-neutral-gray">
                                         <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${status.dot}`} />
                                         {status.label}
@@ -71,7 +71,7 @@ export default function OrderDrawer({ order, onClose }: OrderDrawerProps) {
                                     <ClockIcon size={11} weight="fill" />
                                     {formatTime(order.placedAt)}
                                     <span className="text-brown-light/30">·</span>
-                                    {order.branch}
+                                    {order.branch.name}
                                     <span className="text-brown-light/30">·</span>
                                     <SourceIcon size={11} weight="fill" />
                                     {SOURCE_LABEL[order.source]}
@@ -91,10 +91,10 @@ export default function OrderDrawer({ order, onClose }: OrderDrawerProps) {
                             {/* Customer */}
                             <div className="px-5 py-4 border-b border-brown-light/10">
                                 <p className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-widest mb-3">Customer</p>
-                                <p className="text-text-light text-sm font-semibold font-body">{order.customer.name}</p>
+                                <p className="text-text-light text-sm font-semibold font-body">{order.contact.name}</p>
                                 <p className="text-neutral-gray text-xs font-body mt-1 flex items-center gap-1.5">
                                     <PhoneIcon size={11} weight="fill" />
-                                    {order.customer.phone}
+                                    {order.contact.phone}
                                 </p>
                             </div>
 
@@ -102,22 +102,22 @@ export default function OrderDrawer({ order, onClose }: OrderDrawerProps) {
                             <div className="px-5 py-4 border-b border-brown-light/10">
                                 <p className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-widest mb-3">Fulfillment</p>
                                 <div className="flex items-center gap-2 mb-3">
-                                    {order.fulfillment === 'delivery'
+                                    {order.fulfillmentType === 'delivery'
                                         ? <TruckIcon size={13} weight="fill" className="text-info" />
                                         : <StorefrontIcon size={13} weight="fill" className="text-secondary" />
                                     }
-                                    <span className={`text-xs font-semibold font-body ${order.fulfillment === 'delivery' ? 'text-info' : 'text-secondary'}`}>
-                                        {order.fulfillment === 'delivery' ? 'Delivery' : 'Pickup'}
+                                    <span className={`text-xs font-semibold font-body ${order.fulfillmentType === 'delivery' ? 'text-info' : 'text-secondary'}`}>
+                                        {order.fulfillmentType === 'delivery' ? 'Delivery' : 'Pickup'}
                                     </span>
                                 </div>
-                                {order.deliveryAddress && (
+                                {order.contact.address && (
                                     <div className="flex items-start gap-2 mb-1">
                                         <MapPinIcon size={12} weight="fill" className="text-neutral-gray mt-0.5 shrink-0" />
-                                        <p className="text-text-light text-xs font-body">{order.deliveryAddress}</p>
+                                        <p className="text-text-light text-xs font-body">{order.contact.address}</p>
                                     </div>
                                 )}
-                                {order.gpsCoords && (
-                                    <p className="text-neutral-gray text-[10px] font-body ml-5">GPS: {order.gpsCoords}</p>
+                                {order.contact.gpsCoords && (
+                                    <p className="text-neutral-gray text-[10px] font-body ml-5">GPS: {order.contact.gpsCoords}</p>
                                 )}
                                 <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 ml-5">
                                     {order.estimatedMinutes != null && (
@@ -142,12 +142,12 @@ export default function OrderDrawer({ order, onClose }: OrderDrawerProps) {
                                     {order.items.map((item, i) => (
                                         <div key={i} className="flex justify-between items-baseline gap-3">
                                             <div className="flex items-baseline gap-1.5 min-w-0">
-                                                <span className="text-primary text-xs font-bold font-body shrink-0">{item.qty}×</span>
+                                                <span className="text-primary text-xs font-bold font-body shrink-0">{item.quantity}×</span>
                                                 <span className="text-text-light text-xs font-body truncate">{item.name}</span>
                                                 <span className="text-neutral-gray/60 text-[10px] font-body shrink-0">@ {formatGHS(item.unitPrice)}</span>
                                             </div>
                                             <span className="text-text-light text-xs font-semibold font-body shrink-0">
-                                                {formatGHS(item.qty * item.unitPrice)}
+                                                {formatGHS(item.quantity * item.unitPrice)}
                                             </span>
                                         </div>
                                     ))}
@@ -191,20 +191,20 @@ export default function OrderDrawer({ order, onClose }: OrderDrawerProps) {
                                     </div>
                                     <div className="flex justify-between items-baseline gap-2 mt-0.5">
                                         <span className="text-neutral-gray text-xs font-body">Payment method</span>
-                                        <span className="text-text-light text-xs font-semibold font-body">{PAY_LABEL_FULL[order.payment]}</span>
+                                        <span className="text-text-light text-xs font-semibold font-body">{PAYMENT_LABELS[order.paymentMethod].full}</span>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Notes & Flags */}
-                            {(order.customerNotes || (order.allergyFlags && order.allergyFlags.length > 0) || order.staffNotes) && (
+                            {(order.contact.notes || (order.allergyFlags && order.allergyFlags.length > 0) || order.staffNotes) && (
                                 <div className="px-5 py-4">
                                     <p className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-widest mb-3">Notes & Flags</p>
                                     <div className="flex flex-col gap-3">
-                                        {order.customerNotes && (
+                                        {order.contact.notes && (
                                             <div className="flex gap-2 items-start">
                                                 <NoteIcon size={13} weight="fill" className="text-neutral-gray shrink-0 mt-0.5" />
-                                                <p className="text-text-light text-xs font-body italic">"{order.customerNotes}"</p>
+                                                <p className="text-text-light text-xs font-body italic">"{order.contact.notes}"</p>
                                             </div>
                                         )}
                                         {order.allergyFlags?.map(flag => (
