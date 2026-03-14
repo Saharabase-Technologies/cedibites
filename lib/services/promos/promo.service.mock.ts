@@ -15,7 +15,9 @@ const SEED_PROMOS: Promo[] = [
         value: 20,
         scope: 'global',
         branchIds: [],
+        appliesTo: 'order',
         itemIds: [],
+        maxDiscount: 30,
         startDate: '2026-03-06',
         endDate: '2026-03-14',
         isActive: true,
@@ -28,7 +30,9 @@ const SEED_PROMOS: Promo[] = [
         value: 15,
         scope: 'branch',
         branchIds: ['branch-1'],
+        appliesTo: 'order',
         itemIds: [],
+        minOrderValue: 100,
         startDate: '2026-03-01',
         endDate: '2026-03-31',
         isActive: true,
@@ -41,7 +45,9 @@ const SEED_PROMOS: Promo[] = [
         value: 10,
         scope: 'global',
         branchIds: [],
+        appliesTo: 'order',
         itemIds: [],
+        minOrderValue: 50,
         startDate: '2026-03-15',
         endDate: '2026-03-22',
         isActive: true,
@@ -54,11 +60,26 @@ const SEED_PROMOS: Promo[] = [
         value: 25,
         scope: 'global',
         branchIds: [],
+        appliesTo: 'order',
         itemIds: [],
         startDate: '2026-02-12',
         endDate: '2026-02-14',
         isActive: false,
         accountingCode: 'PROMO-VAL25',
+    },
+    {
+        id: 'promo-seed-5',
+        name: 'Jollof Rice Special',
+        type: 'percentage',
+        value: 10,
+        scope: 'global',
+        branchIds: [],
+        appliesTo: 'items',
+        itemIds: ['jollof', 'jollof-bowl'],
+        startDate: '2026-03-10',
+        endDate: '2026-03-31',
+        isActive: true,
+        accountingCode: 'PROMO-JR10',
     },
 ];
 
@@ -115,7 +136,7 @@ export class MockPromoService implements PromoService {
         savePromos(loadPromos().filter(p => p.id !== id));
     }
 
-    async resolvePromo(itemIds: string[], branchId: string): Promise<Promo | null> {
+    async resolvePromo(itemIds: string[], branchId: string, subtotal?: number): Promise<Promo | null> {
         const now = new Date().toISOString().slice(0, 10);
         const promos = loadPromos();
 
@@ -123,24 +144,36 @@ export class MockPromoService implements PromoService {
             if (!p.isActive) return false;
             if (p.startDate > now || p.endDate < now) return false;
             if (p.scope === 'branch' && (!p.branchIds?.includes(branchId))) return false;
-            if (p.itemIds.length > 0 && !itemIds.some(id => p.itemIds.includes(id))) return false;
+            // Item-scoped: at least one cart item must match
+            if ((p.appliesTo ?? 'order') === 'items' && !itemIds.some(id => p.itemIds.includes(id))) return false;
+            // Order value gates
+            if (subtotal !== undefined) {
+                if (p.minOrderValue != null && subtotal < p.minOrderValue) return false;
+                if (p.maxOrderValue != null && subtotal > p.maxOrderValue) return false;
+            }
             return true;
         });
 
         if (eligible.length === 0) return null;
 
-        // Prefer the highest-value promo
+        // Prefer the promo that yields the highest actual discount at the given subtotal
         return eligible.reduce((best, p) => {
-            const bestVal = best.type === 'percentage' ? best.value : best.value;
-            const pVal = p.type === 'percentage' ? p.value : p.value;
-            return pVal > bestVal ? p : best;
+            const calc = (promo: Promo) => {
+                if (subtotal == null) return promo.value;
+                return this.calculateDiscount(promo, subtotal);
+            };
+            return calc(p) > calc(best) ? p : best;
         });
     }
 
     calculateDiscount(promo: Promo, subtotal: number): number {
+        let discount: number;
         if (promo.type === 'percentage') {
-            return Math.round((subtotal * promo.value) / 100 * 100) / 100;
+            discount = Math.round((subtotal * promo.value) / 100 * 100) / 100;
+            if (promo.maxDiscount != null) discount = Math.min(discount, promo.maxDiscount);
+        } else {
+            discount = Math.min(promo.value, subtotal);
         }
-        return Math.min(promo.value, subtotal);
+        return discount;
     }
 }

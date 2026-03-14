@@ -102,7 +102,7 @@ function GeneralTab() {
                     </div>
                     <div>
                         <FieldLabel>Default Currency</FieldLabel>
-                        <div className="px-3 py-2.5 bg-neutral-light border border-[#f0e8d8] rounded-xl text-neutral-gray text-sm font-body">GHS — Ghanaian Cedi (locked)</div>
+                        <div className="px-3 py-2.5 bg-neutral-light border border-[#f0e8d8] rounded-xl text-neutral-gray text-sm font-body">₵— Ghanaian Cedi (locked)</div>
                     </div>
                     <div>
                         <FieldLabel>Default Order Type</FieldLabel>

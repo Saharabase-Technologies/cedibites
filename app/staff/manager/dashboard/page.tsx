@@ -73,7 +73,7 @@ const MAX_SOLD = Math.max(...TOP_ITEMS.map(i => i.sold));
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatGHS(v: number) {
-    return `GHS ${v.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `₵${v.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function greeting() {
@@ -271,7 +271,7 @@ export default function ManagerDashboardPage() {
                                 </div>
                                 <div className="shrink-0 text-right">
                                     <p className="text-text-dark text-xs font-bold font-body">{item.sold} sold</p>
-                                    <p className="text-neutral-gray text-[10px] font-body">GHS {item.revenue}</p>
+                                    <p className="text-neutral-gray text-[10px] font-body">₵{item.revenue}</p>
                                 </div>
                             </div>
                         ))}

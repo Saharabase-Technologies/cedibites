@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ReceiptIcon, CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 import type { Order } from '@/types/order';
-import { formatGHS } from '../utils';
+import { formatGHS} from '../utils';
 import SalesRow from './SalesRow';
 
 const HEADERS = ['#', 'Time', 'Order', 'Customer', 'Branch', 'Source', 'Items', 'Payment', 'Total', 'Status'];

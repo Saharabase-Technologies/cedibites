@@ -23,8 +23,8 @@ interface UniversalSearchProps {
 }
 
 const formatPrice = (price: number | undefined) => {
-    if (price === undefined || price === null || typeof price !== 'number') return 'GHS 0.00';
-    return `GHS ${price.toFixed(2)}`;
+    if (price === undefined || price === null || typeof price !== 'number') return '₵0.00';
+    return `₵${price.toFixed(2)}`;
 };
 
 // ─── Result row ───────────────────────────────────────────────────────────────

@@ -150,6 +150,8 @@ export function NewOrderProvider({ children }: { children: ReactNode }) {
                 branchCoordinates: branch?.coordinates,
                 deliveryFee: orderType === 'delivery' ? (branch?.deliveryFee ?? 0) : 0,
                 discount: discount > 0 ? discount : undefined,
+                staffId: staffUser?.id,
+                staffName: staffUser?.name,
             });
             setOrderCode(order.orderNumber);
             // Track order in active shift

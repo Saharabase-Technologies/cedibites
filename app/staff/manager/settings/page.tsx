@@ -524,7 +524,7 @@ export default function MenuSettingsPage() {
                                     <div className="flex-1 min-w-0">
                                         <p className="text-text-dark text-sm font-semibold font-body">{addon.name}</p>
                                         <p className="text-neutral-gray text-xs font-body">
-                                            GHS {addon.price}{addon.perPiece ? ' / piece' : ''}
+                                            ₵{addon.price}{addon.perPiece ? ' / piece' : ''}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0">
@@ -621,7 +621,7 @@ export default function MenuSettingsPage() {
                                         {tpl.options.map((opt, j) => (
                                             <span key={j} className="flex items-center gap-1 bg-brown-light/10 border border-brown-light/15 rounded-full px-2.5 py-1 text-xs font-body text-text-dark">
                                                 {opt.label}
-                                                {opt.price && <span className="text-neutral-gray">· GHS {opt.price}</span>}
+                                                {opt.price && <span className="text-neutral-gray">· ₵{opt.price}</span>}
                                             </span>
                                         ))}
                                     </div>

@@ -95,22 +95,22 @@ function PriceDisplay({ item }: { item: MenuItem }) {
         const prices = rows.map(r => Number(r.price)).filter(Boolean);
         if (!prices.length) return <span className="text-neutral-gray text-xs font-body">—</span>;
         const min = Math.min(...prices), max = Math.max(...prices);
-        if (min === max) return <span className="text-text-dark text-xs font-bold font-body">GHS {min}</span>;
+        if (min === max) return <span className="text-text-dark text-xs font-bold font-body">₵{min}</span>;
         if (rows.length <= 4) {
             return (
                 <div className="flex flex-wrap gap-1">
                     {rows.map(r => (
                         <span key={r.label} className="inline-flex items-center gap-1 bg-neutral-gray/10 border border-neutral-gray/20 rounded-full px-2 py-0.5 text-[10px] font-body font-medium text-text-dark whitespace-nowrap">
                             {r.label}
-                            <span className="text-primary font-bold">GHS {r.price}</span>
+                            <span className="text-primary font-bold">₵{r.price}</span>
                         </span>
                     ))}
                 </div>
             );
         }
-        return <span className="text-text-dark text-xs font-bold font-body">GHS {min} – {max}</span>;
+        return <span className="text-text-dark text-xs font-bold font-body">₵{min} – {max}</span>;
     }
-    if (item.price != null) return <span className="text-text-dark text-xs font-bold font-body">GHS {item.price}</span>;
+    if (item.price != null) return <span className="text-text-dark text-xs font-bold font-body">₵{item.price}</span>;
     return <span className="text-neutral-gray text-xs font-body">—</span>;
 }
 
@@ -454,7 +454,7 @@ function ItemModal({
                                         </div>
                                         <span className="text-sm font-body text-text-dark">
                                             {addon.name}
-                                            <span className="text-neutral-gray ml-1.5 text-xs">GHS {addon.price}{addon.perPiece ? '/pc' : ''}</span>
+                                            <span className="text-neutral-gray ml-1.5 text-xs">₵{addon.price}{addon.perPiece ? '/pc' : ''}</span>
                                         </span>
                                     </button>
                                 ))}
@@ -587,7 +587,7 @@ function BulkImportModal({ onClose }: { onClose: () => void }) {
                                         }
                                         <div className="flex-1 min-w-0">
                                             <p className="text-text-dark text-xs font-semibold font-body">{row.name}</p>
-                                            <p className="text-neutral-gray text-[10px] font-body">{row.category} · {row.price ? `GHS ${row.price}` : <span className="text-error">Missing price</span>}</p>
+                                            <p className="text-neutral-gray text-[10px] font-body">{row.category} · {row.price ? `₵${row.price}` : <span className="text-error">Missing price</span>}</p>
                                         </div>
                                     </div>
                                 ))}

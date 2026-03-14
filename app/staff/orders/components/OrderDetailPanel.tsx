@@ -19,78 +19,7 @@ import { KANBAN_COLUMNS, PAYMENT_LABELS, SOURCE_LABEL } from '@/lib/constants/or
 import { formatGHS, timeAgo, getNextStatuses, isDoneStatus, haversineKm } from '../utils';
 import type { Order, OrderStatus } from '@/types/order';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
-import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import LiveMap from '@/app/components/order/LiveMap';
-
-// ─── Cancel Request Modal ─────────────────────────────────────────────────────
-
-function CancelRequestModal({
-    order,
-    onConfirm,
-    onCancel,
-    isProcessing,
-}: {
-    order: Order;
-    onConfirm: (reason: string) => void;
-    onCancel: () => void;
-    isProcessing: boolean;
-}) {
-    const [reason, setReason] = useState('');
-
-    return (
-        <>
-            <div className="fixed inset-0 z-60 bg-brand-darker/80 backdrop-blur-sm" onClick={onCancel} />
-            <div className="fixed z-70 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-sm bg-brown border border-brown-light/20 rounded-3xl p-6 shadow-2xl">
-                <div className="flex flex-col gap-5">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-orange-500/15 flex items-center justify-center shrink-0">
-                            <ProhibitIcon size={20} weight="fill" className="text-orange-500" />
-                        </div>
-                        <div>
-                            <h3 className="text-text-light text-sm font-bold font-body">Request Cancellation</h3>
-                            <p className="text-neutral-gray text-xs font-body">Order #{order.orderNumber}</p>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-neutral-gray text-xs font-body uppercase tracking-wider mb-2">
-                            Reason for cancellation <span className="text-error">*</span>
-                        </label>
-                        <textarea
-                            value={reason}
-                            onChange={e => setReason(e.target.value)}
-                            placeholder="e.g. Customer called to cancel, wrong address, duplicate order..."
-                            rows={3}
-                            className="w-full bg-brand-dark border border-brown-light/20 rounded-xl px-3 py-2.5 text-text-light text-sm font-body placeholder:text-neutral-gray/40 resize-none focus:outline-none focus:border-orange-400"
-                        />
-                    </div>
-
-                    <div className="flex gap-2">
-                        <button
-                            type="button"
-                            onClick={onCancel}
-                            disabled={isProcessing}
-                            className="flex-1 py-3 rounded-full border border-brown-light/25 text-neutral-gray text-sm font-body hover:text-text-light transition-colors cursor-pointer disabled:opacity-40"
-                        >
-                            Back
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => reason.trim() && onConfirm(reason.trim())}
-                            disabled={isProcessing || !reason.trim()}
-                            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-full bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold font-body transition-colors cursor-pointer disabled:opacity-50"
-                        >
-                            {isProcessing
-                                ? <><SpinnerIcon size={15} weight="bold" className="animate-spin" /> Sending...</>
-                                : 'Request Cancel'
-                            }
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </>
-    );
-}
 
 // ─── Refund modal ─────────────────────────────────────────────────────────────
 
@@ -182,14 +111,10 @@ function RefundModal({
 export default function OrderDetailPanel() {
     const { selectedOrder, setSelectedOrder, handleAdvance, userRole } = useOrders();
     const { updateOrder, updateOrderStatus } = useOrderStore();
-    const { staffUser } = useStaffAuth();
 
     const [showRefund, setShowRefund] = useState(false);
     const [isRefunding, setIsRefunding] = useState(false);
     const [refundDone, setRefundDone] = useState(false);
-
-    const [showCancelModal, setShowCancelModal] = useState(false);
-    const [isRequestingCancel, setIsRequestingCancel] = useState(false);
 
     if (!selectedOrder) return null;
 
@@ -213,7 +138,6 @@ export default function OrderDetailPanel() {
         setSelectedOrder(null);
         setRefundDone(false);
         setShowRefund(false);
-        setShowCancelModal(false);
     };
 
     const handleRefundConfirm = async () => {
@@ -226,25 +150,6 @@ export default function OrderDetailPanel() {
             // TODO: show error toast
         } finally {
             setIsRefunding(false);
-        }
-    };
-
-    const handleCancelRequest = async (reason: string) => {
-        setIsRequestingCancel(true);
-        try {
-            await updateOrder(order.id, {
-                status: 'cancel_requested',
-                cancelRequestedBy: staffUser?.id ?? 'unknown',
-                cancelRequestedAt: Date.now(),
-                cancelRequestReason: reason,
-                cancelPreviousStatus: order.status,
-            });
-            setShowCancelModal(false);
-            onClose();
-        } catch {
-            // TODO: show error toast
-        } finally {
-            setIsRequestingCancel(false);
         }
     };
 
@@ -437,26 +342,8 @@ export default function OrderDetailPanel() {
                         </div>
                     )}
 
-                    {/* ── Cancel requested: call_center pending ── */}
-                    {isCancelReq && isCallCenter && (
-                        <div className="flex flex-col gap-2 mt-auto pt-2">
-                            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-orange-500/10 border border-orange-500/20">
-                                <ChatCircleTextIcon size={16} weight="fill" className="text-orange-400 shrink-0" />
-                                <p className="text-orange-300 text-xs font-body">Cancellation request sent — awaiting manager approval.</p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={handleRejectCancel}
-                                className="w-full flex items-center justify-center gap-2 border border-brown-light/25 hover:bg-brown-light/5 text-neutral-gray font-semibold font-body py-3 rounded-full text-sm transition-colors cursor-pointer"
-                            >
-                                <ArrowCounterClockwiseIcon size={16} weight="bold" />
-                                Withdraw Request
-                            </button>
-                        </div>
-                    )}
-
                     {/* ── Active order actions ── */}
-                    {!isDone && !isCancelReq && (
+                    {!isDone && !isCancelReq && !isCallCenter && (
                         <div className="flex flex-col gap-2 mt-auto pt-2">
                             <p className="text-neutral-gray text-xs font-body">Move order to:</p>
                             {simpleNext.map(next => (
@@ -470,27 +357,24 @@ export default function OrderDetailPanel() {
                                     {next.label}
                                 </button>
                             ))}
+                            <button
+                                type="button"
+                                onClick={() => { handleAdvance(order.id, 'cancelled'); onClose(); }}
+                                className="w-full flex items-center justify-center gap-2 border border-error/30 hover:bg-error/10 text-error font-semibold font-body py-3 rounded-full text-sm transition-colors cursor-pointer"
+                            >
+                                <WarningCircleIcon size={16} weight="fill" />
+                                Cancel Order
+                            </button>
+                        </div>
+                    )}
 
-                            {/* Cancel action — role-aware */}
-                            {isCallCenter ? (
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCancelModal(true)}
-                                    className="w-full flex items-center justify-center gap-2 border border-orange-500/30 hover:bg-orange-500/10 text-orange-400 font-semibold font-body py-3 rounded-full text-sm transition-colors cursor-pointer"
-                                >
-                                    <ProhibitIcon size={16} weight="fill" />
-                                    Request Cancellation
-                                </button>
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={() => { handleAdvance(order.id, 'cancelled'); onClose(); }}
-                                    className="w-full flex items-center justify-center gap-2 border border-error/30 hover:bg-error/10 text-error font-semibold font-body py-3 rounded-full text-sm transition-colors cursor-pointer"
-                                >
-                                    <WarningCircleIcon size={16} weight="fill" />
-                                    Cancel Order
-                                </button>
-                            )}
+                    {/* ── Call center: read-only notice ── */}
+                    {isCallCenter && !isDone && (
+                        <div className="mt-auto pt-2">
+                            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-brand-dark border border-brown-light/15">
+                                <ChatCircleTextIcon size={16} weight="fill" className="text-neutral-gray shrink-0" />
+                                <p className="text-neutral-gray text-xs font-body">You placed this order. Status updates are handled by branch staff.</p>
+                            </div>
                         </div>
                     )}
 
@@ -520,16 +404,6 @@ export default function OrderDetailPanel() {
 
                 </div>
             </div>
-
-            {/* Cancel request modal */}
-            {showCancelModal && (
-                <CancelRequestModal
-                    order={order}
-                    onConfirm={handleCancelRequest}
-                    onCancel={() => setShowCancelModal(false)}
-                    isProcessing={isRequestingCancel}
-                />
-            )}
 
             {/* Refund modal — mounts over panel */}
             {showRefund && (

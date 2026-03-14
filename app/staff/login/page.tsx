@@ -267,6 +267,7 @@ export default function StaffLoginPage() {
                             {[
                                 { label: 'Manager', hint: 'manager@cedibites.com · manager123' },
                                 { label: 'Sales',   hint: 'sales@cedibites.com · sales123'     },
+                                { label: 'Partner', hint: 'partner@cedibites.com · partner123' },
                             ].map(a => (
                                 <p key={a.label} className="text-neutral-gray/70 text-[10px] font-body">
                                     <span className="text-primary/80 font-semibold">{a.label}:</span> {a.hint}

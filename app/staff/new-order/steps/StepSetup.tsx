@@ -3,7 +3,7 @@
 import { CaretRightIcon } from '@phosphor-icons/react';
 import { BRANCHES } from '@/app/components/providers/BranchProvider';
 import { useNewOrder } from '../context';
-import { ORDER_SOURCES, formatGHS } from '../utils';
+import { ORDER_SOURCES, formatGHS} from '../utils';
 
 // ─── Step 1: Setup ────────────────────────────────────────────────────────────
 

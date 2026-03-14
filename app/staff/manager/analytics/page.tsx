@@ -112,7 +112,7 @@ const paymentSplit = { mobileMoney: 64, cash: 36 };
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatGHS(v: number) {
-    return `GHS ${v.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `₵${v.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function formatDate(d: Date) {
     return d.toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -204,8 +204,8 @@ function WeeklyRevenue() {
                             {hovered === i && (
                                 <div className="absolute bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 bg-neutral-card border border-brown-light/20 rounded-xl px-3 py-2 z-10 whitespace-nowrap text-[11px] text-text-dark shadow-lg">
                                     <p className="font-bold mb-1">{day}</p>
-                                    <p>This: <span className="text-primary font-semibold">GHS {weekRevenue[i].toLocaleString()}</span></p>
-                                    <p>Last: <span className="text-neutral-gray">GHS {lastWeekRevenue[i].toLocaleString()}</span></p>
+                                    <p>This: <span className="text-primary font-semibold">₵{weekRevenue[i].toLocaleString()}</span></p>
+                                    <p>Last: <span className="text-neutral-gray">₵{lastWeekRevenue[i].toLocaleString()}</span></p>
                                     <p className={`font-semibold ${diff >= 0 ? 'text-secondary' : 'text-error'}`}>
                                         {diff >= 0 ? '↑' : '↓'} {Math.abs(diff)}%
                                     </p>
@@ -399,7 +399,7 @@ function PaymentSplitCard() {
                         </div>
                     ))}
                     <div className="text-[11px] text-neutral-gray font-body px-2 py-1.5 bg-neutral-gray/10 rounded-lg">
-                        Keep ~<span className="text-text-dark font-semibold">GHS 800</span> cash float for today
+                        Keep ~<span className="text-text-dark font-semibold">₵800</span> cash float for today
                     </div>
                 </div>
             </div>
@@ -453,7 +453,7 @@ function TopItemsCard() {
                                 <span className="text-[10px] font-body text-neutral-gray">×{item.units}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold font-body text-primary">GHS {item.rev}</span>
+                                <span className="text-xs font-bold font-body text-primary">₵{item.rev}</span>
                                 <div className="flex items-center gap-0.5">
                                     {item.trend > 0
                                         ? <ArrowUpIcon size={11} className="text-secondary" />
@@ -605,7 +605,7 @@ export default function ManagerAnalyticsPage() {
                     accent
                 />
                 <KpiCard label="Orders Today"     value="24"      trend={8}  trendLabel="vs last Sat" />
-                <KpiCard label="Avg. Order Value"  value="GHS 76.77" trend={-4} trendLabel="vs last Sat" />
+                <KpiCard label="Avg. Order Value"  value="₵76.77" trend={-4} trendLabel="vs last Sat" />
                 <KpiCard label="Fulfilment Rate"  value="91%"     trend={3}  trendLabel="vs last Sat" />
             </div>
 

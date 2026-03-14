@@ -19,7 +19,7 @@ import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { MOCK_STAFF } from '@/lib/data/mockStaff';
 import { formatPrice } from '@/types/order';
-import { STATUS_CONFIG } from '@/app/staff/orders/constants';
+import { STATUS_CONFIG } from '@/lib/constants/order.constants';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -89,9 +89,9 @@ function QuickLink({ href, icon: Icon, label, sub }: {
 function StatusDot({ status }: { status: string }) {
     const cfg = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.received;
     return (
-        <span className="inline-flex items-center gap-1.5 text-xs font-body font-medium text-text-dark">
+        <span className="inline-flex items-center gap-1.5">
             <span className={`h-2 w-2 rounded-full shrink-0 ${cfg.dot} ${cfg.pulse ? 'animate-pulse' : ''}`} />
-            {cfg.label}
+            <span className="text-xs font-semibold font-body text-text-dark" style={{ color: cfg.textColor }}>{cfg.label}</span>
         </span>
     );
 }
@@ -123,8 +123,8 @@ export default function PartnerDashboardPage() {
         branchOrders.filter(o => !['delivered', 'completed', 'cancelled'].includes(o.status)).length,
     [branchOrders]);
 
-    const completedToday = todayOrders.filter(o => ['delivered', 'completed'].includes(o.status)).length;
-    const cancelledToday = todayOrders.filter(o => o.status === 'cancelled').length;
+    const completedToday  = todayOrders.filter(o => ['delivered', 'completed'].includes(o.status)).length;
+    const cancelledToday  = todayOrders.filter(o => o.status === 'cancelled').length;
 
     const branchStaff = useMemo(() =>
         MOCK_STAFF.filter(s => {
@@ -194,9 +194,9 @@ export default function PartnerDashboardPage() {
             <div className="mb-7">
                 <h2 className="text-text-dark font-bold text-sm font-body uppercase tracking-wider mb-3">Quick Access</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <QuickLink href="/staff/partner/orders"    icon={ListIcon}      label="Orders"     sub="View all branch orders" />
-                    <QuickLink href="/staff/partner/staff"     icon={UsersThreeIcon} label="Staff"      sub="Branch team roster" />
-                    <QuickLink href="/staff/partner/analytics" icon={ChartBarIcon}  label="Analytics"  sub="Revenue & performance" />
+                    <QuickLink href="/partner/orders"    icon={ListIcon}       label="Orders"    sub="View all branch orders" />
+                    <QuickLink href="/partner/staff"     icon={UsersThreeIcon} label="Staff"     sub="Branch team roster" />
+                    <QuickLink href="/partner/analytics" icon={ChartBarIcon}   label="Analytics" sub="Revenue & performance" />
                 </div>
             </div>
 
@@ -205,7 +205,7 @@ export default function PartnerDashboardPage() {
                 <div className="px-5 py-4 border-b border-[#f0e8d8] flex items-center justify-between">
                     <h2 className="text-text-dark text-base font-bold font-body">Today&apos;s Orders</h2>
                     <Link
-                        href="/staff/partner/orders"
+                        href="/partner/orders"
                         className="text-primary text-xs font-body hover:text-primary-hover flex items-center gap-1 transition-colors"
                     >
                         <ArrowUpRightIcon size={13} weight="bold" />
@@ -247,7 +247,7 @@ export default function PartnerDashboardPage() {
                         ))}
                         {todayOrders.length > 12 && (
                             <div className="px-5 py-3 border-t border-[#f0e8d8] text-center">
-                                <Link href="/staff/partner/orders" className="text-primary text-xs font-body hover:underline">
+                                <Link href="/partner/orders" className="text-primary text-xs font-body hover:underline">
                                     +{todayOrders.length - 12} more orders
                                 </Link>
                             </div>

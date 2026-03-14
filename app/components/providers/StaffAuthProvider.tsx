@@ -12,7 +12,8 @@ export interface StaffUser {
     id: string;
     name: string;
     role: StaffRole;
-    branch: string;
+    branch: string;   // display name, e.g. "East Legon"
+    branchId: string; // system ID, e.g. "2"
 }
 
 interface StaffAuthContextValue {
@@ -54,7 +55,7 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
         setStaffUser(user);
         // Start shift tracking (kitchen/rider have no shifts)
         if (user.role !== 'kitchen' && user.role !== 'rider') {
-            getShiftService().startShift(user.id, user.name, user.branch, user.branch).catch(() => {});
+            getShiftService().startShift(user.id, user.name, user.branchId, user.branch).catch(() => {});
         }
     }, []);
 
@@ -92,7 +93,7 @@ export function useStaffAuth() {
 export function roleHomeRoute(role: StaffRole): string {
     if (role === 'super_admin')    return '/admin/dashboard';
     if (role === 'manager')        return '/staff/manager/dashboard';
-    if (role === 'branch_partner') return '/staff/partner/dashboard';
+    if (role === 'branch_partner') return '/partner/dashboard';
     if (role === 'call_center')    return '/staff/sales/dashboard';
     // kitchen and rider have no portal — redirect to login
     return '/staff/login';

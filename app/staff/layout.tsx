@@ -30,7 +30,7 @@ const SALES_NAV = [
 ];
 
 const PARTNER_NAV = [
-    { href: '/staff/partner/dashboard', label: 'Dashboard', icon: SquaresFourIcon },
+    { href: '/partner/dashboard', label: 'Dashboard', icon: SquaresFourIcon },
 ];
 
 const MANAGER_NAV_MAIN = [
@@ -134,6 +134,8 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
         router.replace('/staff/login');
         return null;
     }
+
+
 
     const { main: mainNav, tools: toolsNav } = navItemsForRole(staffUser.role);
     const isManager = staffUser.role === 'manager' || staffUser.role === 'super_admin';

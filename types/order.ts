@@ -206,7 +206,7 @@ export function isDoneStatus(status: OrderStatus): boolean {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-export const formatPrice = (p: number) => `GHS ${p.toFixed(2)}`;
+export const formatPrice = (p: number) => `₵${p.toFixed(2)}`;
 
 export function timeAgo(ts: number): string {
     const d = Date.now() - ts;
@@ -427,14 +427,8 @@ export function canAdvanceOrder(
     // Full control: managers and super admins
     if (role === 'manager' || role === 'super_admin') return true;
 
-    // Call center: can only handle the final dispatch/completion steps
-    if (role === 'call_center') {
-        const callCenterAllowed: OrderStatus[] = [
-            'out_for_delivery', 'ready_for_pickup',
-            'delivered', 'completed', 'cancelled',
-        ];
-        return callCenterAllowed.includes(targetStatus);
-    }
+    // Call center: read-only observers — cannot advance any order
+    if (role === 'call_center') return false;
 
     // Branch partners: read-only, no order advancement
     return false;

@@ -258,7 +258,9 @@ export default function MenuAuditPage() {
                                             </div>
 
                                             <div className="mt-2 text-xs text-neutral-gray">
-                                                GHS {Number(item.base_price)?.toFixed(2) ?? '-'}
+                                                {item.sizes?.length
+                                                    ? `₵${item.sizes[0].price} – ${item.sizes[item.sizes.length - 1].price}`
+                                                    : `₵${Number(item.base_price)?.toFixed(2) ?? '-'}`}
                                             </div>
                                         </div>
                                     );

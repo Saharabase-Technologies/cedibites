@@ -82,7 +82,7 @@ const ALL_MANAGERS = ['Ama Boateng', 'Kwame Asante', 'Abena Mensah', 'Kofi Achea
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatGHS(v: number) { return `GHS ${v.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
+function formatGHS(v: number) { return `₵${v.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 
 // ─── Branch status dot ────────────────────────────────────────────────────────
 

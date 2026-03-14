@@ -27,7 +27,7 @@ import {
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { usePOS } from '../context';
-import { formatGHS } from '@/lib/utils/currency';
+import { formatGHS} from '@/lib/utils/currency';
 import type { PaymentMethod, Order } from '@/types/order';
 import { sampleMenuItems, menuCategories, MenuItem } from '@/lib/data/SampleMenu';
 import { BRANCHES } from '@/app/components/providers/BranchProvider';

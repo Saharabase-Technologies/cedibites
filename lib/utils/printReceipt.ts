@@ -12,7 +12,7 @@ function receiptHTML(order: Order, branchName: string): string {
 
   const itemLines = order.items.map(item => {
     const label = item.sizeLabel ? `${item.name} (${item.sizeLabel})` : item.name;
-    const lineTotal = `GHS ${(item.unitPrice * item.quantity).toFixed(2)}`;
+    const lineTotal = `₵${(item.unitPrice * item.quantity).toFixed(2)}`;
     return `<div class="item-row"><span class="item-name">${item.quantity}&times; ${label}</span><span>${lineTotal}</span></div>`;
   }).join('');
 
@@ -67,8 +67,8 @@ function receiptHTML(order: Order, branchName: string): string {
   ${itemLines}
 
   <div class="divider"></div>
-  ${showDeliveryFee ? `<div class="row"><span>Delivery Fee</span><span>GHS ${order.deliveryFee.toFixed(2)}</span></div>` : ''}
-  <div class="total-row"><span>TOTAL</span><span>GHS ${order.total.toFixed(2)}</span></div>
+  ${showDeliveryFee ? `<div class="row"><span>Delivery Fee</span><span>₵${order.deliveryFee.toFixed(2)}</span></div>` : ''}
+  <div class="total-row"><span>TOTAL</span><span>₵${order.total.toFixed(2)}</span></div>
   <div class="row" style="margin-top:2px;"><span>Payment</span><span>${paymentLabel[order.paymentMethod] ?? order.paymentMethod}</span></div>
   ${order.contact.notes ? `<div class="divider"></div><div style="font-size:10px;">Note: ${order.contact.notes}</div>` : ''}
   <div class="divider"></div>

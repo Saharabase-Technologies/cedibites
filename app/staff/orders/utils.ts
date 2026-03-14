@@ -1,5 +1,5 @@
 // Re-export from unified sources
-export { formatGHS } from '@/lib/utils/currency';
+export { formatGHS} from '@/lib/utils/currency';
 export { isDoneStatus, haversineKm, canAdvanceOrder } from '@/types/order';
 import type { Order, OrderStatus } from '@/types/order';
 

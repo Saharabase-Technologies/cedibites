@@ -15,8 +15,8 @@ import { useLocation } from '@/app/components/providers/LocationProvider';
 import { useAuth } from '../providers/AuthProvider';
 
 const formatPrice = (p: number | undefined) => {
-    if (p === undefined || p === null || typeof p !== 'number') return 'GHS 0.00';
-    return `GHS ${p.toFixed(2)}`;
+    if (p === undefined || p === null || typeof p !== 'number') return '₵0.00';
+    return `₵${p.toFixed(2)}`;
 };
 
 function CartItemImage({ src, alt, sizes, className }: { src?: string; alt: string; sizes: string; className?: string }) {
@@ -24,7 +24,6 @@ function CartItemImage({ src, alt, sizes, className }: { src?: string; alt: stri
     const imageSrc = !src || error ? '/menu_placeholder.png' : src;
     return <Image src={imageSrc} alt={alt} fill sizes={sizes} className={className ?? 'object-cover'} onError={() => setError(true)} />;
 }
-
 const DELIVERY_FEE = 15;
 const TAX_RATE = 0.025;
 
@@ -255,7 +254,7 @@ export default function CartDrawer() {
                                             <span>·</span>
                                             <span>{branch.deliveryTime}</span>
                                             <span>·</span>
-                                            <span>GHS {branch.deliveryFee} delivery</span>
+                                            <span>₵{branch.deliveryFee} delivery</span>
                                         </div>
                                     </div>
                                     {!isCurrent && branch.isOpen && <CaretRightIcon size={16} className="text-neutral-gray shrink-0 mt-1" />}

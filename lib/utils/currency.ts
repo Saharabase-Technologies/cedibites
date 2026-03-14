@@ -1,6 +1,6 @@
 // ─── Shared currency formatter ────────────────────────────────────────────────
-// Single source of truth for GHS formatting across all staff modules.
+// Single source of truth for ₵formatting across all staff modules.
 
 export function formatGHS(n: number): string {
-    return `GHS ${n.toFixed(2)}`;
+    return `₵${n.toFixed(2)}`;
 }

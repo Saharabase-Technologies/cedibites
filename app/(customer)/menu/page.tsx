@@ -221,7 +221,7 @@ function ListItemRow({ item, onOpen }: { item: SearchableItem; onOpen: (item: Se
                 </div>
             </div>
             <div className="text-right shrink-0">
-                <p className="text-base font-bold text-primary">GHS {priceDisplay}</p>
+                <p className="text-base font-bold text-primary">₵{price.toFixed(2)}</p>
                 <p className="text-xs text-neutral-gray mt-0.5 group-hover:text-primary transition-colors">View →</p>
             </div>
         </button>

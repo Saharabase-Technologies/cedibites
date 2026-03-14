@@ -296,7 +296,7 @@ export const MOCK_STAFF: StaffMember[] = [
 export function resolveByCredentials(
     identifier: string,
     password: string,
-): { id: string; name: string; role: StaffRole; branch: string } | null {
+): { id: string; name: string; role: StaffRole; branch: string; branchId: string } | null {
     const lower   = identifier.toLowerCase().trim();
     const cleaned = lower.replace(/\s/g, '');
 
@@ -317,10 +317,11 @@ export function resolveByCredentials(
 
     if (!found) return null;
     return {
-        id:     found.id,
-        name:   found.name,
-        role:   found.role,
-        branch: Array.isArray(found.branch) ? found.branch[0] : found.branch,
+        id:       found.id,
+        name:     found.name,
+        role:     found.role,
+        branch:   Array.isArray(found.branch) ? found.branch[0] : found.branch,
+        branchId: found.branchIds[0] ?? '',
     };
 }
 

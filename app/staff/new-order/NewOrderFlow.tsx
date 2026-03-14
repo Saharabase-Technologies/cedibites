@@ -1,11 +1,8 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-    PhoneIcon,
-    WhatsappLogoIcon,
-    ShareNetworkIcon,
     MagnifyingGlassIcon,
     PlusIcon,
     MinusIcon,
@@ -14,7 +11,6 @@ import {
     DeviceMobileIcon,
     MapPinIcon,
     MoneyIcon,
-    HandCoinsIcon,
     ProhibitIcon,
     SpinnerIcon,
     CheckCircleIcon,
@@ -22,6 +18,8 @@ import {
     NoteIcon,
     TruckIcon,
     StorefrontIcon,
+    WarningCircleIcon,
+    ClockIcon,
 } from '@phosphor-icons/react';
 import { useNewOrder } from './context';
 import { useStaffRoutes } from '@/app/components/providers/StaffAuthProvider';
@@ -71,22 +69,6 @@ function expandItem(item: MenuItem): DisplayRow[] {
     return [];
 }
 
-// ─── Branch abbreviations ─────────────────────────────────────────────────────
-
-const BRANCH_ABBR: Record<string, string> = {
-    osu: 'OS', 'east-legon': 'EL', spintex: 'SP',
-    tema: 'TM', madina: 'MD', 'la-paz': 'LP', dzorwulu: 'DZ',
-};
-
-// ─── Source icon map ──────────────────────────────────────────────────────────
-
-const SOURCE_ICONS: Record<OrderSource, React.ElementType> = {
-    phone: PhoneIcon,
-    whatsapp: WhatsappLogoIcon,
-    social_media: ShareNetworkIcon,
-    online: MagnifyingGlassIcon,
-    pos: StorefrontIcon,
-};
 
 // ─── Payment options ──────────────────────────────────────────────────────────
 
@@ -112,6 +94,15 @@ export default function NewOrderFlow() {
 
     const [search, setSearch] = useState('');
     const [activeCategory, setActiveCategory] = useState('all');
+    const [momoNumber, setMomoNumber] = useState('');
+    const [momoStep, setMomoStep] = useState<'idle' | 'awaiting' | 'confirmed'>('idle');
+
+    // Pre-fill MoMo number from customer phone when MoMo is selected
+    useEffect(() => {
+        if (payment === 'momo' && !momoNumber && customer.phone) {
+            setMomoNumber(customer.phone);
+        }
+    }, [payment, customer.phone, momoNumber]);
 
     // ── Derived menu rows ───────────────────────────────────────────────────
 
@@ -154,6 +145,53 @@ export default function NewOrderFlow() {
         return cart.find(c => c.cartKey === cartKey)?.quantity ?? 0;
     }, [cart]);
 
+    // ── Place order handler ─────────────────────────────────────────────────
+
+    const handlePlaceOrder = useCallback(async () => {
+        if (payment === 'momo') setMomoStep('awaiting');
+        await submit();
+    }, [payment, submit]);
+
+    // ── MoMo awaiting screen ────────────────────────────────────────────────
+
+    if (orderCode && momoStep === 'awaiting') {
+        return (
+            <div className="h-screen flex items-center justify-center bg-neutral-light">
+                <div className="bg-white rounded-2xl shadow-lg p-8 max-w-sm w-full mx-4 flex flex-col items-center text-center gap-5">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                        <ClockIcon size={36} weight="fill" className="text-primary animate-pulse" />
+                    </div>
+                    <div>
+                        <h2 className="text-text-dark text-lg font-bold">Awaiting MoMo Payment</h2>
+                        <p className="text-neutral-gray text-sm mt-1">Prompt sent to</p>
+                        <p className="text-text-dark font-bold text-xl mt-0.5 tracking-wide">{momoNumber}</p>
+                    </div>
+                    <div className="bg-neutral-light rounded-xl px-6 py-3 w-full">
+                        <p className="text-neutral-gray text-xs mb-0.5">Order</p>
+                        <p className="text-primary font-bold text-2xl tracking-wider">{orderCode}</p>
+                    </div>
+                    <p className="text-neutral-gray text-xs">Ask the customer to approve the prompt on their phone, then confirm below.</p>
+                    <div className="flex flex-col gap-2 w-full">
+                        <button
+                            onClick={() => setMomoStep('confirmed')}
+                            className="w-full h-11 rounded-xl bg-secondary text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-secondary-hover transition-colors"
+                        >
+                            <CheckCircleIcon className="w-4 h-4" weight="fill" />
+                            Payment Received
+                        </button>
+                        <button
+                            onClick={() => { setMomoStep('idle'); resetOrder(); }}
+                            className="w-full h-11 rounded-xl bg-neutral-light text-neutral-gray font-medium text-sm flex items-center justify-center gap-2 hover:bg-error/10 hover:text-error transition-colors"
+                        >
+                            <WarningCircleIcon className="w-4 h-4" />
+                            Payment Failed
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     // ── Order confirmed screen ──────────────────────────────────────────────
 
     if (orderCode) {
@@ -171,63 +209,18 @@ export default function NewOrderFlow() {
     return (
         <div className="flex h-screen bg-neutral-light overflow-hidden">
 
-            {/* ── Left sidebar: source + branch ──────────────────────────── */}
-            <div className="shrink-0 w-16 flex flex-col items-center gap-1 py-4 bg-card border-r border-brown-light/15 overflow-y-auto">
-
-                {/* Back */}
-                <button
-                    onClick={() => router.push(dashboard)}
-                    className="w-10 h-10 mb-2 flex items-center justify-center rounded-xl text-neutral-gray hover:text-text-light hover:bg-brown-light/75 transition-colors"
-                >
-                    <CaretLeftIcon className="w-4 h-4" weight="bold" />
-                </button>
-
-                {/* Source */}
-                <p className="text-[9px] text-neutral-gray font-bold uppercase tracking-widest mb-1">Source</p>
-                {ORDER_SOURCES.map(s => {
-                    const Icon = SOURCE_ICONS[s.id] ?? ShareNetworkIcon;
-                    return (
-                        <button
-                            key={s.id}
-                            onClick={() => setSource(s.id)}
-                            title={s.label}
-                            className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${source === s.id
-                                ? 'bg-primary text-brown'
-                                : 'text-neutral-gray hover:text-text-light hover:bg-brown-light/75'
-                                }`}
-                        >
-                            <Icon className="w-5 h-5" />
-                        </button>
-                    );
-                })}
-
-                <div className="w-8 border-t border-brown-light/15 my-2" />
-
-                {/* Branch */}
-                <p className="text-[9px] text-neutral-gray font-bold uppercase tracking-widest mb-1">Branch</p>
-                {BRANCHES.filter(b => b.isOpen).map(b => {
-                    const abbr = BRANCH_ABBR[b.id] ?? b.name.slice(0, 2).toUpperCase();
-                    return (
-                        <button
-                            key={b.id}
-                            onClick={() => setBranchId(b.id)}
-                            title={b.name}
-                            className={`w-10 h-10 flex items-center justify-center rounded-xl text-xs font-bold transition-all ${branchId === b.id
-                                ? 'bg-secondary text-white'
-                                : 'text-neutral-gray hover:text-text-light hover:bg-brown-light/75'
-                                }`}
-                        >
-                            {abbr}
-                        </button>
-                    );
-                })}
-            </div>
-
             {/* ── Center: customer info + menu ───────────────────────────── */}
             <div className="flex flex-col flex-1 min-w-0 border-r border-neutral-gray/15">
 
                 {/* Customer info — always at top */}
                 <div className="shrink-0 px-4 py-3 bg-white border-b border-neutral-gray/15 flex gap-2">
+                    {/* Back button */}
+                    <button
+                        onClick={() => router.push(dashboard)}
+                        className="shrink-0 w-10 h-10 flex items-center justify-center rounded-xl text-neutral-gray hover:text-text-light hover:bg-brown-light/75 transition-colors"
+                    >
+                        <CaretLeftIcon className="w-4 h-4" weight="bold" />
+                    </button>
                     <div className="relative flex-1">
                         <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
                         <input
@@ -386,6 +379,37 @@ export default function NewOrderFlow() {
                         ))}
                     </div>
 
+                    {/* Source */}
+                    <div className="flex gap-1.5 mb-3">
+                        {ORDER_SOURCES.map(s => (
+                            <button
+                                key={s.id}
+                                onClick={() => setSource(s.id)}
+                                className={`flex-1 flex flex-col items-center py-2 rounded-xl text-[11px] font-medium transition-all ${source === s.id
+                                    ? 'bg-primary text-brown'
+                                    : 'bg-neutral-light text-neutral-gray hover:bg-neutral-gray/20'
+                                    }`}
+                            >
+                                <s.icon className="w-4 h-4 mb-0.5" />
+                                {s.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Branch */}
+                    <div className="mb-3">
+                        <select
+                            value={branchId ?? ''}
+                            onChange={e => setBranchId(e.target.value)}
+                            className="w-full h-9 px-3 rounded-xl bg-neutral-light text-text-dark border border-neutral-gray/20 focus:border-primary/50 outline-none text-xs transition-colors"
+                        >
+                            <option value="" disabled>Select branch…</option>
+                            {BRANCHES.filter(b => b.isOpen).map(b => (
+                                <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
                     {/* Address — delivery only */}
                     {orderType === 'delivery' && (
                         <div className="relative mb-3">
@@ -429,6 +453,20 @@ export default function NewOrderFlow() {
                         ))}
                     </div>
 
+                    {/* MoMo number */}
+                    {payment === 'momo' && (
+                        <div className="relative mb-3">
+                            <DeviceMobileIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
+                            <input
+                                type="tel"
+                                placeholder="MoMo number"
+                                value={momoNumber}
+                                onChange={e => setMomoNumber(e.target.value)}
+                                className="w-full h-9 pl-9 pr-3 rounded-xl bg-primary/5 text-text-dark placeholder:text-neutral-gray/60 border border-primary/30 focus:border-primary/60 outline-none text-xs transition-colors"
+                            />
+                        </div>
+                    )}
+
                     {/* Totals */}
                     {cart.length > 0 && (
                         <div className="space-y-1 mb-3 text-xs">
@@ -451,8 +489,8 @@ export default function NewOrderFlow() {
 
                     {/* Place Order */}
                     <button
-                        onClick={submit}
-                        disabled={!source || !branchId || !payment || cart.length === 0 || isSubmitting}
+                        onClick={handlePlaceOrder}
+                        disabled={!source || !branchId || !payment || cart.length === 0 || isSubmitting || (payment === 'momo' && !momoNumber.trim())}
                         className="w-full h-11 rounded-xl bg-primary text-brown font-semibold text-sm flex items-center justify-center gap-2 hover:bg-primary-hover active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100 transition-all"
                     >
                         {isSubmitting ? (

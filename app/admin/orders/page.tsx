@@ -209,7 +209,7 @@ const PAGE_SIZE = 25;
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatGHS(v: number) {
-    return `GHS ${v.toFixed(2)}`;
+    return `₵${v.toFixed(2)}`;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -350,7 +350,7 @@ function OrderDetailPanel({
                             {order.items.map((item, i) => (
                                 <div key={i} className={`flex justify-between px-3 py-2.5 ${i < order.items.length - 1 ? 'border-b border-[#f0e8d8]' : ''}`}>
                                     <span className="text-text-dark text-xs font-body">{item.qty}× {item.name}</span>
-                                    <span className="text-text-dark text-xs font-bold font-body">GHS {item.qty * item.price}</span>
+                                    <span className="text-text-dark text-xs font-bold font-body">₵{item.qty * item.price}</span>
                                 </div>
                             ))}
                             <div className="flex justify-between px-3 py-2.5 border-t border-[#f0e8d8] bg-neutral-card">

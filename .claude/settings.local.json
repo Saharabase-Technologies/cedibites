@@ -10,7 +10,8 @@
       "Read(//c/Users/iamjn/AppData/Local/Temp/claude/c--Users-iamjn-Desktop-WEBZ-CediBites-cedibites/tasks/**)",
       "Read(//c/Users/iamjn/.claude/projects/c--Users-iamjn-Desktop-WEBZ-CediBites-cedibites/87ef4c42-447d-4213-aae8-a47f4162f4ce/tool-results/**)",
       "Bash(xargs grep:*)",
-      "Bash(grep -o \"id: ''''CB[0-9]*''''\" lib/services/orders/order.service.mock.ts)"
+      "Bash(grep -o \"id: ''''CB[0-9]*''''\" lib/services/orders/order.service.mock.ts)",
+      "Bash(xargs sed:*)"
     ]
   }
 }

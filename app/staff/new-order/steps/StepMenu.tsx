@@ -13,7 +13,7 @@ import Input from '@/app/components/base/Input';
 import { sampleMenuItems, menuCategories, type MenuItem } from '@/lib/data/SampleMenu';
 import type { StaffCartItem } from '../types';
 import { useNewOrder } from '../context';
-import { formatGHS } from '../utils';
+import { formatGHS} from '../utils';
 
 // ─── Menu item row ─────────────────────────────────────────────────────────────
 

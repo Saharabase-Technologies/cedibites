@@ -5,6 +5,7 @@ import type { Order, OrderStatus, UserRole, OrderNotification } from '@/types/or
 import { canAdvanceOrder } from '@/types/order';
 import type { DateRange } from './components/DateFilter';
 import { KANBAN_COLUMNS, BRANCH_COORDS } from '@/lib/constants/order.constants';
+import { BRANCHES } from '@/app/components/providers/BranchProvider';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useSounds, type SoundName } from './hooks/useSounds';
 
@@ -267,14 +268,14 @@ export function OrdersProvider({ children, role = 'call_center' }: { children: R
                 phone: DEMO_CUSTOMERS[idx].phone,
                 address: fulfillmentType === 'delivery' ? 'Test Address, Accra' : undefined,
             },
-            branchId: branchName.toLowerCase().replace(' ', '-'),
+            branchId: BRANCHES.find(b => b.name === branchName)?.id ?? branchName,
             branchName,
             branchCoordinates: branchCoords,
         }).then(order => {
             notify({
                 type: 'info',
                 title: 'New Order Placed',
-                message: `#${order.orderNumber} · ${order.contact.name} · ${fulfillmentType === 'delivery' ? 'Delivery' : 'Pickup'} · GHS ${order.total}`,
+                message: `#${order.orderNumber} · ${order.contact.name} · ${fulfillmentType === 'delivery' ? 'Delivery' : 'Pickup'} · ₵${order.total}`,
                 orderId: order.id,
             }, 'newOrder');
             scheduleKitchenSim(order.id, order.contact.name);

@@ -33,7 +33,7 @@ function greeting() {
 }
 
 function formatGHS(v: number) {
-    return `GHS ${v.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `₵${v.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const CROSS_BRANCH_KPIS = {
@@ -339,7 +339,7 @@ export default function AdminDashboardPage() {
                             </span>
                             <StatusDot status={order.status} />
                             <span className="text-neutral-gray text-xs font-body">{order.timeAgo} ago</span>
-                            <span className="text-text-dark text-sm font-bold font-body">GHS {order.amount}</span>
+                            <span className="text-text-dark text-sm font-bold font-body">₵{order.amount}</span>
                         </div>
                     ))}
                 </div>

@@ -12,8 +12,8 @@ interface MenuItemCardProps {
 }
 
 const formatPrice = (price: number | undefined) => {
-    if (price === undefined || price === null || typeof price !== 'number') return 'GHS 0';
-    return `GHS ${price.toFixed(0)}`;
+    if (price === undefined || price === null || typeof price !== 'number') return '₵0';
+    return `₵${price.toFixed(0)}`;
 };
 
 export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) {

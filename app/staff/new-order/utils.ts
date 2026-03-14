@@ -5,7 +5,7 @@ import {
 } from '@phosphor-icons/react';
 import type { MenuItem } from '@/lib/data/SampleMenu';
 import type { OrderSource } from '@/types/order';
-export { formatGHS } from '@/lib/utils/currency';
+export { formatGHS} from '@/lib/utils/currency';
 
 // ─── Order sources ────────────────────────────────────────────────────────────
 

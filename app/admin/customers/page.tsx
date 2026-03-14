@@ -154,7 +154,7 @@ const STATUS_STYLES: Record<string, { dot: string; label: string }> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatGHS(v: number) { return `GHS ${v.toFixed(2)}`; }
+function formatGHS(v: number) { return `₵${v.toFixed(2)}`; }
 
 // ─── Customer detail panel ────────────────────────────────────────────────────
 

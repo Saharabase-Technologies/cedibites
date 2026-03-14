@@ -61,7 +61,7 @@ const ORDER_SOURCES: { id: OrderSource; label: string; icon: React.ElementType }
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatGHS(amount: number) {
-    return `GHS ${amount.toFixed(2)}`;
+    return `₵${amount.toFixed(2)}`;
 }
 
 function formatPhone(raw: string): string {

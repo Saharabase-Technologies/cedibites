@@ -28,7 +28,7 @@ interface ContactDetails { name: string; phone: string; address: string; note: s
 
 const DELIVERY_FEE = 15;
 const TAX_RATE = 0.025;
-const formatPrice = (p: number) => `GHS ${p.toFixed(2)}`;
+const formatPrice = (p: number) => `₵${p.toFixed(2)}`;
 
 // ─── Input Field ──────────────────────────────────────────────────────────────
 function InputField({ icon, label, required, children }: { icon: React.ReactNode; label: string; required?: boolean; children: React.ReactNode }) {
@@ -252,7 +252,7 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                                         <p className="text-xs text-neutral-gray mt-0.5 truncate">{branch.address}</p>
                                         <div className="flex items-center gap-2 mt-1.5 text-xs text-neutral-gray flex-wrap">
                                             {coordinates && <span>{branch.distance.toFixed(1)} km away</span>}
-                                            <span>·</span><span>{branch.deliveryTime}</span><span>·</span><span>GHS {branch.deliveryFee} delivery</span>
+                                            <span>·</span><span>{branch.deliveryTime}</span><span>·</span><span>₵{branch.deliveryFee} delivery</span>
                                         </div>
                                     </div>
                                     {!isCurrent && branch.isOpen && <CaretRightIcon size={16} className="text-neutral-gray shrink-0 mt-1" />}
@@ -443,7 +443,7 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
                         {orderType === 'delivery' && (
                             <div className="flex items-center gap-2 text-sm text-neutral-gray">
                                 <span>Estimated: <strong className="text-text-dark dark:text-text-light">25 – 40 mins</strong></span>
-                                <span className="ml-auto text-xs font-semibold text-text-dark dark:text-text-light">GHS {selectedBranch.deliveryFee} delivery fee</span>
+                                <span className="ml-auto text-xs font-semibold text-text-dark dark:text-text-light">₵{selectedBranch.deliveryFee} delivery fee</span>
                             </div>
                         )}
                     </div>

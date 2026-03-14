@@ -71,14 +71,14 @@ function PriceDisplay({ item }: { item: MenuItem }) {
     if (hasPricingOptions(item)) {
         const rows = getOptionRows(item);
         if (rows.length === 1) {
-            return <span className="text-text-dark text-xs font-bold font-body">GHS {rows[0].price}</span>;
+            return <span className="text-text-dark text-xs font-bold font-body">₵{rows[0].price}</span>;
         }
         const prices = rows.map(r => Number(r.price)).filter(Boolean);
         if (!prices.length) return <span className="text-neutral-gray text-xs font-body">—</span>;
         const min = Math.min(...prices);
         const max = Math.max(...prices);
         if (min === max) {
-            return <span className="text-text-dark text-xs font-bold font-body">GHS {min}</span>;
+            return <span className="text-text-dark text-xs font-bold font-body">₵{min}</span>;
         }
         if (rows.length <= 4) {
             return (
@@ -86,16 +86,16 @@ function PriceDisplay({ item }: { item: MenuItem }) {
                     {rows.map(r => (
                         <span key={r.label} className="inline-flex items-center gap-1 bg-neutral-gray/15 border border-neutral-gray/20 rounded-full px-2 py-0.5 text-[10px] font-body font-medium text-text-dark whitespace-nowrap">
                             {r.label}
-                            <span className="text-primary font-bold">GHS {r.price}</span>
+                            <span className="text-primary font-bold">₵{r.price}</span>
                         </span>
                     ))}
                 </div>
             );
         }
-        return <span className="text-text-dark text-xs font-bold font-body">GHS {min} – {max}</span>;
+        return <span className="text-text-dark text-xs font-bold font-body">₵{min} – {max}</span>;
     }
     if (item.price != null) {
-        return <span className="text-text-dark text-xs font-bold font-body">GHS {item.price}</span>;
+        return <span className="text-text-dark text-xs font-bold font-body">₵{item.price}</span>;
     }
     return <span className="text-neutral-gray text-xs font-body">—</span>;
 }
@@ -478,7 +478,7 @@ function ItemModal({
                                     <span className="text-sm font-body text-text-dark">
                                         {addon.name}
                                         <span className="text-neutral-gray ml-1.5 text-xs">
-                                            GHS {addon.price}{addon.perPiece ? '/pc' : ''}
+                                            ₵{addon.price}{addon.perPiece ? '/pc' : ''}
                                         </span>
                                     </span>
                                 </button>

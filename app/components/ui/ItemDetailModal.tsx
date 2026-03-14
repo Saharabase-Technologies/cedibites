@@ -12,8 +12,8 @@ interface ItemDetailModalProps {
 }
 
 const formatPrice = (price: number | undefined) => {
-    if (price === undefined || price === null || typeof price !== 'number') return 'GHS 0.00';
-    return `GHS ${price.toFixed(2)}`;
+    if (price === undefined || price === null || typeof price !== 'number') return '₵0.00';
+    return `₵${price.toFixed(2)}`;
 };
 
 export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps) {
@@ -156,7 +156,7 @@ export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps)
                                                 ${isSelected ? 'border-primary bg-primary/10' : 'border-neutral-gray/20 hover:border-primary/40'}`}
                                         >
                                             <span className={`text-sm font-semibold capitalize ${isSelected ? 'text-primary' : 'text-text-dark dark:text-text-light'}`}>{variant}</span>
-                                            <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-neutral-gray'}`}>GHS {vPrice}</span>
+                                            <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-neutral-gray'}`}>₵{vPrice}</span>
                                             {vQty > 0 && (
                                                 <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-primary text-white text-[10px] font-bold">
                                                     {vQty}
@@ -185,7 +185,7 @@ export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps)
                                                 ${isSelected ? 'border-primary bg-primary/10' : 'border-neutral-gray/20 hover:border-primary/40'}`}
                                         >
                                             <span className={`text-sm font-semibold ${isSelected ? 'text-primary' : 'text-text-dark dark:text-text-light'}`}>{s.label}</span>
-                                            <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-neutral-gray'}`}>GHS {s.price}</span>
+                                            <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-neutral-gray'}`}>₵{s.price}</span>
                                             {sQty > 0 && (
                                                 <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-primary text-white text-[10px] font-bold">
                                                     {sQty}

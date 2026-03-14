@@ -1,351 +1,605 @@
-# CediBites — System Overview
-### How the modules talk to each other, what ties the system together, and how every order flows end-to-end
+# CediBites — System Overview for Backend Engineering
+
+> **Purpose:** This document describes what the frontend expects from a backend API. Every data type, business rule, and service contract here was extracted directly from the running frontend code. When you build the API, this is your source of truth.
 
 ---
 
-## The Big Idea
+## 1. Business Domain
 
-CediBites is a food delivery platform built entirely in the browser — no backend server, no database, no API calls. Every piece of data lives in `localStorage` in the user's browser. Yet every screen — a customer placing an order, a cashier ringing up a table, a kitchen team seeing what to cook, a manager watching orders roll in — all see the same data at the same time, automatically, without ever refreshing the page.
+CediBites is a multi-channel food ordering platform for Ghana. Orders flow in from five sources and get fulfilled by one of seven physical branches. The lifecycle of every order moves through a shared status machine visible to all operator roles simultaneously.
 
-The thing that makes this possible is a single, shared **Order Store**: a React context that wraps the entire application and acts as the single source of truth for every order in the system. Everything reads from it. Everything writes through it. And a two-layer real-time sync mechanism keeps every open tab in sync the moment any change happens.
+**Order sources:** Online (customer web), Phone, WhatsApp, Social Media, POS (in-branch terminal)
 
----
+**Fulfillment types:** Delivery, Pickup, Dine-in, Takeaway
 
-## The Foundation Layer — Providers
+**Payment methods:** Mobile Money (MoMo), Cash, Card, No Charge (comped order)
 
-When the app starts, before any page renders, a stack of providers wraps everything. Think of these as the "operating system" of the app. They are mounted once and live for the entire browser session.
-
-```
-ModalProvider
-  └── AuthProvider
-        └── LocationProvider
-              └── BranchProvider
-                    └── OrderStoreProvider          ← the central nervous system
-                          └── MenuDiscoveryProvider
-                                └── CartProvider
-                                      └── [every page in the app]
-```
-
-Each layer has a distinct responsibility:
-
-- **ModalProvider** — controls which global modal (if any) is open: the location prompt or the branch selector.
-- **AuthProvider** — manages the logged-in *customer* session (name, phone, saved address) stored in `localStorage` under `cedibites-auth-user`.
-- **LocationProvider** — tracks the customer's GPS coordinates via the browser's Geolocation API. It feeds latitude/longitude into BranchProvider so the nearest branch can be found.
-- **BranchProvider** — holds the list of all 7 branches (Osu, East Legon, Tema, Madina, La Paz, Spintex, Dzorwulu) with their coordinates, delivery radius, operating hours, and menu availability. It uses the customer's location to compute distance and pick the nearest open branch. The `selectedBranch` it provides is what the checkout page uses to know where to send an order.
-- **OrderStoreProvider** — described in full below. This is the core.
-- **MenuDiscoveryProvider** — holds the 22 menu items, enables search, category filtering, and cross-references with the selected branch's available items.
-- **CartProvider** — manages the customer's shopping cart: items, quantities, the selected size for each item, and total calculations. It persists the cart to `localStorage` under `cedibites-cart` so items survive a page refresh.
+**Currency:** GHS (₵). Tax rate: 2.5% of subtotal. Delivery fee: per-branch, typically ₵12–18.
 
 ---
 
-## The Central Nervous System — OrderStoreProvider
+## 2. Core Data Models
 
-`OrderStoreProvider` is the single most important file in the system. It is the bridge between every front-end module and the data layer. Every order ever created, updated, or read passes through it.
+### 2.1 Order
 
-### What it holds
+The most important entity. Every module reads and writes orders through the same unified shape.
 
-It holds one piece of state: `orders` — an array of every order in the system. This is the live, in-memory representation of the database. Every component that needs order data reads from this array. No component ever reads from `localStorage` directly.
+```typescript
+Order {
+  // Identity
+  id: string                    // CB + 6 random digits, e.g. "CB4821F9"
+  orderNumber: string           // same as id — used for customer-facing display
 
-### How it loads data
+  // Workflow
+  status: OrderStatus           // see §3
+  source: OrderSource           // 'online' | 'phone' | 'whatsapp' | 'social_media' | 'pos'
+  fulfillmentType: FulfillmentType // 'delivery' | 'pickup' | 'dine_in' | 'takeaway'
 
-On mount, it calls `service.getAll()` which reads from `localStorage` key `cedibites-orders`. The result is set into React state. From that moment, the `orders` array is the app's working memory.
+  // Payment
+  paymentMethod: PaymentMethod  // 'momo' | 'cash' | 'card' | 'no_charge'
+  isPaid: boolean               // true if momo or no_charge at placement
+  paymentStatus: PaymentStatus  // 'pending' | 'completed' | 'failed' | 'refunded'
 
-### How it stays live
+  // Items & pricing (all values in GHS)
+  items: OrderItem[]
+  subtotal: number              // sum of (unitPrice × quantity) for all items
+  deliveryFee: number           // 0 for non-delivery orders
+  discount: number              // promo discount applied (0 if none)
+  promoCode?: string
+  tax: number                   // subtotal × 0.025
+  total: number                 // subtotal + deliveryFee + tax − discount
 
-Two mechanisms keep the state fresh without any manual refresh:
+  // People
+  contact: OrderContact         // customer name, phone, address
+  branch: OrderBranch           // snapshot of branch at order time
+  staffId?: string              // who created the order (staff/POS only)
+  staffName?: string
 
-**1. Service subscription** — The `OrderStoreProvider` registers a callback with the service: `service.subscribe(callback)`. Whenever any module writes an order change (new order, status update, patch), the service notifies every registered callback with the fresh list of all orders. The callback does one thing: `setOrders(updatedOrders)`. This causes every component reading from the store to re-render with the new data.
+  // Timestamps (Unix ms)
+  placedAt: number
+  acceptedAt?: number           // set when status → accepted
+  startedAt?: number            // set when status → preparing
+  readyAt?: number              // set when status → ready
+  completedAt?: number          // set when status → delivered/completed
 
-**2. Visibility change** — When a browser tab regains focus (the user switches to it after being elsewhere), `OrderStoreProvider` immediately re-reads from `localStorage` and refreshes its state. This guarantees that even if a tab was sleeping in the background while other tabs were active, it catches up the moment the user looks at it.
+  estimatedMinutes?: number     // not yet calculated by frontend
 
-### What it exposes
+  // Tracking
+  kitchenConfirmed?: boolean
+  coords?: OrderCoords          // branch + customer + rider GPS coordinates
 
-It exposes these to any component in the app:
+  // Notes
+  allergyFlags?: string[]
+  staffNotes?: string
 
-- `orders` — the full live array
-- `getOrderById(id)` — find a specific order
-- `getOrdersByFilter(filter)` — filter by branchId, status, source, date range, search term, etc.
-- `createOrder(input)` — place a new order
-- `updateOrderStatus(id, status)` — advance an order through its lifecycle
-- `updateOrder(id, patch)` — update arbitrary fields (e.g. rider coordinates)
-- `deleteOrder(id)` — remove an order
-- `refresh()` — force a re-read from storage
-
----
-
-## The Data Layer — MockOrderService
-
-The `OrderStoreProvider` doesn't touch `localStorage` directly. It delegates all storage operations to a service object obtained via `getOrderService()`. This factory returns a singleton instance of `MockOrderService`.
-
-The singleton pattern is intentional: there is exactly one `MockOrderService` per browser tab. This single instance holds the BroadcastChannel connection and the set of subscriber callbacks. All calls to `getOrderService()` from any part of the app (kitchen context, POS context, staff orders context, checkout page) return the same object.
-
-### MockOrderService responsibilities
-
-- **Read** — `getAll()`, `getById()` both call `readAll()` which parses the JSON from `localStorage`.
-- **Write** — `create()`, `updateStatus()`, `update()`, `delete()` all modify the orders array and call `writeAll()`, which saves back to `localStorage` and then broadcasts the change.
-- **Subscribe** — Any code can register a callback via `subscribe(fn)`. The service holds these in a `Set`. When `notifyListeners()` is called, it reads fresh from `localStorage` and calls every registered callback.
-- **Cross-tab sync** — two mechanisms run in parallel:
-  - **BroadcastChannel** (`cedibites-orders-sync`) — a modern browser API that sends a message to the same channel in all other open tabs. When any tab's `writeAll()` posts `'update'`, every other tab's `onmessage` fires and calls `notifyListeners()`.
-  - **Storage event** — a fallback native to the browser. When `localStorage` changes in one tab, every other tab receives a `storage` event. The service listens for this on the `cedibites-orders` key and calls `notifyListeners()` if it fires.
-
-Together, these ensure that a status change made in the staff dashboard is visible on the kitchen screen within milliseconds, without any polling.
-
-### Seed data
-
-On first run (when `localStorage` is empty), the service writes 13 pre-built seed orders covering every combination of status, source, fulfillment type, and payment method. This gives every module something to display immediately without any setup.
-
----
-
-## The Order Lifecycle
-
-An order moves through these statuses in sequence:
-
-```
-received → accepted → preparing → ready → out_for_delivery / ready_for_pickup → delivered / completed / cancelled
+  // Cancel request workflow (call_center flow)
+  cancelRequestedBy?: string    // staffId who requested
+  cancelRequestedAt?: number
+  cancelRequestReason?: string
+  cancelPreviousStatus?: OrderStatus // to restore if manager rejects
+}
 ```
 
-Each status has a clear meaning:
+#### OrderItem
+```typescript
+OrderItem {
+  id: string                    // line-item ID, unique within an order
+  menuItemId: string            // references menu item ID
+  name: string
+  quantity: number
+  unitPrice: number
+  image?: string
+  icon?: string
+  sizeLabel?: string            // "Large", "350ml"
+  variantKey?: string           // "plain", "assorted", "large"
+  notes?: string                // per-item kitchen notes
+  category?: string
+}
+```
 
-| Status | Meaning |
+#### OrderContact
+```typescript
+OrderContact {
+  name: string
+  phone: string                 // +233 format preferred
+  email?: string
+  address?: string              // delivery address
+  gpsCoords?: string            // Ghana Post GPS code
+  notes?: string                // customer delivery notes
+}
+```
+
+#### OrderBranch (snapshot embedded in order)
+```typescript
+OrderBranch {
+  id: string
+  name: string
+  address: string
+  phone: string
+  coordinates: { latitude: number; longitude: number }
+}
+```
+
+#### OrderCoords
+```typescript
+OrderCoords {
+  branch: { latitude: number; longitude: number }
+  customer?: { latitude: number; longitude: number }
+  rider?: { latitude: number; longitude: number }   // updated during delivery
+}
+```
+
+---
+
+### 2.2 Branch
+
+```typescript
+Branch {
+  id: string                    // '1' through '7'
+  name: string                  // e.g. "East Legon"
+  address: string
+  area: string                  // neighborhood label for display
+  phone: string
+  coordinates: { latitude: number; longitude: number }
+  deliveryRadius: number        // km — orders beyond this radius are rejected
+  deliveryFee: number           // GHS
+  operatingHours: string        // e.g. "8:00 AM – 10:00 PM"
+  isOpen: boolean               // real-time status
+  menuItemIds: string[]         // which menu items are available at this branch
+}
+```
+
+**Current branches:** Osu (1), East Legon (2), Spintex (3, currently closed), Tema (4), Madina (5), La Paz (6), Dzorwulu (7)
+
+---
+
+### 2.3 Staff Member
+
+```typescript
+StaffMember {
+  id: string
+  name: string
+  email: string
+  phone: string                 // +233 format
+  role: StaffRole               // see §5.2
+  branch: string | string[]     // display name(s)
+  branchIds: string[]           // system IDs — matches Branch.id
+  status: 'active' | 'inactive' | 'archived'
+  employmentStatus: 'active' | 'on_leave' | 'resigned'
+  systemAccess: 'enabled' | 'disabled'
+  permissions: StaffPermissions
+  pin: string                   // 4-digit POS PIN (empty = no POS access)
+  password: string              // staff portal login password
+  joinedAt: string
+  ssnit?: string
+  ghanaCard?: string
+  tinNumber?: string
+  photoUrl?: string
+  emergencyContact?: { name: string; phone: string; relationship: string }
+}
+
+StaffPermissions {
+  canPlaceOrders: boolean       // call_center, manager, super_admin
+  canAdvanceOrders: boolean     // manager, super_admin
+  canAccessPOS: boolean         // any staff with a PIN
+  canViewReports: boolean       // manager, super_admin, branch_partner
+  canManageMenu: boolean        // manager (if delegated), super_admin
+  canManageStaff: boolean       // manager (if delegated), super_admin
+}
+```
+
+---
+
+### 2.4 Staff Shift
+
+Tracks a staff member's active login session for sales attribution and reporting.
+
+```typescript
+StaffShift {
+  id: string
+  staffId: string
+  staffName: string
+  branchId: string
+  branchName: string
+  loginAt: number               // Unix ms
+  logoutAt?: number             // null = shift still active
+  orderIds: string[]            // order numbers placed during this shift
+  totalSales: number            // sum of non-cancelled order totals (GHS)
+  orderCount: number
+}
+```
+
+---
+
+### 2.5 Promo
+
+```typescript
+Promo {
+  id: string
+  name: string
+  type: 'percentage' | 'fixed_amount'
+  value: number                 // e.g. 20 = 20% off OR ₵20 off
+  scope: 'global' | 'branch'
+  branchIds?: string[]          // populated when scope = 'branch'
+  appliesTo: 'order' | 'items'  // order = whole cart, items = specific menu items
+  itemIds: string[]             // populated when appliesTo = 'items'
+  minOrderValue?: number        // promo only fires when subtotal >= this
+  maxOrderValue?: number
+  maxDiscount?: number          // cap on GHS value of a percentage discount
+  startDate: string             // ISO date
+  endDate: string               // ISO date
+  isActive: boolean
+  accountingCode?: string
+}
+```
+
+---
+
+### 2.6 Menu Item
+
+Currently static (`lib/data/SampleMenu.ts`). The admin menu manager persists overrides to localStorage under `cedibites_menu_config`.
+
+```typescript
+MenuItem {
+  id: string
+  name: string
+  category: string              // 'basic-meals' | 'budget-bowls' | 'combos' | 'top-ups' | 'drinks'
+  price?: number                // flat price (no sizes)
+  sizes?: { key: string; label: string; price: number }[]
+  hasVariants?: boolean
+  variants?: { plain?: number; assorted?: number }
+  image?: string
+  icon?: string
+  isNew?: boolean
+  popular?: boolean
+  description?: string
+  calories?: number
+}
+```
+
+---
+
+## 3. Order Status Machine
+
+```
+received
+  → accepted
+      → preparing
+          → ready
+              → out_for_delivery  (delivery orders)
+                  → delivered
+                      → completed
+              → ready_for_pickup  (pickup orders)
+                  → completed
+              → completed         (dine_in / takeaway / POS direct)
+  → cancel_requested              (call_center requests, awaiting manager)
+      → cancelled                 (manager approves) or back to previous status (manager rejects)
+  → cancelled                     (manager can direct-cancel any non-terminal order)
+```
+
+**Business rules:**
+- `isPaid` is set `true` at order creation for `momo` and `no_charge` payments
+- `paymentStatus` becomes `completed` at creation for `momo`/`no_charge`; cash/card remain `pending` until confirmed
+- Timestamps written by the status transitions:
+  - `accepted` → `acceptedAt`
+  - `preparing` → `startedAt`
+  - `ready` → `readyAt`
+  - `delivered` | `completed` → `completedAt`
+- Only `manager` and `super_admin` roles can advance order status
+- `call_center` can create orders and request cancellations but cannot advance status
+- `branch_partner` is read-only
+
+---
+
+## 4. Service Contracts
+
+The frontend calls these service interfaces. The backend must implement all methods. The factory in each `*.service.ts` file is swapped from `MockXxxService` to `ApiXxxService` in a single line per entity — all frontend code above that layer remains unchanged.
+
+### 4.1 OrderService
+
+```
+GET    /api/orders              getAll(filter?)    → Order[]
+GET    /api/orders/:id          getById(id)        → Order | null
+POST   /api/orders              create(input)      → Order
+PATCH  /api/orders/:id/status   updateStatus(id, status, timestamps?) → Order
+PATCH  /api/orders/:id          update(id, patch)  → Order
+DELETE /api/orders/:id          delete(id)         → void
+
+// Real-time
+WebSocket /ws/orders            subscribe(callback) — emits full Order[] on every change
+```
+
+**Filter params for `getAll`:**
+```
+branchId, branchName, staffId, status[], fulfillmentType[], source[],
+contactPhone, dateFrom (Unix ms), dateTo (Unix ms), search (text)
+```
+
+### 4.2 BranchService
+
+```
+GET /api/branches               getAll()                  → Branch[]
+GET /api/branches/:id           getById(id)               → Branch | null
+GET /api/branches/by-name/:name getByName(name)           → Branch | null
+GET /api/branches/:id/menu-items getMenuItemIds(id)       → string[]
+GET /api/branches/:id/menu-items/:itemId/available        → boolean
+```
+
+### 4.3 ShiftService
+
+```
+GET    /api/shifts              getAll()                  → StaffShift[]
+GET    /api/shifts/active/:staffId  getActive(staffId)    → StaffShift | null
+POST   /api/shifts              startShift(staffId, staffName, branchId, branchName) → StaffShift
+PATCH  /api/shifts/:id/end      endShift(id)              → StaffShift
+POST   /api/shifts/:id/orders   addOrder(id, orderId, orderTotal) → void
+GET    /api/shifts/by-date/:date  getByDate('YYYY-MM-DD') → StaffShift[]
+GET    /api/shifts/by-staff/:staffId  getByStaff(staffId) → StaffShift[]
+```
+
+### 4.4 PromoService
+
+```
+GET    /api/promos              getAll()                  → Promo[]
+GET    /api/promos/:id          getById(id)               → Promo | null
+POST   /api/promos              create(promo)             → Promo
+PATCH  /api/promos/:id          update(id, patch)         → Promo
+DELETE /api/promos/:id          delete(id)                → void
+POST   /api/promos/resolve      resolvePromo({ itemIds[], branchId, subtotal? }) → Promo | null
+```
+
+**Promo resolution logic (currently on client):**
+1. Filter by `isActive = true` and current date within `[startDate, endDate]`
+2. Filter by scope: `global` promos always included; `branch` promos only if `branchId` in `branchIds`
+3. Filter by `appliesTo`: `'items'` promos require at least one cart `itemId` in promo's `itemIds`
+4. Filter by order value gates (`minOrderValue`, `maxOrderValue`)
+5. Return the promo with the highest resulting discount (backend resolves, client doesn't pick)
+
+**Discount calculation:**
+```
+if type === 'percentage':
+  discount = subtotal × (value / 100)
+  if maxDiscount: discount = min(discount, maxDiscount)
+else: // fixed_amount
+  discount = min(value, subtotal)  // never exceed subtotal
+```
+
+### 4.5 StaffService (authentication + HR)
+
+Currently backed by a static array. Authentication is checked against email/phone + password. POS uses a 4-digit PIN.
+
+```
+POST /api/auth/staff/login          { identifier, password }  → StaffUser
+POST /api/auth/staff/logout         (session token)
+POST /api/auth/pos/login            { pin }                    → PosSession
+GET  /api/staff                     getAll(filter?)            → StaffMember[]
+GET  /api/staff/:id                 getById(id)                → StaffMember | null
+POST /api/staff                     create(member)             → StaffMember
+PATCH /api/staff/:id                update(id, patch)          → StaffMember
+DELETE /api/staff/:id               delete(id)                 → void
+GET  /api/staff/by-branch/:branchId getByBranch(branchId)     → StaffMember[]
+```
+
+**StaffUser** (session object returned after login):
+```typescript
+{
+  id: string
+  name: string
+  role: StaffRole
+  branch: string    // display name, e.g. "East Legon"
+  branchId: string  // system ID, e.g. "2"
+}
+```
+
+---
+
+## 5. Authentication — Three Independent Systems
+
+### 5.1 Customer Auth
+- **Scope:** Public customer site (`/`, `/menu`, `/checkout`, `/orders`)
+- **Mechanism:** Self-registration with name + phone number. No password.
+- **Storage:** `localStorage` key `cedibites-auth-user`
+- **Guest support:** Yes — guests can place orders without an account; order tracking is by order code
+
+### 5.2 Staff Auth
+- **Scope:** `/staff/`, `/admin/`, `/partner/` routes
+- **Mechanism:** Email or Ghanaian phone number (`0XX XXXX XXXX` or `+233XX...`) + password
+- **Session:** Persisted to `localStorage` key `cedibites-staff-session`; survives page refresh
+- **Roles and home routes:**
+
+| Role | Home Route | Capabilities |
+|---|---|---|
+| `super_admin` | `/admin/dashboard` | Full platform access |
+| `branch_partner` | `/partner/dashboard` | Read-only, own branch(es) only |
+| `manager` | `/staff/manager/dashboard` | Full ops, own branch |
+| `call_center` | `/staff/sales/dashboard` | Place orders; request cancellations |
+| `kitchen` | — (no portal) | KDS display only |
+| `rider` | — (no portal) | No current portal |
+
+### 5.3 POS Session Auth
+- **Scope:** `/pos/terminal`, `/pos/orders`
+- **Mechanism:** 4-digit PIN lookup against staff list
+- **Session:** `sessionStorage` key `pos-session` with 12-hour TTL; clears on tab close
+- **Note:** POS sessions are completely independent of staff portal sessions
+
+---
+
+## 6. Real-Time Requirements
+
+Every connected client must see order state changes within ~1 second of the change occurring, without any manual refresh. The frontend uses a two-layer mechanism today; the backend must replace this with a proper push channel.
+
+**What needs to be real-time:**
+- New orders appearing on the Kitchen Display System (KDS)
+- Order status changes appearing on the Kanban board (staff orders page)
+- Rider GPS coordinate updates appearing on customer order tracking map
+- New POS orders appearing in the branch's POS orders list
+
+**Expected interface:**
+The `OrderService.subscribe(callback: (orders: Order[]) => void): () => void` method must:
+1. Connect to a WebSocket (or SSE) channel
+2. On any order event, call `callback` with the full current orders array
+3. Return an unsubscribe function
+
+All five frontend modules (customer tracking, kitchen, POS orders, staff kanban, admin) share a single `OrderStoreProvider` which holds one subscription. The push channel is subscribed to once per browser tab.
+
+---
+
+## 7. Business Logic Rules
+
+### Pricing
+- `subtotal` = Σ (unitPrice × quantity) across all items
+- `tax` = subtotal × 0.025 (if not provided by caller, the service defaults it)
+- `deliveryFee` = branch-specific flat fee (or 0 for non-delivery)
+- `total` = subtotal + deliveryFee + tax − discount
+- Discount is capped so `total` never goes below zero
+
+### Order ID Format
+- Pattern: `CB` + 6 uppercase alphanumeric characters, e.g. `CB4821F9`
+- Generated by the backend on `create`; frontend does not pre-generate IDs
+
+### isPaid / paymentStatus
+- `momo` → `isPaid: true`, `paymentStatus: 'completed'`
+- `no_charge` → `isPaid: true`, `paymentStatus: 'completed'`
+- `cash` → `isPaid: false`, `paymentStatus: 'pending'`
+- `card` → `isPaid: false`, `paymentStatus: 'pending'`
+
+### Shift Tracking
+- On staff login: `ShiftService.startShift()` is called (skipped for `kitchen` and `rider` roles)
+- On staff logout: `ShiftService.endShift()` is called
+- When a staff member places an order: `ShiftService.addOrder()` is called with the order's `orderNumber` and `total`
+- Shifts are used to compute per-staff sales reports
+
+### Cancel Request Workflow
+1. A `call_center` agent sets `status: 'cancel_requested'` on an order and writes `cancelRequestedBy`, `cancelRequestedAt`, `cancelRequestReason`, and `cancelPreviousStatus`
+2. A `manager` or `super_admin` either:
+   - Approves: advances status to `cancelled`
+   - Rejects: restores status to `cancelPreviousStatus`
+3. No other role can trigger or resolve a cancel request
+
+---
+
+## 8. Data Storage Keys (current frontend localStorage)
+
+These are what the frontend uses today. The backend replaces them with server-side storage; the frontend's `ApiXxxService` implementations will stop using localStorage.
+
+| Key | Contents | Notes |
+|---|---|---|
+| `cedibites-orders` | `Order[]` JSON | Primary data store |
+| `cedibites-auth-user` | Customer session object | |
+| `cedibites-staff-session` | `StaffUser` JSON | Includes `branchId` (added in fix) |
+| `cedibites-cart` | Cart items | Customer cart, client-side only |
+| `cedibites-recent-searches` | `string[]` | Client-side only, no backend needed |
+| `cedibites_menu_config` | Menu overrides | Needs a Menu Config API endpoint |
+| `selected-branch-id` | Branch ID string | Client-side preference |
+| `location-prompt-shown` | boolean | Client-side only |
+| `user-location` | `{ latitude, longitude }` | Client-side only |
+| `pos-session` (sessionStorage) | POS session | 12h TTL |
+| `cedibites-shifts` (localStorage) | `StaffShift[]` | Shifts data |
+
+---
+
+## 9. Service Swap Instructions
+
+The frontend is structured so that swapping from mock to real API requires changing **one line per entity** in each `*.service.ts` factory file:
+
+```typescript
+// lib/services/orders/order.service.ts
+export function getOrderService(): OrderService {
+    if (!_instance) {
+        _instance = new ApiOrderService();  // ← change MockOrderService to this
+    }
+    return _instance;
+}
+```
+
+The `ApiOrderService` class must implement the `OrderService` interface exactly. Same pattern for `BranchService`, `ShiftService`, `PromoService`, and `StaffService`.
+
+All frontend modules — `OrderStoreProvider`, `KitchenProvider`, `OrdersProvider` (staff kanban), `POSProvider`, `NewOrderProvider`, checkout page — call the service through the interface only. None of them are aware of whether the underlying implementation is mock or real.
+
+---
+
+## 10. Routes Reference (Frontend)
+
+### Customer
+| Route | Description |
 |---|---|
-| `received` | Order placed, waiting for someone to accept it |
-| `accepted` | A staff member or kitchen has acknowledged it |
-| `preparing` | Kitchen is actively cooking |
-| `ready` | Food is done — waiting for rider pickup or customer pickup |
-| `out_for_delivery` | Rider has the order and is en route to customer |
-| `ready_for_pickup` | Customer pickup order is ready at the counter |
-| `delivered` | Delivery confirmed |
-| `completed` | Pickup/dine-in/POS order closed out |
-| `cancelled` | Order cancelled at any point |
+| `/` | Landing page with hero search |
+| `/menu` | Menu browser (branch-aware) |
+| `/checkout` | 2-step checkout (address + payment) |
+| `/orders` | All orders for logged-in customer |
+| `/orders/[orderCode]` | Live order tracking with map |
+| `/order-history` | Full order history |
 
-Timestamps are recorded at each transition: `acceptedAt`, `startedAt`, `readyAt`, `completedAt`. These are used for calculating average prep times and displaying elapsed time on the kitchen and staff screens.
+### Staff Portal
+| Route | Visible to |
+|---|---|
+| `/staff/login` | All staff |
+| `/staff/manager/dashboard` | manager, super_admin |
+| `/staff/manager/orders` | manager, super_admin |
+| `/staff/manager/new-order` | manager, super_admin |
+| `/staff/manager/menu` | manager, super_admin |
+| `/staff/manager/staff` | manager, super_admin |
+| `/staff/manager/analytics` | manager, super_admin |
+| `/staff/manager/settings` | manager, super_admin |
+| `/staff/sales/dashboard` | call_center |
+| `/staff/sales/orders` | call_center |
+| `/staff/sales/new-order` | call_center |
+| `/staff/my-sales` | All logged-in staff |
+| `/staff/my-shifts` | All logged-in staff |
+| `/staff/store` | All logged-in staff |
 
----
+### Admin
+| Route | Description |
+|---|---|
+| `/admin/dashboard` | Platform-wide KPIs |
+| `/admin/orders` | All orders, all branches |
+| `/admin/staff` | HR and staff management |
+| `/admin/branches` | Branch configuration |
+| `/admin/menu` | Menu item management |
+| `/admin/analytics` | Detailed analytics |
+| `/admin/customers` | Customer lookup |
+| `/admin/audit` | System audit log |
+| `/admin/settings` | Platform settings |
 
-## The Five Modules
+### Partner Portal
+| Route | Description |
+|---|---|
+| `/partner/dashboard` | Branch-scoped overview |
+| `/partner/orders` | Branch orders (read-only) |
+| `/partner/branch` | Branch details |
+| `/partner/staff` | Staff list (read-only) |
+| `/partner/analytics` | Branch analytics |
 
-### 1. Customer (Online Ordering)
+### POS
+| Route | Description |
+|---|---|
+| `/pos` | PIN login |
+| `/pos/terminal` | Order entry |
+| `/pos/orders` | Today's orders for this branch |
 
-**Pages:** `/`, `/menu`, `/checkout`, `/orders`, `/orders/[orderCode]`, `/order-history`
-
-**Flow — placing an order:**
-
-The customer browses the menu on `/menu`. The `MenuDiscoveryProvider` powers search, category filtering, and item lookup. When they tap an item, it goes into the `CartProvider`. The cart persists to `localStorage` so it survives refresh.
-
-At checkout (`/checkout`), the page reads three things from context: the selected branch from `BranchProvider`, the customer's GPS coordinates from `LocationProvider`, and the cart items from `CartProvider`. It assembles a `CreateOrderInput` object — a standardised shape that all order-creating modules use — and calls `createOrder()` from `OrderStoreProvider`.
-
-`createOrder()` calls `service.create()`, which generates a unique order ID (format: `CB` + 6 random digits), computes the totals, builds the full `Order` object, saves it to `localStorage`, and broadcasts the change. The `OrderStoreProvider`'s own state is updated immediately. Every other tab's `OrderStoreProvider` gets the update via BroadcastChannel and the storage event.
-
-After the order is placed, the cart is cleared and the customer is shown their order confirmation with the order number. The "Track My Order" link takes them to `/orders/[orderCode]` where they can watch the status update in real time.
-
-**How order tracking works:**
-The `/orders/[orderCode]` page reads from `OrderStoreProvider` using `getOrderById()`. Because `OrderStoreProvider` is live and reactive, if the kitchen or staff advance the order status, this page updates automatically — the customer sees "Preparing" appear without refreshing.
-
-**Order history:**
-`/order-history` shows all orders. If the customer is logged in (via `AuthProvider`), it filters by phone number match. If they are a guest, it shows all `source: 'online'` orders (since there's no user identification for guests yet).
-
----
-
-### 2. Point of Sale — POS (`/pos`)
-
-**Who uses it:** Cashiers at a branch. Runs on a dedicated terminal (tablet/computer at the counter).
-
-**Authentication:** The POS has its own login system, separate from both customer auth and staff auth. A cashier logs in with their staff ID and PIN. The session is stored in `sessionStorage` under `pos-session` with a 12-hour TTL. Closing the browser tab ends the session.
-
-**The POSProvider** wraps the POS layout and provides all POS-specific logic: cart management, customer name/phone input, order type (dine-in vs. takeaway), and payment processing.
-
-**Flow — taking an order:**
-
-The cashier browses the menu on `/pos/terminal`, adds items to the POS cart (separate from the customer-facing CartProvider), enters the customer's name and phone, chooses dine-in or takeaway, then opens the payment modal.
-
-`processPayment()` builds a `CreateOrderInput` with `source: 'pos'` and the branch details from the logged-in session, then calls `createOrder()` from `OrderStoreProvider`. This is the exact same function the customer checkout uses. The order flows into the exact same storage layer and is immediately visible everywhere.
-
-**Today's orders:** The POS orders page (`/pos/orders`) shows only orders from today, from the logged-in cashier's branch, and with `source: 'pos'`. This filter is applied in the `POSProvider` using `useMemo` over the live `allOrders` from `OrderStoreProvider`. Any status update from the kitchen shows up here automatically.
-
-**Dependency tree:**
-```
-POSProvider → useOrderStore → MockOrderService → localStorage
-```
-
----
-
-### 3. Kitchen Display (`/kitchen`)
-
-**Who uses it:** Kitchen staff on a screen mounted in the kitchen. Runs continuously, always visible.
-
-**The layout has two pages:**
-- `/kitchen/display` — a read-only board showing what's being cooked (received → accepted → preparing → ready)
-- `/kitchen/control` — the interactive board where staff tap to accept and advance orders
-
-**The KitchenProvider** is the module-level context for the kitchen. It wraps both kitchen pages and sits *inside* `OrderStoreProvider` (which is in the root layout). It does not have its own authentication — the kitchen screen is assumed to be a locked, dedicated display.
-
-**How it gets orders:**
-
-`KitchenProvider` calls `useKitchenOrders()`, a hook that calls `getOrdersByFilter()` from `OrderStoreProvider` with a filter of `status: ['received', 'accepted', 'preparing', 'ready']` and no `branchId` — meaning it shows active orders from all branches. The result is re-computed every time the `orders` array in `OrderStoreProvider` changes.
-
-Because `getOrdersByFilter` is wrapped in `useCallback([orders])`, a new function reference is created every time `orders` changes. `useKitchenOrders` has `getOrdersByFilter` in its `useMemo` dependency array, so it recomputes whenever orders change.
-
-**Derived data:**
-`KitchenProvider` groups orders into four buckets (`ordersByStatus.received`, `.accepted`, `.preparing`, `.ready`), sorted oldest-first so the most urgent order is always at the top. It also computes live stats: counts per status, and average prep time calculated from `readyAt - startedAt` timestamps.
-
-**Sounds:**
-`useKitchenSounds` uses the Web Audio API (no sound files, pure waveform synthesis) to play distinct tones for new orders, accepted, preparing, ready, and taps. When `kitchenOrders.length` increases compared to the previous render, a new-order sound plays.
-
-**Flow — accepting an order:**
-
-A staff member taps "Accept" on an order card in the "New" (received) tab of `/kitchen/control`. This calls `acceptOrder(orderId)` in `KitchenProvider`, which calls `updateOrderStatus(orderId, 'accepted', { acceptedAt: now })` from `OrderStoreProvider`. That writes to `localStorage`, broadcasts the change, and the order card disappears from the "New" column and reappears in "Accepted" — simultaneously on every open screen showing that order.
-
-**Dependency tree:**
-```
-KitchenProvider
-  → useKitchenOrders → useOrderStore (getOrdersByFilter)
-  → useOrderStore (updateOrderStatus, createOrder, refresh)
-  → useKitchenSounds (Web Audio API)
-```
+### Kitchen Display
+| Route | Description |
+|---|---|
+| `/kitchen` | Role selection |
+| `/kitchen/display` | Read-only order board |
+| `/kitchen/control` | Interactive KDS — accept/advance orders |
 
 ---
 
-### 4. Staff Orders (`/staff/orders`, `/staff/manager/orders`, `/staff/sales/orders`)
+## 11. Known Issues / Tech Debt to Address
 
-**Who uses it:** Sales staff and managers. This is the main operational view — a Kanban board showing all orders across all branches (for managers) or filtered by the user's branch (for sales).
+1. **Duplicate BRANCHES array** — defined in both `BranchProvider.tsx` and `branch.service.mock.ts`. Consolidate to `lib/data/branches.ts` when backend is ready; both providers import from the single source.
 
-**Authentication:** Staff use a separate login at `/staff/login`. `StaffAuthProvider` wraps the entire `/staff/` layout subtree. On login, it validates credentials against the mock staff list (18 staff members across 3 branches) and saves the session to `localStorage` under `cedibites-staff-session`. The session persists across refreshes.
+2. **Duplicate currency formatter** — `formatPrice()` in `types/order.ts` and `formatGHS()` in `lib/utils/currency.ts` are identical. Callers use both. Consolidate to `formatGHS`.
 
-**Role-based routing:** After login, the `roleHomeRoute()` function reads the staff member's role and redirects them:
-- `admin` → `/admin/dashboard`
-- `manager` → `/staff/manager/dashboard`
-- `sales`, `kitchen`, `rider`, `call_center` → `/staff/sales/dashboard`
+3. **Duplicate haversine** — `haversineKm()` in `types/order.ts` and `calculateDistance()` in `lib/utils/distance.ts`. Consolidate to one.
 
-A `useStaffRoutes()` hook provides role-correct URLs for navigation links so sales and manager see the same UI components but routed to different paths.
+4. **Admin auth** — `/admin/*` routes have no authentication guard in the current demo. Real backend must protect these routes (role = `super_admin` only) via middleware or server-side session check.
 
-**The OrdersProvider** is the module-level context for the staff orders module. It receives the `role` prop from the page (`'sales'` or `'manager'`) and uses it to control what actions are permitted via the `canAdvanceOrder()` helper from `types/order.ts`.
+5. **Cart tax** — `CartDrawer.tsx` doesn't display tax; tax only appears in the checkout payment step. Decide whether to surface tax earlier or leave it to checkout.
 
-**What OrdersProvider does:**
-- Reads `storeOrders` from `OrderStoreProvider` (the full live array)
-- Applies filters: search text, branch filter, date range, show/hide cancelled
-- Exposes `filteredOrders` for the Kanban board to render
-- Manages `selectedOrder` (which order's detail panel is open), kept in sync with the store so status updates appear immediately in the open panel
-- Manages drag-and-drop: `draggingId` tracks which card is being dragged; `handleDrop` resolves where it was dropped and calls `handleAdvance`
-- Plays 7 distinct sounds for different transitions (sine waveforms)
-- Shows toast notifications for status changes, customer SMS simulation, and new orders
-
-**Flow — advancing an order:**
-
-A manager drags an order card from "Preparing" to "Ready". `handleDrop` fires → `handleAdvance(id, 'ready')` → `canAdvanceOrder(role, order, 'ready')` returns `true` (managers can do anything) → `updateOrderStatus(id, 'ready', { readyAt: now })` is called on `OrderStoreProvider` → the order moves in the Kanban board → the kitchen display also updates immediately.
-
-When a manager marks an order `out_for_delivery`, two additional things happen: a notification is shown simulating an SMS to the customer, and `startRiderSim(id)` begins interpolating the rider's GPS coordinates from branch to customer every 5 seconds via `updateOrder(id, { coords: { ...rider } })`. This makes the live map on `/orders/[orderCode]` animate the rider moving.
-
-**Dependency tree:**
-```
-OrdersProvider
-  → useOrderStore (storeOrders, updateOrderStatus, updateOrder, createOrder)
-  → canAdvanceOrder (types/order.ts)
-  → useSounds (Web Audio API)
-  → KANBAN_COLUMNS, BRANCH_COORDS (lib/constants)
-```
+6. **`StaffUser.branchId`** — was added in March 2026 fix. Old sessions in `localStorage` without this field will require the user to log in again.
 
 ---
 
-### 5. Admin (`/admin`)
-
-**Who uses it:** The admin user (`role: 'admin'`). Has access to all data and all branches.
-
-**Pages:** Dashboard, Orders, Staff, Branches, Menu, Analytics, Audit, Settings, Customers
-
-The admin layout wraps `StaffAuthProvider` (same as staff). The admin orders page reuses the same `OrdersProvider` used by staff, passed `role="manager"` (admins have at least manager-level permissions). The admin menu page reads from `useMenuConfig()` — a hook that reads/writes the menu configuration from `localStorage` under `cedibites_menu_config`. The staff management page reads from `staff.service.mock.ts` which wraps the static `MOCK_STAFF` array of 18 staff members.
-
----
-
-## Cross-Cutting Concerns
-
-### Real-Time Sync (the full picture)
-
-When any write happens (order created, status changed, patch applied):
-
-```
-Module calls updateOrderStatus / createOrder / etc.
-        ↓
-OrderStoreProvider calls service.updateStatus / service.create / etc.
-        ↓
-MockOrderService.writeAll()
-    → saves to localStorage['cedibites-orders']
-    → BroadcastChannel.postMessage('update')        → fires in ALL OTHER TABS
-    → (storage event auto-fires in all other tabs)  → second layer fallback
-        ↓ (in each other tab)
-MockOrderService.notifyListeners()
-    → reads fresh from localStorage
-    → calls every subscriber callback with updated orders
-        ↓
-OrderStoreProvider.setOrders(updatedOrders)
-    → React re-renders everything reading from the store
-        ↓
-Kitchen display updates. Staff kanban updates. Customer tracking page updates.
-```
-
-In the same tab that made the write, `OrderStoreProvider` applies an optimistic state update immediately (without waiting for the BroadcastChannel), so the UI feels instantaneous.
-
-Additionally, when any tab regains focus (`visibilitychange` to `visible`), `OrderStoreProvider` re-reads from `localStorage` as a final safety net — guaranteeing freshness even if the tab was sleeping for a long time.
-
-### Authentication — Three Separate Systems
-
-The system has three unrelated authentication contexts that do not know about each other:
-
-| System | Provider | Storage | Who uses it |
-|---|---|---|---|
-| Customer auth | `AuthProvider` | `localStorage` — `cedibites-auth-user` | Customers on the public site |
-| Staff auth | `StaffAuthProvider` | `localStorage` — `cedibites-staff-session` | Sales, managers, admin on `/staff/` and `/admin/` |
-| POS session | `POSProvider` (internal) | `sessionStorage` — `pos-session` (12h TTL) | Cashiers on `/pos/` |
-
-These are completely independent. A staff member logged into the staff portal and a customer logged in on the public site can coexist in the same browser without interference.
-
-### Branch Data — Two Sources
-
-Branch information is defined in two places:
-
-1. **`BranchProvider.tsx`** — the `BRANCHES` array with full UI details (delivery radius, operating hours, menu item IDs). Used by the customer-facing app to select branches, filter menus, and compute delivery estimates.
-2. **`order.service.mock.ts`** — the `BRANCH_COORDS` map (branch name → latitude/longitude). Used when building seed orders so orders have realistic coordinates for the map.
-
-When an order is created, the full branch object (id, name, address, phone, coordinates) is embedded directly into the order. This means an order carries all the branch information it needs — there's no join or lookup required later.
-
-### The Unified Order Type
-
-All five modules (customer checkout, POS, staff new-order wizard, kitchen, admin) use exactly the same `Order` type from `types/order.ts`. Every field on the type is used by at least one module. Every module that creates orders uses the same `CreateOrderInput` type. This uniformity is what makes the shared `OrderStoreProvider` possible — every module speaks the same language.
-
----
-
-## What Connects Everything — Summary
-
-| Node | Role | Depends On | Consumed By |
-|---|---|---|---|
-| `MockOrderService` | Persistence + broadcast | `localStorage`, `BroadcastChannel`, `storage event` | `OrderStoreProvider` (singleton per tab) |
-| `OrderStoreProvider` | Shared state + live sync | `MockOrderService` | Kitchen, POS, Staff, Admin, Customer tracking |
-| `BranchProvider` | Branch selection + geo | `LocationProvider`, branch data | Checkout, POS (branch lookup), `OrderStoreProvider` context |
-| `CartProvider` | Customer cart state | `MenuDiscoveryProvider` (item data) | Checkout page |
-| `StaffAuthProvider` | Staff session | `mockStaff.ts` | Staff layout, Admin layout, role routing |
-| `POSProvider` | POS session + cart + orders | `OrderStoreProvider`, `BranchProvider` | POS terminal, POS orders |
-| `KitchenProvider` | Kitchen order state + sounds | `OrderStoreProvider`, `useKitchenOrders` | Kitchen display, kitchen control |
-| `OrdersProvider` | Staff kanban state | `OrderStoreProvider`, `canAdvanceOrder` | Staff orders, manager orders, admin orders |
-| `types/order.ts` | Shared type language | — | Every module |
-| `lib/constants/order.constants.ts` | Display labels + column config | — | Kitchen, Staff orders, Admin |
-
----
-
-## A Day in the Life — End-to-End Scenario
-
-**8:00 AM** — The kitchen staff open `/kitchen/control` on a wall-mounted tablet. `OrderStoreProvider` loads 13 seed orders from `localStorage`. `KitchenProvider` filters them down to 4 with active statuses. The kitchen sees 2 orders in "New", 1 in "Preparing", 1 in "Ready". A sound plays.
-
-**8:03 AM** — A cashier at the East Legon branch opens `/pos/terminal` on a counter tablet, logs in with their staff PIN. `POSProvider` validates the 12-hour session from `sessionStorage`. They browse the menu and add Jollof Rice and a Coke.
-
-**8:04 AM** — The cashier taps "Charge", selects Cash, confirms payment. `processPayment()` calls `createOrder()`. The order is written to `localStorage`. BroadcastChannel fires. The kitchen tablet receives the broadcast → `notifyListeners()` → `setOrders()` → the kitchen's "New" count jumps from 2 to 3. A new-order sound plays in the kitchen.
-
-**8:05 AM** — The kitchen taps "Accept" on the new order. `acceptOrder()` calls `updateOrderStatus()`. The order moves from "New" to "Accepted" on the kitchen screen. The POS orders page on the cashier's tablet also updates — the order shows as "Accepted" in their history.
-
-**8:06 AM** — A customer on their phone opens the CediBites website, browses the menu. Their location is detected. `BranchProvider` calculates distances and selects East Legon (2.1 km away) as the nearest open branch. They add items to their cart, go to checkout, fill in their address, and tap "Place Order". `createOrder()` runs with `source: 'online'`. The same broadcast fires. The kitchen sees a 4th order appear in "New".
-
-**8:10 AM** — A manager opens `/staff/manager/orders` in a browser on their laptop. `OrderStoreProvider` loads all orders. `OrdersProvider` shows them on a Kanban board across 5 columns. They see the customer's online order in "New". They drag it to "Preparing". `handleDrop` → `handleAdvance` → `updateOrderStatus`. The status updates. The kitchen display shows the order move from "New" to "Preparing" — automatically.
-
-**8:30 AM** — The manager marks the customer's order "Out for Delivery". A simulated SMS notification fires. `startRiderSim()` begins updating the rider's GPS every 5 seconds. On the customer's phone at `/orders/[orderCode]`, the status updates from "Preparing" to "Out for Delivery" and the live map shows the rider dot moving toward their address — no refresh needed.
-
----
-
-*This document reflects the system as of March 2026. The architecture is designed to swap the `MockOrderService` for a real `ApiOrderService` in a single line per entity in each `*.service.ts` factory file — all modules above that layer remain unchanged.*
+*Generated March 2026 from live frontend codebase. All types and contracts are authoritative.*

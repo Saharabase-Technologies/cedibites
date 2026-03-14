@@ -18,7 +18,7 @@ import {
 } from '@phosphor-icons/react';
 import { usePOS } from '../context';
 import type { Order } from '@/types/order';
-import { formatGHS } from '@/lib/utils/currency';
+import { formatGHS} from '@/lib/utils/currency';
 import { BRANCHES } from '@/app/components/providers/BranchProvider';
 import { printReceipt } from '@/lib/utils/printReceipt';
 import { STATUS_CONFIG, FULFILLMENT_LABELS } from '@/lib/constants/order.constants';

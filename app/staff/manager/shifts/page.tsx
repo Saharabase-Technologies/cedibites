@@ -34,7 +34,7 @@ function formatDuration(loginAt: number, logoutAt?: number): string {
 }
 
 function formatGHS(n: number): string {
-    return `GHS ${n.toFixed(2)}`;
+    return `₵${n.toFixed(2)}`;
 }
 
 function dateLabel(iso: string): string {
