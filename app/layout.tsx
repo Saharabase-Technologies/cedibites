@@ -13,6 +13,7 @@ import LocationRequestModal from "./components/ui/LocationRequestModal";
 import BranchSelectorModal from "./components/ui/BranchSelectorModal";
 import { AuthProvider } from "./components/providers/AuthProvider";
 import { OrderStoreProvider } from "./components/providers/OrderStoreProvider";
+import { QueryProvider } from "./components/providers/QueryProvider";
 
 const caprasimo = Caprasimo({
   weight: '400',
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
           strategy="beforeInteractive"
         />
+        <QueryProvider>
         <ModalProvider>
           <AuthProvider>
             <LocationProvider autoRequest={false}>
@@ -68,6 +70,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </LocationProvider>
           </AuthProvider>
         </ModalProvider>
+        </QueryProvider>
       </body>
     </html>
   );

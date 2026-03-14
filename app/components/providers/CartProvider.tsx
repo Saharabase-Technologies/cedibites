@@ -120,7 +120,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
                             quantity: localItem.quantity,
                             unit_price: localItem.price,
                             menu_item_size_id: localItem.selectedSize !== 'default' 
-                                ? localItem.item.sizes?.find(s => s.key === localItem.selectedSize)?.id 
+                                ? (localItem.item.sizes?.find(s => s.key === localItem.selectedSize) as { id?: number })?.id 
                                 : undefined,
                         });
                     } catch (error) {
@@ -171,7 +171,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
                     });
                 } else {
                     // Add new item - find the menu_item_size_id if size exists
-                    const menuItemSizeId = sizeData?.id ? parseInt(String(sizeData.id)) : undefined;
+                    const menuItemSizeId = (sizeData as { id?: number })?.id ? parseInt(String((sizeData as { id?: number }).id)) : undefined;
                     
                     await apiCart.addItem({
                         branch_id: Number(selectedBranch.id),

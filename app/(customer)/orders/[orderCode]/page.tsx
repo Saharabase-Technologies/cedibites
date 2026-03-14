@@ -1,8 +1,9 @@
-// app/track/[orderCode]/page.tsx
+// app/(customer)/orders/[orderCode]/page.tsx
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useOrderByNumber } from '@/lib/api/hooks/useOrders';
 import {
     ArrowLeftIcon,
     ShareIcon,
@@ -11,13 +12,120 @@ import {
     PackageIcon,
     SpinnerGapIcon,
 } from '@phosphor-icons/react';
-import Navbar from '@/app/components/layout/Navbar';
-import { type Order, timeAgo, buildOrderTimeline } from '@/types/order';
-import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
+import { timeAgo, buildOrderTimeline } from '@/types/order';
 import OrderTimeline from '@/app/components/order/OrderTimeline';
 import LiveMap from '@/app/components/order/LiveMap';
 import OrderDetails from '@/app/components/order/OrderDetails';
 import Button from '@/app/components/base/Button';
+import type { Order as ApiOrder } from '@/types/api';
+import type { Order as MockOrder, OrderTimelineEvent, OrderStatus as MockOrderStatus } from '@/types/order';
+
+function deriveSizeKey(item: ApiOrder['items'][0]): string {
+    if (item.size_key) return item.size_key;
+    const size = item.menu_item_size;
+    if (size?.size_key) return size.size_key;
+    if (size?.name) return size.name.toLowerCase().replace(/\s+/g, '_');
+    return 'default';
+}
+
+function mapApiStatusToTimeline(status: string): string {
+    return status === 'received' ? 'pending' : status;
+}
+
+function buildDeliveryTimeline(status: string, placedAt: number): OrderTimelineEvent[] {
+    const steps = [
+        { status: 'pending', label: 'Order received', description: 'Confirming your order', offsetMins: 0 },
+        { status: 'confirmed', label: 'Confirmed', description: 'Order confirmed', offsetMins: 1 },
+        { status: 'preparing', label: 'Preparing', description: 'Kitchen is cooking your food', offsetMins: 2 },
+        { status: 'out_for_delivery', label: 'Out for delivery', description: 'Rider is heading to you', offsetMins: 20 },
+        { status: 'delivered', label: 'Delivered', description: 'Enjoy your meal', offsetMins: 35 },
+    ];
+    const currentIndex = steps.findIndex(s => s.status === status);
+    return steps.map((step, i) => ({
+        status: step.status as MockOrderStatus,
+        label: step.label,
+        description: step.description,
+        timestamp: i <= currentIndex ? placedAt + step.offsetMins * 60_000 : null,
+        done: i < currentIndex,
+        active: i === currentIndex,
+    }));
+}
+
+function buildPickupTimeline(status: string, placedAt: number): OrderTimelineEvent[] {
+    const steps = [
+        { status: 'pending', label: 'Order received', description: 'Confirming your order', offsetMins: 0 },
+        { status: 'confirmed', label: 'Confirmed', description: 'Order confirmed', offsetMins: 1 },
+        { status: 'preparing', label: 'Preparing', description: 'Kitchen is cooking your food', offsetMins: 2 },
+        { status: 'ready_for_pickup', label: 'Ready for pickup', description: 'Come collect at the branch', offsetMins: 15 },
+    ];
+    const currentIndex = steps.findIndex(s => s.status === status);
+    return steps.map((step, i) => ({
+        status: step.status as MockOrderStatus,
+        label: step.label,
+        description: step.description,
+        timestamp: i <= currentIndex ? placedAt + step.offsetMins * 60_000 : null,
+        done: i < currentIndex,
+        active: i === currentIndex,
+    }));
+}
+
+function transformApiOrderToMock(apiOrder: ApiOrder): MockOrder {
+    const placedAt = new Date(apiOrder.created_at).getTime();
+    const mappedStatus = mapApiStatusToTimeline(apiOrder.status);
+    const timeline: OrderTimelineEvent[] = apiOrder.order_type === 'delivery'
+        ? buildDeliveryTimeline(mappedStatus, placedAt)
+        : buildPickupTimeline(mappedStatus, placedAt);
+
+    const payment = apiOrder.payment ?? apiOrder.payments?.[0];
+
+    return {
+        id: apiOrder.id.toString(),
+        orderNumber: apiOrder.order_number,
+        status: apiOrder.status as MockOrderStatus,
+        source: 'online',
+        fulfillmentType: apiOrder.order_type,
+        paymentMethod: (payment?.payment_method as MockOrder['paymentMethod']) || 'cash_delivery',
+        paymentStatus: (payment?.payment_status as MockOrder['paymentStatus']) || 'pending',
+        isPaid: payment?.payment_status === 'paid' || payment?.payment_status === 'completed',
+        items: apiOrder.items.map(item => {
+            const sizeKey = deriveSizeKey(item);
+            const sizeLabel = sizeKey === 'default' ? 'Regular' : sizeKey.replace(/_/g, ' ');
+            return {
+                id: item.id.toString(),
+                menuItemId: String(item.menu_item_id),
+                name: item.menu_item.name,
+                unitPrice: Number(item.unit_price) || 0,
+                image: item.menu_item.image_url,
+                sizeLabel,
+                quantity: item.quantity,
+            };
+        }),
+        subtotal: Number(apiOrder.subtotal) || 0,
+        deliveryFee: Number(apiOrder.delivery_fee) ?? 0,
+        discount: 0,
+        tax: Number(apiOrder.tax_amount ?? apiOrder.tax) || 0,
+        total: Number(apiOrder.total_amount ?? apiOrder.total) || 0,
+        contact: {
+            name: apiOrder.contact_name ?? apiOrder.customer_name ?? '',
+            phone: apiOrder.contact_phone ?? apiOrder.customer_phone ?? '',
+            address: apiOrder.delivery_address,
+            notes: apiOrder.delivery_note ?? apiOrder.special_instructions,
+        },
+        branch: {
+            id: apiOrder.branch_id.toString(),
+            name: apiOrder.branch?.name || 'Branch',
+            address: apiOrder.branch?.address || '',
+            phone: apiOrder.branch?.phone || '',
+            coordinates: {
+                latitude: Number(apiOrder.branch?.latitude) || 0,
+                longitude: Number(apiOrder.branch?.longitude) || 0,
+            },
+        },
+        placedAt,
+        estimatedMinutes: 35,
+        timeline,
+    };
+}
 
 interface PageProps {
     params: Promise<{ orderCode: string }>;
@@ -28,32 +136,9 @@ export default function OrderTrackingPage({ params }: PageProps) {
     const searchParams = useSearchParams();
     const resolvedParams = use(params);
     const backPath = searchParams.get('from') === 'order-history' ? '/order-history' : '/orders';
-    const { getOrderById } = useOrderStore();
-    const [order, setOrder] = useState<Order | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [notFound, setNotFound] = useState(false);
-
-    useEffect(() => {
-        // Fetch order
-        const orderData = getOrderById(resolvedParams.orderCode) ?? null;
-
-        if (!orderData) {
-            setNotFound(true);
-            setLoading(false);
-            return;
-        }
-
-        setOrder(orderData);
-        setLoading(false);
-
-        // TODO: WebSocket connection for real-time updates
-        // const ws = new WebSocket(`wss://api.cedibites.com/track/${resolvedParams.orderCode}`);
-        // ws.onmessage = (event) => {
-        //     const update = JSON.parse(event.data);
-        //     setOrder(prev => prev ? { ...prev, ...update } : null);
-        // };
-        // return () => ws.close();
-    }, [resolvedParams.orderCode, getOrderById]);
+    const { order: apiOrder, isLoading: loading, error } = useOrderByNumber(resolvedParams.orderCode);
+    const order = apiOrder ? transformApiOrderToMock(apiOrder) : null;
+    const notFound = !loading && (!!error || !order);
 
     if (loading) {
         return (

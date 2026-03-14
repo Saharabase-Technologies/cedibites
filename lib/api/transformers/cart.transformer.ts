@@ -55,8 +55,9 @@ export function transformLocalToApiRequest(
   cartItem: LocalCartItem,
   branchId: number
 ): AddCartItemRequest {
-  const sizeId = cartItem.selectedSize !== 'default' && cartItem.item.sizes
-    ? cartItem.item.sizes.find((s: { key: string; id?: number }) => s.key === cartItem.selectedSize)?.id
+  const sizeKey = cartItem.selectedSize;
+  const sizeId = sizeKey !== 'default' && cartItem.item.sizes
+    ? (cartItem.item.sizes.find((s) => s.key === sizeKey) as { id?: number } | undefined)?.id
     : undefined;
 
   return {
