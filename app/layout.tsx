@@ -8,11 +8,11 @@ import { LocationProvider } from "./components/providers/LocationProvider";
 import { BranchProvider } from "./components/providers/BranchProvider";
 import { MenuDiscoveryProvider } from "./components/providers/MenuDiscoveryProvider";
 import { CartProvider } from "./components/providers/CartProvider";
-import { QueryProvider } from "./components/providers/QueryProvider";
 import { sampleMenuItems } from "@/lib/data/SampleMenu";
 import LocationRequestModal from "./components/ui/LocationRequestModal";
 import BranchSelectorModal from "./components/ui/BranchSelectorModal";
 import { AuthProvider } from "./components/providers/AuthProvider";
+import { OrderStoreProvider } from "./components/providers/OrderStoreProvider";
 
 const caprasimo = Caprasimo({
   weight: '400',
@@ -45,37 +45,29 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${cabin.variable} ${caprasimo.variable} bg-neutral-light dark:bg-brand-darker antialiased`} suppressHydrationWarning>
-      <body className={abeezee.variable} suppressHydrationWarning>
-        {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && (
-          <>
-            <Script id="gm-auth-failure" strategy="beforeInteractive">
-              {`window.gm_authFailure=function(){window.__MAPS_AUTH_FAILED=true;};`}
-            </Script>
-            <Script
-              src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
-              strategy="beforeInteractive"
-              onError={() => { if (typeof window !== 'undefined') (window as any).__MAPS_AUTH_FAILED = true; }}
-            />
-          </>
-        )}
-        <QueryProvider>
-          <ModalProvider>
-            <AuthProvider>
-              <LocationProvider autoRequest={false}>
-                <BranchProvider>
+    <html lang="en" className={`${cabin.variable} ${caprasimo.variable} bg-neutral-light dark:bg-brand-darker antialiased`}>
+      <body className={abeezee.variable}>
+        <Script
+          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
+          strategy="beforeInteractive"
+        />
+        <ModalProvider>
+          <AuthProvider>
+            <LocationProvider autoRequest={false}>
+              <BranchProvider>
+                <OrderStoreProvider>
                   <MenuDiscoveryProvider items={sampleMenuItems}>
                     <CartProvider>
-                      <LocationRequestModal />
-                      <BranchSelectorModal />
-                      {children}
+                    <LocationRequestModal />
+                    <BranchSelectorModal />
+                    {children}
                     </CartProvider>
                   </MenuDiscoveryProvider>
-                </BranchProvider>
-              </LocationProvider>
-            </AuthProvider>
-          </ModalProvider>
-        </QueryProvider>
+                </OrderStoreProvider>
+              </BranchProvider>
+            </LocationProvider>
+          </AuthProvider>
+        </ModalProvider>
       </body>
     </html>
   );

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { CaretDownIcon, CaretUpIcon, ReceiptIcon } from '@phosphor-icons/react';
 import type { Order } from '@/types/order';
-import { formatPrice, PAY_LABEL } from '@/types/order';
+import { formatPrice, getPaymentLabel } from '@/types/order';
 
 interface OrderDetailsProps {
     order: Order;
@@ -73,7 +73,7 @@ export default function OrderDetails({ order }: OrderDetailsProps) {
                                             </p>
                                         </div>
                                         <span className="font-semibold text-text-dark dark:text-text-light shrink-0">
-                                            {formatPrice(item.price * item.quantity)}
+                                            {formatPrice(item.unitPrice * item.quantity)}
                                         </span>
                                     </div>
                                 </div>
@@ -118,7 +118,7 @@ export default function OrderDetails({ order }: OrderDetailsProps) {
                         {/* Payment Status */}
                         <div className="flex items-center justify-between pt-2">
                             <span className="text-sm text-neutral-gray">
-                                {PAY_LABEL[order.paymentMethod]}
+                                {getPaymentLabel(order.paymentMethod, order.fulfillmentType)}
                             </span>
                             {order.isPaid && (
                                 <span className="text-xs font-semibold px-2 py-1 rounded-full bg-secondary/15 text-secondary">

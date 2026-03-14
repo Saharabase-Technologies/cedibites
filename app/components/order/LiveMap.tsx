@@ -98,7 +98,7 @@ export default function LiveMap({
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
                         scale: 12,
-                        fillColor: '#e49925',
+                        fillColor: '#3b82f6',
                         fillOpacity: 1,
                         strokeColor: '#ffffff',
                         strokeWeight: 3,
@@ -172,7 +172,7 @@ export default function LiveMap({
                     )}
                     {riderLocation && (
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-primary ring-2 ring-primary/30" />
+                            <div className="w-3 h-3 rounded-full bg-blue-500 ring-2 ring-blue-500/30" />
                             <span className="text-text-dark dark:text-text-light">Rider</span>
                         </div>
                     )}

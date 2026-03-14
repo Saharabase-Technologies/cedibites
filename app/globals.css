@@ -22,6 +22,7 @@
 
   /* Neutral Colors */
   --color-neutral-light: #fbf6ed;
+  --color-neutral-card: #fffbf3;
   --color-neutral-gray: #8b7f70;
 
   /* Dark Colors */
@@ -77,5 +78,41 @@ body {
     /* IE and Edge */
     scrollbar-width: none;
     /* Firefox */
+  }
+}
+
+@layer components {
+
+  /* Thin Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    @apply w-1 h-1 px-2 mx-2 opacity-0 hidden;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-neutral-light rounded-full opacity-10;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-brown/50 rounded-full px-1 mx-2;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-brown-light;
+  }
+
+  .custom-scrollbar2::-webkit-scrollbar {
+    @apply w-1 h-1 px-2 mx-2 opacity-0;
+  }
+
+  .custom-scrollbar2::-webkit-scrollbar-track {
+    @apply bg-neutral-light rounded-full opacity-10;
+  }
+
+  .custom-scrollbar2::-webkit-scrollbar-thumb {
+    @apply bg-brown/50 rounded-full px-1 mx-2;
+  }
+
+  .custom-scrollbar2::-webkit-scrollbar-thumb:hover {
+    @apply bg-brown-light;
   }
 }
