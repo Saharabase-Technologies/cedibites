@@ -20,7 +20,7 @@ const SEED_ORDERS: Order[] = [
     {
         id: 'A001', orderNumber: 'A001',
         status: 'received', source: 'whatsapp', fulfillmentType: 'delivery',
-        paymentMethod: 'momo', isPaid: true, paymentStatus: 'completed',
+        paymentMethod: 'mobile_money', isPaid: true, paymentStatus: 'completed',
         items: [
             { id: '1', menuItemId: 'jollof', name: 'Jollof Rice', quantity: 2, unitPrice: 35, sizeLabel: 'Regular' },
             { id: '2', menuItemId: 'malt', name: 'Malt', quantity: 2, unitPrice: 12, sizeLabel: 'Regular' },
@@ -47,7 +47,7 @@ const SEED_ORDERS: Order[] = [
     {
         id: 'A003', orderNumber: 'A003',
         status: 'preparing', source: 'social_media', fulfillmentType: 'delivery',
-        paymentMethod: 'momo', isPaid: true, paymentStatus: 'completed',
+        paymentMethod: 'mobile_money', isPaid: true, paymentStatus: 'completed',
         items: [
             { id: '1', menuItemId: 'banku', name: 'Banku & Tilapia', quantity: 1, unitPrice: 55, sizeLabel: 'Regular' },
         ],
@@ -74,7 +74,7 @@ const SEED_ORDERS: Order[] = [
     {
         id: 'A005', orderNumber: 'A005',
         status: 'ready', source: 'phone', fulfillmentType: 'delivery',
-        paymentMethod: 'momo', isPaid: true, paymentStatus: 'completed',
+        paymentMethod: 'mobile_money', isPaid: true, paymentStatus: 'completed',
         items: [
             { id: '1', menuItemId: 'fried-rice', name: 'Fried Rice', quantity: 1, unitPrice: 35, sizeLabel: 'Regular' },
             { id: '2', menuItemId: 'coke', name: 'Coke', quantity: 1, unitPrice: 12, sizeLabel: 'Regular' },
@@ -88,7 +88,7 @@ const SEED_ORDERS: Order[] = [
     {
         id: 'A006', orderNumber: 'A006',
         status: 'out_for_delivery', source: 'whatsapp', fulfillmentType: 'delivery',
-        paymentMethod: 'momo', isPaid: true, paymentStatus: 'completed',
+        paymentMethod: 'mobile_money', isPaid: true, paymentStatus: 'completed',
         items: [
             { id: '1', menuItemId: 'jollof', name: 'Jollof Rice', quantity: 3, unitPrice: 35, sizeLabel: 'Regular' },
         ],
@@ -117,7 +117,7 @@ const SEED_ORDERS: Order[] = [
     {
         id: 'A008', orderNumber: 'A008',
         status: 'delivered', source: 'online', fulfillmentType: 'delivery',
-        paymentMethod: 'momo', isPaid: true, paymentStatus: 'completed',
+        paymentMethod: 'mobile_money', isPaid: true, paymentStatus: 'completed',
         items: [
             { id: '1', menuItemId: 'waakye', name: 'Waakye', quantity: 2, unitPrice: 30, sizeLabel: 'Regular' },
         ],
@@ -146,7 +146,7 @@ const SEED_ORDERS: Order[] = [
     {
         id: 'A010', orderNumber: 'A010',
         status: 'ready', source: 'pos', fulfillmentType: 'takeaway',
-        paymentMethod: 'momo', isPaid: true, paymentStatus: 'completed',
+        paymentMethod: 'mobile_money', isPaid: true, paymentStatus: 'completed',
         items: [
             { id: '1', menuItemId: 'fried-rice', name: 'Fried Rice (Plain)', quantity: 2, unitPrice: 65, variantKey: 'plain' },
         ],
@@ -175,7 +175,7 @@ const SEED_ORDERS: Order[] = [
     {
         id: 'A012', orderNumber: 'A012',
         status: 'out_for_delivery', source: 'online', fulfillmentType: 'delivery',
-        paymentMethod: 'momo', isPaid: true, paymentStatus: 'completed',
+        paymentMethod: 'mobile_money', isPaid: true, paymentStatus: 'completed',
         items: [
             { id: '1', menuItemId: 'jollof', name: 'Jollof Rice & Chicken', quantity: 2, unitPrice: 45, icon: '🍛', sizeLabel: 'Large' },
             { id: '2', menuItemId: 'kelewele', name: 'Kelewele', quantity: 1, unitPrice: 15, icon: '🍌', sizeLabel: 'Regular' },
@@ -191,7 +191,7 @@ const SEED_ORDERS: Order[] = [
     {
         id: 'A013', orderNumber: 'A013',
         status: 'received', source: 'whatsapp', fulfillmentType: 'delivery',
-        paymentMethod: 'momo', isPaid: false, paymentStatus: 'pending',
+        paymentMethod: 'mobile_money', isPaid: false, paymentStatus: 'pending',
         items: [
             { id: '1', menuItemId: 'fried-rice', name: 'Fried Rice (Assorted)', quantity: 1, unitPrice: 85, variantKey: 'assorted', category: 'Basic Meals' },
             { id: '2', menuItemId: 'jollof-bowl', name: 'Jollof Bowl', quantity: 1, unitPrice: 60, variantKey: 'small', sizeLabel: 'Small', category: 'Budget Bowls' },
@@ -306,8 +306,8 @@ export class MockOrderService implements OrderService {
             source: input.source,
             fulfillmentType: input.fulfillmentType,
             paymentMethod: input.paymentMethod,
-            isPaid: input.paymentMethod === 'momo' || input.paymentMethod === 'no_charge',
-            paymentStatus: (input.paymentMethod === 'momo' || input.paymentMethod === 'no_charge') ? 'completed' : 'pending',
+            isPaid: input.paymentMethod === 'mobile_money' || input.paymentMethod === 'no_charge',
+            paymentStatus: (input.paymentMethod === 'mobile_money' || input.paymentMethod === 'no_charge') ? 'completed' : 'pending',
             items: itemsWithIds,
             subtotal,
             deliveryFee,

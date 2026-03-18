@@ -96,7 +96,7 @@ function expandItem(item: DisplayMenuItem): DisplayRow[] {
 // ─── Payment options ──────────────────────────────────────────────────────────
 
 const PAYMENT_OPTIONS: { id: PaymentMethod; label: string; icon: React.ElementType; deliveryOnly?: boolean; pickupOnly?: boolean }[] = [
-    { id: 'momo', label: 'MoMo', icon: DeviceMobileIcon },
+    { id: 'mobile_money', label: 'MoMo', icon: DeviceMobileIcon },
     { id: 'cash', label: 'Cash', icon: MoneyIcon },
     { id: 'no_charge', label: 'No Charge', icon: ProhibitIcon },
 ];
@@ -124,7 +124,7 @@ export default function NewOrderFlow() {
 
     // Pre-fill MoMo number from customer phone when MoMo is selected
     useEffect(() => {
-        if (payment === 'momo' && !momoNumber && customer.phone) {
+        if (payment === 'mobile_money' && !momoNumber && customer.phone) {
             console.log('Auto-filling MoMo number:', customer.phone);
             setMomoNumber(customer.phone);
         }
@@ -180,10 +180,10 @@ export default function NewOrderFlow() {
             payment,
             cartLength: cart.length,
             isSubmitting,
-            momoNumber: payment === 'momo' ? momoNumber : 'N/A'
+            momoNumber: payment === 'mobile_money' ? momoNumber : 'N/A'
         });
         
-        if (payment === 'momo') setMomoStep('awaiting');
+        if (payment === 'mobile_money') setMomoStep('awaiting');
         await submit();
     }, [payment, submit, source, branchId, cart.length, isSubmitting, momoNumber]);
 
@@ -437,7 +437,7 @@ export default function NewOrderFlow() {
                     </div>
 
                     {/* Branch */}
-                    {staffUser?.role === 'super_admin' ? (
+                    {(staffUser?.role === 'super_admin' || staffUser?.role === 'call_center') ? (
                         <div className="mb-3">
                             <select
                                 value={branchId ?? ''}
@@ -501,7 +501,7 @@ export default function NewOrderFlow() {
                     </div>
 
                     {/* MoMo number */}
-                    {payment === 'momo' && (
+                    {payment === 'mobile_money' && (
                         <div className="relative mb-3">
                             <DeviceMobileIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
                             <input
@@ -537,9 +537,9 @@ export default function NewOrderFlow() {
                     {/* Place Order */}
                     <button
                         onClick={handlePlaceOrder}
-                        disabled={!source || !branchId || !payment || cart.length === 0 || isSubmitting || (payment === 'momo' && !momoNumber.trim())}
+                        disabled={!source || !branchId || !payment || cart.length === 0 || isSubmitting || (payment === 'mobile_money' && !momoNumber.trim())}
                         className="w-full h-11 rounded-xl bg-primary text-brown font-semibold text-sm flex items-center justify-center gap-2 hover:bg-primary-hover active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100 transition-all"
-                        title={`Debug: source=${source}, branchId=${branchId}, payment=${payment}, cart=${cart.length}, submitting=${isSubmitting}, momoNumber=${payment === 'momo' ? momoNumber : 'N/A'}`}
+                        title={`Debug: source=${source}, branchId=${branchId}, payment=${payment}, cart=${cart.length}, submitting=${isSubmitting}, momoNumber=${payment === 'mobile_money' ? momoNumber : 'N/A'}`}
                     >
                         {isSubmitting ? (
                             <><SpinnerIcon className="w-4 h-4 animate-spin" /> Placing…</>
@@ -549,11 +549,11 @@ export default function NewOrderFlow() {
                     </button>
 
                     {/* Validation hint */}
-                    {((!source || !branchId || (payment === 'momo' && !momoNumber.trim())) && cart.length > 0) && (
+                    {((!source || !branchId || (payment === 'mobile_money' && !momoNumber.trim())) && cart.length > 0) && (
                         <p className="text-[10px] text-neutral-gray text-center mt-1.5">
                             {!source ? 'Select a source (Phone/WhatsApp/Social Media)' : 
                              !branchId ? 'Select a branch' : 
-                             (payment === 'momo' && !momoNumber.trim()) ? 'Enter MoMo number' : 
+                             (payment === 'mobile_money' && !momoNumber.trim()) ? 'Enter MoMo number' : 
                              'Complete all required fields'} to continue
                         </p>
                     )}

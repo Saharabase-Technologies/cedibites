@@ -3,9 +3,10 @@ import type { Order as UnifiedOrder, OrderItem, OrderStatus } from '@/types/orde
 import type { PaymentMethod } from '@/types/order';
 
 function mapApiPaymentMethod(api?: string): PaymentMethod {
-  if (api === 'momo') return 'momo';
+  if (api === 'mobile_money') return 'mobile_money';
   if (api === 'cash_delivery' || api === 'cash_pickup') return 'cash';
   if (api === 'card') return 'card';
+  if (api === 'no_charge') return 'no_charge';
   return 'cash';
 }
 

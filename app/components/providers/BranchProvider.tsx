@@ -72,7 +72,7 @@ function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
         deliveryRadius,
         deliveryFee,
         operatingHours,
-        isOpen: apiBranch.is_active,
+        isOpen: apiBranch.is_open ?? apiBranch.is_active,
         menuItemIds: apiBranch.menu_items?.map(item => String(item.id)) ?? [],
     };
 }

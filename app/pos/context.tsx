@@ -271,7 +271,7 @@ export function POSProvider({ children }: POSProviderProps) {
         staffId: session.staffId, staffName: session.staffName,
       },
       {
-        source: 'pos', fulfillmentType: 'takeaway', paymentMethod: 'momo',
+        source: 'pos', fulfillmentType: 'takeaway', paymentMethod: 'mobile_money',
         items: [
           { menuItemId: '3', name: 'Waakye Special', quantity: 1, unitPrice: 65 },
         ],

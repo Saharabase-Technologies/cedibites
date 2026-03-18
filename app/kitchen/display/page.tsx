@@ -13,7 +13,6 @@ import {
   ArrowsInIcon,
   SpeakerHighIcon,
   SpeakerSlashIcon,
-  PlusCircleIcon,
 } from '@phosphor-icons/react';
 
 // ─── Elapsed timer hook ────────────────────────────────────────────────────
@@ -99,7 +98,6 @@ export default function KitchenDisplayPage() {
     ordersByStatus,
     soundEnabled, setSoundEnabled,
     isFullscreen, toggleFullscreen,
-    simulateNewOrder,
   } = useKitchen();
 
   const sounds = useKitchenSounds();
@@ -133,13 +131,6 @@ export default function KitchenDisplayPage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={simulateNewOrder}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm font-medium transition-colors"
-            >
-              <PlusCircleIcon size={16} />
-              Test
-            </button>
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
               title={soundEnabled ? 'Mute sounds' : 'Unmute sounds'}

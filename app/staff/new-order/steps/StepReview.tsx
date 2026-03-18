@@ -29,7 +29,7 @@ const PAYMENT_OPTIONS: {
     icon: React.ElementType;
     only?: 'delivery' | 'pickup';
 }[] = [
-        { id: 'momo',      label: 'Mobile Money',     sub: 'MTN, Telecel, AirtelTigo',   icon: DeviceMobileIcon },
+        { id: 'mobile_money',      label: 'Mobile Money',     sub: 'MTN, Telecel, AirtelTigo',   icon: DeviceMobileIcon },
         { id: 'cash',      label: 'Cash on Delivery', sub: 'Paid when delivered',         icon: MoneyIcon,    only: 'delivery' },
         { id: 'cash',      label: 'Cash at Pickup',   sub: 'Paid at branch',              icon: HandCoinsIcon, only: 'pickup' },
         { id: 'no_charge', label: 'No Charge',        sub: 'Staff meal — not billed',     icon: ProhibitIcon },
@@ -173,7 +173,7 @@ export default function StepReview() {
                                 </div>
                             </button>
 
-                            {id === 'momo' && payment === 'momo' && idx === 0 && (
+                            {id === 'mobile_money' && payment === 'mobile_money' && idx === 0 && (
                                 <div className="flex flex-col gap-3 px-4 py-3.5 rounded-2xl border-2 border-brown-light/20">
                                     <div>
                                         <label className="text-xs font-semibold text-neutral-gray mb-1.5 block">Mobile Network</label>
@@ -234,7 +234,7 @@ export default function StepReview() {
                 <button
                     type="button"
                     onClick={submit}
-                    disabled={!payment || (payment === 'momo' && !momoNetwork) || isSubmitting}
+                    disabled={!payment || (payment === 'mobile_money' && !momoNetwork) || isSubmitting}
                     className="
             flex-1 flex items-center justify-center gap-2
             bg-primary hover:bg-primary-hover

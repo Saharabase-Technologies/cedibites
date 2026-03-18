@@ -20,7 +20,7 @@ export type OrderSource = 'online' | 'phone' | 'whatsapp' | 'social_media' | 'po
 
 export type FulfillmentType = 'delivery' | 'pickup' | 'dine_in' | 'takeaway';
 
-export type PaymentMethod = 'momo' | 'cash' | 'card' | 'no_charge';
+export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'no_charge';
 
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 
@@ -363,7 +363,7 @@ export function haversineKm(
 // ─── Helper: get payment label with fulfillment context ──────────────────────
 
 export function getPaymentLabel(method: PaymentMethod, fulfillment?: FulfillmentType): string {
-    if (method === 'momo') return 'Mobile Money';
+    if (method === 'mobile_money') return 'Mobile Money';
     if (method === 'card') return 'Card';
     if (method === 'cash') {
         if (fulfillment === 'delivery') return 'Cash on Delivery';

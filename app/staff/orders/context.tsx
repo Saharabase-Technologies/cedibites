@@ -262,7 +262,7 @@ export function OrdersProvider({ children, role = 'call_center' }: { children: R
         createOrder({
             source: 'whatsapp',
             fulfillmentType,
-            paymentMethod: 'momo',
+            paymentMethod: 'mobile_money',
             items,
             contact: {
                 name: DEMO_CUSTOMERS[idx].name,

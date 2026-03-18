@@ -17,7 +17,7 @@ import { STATUS_CONFIG } from '@/app/staff/orders/constants';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useAnalytics } from '@/lib/api/hooks/useAnalytics';
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
-import { analyticsService } from '@/lib/api/services/analytics.service';
+import { analyticsService, type TopItem, type PaymentMethod } from '@/lib/api/services/analytics.service';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,32 +38,6 @@ interface AnalyticsOrder {
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const HOURS = ['7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22'];
-
-const topItems = [
-    { name: 'Jollof Rice',        units: 47, rev: 630, trend: +12 },
-    { name: 'Waakye',             units: 32, rev: 480, trend: +5  },
-    { name: 'Kelewele & Tilapia', units: 28, rev: 495, trend: -3  },
-    { name: 'Banku & Okro',       units: 21, rev: 315, trend: +8  },
-    { name: 'Milo Ice Cream',     units: 19, rev: 190, trend: +22 },
-];
-
-const outOfStock = [
-    { name: 'Fried Yam',        times: 8, lastOOS: '11:42 AM' },
-    { name: 'Sobolo (Large)',   times: 5, lastOOS: '1:15 PM'  },
-    { name: 'Fufu & Light Soup', times: 3, lastOOS: '12:03 PM' },
-];
-
-const prepTimes = [
-    { label: '6AM',  mins: 9  },
-    { label: '8AM',  mins: 11 },
-    { label: '10AM', mins: 8  },
-    { label: '12PM', mins: 18 },
-    { label: '2PM',  mins: 14 },
-    { label: '4PM',  mins: 10 },
-    { label: 'Now',  mins: 13 },
-];
-
-const paymentSplit = { mobileMoney: 64, cash: 36 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -288,9 +262,21 @@ function PeakHoursHeatmap({ ordersByHour }: { ordersByHour?: Array<{ hour: numbe
 
 // ─── Avg prep time ────────────────────────────────────────────────────────────
 
-function PrepTimeTrend() {
+function PrepTimeTrend({ avgPrepTime }: { avgPrepTime?: number }) {
     const TARGET = 12;
     const MAX    = 20;
+    
+    // Mock data for now since we don't have hourly prep time breakdown from API
+    const prepTimes = [
+        { label: '6AM',  mins: 9  },
+        { label: '8AM',  mins: 11 },
+        { label: '10AM', mins: 8  },
+        { label: '12PM', mins: 18 },
+        { label: '2PM',  mins: 14 },
+        { label: '4PM',  mins: 10 },
+        { label: 'Now',  mins: avgPrepTime ?? 13 },
+    ];
+    
     return (
         <Card>
             <SectionHeader title="Avg. Prep Time Today" sub={`Target: ${TARGET} mins — red = over`} />
@@ -329,7 +315,11 @@ function PrepTimeTrend() {
             <div className="mt-3 px-3 py-2 bg-neutral-gray/10 rounded-xl flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
                 <p className="text-[11px] text-neutral-gray font-body">
-                    Lunch rush (12PM) peaked at <span className="text-text-dark font-semibold">18 mins</span> — 6 mins over target
+                    {avgPrepTime ? (
+                        <>Current avg: <span className="text-text-dark font-semibold">{Math.round(avgPrepTime)} mins</span></>
+                    ) : (
+                        <>Lunch rush (12PM) peaked at <span className="text-text-dark font-semibold">18 mins</span> — 6 mins over target</>
+                    )}
                 </p>
             </div>
         </Card>
@@ -338,8 +328,9 @@ function PrepTimeTrend() {
 
 // ─── Payment split ────────────────────────────────────────────────────────────
 
-function PaymentSplitCard() {
-    const { mobileMoney, cash } = paymentSplit;
+function PaymentSplitCard({ methods }: { methods?: PaymentMethod[] }) {
+    const mobileMoney = methods?.find(m => m.label.toLowerCase().includes('mobile'))?.pct ?? 0;
+    const cash = methods?.find(m => m.label.toLowerCase().includes('cash'))?.pct ?? 0;
     const circumference = 2 * Math.PI * 30;
     const mmDash = (mobileMoney / 100) * circumference;
 
@@ -359,7 +350,7 @@ function PaymentSplitCard() {
                         />
                     </svg>
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-sm font-bold font-body text-primary">{mobileMoney}%</span>
+                        <span className="text-sm font-bold font-body text-primary">{Math.round(mobileMoney)}%</span>
                     </div>
                 </div>
                 {/* Bars */}
@@ -374,7 +365,7 @@ function PaymentSplitCard() {
                                     <div className="w-2 h-2 rounded-full" style={{ background: row.color }} />
                                     <span className="text-xs font-body text-text-dark">{row.label}</span>
                                 </div>
-                                <span className={`text-xs font-bold font-body ${row.textColor}`}>{row.pct}%</span>
+                                <span className={`text-xs font-bold font-body ${row.textColor}`}>{Math.round(row.pct)}%</span>
                             </div>
                             <div className="h-1 bg-neutral-gray/15 rounded-full overflow-hidden">
                                 <div className="h-full rounded-full" style={{ width: `${row.pct}%`, background: row.color, transition: 'width 0.4s ease' }} />
@@ -382,7 +373,7 @@ function PaymentSplitCard() {
                         </div>
                     ))}
                     <div className="text-[11px] text-neutral-gray font-body px-2 py-1.5 bg-neutral-gray/10 rounded-lg">
-                        Keep ~<span className="text-text-dark font-semibold">₵800</span> cash float for today
+                        Keep ~<span className="text-text-dark font-semibold">₵{Math.round(cash * 8)}</span> cash float for today
                     </div>
                 </div>
             </div>
@@ -421,14 +412,27 @@ function FulfilmentRate() {
 
 // ─── Top items ────────────────────────────────────────────────────────────────
 
-function TopItemsCard() {
-    const maxRev = Math.max(...topItems.map(i => i.rev));
+function TopItemsCard({ items }: { items?: TopItem[] }) {
+    const topItems = items?.slice(0, 5) ?? [];
+    const maxRev = Math.max(...topItems.map(i => i.rev), 1);
+    
+    if (topItems.length === 0) {
+        return (
+            <Card className="flex-1 min-w-0">
+                <SectionHeader title="Top 5 Items Today" sub="By revenue — units in brackets" />
+                <div className="text-center py-8 text-neutral-gray text-sm font-body">
+                    No data available
+                </div>
+            </Card>
+        );
+    }
+    
     return (
         <Card className="flex-1 min-w-0">
             <SectionHeader title="Top 5 Items Today" sub="By revenue — units in brackets" />
             <div className="flex flex-col gap-3">
                 {topItems.map((item, i) => (
-                    <div key={item.name}>
+                    <div key={item.id ?? item.name}>
                         <div className="flex justify-between items-center mb-1.5">
                             <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-bold font-body text-neutral-gray/50 w-3">{i + 1}</span>
@@ -468,6 +472,13 @@ function TopItemsCard() {
 // ─── Out of stock alerts ──────────────────────────────────────────────────────
 
 function OutOfStockCard() {
+    // Mock data - no backend endpoint available yet
+    const outOfStock = [
+        { name: 'Fried Yam',        times: 8, lastOOS: '11:42 AM' },
+        { name: 'Sobolo (Large)',   times: 5, lastOOS: '1:15 PM'  },
+        { name: 'Fufu & Light Soup', times: 3, lastOOS: '12:03 PM' },
+    ];
+    
     return (
         <Card className="flex-1 min-w-[220px]">
             <SectionHeader title="Out-of-Stock Alerts" sub="Frequency today — action needed" />
@@ -582,6 +593,27 @@ export default function ManagerAnalyticsPage() {
         staleTime: 2 * 60 * 1000,
     });
 
+    const { data: topItems } = useQuery({
+        queryKey: ['analytics', 'top-items', 'today', branchId],
+        queryFn: () => analyticsService.getTopItemsAnalytics({ 
+            date_from: new Date().toISOString().slice(0, 10),
+            date_to: new Date().toISOString().slice(0, 10),
+            branch_id: branchId,
+            limit: 5
+        }),
+        staleTime: 2 * 60 * 1000,
+    });
+
+    const { data: paymentMethods } = useQuery({
+        queryKey: ['analytics', 'payment-methods', 'today', branchId],
+        queryFn: () => analyticsService.getPaymentMethodAnalytics({
+            date_from: new Date().toISOString().slice(0, 10),
+            date_to: new Date().toISOString().slice(0, 10),
+            branch_id: branchId,
+        }),
+        staleTime: 2 * 60 * 1000,
+    });
+
     const weekRevenue = useMemo(() => mapSalesByDayToWeekBars(weekSales?.sales_by_day), [weekSales?.sales_by_day]);
     const lastWeekRevenue = useMemo(() => mapSalesByDayToWeekBars(lastWeekSales?.sales_by_day), [lastWeekSales?.sales_by_day]);
     const TODAY_IDX = (new Date().getDay() + 6) % 7;
@@ -674,14 +706,14 @@ export default function ManagerAnalyticsPage() {
 
             {/* ══ ROW 3 — Prep time + Payment split + Fulfilment ══════════════ */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                <PrepTimeTrend />
-                <PaymentSplitCard />
+                <PrepTimeTrend avgPrepTime={todayOrderAnalytics?.average_prep_time} />
+                <PaymentSplitCard methods={paymentMethods} />
                 <FulfilmentRate />
             </div>
 
             {/* ══ ROW 4 — Top items + OOS ══════════════════════════════════════ */}
             <div className="flex flex-col md:flex-row gap-3 mb-8">
-                <TopItemsCard />
+                <TopItemsCard items={topItems} />
                 <OutOfStockCard />
             </div>
 

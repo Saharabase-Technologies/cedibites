@@ -70,10 +70,10 @@ export const SOURCE_LABEL: Record<OrderSource, string> = Object.fromEntries(
 // ─── Payment labels ─────────────────────────────────────────────────────────
 
 export const PAYMENT_LABELS: Record<PaymentMethod, { short: string; full: string }> = {
-    momo:      { short: 'MoMo',      full: 'Mobile Money (MoMo)' },
-    cash:      { short: 'Cash',      full: 'Cash Payment' },
-    card:      { short: 'Card',      full: 'Card Payment' },
-    no_charge: { short: 'No Charge', full: 'No Charge (Staff)' },
+    mobile_money: { short: 'MoMo',      full: 'Mobile Money (MoMo)' },
+    cash:         { short: 'Cash',      full: 'Cash Payment' },
+    card:         { short: 'Card',      full: 'Card Payment' },
+    no_charge:    { short: 'No Charge', full: 'No Charge (Staff)' },
 };
 
 // ─── Fulfillment labels ─────────────────────────────────────────────────────

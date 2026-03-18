@@ -12,13 +12,8 @@ export type SearchableItem = MenuItem;
  * Transform API MenuItem to local SearchableItem format
  */
 function transformApiMenuItemToSearchable(apiItem: ApiMenuItem): SearchableItem {
-    const categoryMap: Record<number, SearchableItem['category']> = {
-        1: 'Basic Meals',
-        2: 'Budget Bowls',
-        3: 'Combos',
-        4: 'Top Ups',
-        5: 'Drinks',
-    };
+    // Use the actual category name from the API instead of hardcoded mapping
+    const categoryName = apiItem.category?.name || 'Basic Meals';
 
     // Transform sizes if they exist
     const sizes = apiItem.sizes?.map(size => ({
@@ -36,7 +31,7 @@ function transformApiMenuItemToSearchable(apiItem: ApiMenuItem): SearchableItem 
         id: apiItem.id.toString(),
         name: apiItem.name,
         description: apiItem.description,
-        category: categoryMap[apiItem.category_id] || 'Basic Meals',
+        category: categoryName as any,
         price,
         sizes: hasMultipleSizes ? sizes : undefined,
         image: apiItem.image_url,

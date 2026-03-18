@@ -591,6 +591,13 @@ export default function ManagerMenuPage() {
     const optionTemplates = config.optionTemplates;
     const addOns = config.addOns;
 
+    // Derive actual categories from menu items (includes both config categories and any custom ones)
+    const actualCategories = useMemo(() => {
+        const fromItems = [...new Set(menuItems.map(item => item.category))].filter(Boolean);
+        const combined = [...new Set([...config.categories, ...fromItems])];
+        return combined.sort();
+    }, [menuItems, config.categories]);
+
     const filtered = useMemo(() => items.filter(item => {
         if (item.archived) return false;
         const matchSearch = item.name.toLowerCase().includes(search.toLowerCase());
@@ -600,17 +607,16 @@ export default function ManagerMenuPage() {
 
     const archived = useMemo(() => items.filter(i => i.archived), [items]);
 
-    // Group by category order (from config, then any unconfigured categories on items)
+    // Group by category order (from actual categories in use)
     const grouped = useMemo(() => {
-        const order = [...categories, ...items.map(i => i.category).filter(c => !categories.includes(c))];
         const map = new Map<string, ManagedMenuItem[]>();
-        order.forEach(c => map.set(c, []));
+        actualCategories.forEach(c => map.set(c, []));
         filtered.forEach(item => {
             if (!map.has(item.category)) map.set(item.category, []);
             map.get(item.category)!.push(item);
         });
         return map;
-    }, [filtered, items, categories]);
+    }, [filtered, actualCategories]);
 
     function toggleAvailability(id: string) {
         setItems(prev => prev.map(item => item.id === id ? { ...item, available: !item.available } : item));
@@ -640,7 +646,7 @@ export default function ManagerMenuPage() {
         setItems(prev => prev.filter(item => item.id !== id));
     }
 
-    const allCategoryOptions = ['All', ...categories];
+    const allCategoryOptions = ['All', ...actualCategories];
     const activeItems = items.filter(i => !i.archived);
     const availableCount = activeItems.filter(i => i.available).length;
     const unavailableCount = activeItems.length - availableCount;
@@ -862,7 +868,7 @@ export default function ManagerMenuPage() {
             {editingItem !== null && (
                 <ItemModal
                     item={editingItem === 'new' ? null : editingItem}
-                    categories={categories}
+                    categories={actualCategories}
                     optionTemplates={optionTemplates}
                     addOns={addOns}
                     onSave={handleSave}

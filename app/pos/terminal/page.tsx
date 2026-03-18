@@ -684,13 +684,13 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
         return;
       }
       await onPayment('cash', paid);
-    } else if (selectedMethod === 'momo') {
+    } else if (selectedMethod === 'mobile_money') {
       if (momoNumber.length < 10) {
         alert('Please enter a valid phone number');
         setIsProcessing(false);
         return;
       }
-      await onPayment('momo', undefined, momoNumber);
+      await onPayment('mobile_money', undefined, momoNumber);
     } else {
       await onPayment('card');
     }
@@ -725,7 +725,7 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
           <div className="grid grid-cols-2 gap-3">
             {[
               { id: 'cash' as const, label: 'Cash', icon: CurrencyDollarIcon },
-              { id: 'momo' as const, label: 'MoMo', icon: DeviceMobileIcon },
+              { id: 'mobile_money' as const, label: 'MoMo', icon: DeviceMobileIcon },
               { id: 'card' as const, label: 'Card', icon: CreditCardIcon },
               { id: 'no_charge' as const, label: 'No Charge', icon: ProhibitIcon },
             ].map(method => (
@@ -788,7 +788,7 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
           )}
 
           {/* MoMo Input */}
-          {selectedMethod === 'momo' && (
+          {selectedMethod === 'mobile_money' && (
             <div className="pt-2">
               <input
                 type="tel"

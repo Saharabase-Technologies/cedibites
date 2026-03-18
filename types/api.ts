@@ -49,6 +49,7 @@ export interface Branch {
   latitude: number;
   longitude: number;
   is_active: boolean;
+  is_open?: boolean;
   operating_hours?: Record<string, {
     is_open: boolean;
     open_time: string | null;
@@ -160,7 +161,7 @@ export type OrderStatus =
 
 export type OrderType = 'delivery' | 'pickup';
 
-export type PaymentMethod = 'momo' | 'cash_delivery' | 'cash_pickup';
+export type PaymentMethod = 'mobile_money' | 'cash';
 
 export type PaymentStatus = 'pending' | 'paid' | 'completed' | 'failed' | 'refunded';
 

@@ -18,6 +18,12 @@ export interface RegisterRequest {
   otp: string;
 }
 
+export interface QuickRegisterRequest {
+  name: string;
+  phone: string;
+  email?: string;
+}
+
 export const authService = {
   /**
    * Send OTP to phone number
@@ -38,6 +44,13 @@ export const authService = {
    */
   register: (data: RegisterRequest): Promise<{ data: AuthResponse }> => {
     return apiClient.post('/auth/register', data);
+  },
+
+  /**
+   * Quick register after order (no OTP required)
+   */
+  quickRegister: (data: QuickRegisterRequest): Promise<{ data: AuthResponse }> => {
+    return apiClient.post('/auth/quick-register', data);
   },
 
   /**

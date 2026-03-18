@@ -20,7 +20,7 @@ import { useCreateOrder } from '@/lib/api/hooks/useOrders';
 import type { PaymentMethod as UnifiedPaymentMethod, FulfillmentType } from '@/types/order';
 
 type OrderType = 'delivery' | 'pickup';
-type PaymentMethod = 'momo' | 'cash_delivery' | 'cash_pickup';
+type PaymentMethod = 'mobile_money' | 'cash';
 type Step = 1 | 2 | 3;
 type BranchSheetView = 'list' | 'conflict';
 
@@ -497,10 +497,9 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
     const [momoNetwork, setMomoNetwork] = useState<'mtn' | 'telecel' | 'airteltigo'>('mtn');
 
     const methods = [
-        { id: 'momo' as const, icon: <DeviceMobileIcon weight="fill" size={20} />, label: 'Mobile Money', sub: 'MTN MoMo · Telecel · AirtelTigo', color: 'text-warning' },
-        { id: 'cash_delivery' as const, icon: <MoneyIcon weight="fill" size={20} />, label: 'Cash on Delivery', sub: 'Pay when your order arrives', color: 'text-secondary', hide: orderType === 'pickup' },
-        { id: 'cash_pickup' as const, icon: <MoneyIcon weight="fill" size={20} />, label: 'Cash at Pickup', sub: 'Pay when you collect', color: 'text-secondary', hide: orderType === 'delivery' },
-    ].filter(m => !m.hide);
+        { id: 'mobile_money' as const, icon: <DeviceMobileIcon weight="fill" size={20} />, label: 'Mobile Money', sub: 'MTN MoMo · Telecel · AirtelTigo', color: 'text-warning' },
+        { id: 'cash' as const, icon: <MoneyIcon weight="fill" size={20} />, label: orderType === 'delivery' ? 'Cash on Delivery' : 'Cash at Pickup', sub: orderType === 'delivery' ? 'Pay when your order arrives' : 'Pay when you collect', color: 'text-secondary' },
+    ];
 
     return (
         <>
@@ -546,7 +545,7 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                                     <p className="text-xs text-neutral-gray">{m.sub}</p>
                                 </div>
                             </button>
-                            {m.id === 'momo' && paymentMethod === 'momo' && (
+                            {m.id === 'mobile_money' && paymentMethod === 'mobile_money' && (
                                 <div className="mt-2 ml-4 flex flex-col gap-3 p-4 rounded-xl bg-neutral-light dark:bg-brown/30">
                                     <div>
                                         <label className="text-xs font-semibold text-neutral-gray mb-1.5 block">Mobile Network</label>
@@ -575,7 +574,7 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                     </button>
                     <button onClick={onPlace} disabled={placing}
                         className="flex-1 flex cursor-pointer items-center justify-between bg-brown dark:bg-brand-dark hover:bg-brown-light disabled:opacity-70 text-white font-bold px-6 py-4 rounded-2xl transition-all active:scale-[0.98] group">
-                        <span>{placing ? 'Placing Order...' : paymentMethod === 'momo' ? 'Pay & Place Order' : 'Place Order'}</span>
+                        <span>{placing ? 'Placing Order...' : paymentMethod === 'mobile_money' ? 'Pay & Place Order' : 'Place Order'}</span>
                         <div className="flex items-center gap-2">
                             <span className="text-primary font-bold">{formatPrice(total)}</span>
                             <ArrowRightIcon weight="bold" size={18} className="group-hover:translate-x-1 transition-transform" />
@@ -742,7 +741,7 @@ export default function CheckoutPage() {
     const { createOrder } = useCreateOrder();
     const [step, setStep] = useState<Step>(1);
     const [orderType, setOrderType] = useState<OrderType>('delivery');
-    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('momo');
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mobile_money');
     const [placing, setPlacing] = useState(false);
     const [orderNumber, setOrderNumber] = useState('');
     const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });

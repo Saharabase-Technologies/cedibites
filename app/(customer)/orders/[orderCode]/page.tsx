@@ -14,7 +14,6 @@ import {
 } from '@phosphor-icons/react';
 import { timeAgo, buildOrderTimeline } from '@/types/order';
 import OrderTimeline from '@/app/components/order/OrderTimeline';
-import LiveMap from '@/app/components/order/LiveMap';
 import OrderDetails from '@/app/components/order/OrderDetails';
 import Button from '@/app/components/base/Button';
 import type { Order as ApiOrder } from '@/types/api';
@@ -87,15 +86,15 @@ function transformApiOrderToMock(apiOrder: ApiOrder): MockOrder {
         paymentMethod: (payment?.payment_method as MockOrder['paymentMethod']) || 'cash_delivery',
         paymentStatus: (payment?.payment_status as MockOrder['paymentStatus']) || 'pending',
         isPaid: payment?.payment_status === 'paid' || payment?.payment_status === 'completed',
-        items: apiOrder.items.map(item => {
+        items: (apiOrder.items || []).map(item => {
             const sizeKey = deriveSizeKey(item);
             const sizeLabel = sizeKey === 'default' ? 'Regular' : sizeKey.replace(/_/g, ' ');
             return {
                 id: item.id.toString(),
                 menuItemId: String(item.menu_item_id),
-                name: item.menu_item.name,
+                name: item.menu_item?.name || 'Unknown Item',
                 unitPrice: Number(item.unit_price) || 0,
-                image: item.menu_item.image_url,
+                image: item.menu_item?.image_url,
                 sizeLabel,
                 quantity: item.quantity,
             };
@@ -112,7 +111,7 @@ function transformApiOrderToMock(apiOrder: ApiOrder): MockOrder {
             notes: apiOrder.delivery_note ?? apiOrder.special_instructions,
         },
         branch: {
-            id: apiOrder.branch_id.toString(),
+            id: apiOrder.branch_id?.toString() || '0',
             name: apiOrder.branch?.name || 'Branch',
             address: apiOrder.branch?.address || '',
             phone: apiOrder.branch?.phone || '',
@@ -253,24 +252,6 @@ export default function OrderTrackingPage({ params }: PageProps) {
                                 <p className="text-sm text-neutral-gray mt-2">
                                     Your rider is on the way with your order
                                 </p>
-                            </div>
-                        )}
-
-                        {/* Map */}
-                        {isDelivery && (
-                            <div className="bg-white dark:bg-brand-dark rounded-2xl overflow-hidden border border-neutral-gray/10">
-                                <LiveMap
-                                    branchLocation={order.branch.coordinates}
-                                    customerLocation={order.fulfillmentType === 'delivery' ? {
-                                        latitude: 5.6372,
-                                        longitude: -0.0924,
-                                    } : null}
-                                    riderLocation={isOutForDelivery ? {
-                                        latitude: 5.6000,
-                                        longitude: -0.1200,
-                                    } : null}
-                                    branchName={order.branch.name}
-                                />
                             </div>
                         )}
 

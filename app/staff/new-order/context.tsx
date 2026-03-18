@@ -78,8 +78,8 @@ export function NewOrderProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (!staffUser || branchId) return; // Skip if no user or branch already selected
         
-        // Super admins can select any branch (don't auto-select)
-        if (staffUser.role === 'super_admin') return;
+        // Super admins and call center can select any branch (don't auto-select)
+        if (staffUser.role === 'super_admin' || staffUser.role === 'call_center') return;
         
         // For managers and staff, auto-select their branch
         if (staffUser.branchId) {
@@ -175,7 +175,7 @@ export function NewOrderProvider({ children }: { children: ReactNode }) {
                 discount: discount > 0 ? discount : undefined,
                 staffId: staffUser?.id,
                 staffName: staffUser?.name,
-                momoNumber: payment === 'momo' ? customer.phone : undefined, // Add MoMo number for mobile money payments
+                momoNumber: payment === 'mobile_money' ? customer.phone : undefined, // Add MoMo number for mobile money payments
             };
             
             console.log('Creating order with data:', orderData);

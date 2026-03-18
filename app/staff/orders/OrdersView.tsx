@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { MagnifyingGlassIcon, FunnelIcon, SpeakerHighIcon, SpeakerSlashIcon, PlusIcon } from '@phosphor-icons/react';
+import { MagnifyingGlassIcon, FunnelIcon, SpeakerHighIcon, SpeakerSlashIcon } from '@phosphor-icons/react';
 import { useOrders } from './context';
 import DateFilter from './components/DateFilter';
 import BranchFilter from './components/BranchFilter';
@@ -30,7 +30,6 @@ export default function OrdersView() {
         selectedOrder, setSelectedOrder,
         soundEnabled, toggleSound, playSound,
         notifications, dismissNotification,
-        simulateNewOrder,
     } = useOrders();
 
     // ── Auto-select from ?select=<orderId> (used by dashboard quick-links) ──
@@ -60,21 +59,6 @@ export default function OrdersView() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-
-                        {/* Simulate new order (test/demo) */}
-                        <button
-                            type="button"
-                            onClick={simulateNewOrder}
-                            title="Simulate a new incoming order"
-                            className="
-                flex items-center gap-1.5 px-3 py-1.5 rounded-full border
-                border-primary/40 text-primary bg-primary/5 hover:bg-primary/10
-                text-xs font-semibold font-body transition-colors cursor-pointer
-              "
-                        >
-                            <PlusIcon size={12} weight="bold" />
-                            Test Order
-                        </button>
 
                         {/* Sound toggle */}
                         <button

@@ -22,6 +22,10 @@ import {
 } from '@phosphor-icons/react';
 import { useMenuConfig } from '@/lib/hooks/useMenuConfig';
 import type { MenuConfig, OptionTemplate, AddOn, DayKey, BranchSettings } from '@/lib/hooks/useMenuConfig';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { useBranch } from '@/lib/api/hooks/useBranches';
+import { branchService } from '@/lib/api/services/branch.service';
+import { toast } from '@/lib/utils/toast';
 
 // ─── Shared input class (light text on dark bg) ───────────────────────────────
 
@@ -34,10 +38,10 @@ function Toggle({ checked, onChange, size = 'md' }: { checked: boolean; onChange
     const thumb = size === 'sm' ? 'w-3.5 h-3.5' : 'w-5 h-5';
     const shift = size === 'sm' ? 'translate-x-3' : 'translate-x-4';
     return (
-        <button type="button" onClick={onChange}
+        <div onClick={onChange}
             className={`${track} rounded-full flex items-center px-0.5 transition-colors duration-200 cursor-pointer shrink-0 ${checked ? 'bg-secondary' : 'bg-brown-light/30'}`}>
             <div className={`${thumb} rounded-full bg-white shadow transition-transform duration-200 ${checked ? shift : 'translate-x-0'}`} />
-        </button>
+        </div>
     );
 }
 
@@ -250,6 +254,11 @@ const DAY_KEYS: DayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
 export default function MenuSettingsPage() {
     const { config, save, ready } = useMenuConfig();
+    const { staffUser } = useStaffAuth();
+    const branchId = staffUser?.branchId ? parseInt(staffUser.branchId, 10) : undefined;
+    
+    // Fetch real branch data from API
+    const { branch: apiBranch } = useBranch(branchId ?? 0);
 
     // Local working copies
     const [branch,     setBranch]     = useState<BranchSettings>(config.branch);
@@ -274,6 +283,52 @@ export default function MenuSettingsPage() {
             setAddOns(config.addOns);
         }
     }, [ready, config]);
+    
+    // Update branch settings when API data loads
+    useEffect(() => {
+        if (apiBranch && apiBranch.operating_hours) {
+            const hours: Record<DayKey, import('@/lib/hooks/useMenuConfig').DayHours> = {
+                mon: { open: '09:00', close: '22:00', closed: false },
+                tue: { open: '09:00', close: '22:00', closed: false },
+                wed: { open: '09:00', close: '22:00', closed: false },
+                thu: { open: '09:00', close: '22:00', closed: false },
+                fri: { open: '09:00', close: '22:00', closed: false },
+                sat: { open: '09:00', close: '22:00', closed: false },
+                sun: { open: '09:00', close: '22:00', closed: false },
+            };
+            
+            // Map API operating hours to our format
+            Object.entries(apiBranch.operating_hours).forEach(([day, data]) => {
+                const dayKey = day.substring(0, 3).toLowerCase() as DayKey;
+                if (dayKey in hours) {
+                    hours[dayKey] = {
+                        open: data.open_time || '09:00',
+                        close: data.close_time || '22:00',
+                        closed: !data.is_open,
+                    };
+                }
+            });
+            
+            const orderTypes = {
+                delivery: apiBranch.order_types?.delivery?.is_enabled ?? true,
+                pickup: apiBranch.order_types?.pickup?.is_enabled ?? true,
+                dineIn: apiBranch.order_types?.dine_in?.is_enabled ?? false,
+            };
+            
+            const paymentMethods = {
+                momo: apiBranch.payment_methods?.momo?.is_enabled ?? true,
+                cashDelivery: apiBranch.payment_methods?.cash_on_delivery?.is_enabled ?? true,
+                cashPickup: apiBranch.payment_methods?.cash_at_pickup?.is_enabled ?? true,
+            };
+            
+            setBranch({
+                isOpen: apiBranch.is_active,
+                hours,
+                orderTypes,
+                paymentMethods,
+            });
+        }
+    }, [apiBranch]);
 
     function mark() { setDirty(true); }
 
@@ -369,10 +424,55 @@ export default function MenuSettingsPage() {
 
     // ── Commit ───────────────────────────────────────────────────────────────
 
-    function handleSave() {
-        const updated: MenuConfig = { categories, optionTemplates: templates, addOns, branch };
-        save(updated);
-        setDirty(false);
+    async function handleSave() {
+        if (!branchId) {
+            toast.error('No branch ID found');
+            return;
+        }
+
+        try {
+            // Save branch settings to API
+            const operatingHours: Record<string, { is_open: boolean; open_time: string | null; close_time: string | null }> = {};
+            
+            DAY_KEYS.forEach(day => {
+                const dayName = DAY_LABELS[day].toLowerCase();
+                const hours = branch.hours[day];
+                operatingHours[dayName] = {
+                    is_open: !hours.closed,
+                    open_time: hours.closed ? null : hours.open,
+                    close_time: hours.closed ? null : hours.close,
+                };
+            });
+
+            const orderTypes = {
+                delivery: { is_enabled: branch.orderTypes.delivery },
+                pickup: { is_enabled: branch.orderTypes.pickup },
+                dine_in: { is_enabled: branch.orderTypes.dineIn },
+            };
+
+            const paymentMethods = {
+                momo: { is_enabled: branch.paymentMethods.momo },
+                cash_on_delivery: { is_enabled: branch.paymentMethods.cashDelivery },
+                cash_at_pickup: { is_enabled: branch.paymentMethods.cashPickup },
+            };
+
+            await branchService.updateBranch(branchId, {
+                is_active: branch.isOpen,
+                operating_hours: operatingHours,
+                order_types: orderTypes,
+                payment_methods: paymentMethods,
+            });
+
+            // Save menu config (categories, templates, add-ons) to localStorage
+            const updated: MenuConfig = { categories, optionTemplates: templates, addOns, branch };
+            save(updated);
+            
+            setDirty(false);
+            toast.success('Settings saved successfully');
+        } catch (error) {
+            console.error('Failed to save settings:', error);
+            toast.error('Failed to save settings');
+        }
     }
 
     if (!ready) {
