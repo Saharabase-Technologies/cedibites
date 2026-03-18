@@ -99,8 +99,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                 return;
             }
             
-            // Only allow super_admin to access admin panel
-            if (staffUser.role !== 'super_admin') {
+            // Only allow admin or super_admin to access admin panel
+            if (staffUser.role !== 'admin' && staffUser.role !== 'super_admin') {
                 router.push('/staff/login');
                 return;
             }
@@ -120,7 +120,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     }
 
     // Don't render anything if not authenticated (will redirect)
-    if (!staffUser || staffUser.role !== 'super_admin') {
+    if (!staffUser || (staffUser.role !== 'admin' && staffUser.role !== 'super_admin')) {
         return null;
     }
 
