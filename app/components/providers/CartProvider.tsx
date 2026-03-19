@@ -73,9 +73,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // API cart hook (enabled for auth OR guest session)
     const apiCart = useApiCart();
     
-    // Use API cart data when authenticated, otherwise use local state
-    const effectiveItems = mode === 'api' && apiCart.cart 
-        ? transformApiCartToLocal(apiCart.cart)
+    // In api mode always derive items from the API; never fall back to localStorage
+    const effectiveItems = mode === 'api'
+        ? (apiCart.cart ? transformApiCartToLocal(apiCart.cart) : [])
         : items;
     
     const isLoading = mode === 'api' ? apiCart.isLoading : false;
@@ -141,6 +141,49 @@ export function CartProvider({ children }: { children: ReactNode }) {
         syncCartOnLogin();
     }, [isLoggedIn, selectedBranch, isSyncing, apiCart]);
 
+    // ── Guest Cart Sync ─────────────────────────────────────────────────────────
+    // When a guest session is first established, migrate any localStorage items to the API
+    useEffect(() => {
+        const syncGuestCart = async () => {
+            if (!hasGuestSession || isLoggedIn || !selectedBranch || isSyncing) return;
+
+            const localCartJson = localStorage.getItem(CART_KEY);
+            if (!localCartJson) return;
+
+            try {
+                const localCart: CartItem[] = JSON.parse(localCartJson);
+                if (localCart.length === 0) return;
+
+                setIsSyncing(true);
+
+                for (const localItem of localCart) {
+                    try {
+                        await apiCart.addItem({
+                            branch_id: Number(selectedBranch.id),
+                            menu_item_id: parseInt(localItem.item.id),
+                            quantity: localItem.quantity,
+                            unit_price: localItem.price,
+                            menu_item_size_id: localItem.selectedSize !== 'default'
+                                ? (localItem.item.sizes?.find(s => s.key === localItem.selectedSize) as { id?: number })?.id
+                                : undefined,
+                        });
+                    } catch (error) {
+                        console.error('Failed to sync guest cart item:', error);
+                    }
+                }
+
+                localStorage.removeItem(CART_KEY);
+                setItems([]);
+            } catch (error) {
+                console.error('Failed to sync guest cart:', error);
+            } finally {
+                setIsSyncing(false);
+            }
+        };
+
+        syncGuestCart();
+    }, [hasGuestSession, isLoggedIn, selectedBranch, isSyncing, apiCart]);
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     const makeCartItemId = (itemId: string, sizeKey: string) => `${itemId}__${sizeKey}`;
@@ -154,25 +197,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (mode === 'api' && selectedBranch) {
             // Ensure guest has session ID before API call
             if (!isLoggedIn) ensureGuestSessionId();
-            // API mode: use backend
+            // API mode: always use backend
             try {
                 const existing = effectiveItems.find(i => i.cartItemId === cartItemId);
-                
-                if (existing) {
-                    // Update quantity (use cart_item id, not menu_item id)
-                    if (!existing.apiCartItemId) {
-                        console.error('No API cart item ID for update:', cartItemId);
-                        addToLocalCart(item, sizeKey, cartItemId, price, sizeLabel);
-                        return;
-                    }
+                const menuItemSizeId = (sizeData as { id?: number })?.id ? parseInt(String((sizeData as { id?: number }).id)) : undefined;
+
+                if (existing?.apiCartItemId) {
+                    // Increment existing item via its API id
                     await apiCart.updateItem({
                         itemId: existing.apiCartItemId,
                         data: { quantity: existing.quantity + 1 }
                     });
                 } else {
-                    // Add new item - find the menu_item_size_id if size exists
-                    const menuItemSizeId = (sizeData as { id?: number })?.id ? parseInt(String((sizeData as { id?: number }).id)) : undefined;
-                    
+                    // Add new item (API deduplicates if already present)
                     await apiCart.addItem({
                         branch_id: Number(selectedBranch.id),
                         menu_item_id: parseInt(item.id),
@@ -182,9 +219,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
                     });
                 }
             } catch (error) {
-                console.error('Failed to add to cart via API, falling back to local:', error);
-                // Fallback to local storage
-                addToLocalCart(item, sizeKey, cartItemId, price, sizeLabel);
+                console.error('Failed to add to cart via API:', error);
             }
         } else {
             // Local mode: use localStorage
@@ -206,22 +241,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     const removeFromCart = useCallback(async (cartItemId: string) => {
         if (mode === 'api') {
-            // API mode: use backend
+            // API mode: always use backend
+            const cartItem = effectiveItems.find(i => i.cartItemId === cartItemId);
+            if (!cartItem?.apiCartItemId) {
+                return;
+            }
             try {
-                // Find the cart item to get the actual API cart_item_id
-                const cartItem = effectiveItems.find(i => i.cartItemId === cartItemId);
-                if (!cartItem?.apiCartItemId) {
-                    console.error('No API cart item ID found for:', cartItemId);
-                    // Fallback to local storage
-                    setItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
-                    return;
-                }
-                
                 await apiCart.removeItem(cartItem.apiCartItemId);
             } catch (error) {
-                console.error('Failed to remove from cart via API, falling back to local:', error);
-                // Fallback to local storage
-                setItems(prev => prev.filter(i => i.cartItemId !== cartItemId));
+                console.error('Failed to remove from cart via API:', error);
             }
         } else {
             // Local mode: use localStorage
@@ -236,29 +264,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
 
         if (mode === 'api') {
-            // API mode: use backend
+            // API mode: always use backend
+            const cartItem = effectiveItems.find(i => i.cartItemId === cartItemId);
+            if (!cartItem?.apiCartItemId) {
+                return;
+            }
             try {
-                // Find the cart item to get the actual API cart_item_id
-                const cartItem = effectiveItems.find(i => i.cartItemId === cartItemId);
-                if (!cartItem?.apiCartItemId) {
-                    console.error('No API cart item ID found for:', cartItemId);
-                    // Fallback to local storage
-                    setItems(prev => prev.map(i =>
-                        i.cartItemId === cartItemId ? { ...i, quantity } : i
-                    ));
-                    return;
-                }
-                
                 await apiCart.updateItem({
                     itemId: cartItem.apiCartItemId,
                     data: { quantity }
                 });
             } catch (error) {
-                console.error('Failed to update quantity via API, falling back to local:', error);
-                // Fallback to local storage
-                setItems(prev => prev.map(i =>
-                    i.cartItemId === cartItemId ? { ...i, quantity } : i
-                ));
+                console.error('Failed to update quantity via API:', error);
             }
         } else {
             // Local mode: use localStorage
@@ -270,14 +287,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     const clearCart = useCallback(async () => {
         if (mode === 'api') {
-            // API mode: use backend
+            // API mode: always use backend
             try {
                 await apiCart.clearCart();
             } catch (error) {
-                console.error('Failed to clear cart via API, falling back to local:', error);
-                // Fallback to local storage
-                setItems([]);
-                localStorage.removeItem(CART_KEY);
+                console.error('Failed to clear cart via API:', error);
             }
         } else {
             // Local mode: use localStorage
