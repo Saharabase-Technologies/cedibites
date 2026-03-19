@@ -18,7 +18,7 @@ import { useLocation } from '@/app/components/providers/LocationProvider';
 import { useAuth } from '@/app/components/providers/AuthProvider';
 import { useCreateOrder } from '@/lib/api/hooks/useOrders';
 import type { PaymentMethod as UnifiedPaymentMethod, FulfillmentType } from '@/types/order';
-import apiClient from '@/lib/api/client';
+import apiClient, { ApiError } from '@/lib/api/client';
 import { toast } from '@/lib/utils/toast';
 
 type OrderType = 'delivery' | 'pickup';
@@ -811,8 +811,8 @@ export default function CheckoutPage() {
             setOrderNumber(order.order_number);
             setStep(3);
         } catch (err: unknown) {
-            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            toast.error(msg || 'Failed to place order. Please try again.');
+            const msg = err instanceof ApiError ? err.message : 'Failed to place order. Please try again.';
+            toast.error(msg);
         } finally {
             setPlacing(false);
         }
