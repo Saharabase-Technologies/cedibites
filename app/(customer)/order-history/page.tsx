@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useModal } from '../../components/providers/ModalProvider';
 import { useAuth } from '../../components/providers/AuthProvider';
 import { useOrders } from '@/lib/api/hooks/useOrders';
+import { useCart } from '@/lib/api/hooks/useCart';
+import { toast } from '@/lib/utils/toast';
 import {
     MagnifyingGlassIcon,
     XIcon,
@@ -57,6 +59,8 @@ export default function OrderHistoryPage() {
     const router = useRouter();
     const { openAuth } = useModal();
     const { isLoggedIn } = useAuth();
+    const { addItem } = useCart();
+    const [reordering, setReordering] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<ApiOrderStatus | undefined>(undefined);
     const [page, setPage] = useState(1);
@@ -89,11 +93,26 @@ export default function OrderHistoryPage() {
         router.push(`/orders/${orderNumber}?from=order-history`);
     };
 
-    const handleReorder = (e: React.MouseEvent, order: ApiOrder) => {
+    const handleReorder = async (e: React.MouseEvent, order: ApiOrder) => {
         e.stopPropagation();
-        // TODO: Add items to cart and redirect to checkout
-        console.log('Reorder:', order);
-        router.push('/');
+        setReordering(order.id);
+        try {
+            for (const item of order.items) {
+                await addItem({
+                    branch_id: order.branch_id,
+                    menu_item_id: item.menu_item_id,
+                    menu_item_size_id: undefined,
+                    quantity: item.quantity,
+                    unit_price: Number(item.unit_price),
+                });
+            }
+            toast.success('Items added to cart');
+            router.push('/checkout');
+        } catch {
+            toast.error('Failed to add items to cart. Please try again.');
+        } finally {
+            setReordering(null);
+        }
     };
 
     // Use same layout for loading and content to avoid hydration mismatch
@@ -280,10 +299,11 @@ export default function OrderHistoryPage() {
                                                 {isCompleted && (
                                                     <button
                                                         onClick={(e) => handleReorder(e, order)}
-                                                        className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary hover:text-white text-primary rounded-full font-semibold transition-all"
+                                                        disabled={reordering === order.id}
+                                                        className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary hover:text-white text-primary rounded-full font-semibold transition-all disabled:opacity-60"
                                                     >
-                                                        <ArrowsClockwiseIcon size={18} weight="bold" />
-                                                        <span>Reorder</span>
+                                                        <ArrowsClockwiseIcon size={18} weight="bold" className={reordering === order.id ? 'animate-spin' : ''} />
+                                                        <span>{reordering === order.id ? 'Adding...' : 'Reorder'}</span>
                                                     </button>
                                                 )}
                                             </div>

@@ -53,12 +53,14 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
     paymentMethod: mapApiPaymentMethod(payment?.payment_method),
     isPaid: payment?.payment_status === 'paid' || payment?.payment_status === 'completed',
     paymentStatus: (payment?.payment_status as UnifiedOrder['paymentStatus']) ?? 'pending',
+    paymentId: payment?.id ? Number(payment.id) : undefined,
     items,
     subtotal: Number(apiOrder.subtotal) || 0,
     deliveryFee: Number(apiOrder.delivery_fee) ?? 0,
-    discount: 0,
+    discount: Number(apiOrder.discount) || 0,
     tax: Number(apiOrder.tax_amount ?? apiOrder.tax) || 0,
     total: Number(apiOrder.total_amount ?? apiOrder.total) || 0,
+    amountPaid: apiOrder.amount_paid != null ? Number(apiOrder.amount_paid) : undefined,
     contact: {
       name: apiOrder.contact_name ?? apiOrder.customer_name ?? '',
       phone: apiOrder.contact_phone ?? apiOrder.customer_phone ?? '',
@@ -77,5 +79,6 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
     },
     placedAt,
     staffId: apiOrder.assigned_employee_id ? String(apiOrder.assigned_employee_id) : undefined,
+    staffName: apiOrder.staff_name,
   };
 }

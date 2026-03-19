@@ -3,6 +3,7 @@ import type { Order as ApiOrder } from '@/types/api';
 import type { Order, OrderFilter, OrderStatus, CreateOrderInput } from '@/types/order';
 import { apiOrderToUnifiedOrder } from '@/lib/utils/orderAdapter';
 import type { OrderService } from './order.service';
+import { getStaffToken } from '@/lib/api/services/staff.service';
 
 const POLL_INTERVAL_MS = 8000;
 
@@ -33,10 +34,14 @@ export class ApiOrderService implements OrderService {
         if (pathname.startsWith('/kitchen')) {
           endpoint = '/kitchen/orders';
         }
+        // Order Manager uses public endpoint
+        else if (pathname.startsWith('/order-manager')) {
+          endpoint = '/order-manager/orders';
+        }
         // Customer routes (home, menu, checkout, etc.) don't load orders
-        else if (!pathname.startsWith('/staff') && 
-                 !pathname.startsWith('/admin') && 
-                 !pathname.startsWith('/partner') && 
+        else if (!pathname.startsWith('/staff') &&
+                 !pathname.startsWith('/admin') &&
+                 !pathname.startsWith('/partner') &&
                  !pathname.startsWith('/pos')) {
           return [];
         }
@@ -80,99 +85,6 @@ export class ApiOrderService implements OrderService {
   }
 
   async create(input: CreateOrderInput): Promise<Order> {
-    console.log('OrderService.create called with input:', input);
-    
-    // POS orders use the pos/orders endpoint
-    if (input.source === 'pos') {
-      // Map frontend payment methods to backend values
-      const paymentMethodMap: Record<string, string> = {
-        'momo': 'mobile_money',
-        'cash': 'cash',
-        'card': 'card',
-        'no_charge': 'wallet', // Map no_charge to wallet for staff meals
-      };
-
-      // Map fulfillment types for POS endpoint (only supports dine_in and takeaway)
-      const fulfillmentTypeMap: Record<string, string> = {
-        'delivery': 'takeaway', // Delivery orders are treated as takeaway in POS
-        'pickup': 'takeaway',   // Pickup orders are takeaway
-        'dine_in': 'dine_in',   // Dine-in stays the same
-        'takeaway': 'takeaway', // Takeaway stays the same
-      };
-
-      const requestBody = {
-        branch_id: parseInt(input.branchId),
-        fulfillment_type: fulfillmentTypeMap[input.fulfillmentType] || 'takeaway',
-        payment_method: paymentMethodMap[input.paymentMethod] || input.paymentMethod,
-        items: input.items.map(item => {
-          const menuItemId = parseInt(item.menuItemId);
-          if (isNaN(menuItemId)) {
-            console.error('Invalid menu item ID:', item.menuItemId, 'Item:', item);
-            throw new Error(`Invalid menu item ID: ${item.menuItemId}`);
-          }
-          const itemData: any = {
-            menu_item_id: menuItemId,
-            quantity: item.quantity,
-            unit_price: item.unitPrice,
-          };
-          if (item.sizeId) {
-            itemData.menu_item_size_id = item.sizeId;
-          }
-          if (item.variantKey) {
-            itemData.variant_key = item.variantKey;
-          }
-          
-          console.log('Mapping POS item:', {
-            name: item.name,
-            menuItemId: item.menuItemId,
-            unitPrice: item.unitPrice,
-            sizeId: item.sizeId,
-            variantKey: item.variantKey,
-            mappedData: itemData
-          });
-          
-          return itemData;
-        }),
-        contact_name: input.contact.name,
-        contact_phone: input.contact.phone || 'N/A',
-        customer_notes: input.contact.notes || undefined,
-        amount_paid: input.amountPaid,
-        momo_number: input.momoNumber,
-        discount: input.discount,
-      };
-
-      console.log('POS Order Request:', requestBody);
-
-      const response = await apiClient.post('/pos/orders', requestBody);
-      const responseData = response as any;
-      const apiOrder = extractData<ApiOrder>(responseData);
-      
-      // If Hubtel checkout URL is present, open it for mobile money payments
-      if (responseData.hubtel?.checkoutUrl) {
-        const checkoutUrl = responseData.hubtel.checkoutUrl;
-        console.log('Opening Hubtel checkout:', checkoutUrl);
-        
-        // Open Hubtel checkout in a new window
-        const checkoutWindow = window.open(
-          checkoutUrl,
-          'hubtel-checkout',
-          'width=600,height=800,scrollbars=yes,resizable=yes'
-        );
-        
-        if (!checkoutWindow) {
-          console.warn('Popup blocked. Redirecting to checkout URL...');
-          window.location.href = checkoutUrl;
-        }
-      }
-      
-      return apiOrderToUnifiedOrder(apiOrder);
-    }
-
-    // For non-POS orders, we need to determine the correct endpoint
-    console.log('Non-POS order detected, source:', input.source);
-    
-    // For now, let's treat phone/whatsapp/social_media orders as POS orders
-    // since they're being created by staff
     const paymentMethodMap: Record<string, string> = {
       'momo': 'mobile_money',
       'cash': 'cash',
@@ -180,12 +92,11 @@ export class ApiOrderService implements OrderService {
       'no_charge': 'wallet',
     };
 
-    // Map fulfillment types for POS endpoint (only supports dine_in and takeaway)
     const fulfillmentTypeMap: Record<string, string> = {
-      'delivery': 'takeaway', // Delivery orders are treated as takeaway in POS
-      'pickup': 'takeaway',   // Pickup orders are takeaway
-      'dine_in': 'dine_in',   // Dine-in stays the same
-      'takeaway': 'takeaway', // Takeaway stays the same
+      'delivery': 'takeaway',
+      'pickup': 'takeaway',
+      'dine_in': 'dine_in',
+      'takeaway': 'takeaway',
     };
 
     const requestBody = {
@@ -195,30 +106,15 @@ export class ApiOrderService implements OrderService {
       items: input.items.map(item => {
         const menuItemId = parseInt(item.menuItemId);
         if (isNaN(menuItemId)) {
-          console.error('Invalid menu item ID:', item.menuItemId, 'Item:', item);
           throw new Error(`Invalid menu item ID: ${item.menuItemId}`);
         }
-        const itemData: any = {
+        const itemData: Record<string, unknown> = {
           menu_item_id: menuItemId,
           quantity: item.quantity,
           unit_price: item.unitPrice,
         };
-        if (item.sizeId) {
-          itemData.menu_item_size_id = item.sizeId;
-        }
-        if (item.variantKey) {
-          itemData.variant_key = item.variantKey;
-        }
-        
-        console.log('Mapping item:', {
-          name: item.name,
-          menuItemId: item.menuItemId,
-          unitPrice: item.unitPrice,
-          sizeId: item.sizeId,
-          variantKey: item.variantKey,
-          mappedData: itemData
-        });
-        
+        if (item.sizeId) itemData.menu_item_size_id = item.sizeId;
+        if (item.variantKey) itemData.variant_key = item.variantKey;
         return itemData;
       }),
       contact_name: input.contact.name,
@@ -229,30 +125,8 @@ export class ApiOrderService implements OrderService {
       discount: input.discount,
     };
 
-    console.log('Staff Order Request (using POS endpoint):', requestBody);
-
     const response = await apiClient.post('/pos/orders', requestBody);
-    const responseData = response as any;
-    const apiOrder = extractData<ApiOrder>(responseData);
-    
-    // If Hubtel checkout URL is present, open it for mobile money payments
-    if (responseData.hubtel?.checkoutUrl) {
-      const checkoutUrl = responseData.hubtel.checkoutUrl;
-      console.log('Opening Hubtel checkout:', checkoutUrl);
-      
-      // Open Hubtel checkout in a new window
-      const checkoutWindow = window.open(
-        checkoutUrl,
-        'hubtel-checkout',
-        'width=600,height=800,scrollbars=yes,resizable=yes'
-      );
-      
-      if (!checkoutWindow) {
-        console.warn('Popup blocked. Redirecting to checkout URL...');
-        window.location.href = checkoutUrl;
-      }
-    }
-    
+    const apiOrder = extractData<ApiOrder>(response as unknown);
     return apiOrderToUnifiedOrder(apiOrder);
   }
 
@@ -288,6 +162,7 @@ export class ApiOrderService implements OrderService {
 
   subscribe(callback: (orders: Order[]) => void): () => void {
     this.pollTimer = setInterval(async () => {
+      if (!getStaffToken()) return;
       try {
         const orders = await this.getAll();
         callback(orders);

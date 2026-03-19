@@ -16,10 +16,25 @@ import {
     UsersThreeIcon,
     GearSixIcon,
     ClockIcon,
+    CashRegisterIcon,
+    MonitorIcon,
+    ClipboardTextIcon,
 } from '@phosphor-icons/react';
 import { StaffAuthProvider, useStaffAuth, type StaffRole } from '@/app/components/providers/StaffAuthProvider';
 
 // ─── Nav configs per role ──────────────────────────────────────────────────────
+
+const MANAGER_DISPLAYS = [
+    { href: '/pos/terminal',  label: 'POS Terminal',    icon: CashRegisterIcon, external: true },
+    { href: '/kitchen/display', label: 'Kitchen Display', icon: MonitorIcon, external: true },
+    { href: '/order-manager', label: 'Order Manager',   icon: ClipboardTextIcon, external: true },
+];
+
+const SALES_DISPLAYS = [
+    { href: '/pos/terminal',  label: 'POS Terminal',    icon: CashRegisterIcon,  external: true },
+    { href: '/kitchen/display', label: 'Kitchen Display', icon: MonitorIcon, external: true },
+    { href: '/order-manager', label: 'Order Manager',   icon: ClipboardTextIcon, external: true },
+];
 
 const SALES_NAV = [
     { href: '/staff/sales/dashboard',  label: 'Dashboard', icon: SquaresFourIcon },
@@ -49,21 +64,22 @@ const MANAGER_NAV_TOOLS = [
 ];
 
 function navItemsForRole(role: StaffRole | string) {
-    if (role === 'manager' || role === 'super_admin') return { main: MANAGER_NAV_MAIN, tools: MANAGER_NAV_TOOLS };
-    if (role === 'branch_partner') return { main: PARTNER_NAV, tools: [] };
-    return { main: SALES_NAV, tools: [] };
+    if (role === 'manager' || role === 'super_admin') return { main: MANAGER_NAV_MAIN, tools: MANAGER_NAV_TOOLS, displays: MANAGER_DISPLAYS };
+    if (role === 'branch_partner') return { main: PARTNER_NAV, tools: [], displays: [] };
+    return { main: SALES_NAV, tools: [], displays: SALES_DISPLAYS };
 }
 
 // ─── Sidebar link ─────────────────────────────────────────────────────────────
 
 function SidebarLink({
-    href, label, icon: Icon, active,
+    href, label, icon: Icon, active, external,
 }: {
-    href: string; label: string; icon: React.ElementType; active: boolean;
+    href: string; label: string; icon: React.ElementType; active: boolean; external?: boolean;
 }) {
     return (
         <Link
             href={href}
+            {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
             className={`
         group flex items-center gap-3 px-3 py-2.5 rounded-xl
         text-sm font-medium font-body transition-all duration-150
@@ -138,7 +154,7 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
 
 
 
-    const { main: mainNav, tools: toolsNav } = navItemsForRole(staffUser.role);
+    const { main: mainNav, tools: toolsNav, displays: displaysNav } = navItemsForRole(staffUser.role);
     const isManager = staffUser.role === 'manager' || staffUser.role === 'super_admin';
     const allMobileNav = [...mainNav, ...toolsNav];
 
@@ -187,6 +203,25 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                                     label={item.label}
                                     icon={item.icon}
                                     active={pathname.startsWith(item.href)}
+                                />
+                            ))}
+                        </>
+                    )}
+
+                    {displaysNav.length > 0 && (
+                        <>
+                            <div className="my-2 border-t border-brown-light/15" />
+                            <p className="text-[10px] font-body font-medium text-neutral-gray/60 uppercase tracking-wider px-3 pb-1">
+                                Displays
+                            </p>
+                            {displaysNav.map(item => (
+                                <SidebarLink
+                                    key={item.href}
+                                    href={item.href}
+                                    label={item.label}
+                                    icon={item.icon}
+                                    active={false}
+                                    external={item.external}
                                 />
                             ))}
                         </>

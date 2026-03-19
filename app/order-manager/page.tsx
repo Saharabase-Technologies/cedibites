@@ -15,14 +15,14 @@ import {
   BicycleIcon,
   StorefrontIcon,
   WarningCircleIcon,
-  PlusIcon,
   ListIcon,
   XIcon,
   ProhibitIcon,
 } from '@phosphor-icons/react';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
-import type { Order, OrderStatus, FulfillmentType, OrderSource, CreateOrderInput } from '@/types/order';
+import type { Order, OrderStatus, FulfillmentType } from '@/types/order';
 import { STATUS_CONFIG } from '@/lib/constants/order.constants';
+import { toast } from '@/lib/utils/toast';
 
 function formatTimeAgo(timestamp: number): string {
   const minutes = Math.floor((Date.now() - timestamp) / 60000);
@@ -65,7 +65,7 @@ const ACTIVE_STATUSES = new Set<OrderStatus>(['received', 'accepted', 'preparing
 
 export default function OrderManagerPage() {
   const router = useRouter();
-  const { orders, updateOrderStatus, updateOrder, createOrder, refresh } = useOrderStore();
+  const { orders, updateOrderStatus, updateOrder, refresh } = useOrderStore();
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -121,31 +121,49 @@ export default function OrderManagerPage() {
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  const startCooking = useCallback((orderId: string) => {
-    updateOrderStatus(orderId, 'preparing', { startedAt: Date.now() });
+  const handleStatusUpdate = useCallback(async (
+    orderId: string,
+    status: OrderStatus,
+    timestamps?: Partial<Pick<Order, 'acceptedAt' | 'startedAt' | 'readyAt' | 'completedAt'>>,
+  ) => {
+    try {
+      await updateOrderStatus(orderId, status, timestamps);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update order status';
+      toast.error(message);
+    }
   }, [updateOrderStatus]);
+
+  const startCooking = useCallback((orderId: string) => {
+    handleStatusUpdate(orderId, 'preparing', { startedAt: Date.now() });
+  }, [handleStatusUpdate]);
 
   const markReady = useCallback((orderId: string) => {
-    updateOrderStatus(orderId, 'ready', { readyAt: Date.now() });
-  }, [updateOrderStatus]);
+    handleStatusUpdate(orderId, 'ready', { readyAt: Date.now() });
+  }, [handleStatusUpdate]);
 
   const completeOrder = useCallback((orderId: string) => {
-    updateOrderStatus(orderId, 'completed', { completedAt: Date.now() });
-  }, [updateOrderStatus]);
+    handleStatusUpdate(orderId, 'completed', { completedAt: Date.now() });
+  }, [handleStatusUpdate]);
 
   const approveCancel = useCallback((orderId: string) => {
-    updateOrderStatus(orderId, 'cancelled', { completedAt: Date.now() });
-  }, [updateOrderStatus]);
+    handleStatusUpdate(orderId, 'cancelled', { completedAt: Date.now() });
+  }, [handleStatusUpdate]);
 
-  const rejectCancel = useCallback((order: Order) => {
+  const rejectCancel = useCallback(async (order: Order) => {
     const restoreStatus = (order.cancelPreviousStatus ?? 'received') as OrderStatus;
-    updateOrder(order.id, {
-      status: restoreStatus,
-      cancelRequestedBy: undefined,
-      cancelRequestedAt: undefined,
-      cancelRequestReason: undefined,
-      cancelPreviousStatus: undefined,
-    });
+    try {
+      await updateOrder(order.id, {
+        status: restoreStatus,
+        cancelRequestedBy: undefined,
+        cancelRequestedAt: undefined,
+        cancelRequestReason: undefined,
+        cancelPreviousStatus: undefined,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to reject cancellation';
+      toast.error(message);
+    }
   }, [updateOrder]);
 
   const handleAction = useCallback((order: Order) => {
@@ -154,30 +172,7 @@ export default function OrderManagerPage() {
     else if (order.status === 'ready') completeOrder(order.id);
   }, [startCooking, markReady, completeOrder]);
 
-  const simulateNewOrder = useCallback(() => {
-    const mockItems = [
-      { menuItemId: 'm1', name: 'Jollof Rice', quantity: Math.ceil(Math.random() * 3), unitPrice: 35 },
-      { menuItemId: 'm2', name: 'Fried Chicken', quantity: Math.ceil(Math.random() * 2), unitPrice: 25 },
-      { menuItemId: 'm3', name: 'Waakye', quantity: 1, unitPrice: 30 },
-      { menuItemId: 'm4', name: 'Banku & Tilapia', quantity: 1, unitPrice: 55 },
-    ];
-    const fulfillmentTypes: FulfillmentType[] = ['dine_in', 'takeaway', 'delivery', 'pickup'];
-    const sources: OrderSource[] = ['pos', 'online', 'phone', 'whatsapp'];
-    const names = ['Kwame', 'Ama', 'Kofi', 'Akua', 'Yaw', 'Abena'];
-    const input: CreateOrderInput = {
-      source: sources[Math.floor(Math.random() * sources.length)],
-      fulfillmentType: fulfillmentTypes[Math.floor(Math.random() * fulfillmentTypes.length)],
-      paymentMethod: 'cash',
-      items: mockItems.slice(0, Math.ceil(Math.random() * 3) + 1),
-      contact: {
-        name: names[Math.floor(Math.random() * names.length)],
-        phone: '024' + Math.floor(1000000 + Math.random() * 9000000),
-      },
-      branchId: 'osu',
-      branchName: 'Osu',
-    };
-    createOrder(input);
-  }, [createOrder]);
+
 
   return (
     <div className="min-h-dvh flex flex-col bg-white">
@@ -208,12 +203,6 @@ export default function OrderManagerPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={simulateNewOrder}
-            className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary active:scale-95 transition-transform"
-          >
-            <PlusIcon className="w-5 h-5" weight="bold" />
-          </button>
           <button
             onClick={() => setSoundEnabled(v => !v)}
             className={`w-10 h-10 rounded-xl flex items-center justify-center active:scale-95 transition-transform ${soundEnabled ? 'bg-primary/10 text-primary' : 'bg-neutral-light text-neutral-gray'}`}

@@ -240,23 +240,6 @@ export default function StaffLoginPage() {
 
                     </form>
 
-                    {/* Dev hint */}
-                    <div className="mt-6 rounded-2xl border border-brown-light/20 bg-brown-light/5 px-4 py-3">
-                        <p className="text-neutral-gray text-[11px] font-body font-medium mb-1.5">
-                            Test accounts
-                        </p>
-                        <div className="flex flex-col gap-0.5">
-                            {[
-                                { label: 'Admin',   hint: 'admin@cedibites.com · password'   },
-                                { label: 'Manager', hint: 'manager.1@cedibites.com · password' },
-                                { label: 'Employee', hint: 'employee.1.1@cedibites.com · password' },
-                            ].map(a => (
-                                <p key={a.label} className="text-neutral-gray/70 text-[10px] font-body">
-                                    <span className="text-primary/80 font-semibold">{a.label}:</span> {a.hint}
-                                </p>
-                            ))}
-                        </div>
-                    </div>
 
                 </div>
 

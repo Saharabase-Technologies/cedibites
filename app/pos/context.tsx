@@ -22,6 +22,8 @@ interface POSContextValue {
   session: POSSession | null;
   isSessionValid: boolean;
   isSessionLoaded: boolean;
+  isNeedsBranchSelection: boolean;
+  selectBranch: (branchId: string) => void;
 
   // Cart
   cart: POSCartItem[];
@@ -53,8 +55,7 @@ interface POSContextValue {
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   seedTestOrders: () => void;
 
-  // Login / Logout
-  login: (session: POSSession) => void;
+  // Logout
   logout: () => void;
 }
 
@@ -96,31 +97,41 @@ export function POSProvider({ children }: POSProviderProps) {
     updateOrderStatus: storeUpdateStatus,
   } = useOrderStore();
 
-  // Load session on mount
+  // Load session on mount from staff portal auth (localStorage)
   useEffect(() => {
-    const stored = sessionStorage.getItem('pos-session');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as POSSession;
-        const isValid = Date.now() - parsed.loginTime < 12 * 60 * 60 * 1000;
-        if (isValid) {
-          setSession(parsed);
-        } else {
-          sessionStorage.removeItem('pos-session');
+    try {
+      const stored = localStorage.getItem('cedibites-staff-session');
+      if (stored) {
+        const staffUser = JSON.parse(stored);
+        if (staffUser?.id) {
+          setSession({
+            staffId: staffUser.id,
+            branchId: staffUser.branchId ?? '',
+            staffName: staffUser.name,
+            loginTime: Date.now(),
+          });
         }
-      } catch {
-        sessionStorage.removeItem('pos-session');
       }
+    } catch {
+      // ignore
     }
     setIsSessionLoaded(true);
   }, []);
 
   const isSessionValid = useMemo(() => {
-    if (!session) return false;
+    if (!session || !session.branchId) return false;
     return Date.now() - session.loginTime < 12 * 60 * 60 * 1000;
   }, [session]);
 
-  // Today's POS orders from OrderStore
+  const isNeedsBranchSelection = useMemo(() => {
+    return isSessionLoaded && !!session && !session.branchId;
+  }, [isSessionLoaded, session]);
+
+  const selectBranch = useCallback((branchId: string) => {
+    setSession(prev => prev ? { ...prev, branchId } : null);
+  }, []);
+
+  // Today's POS orders from OrderStore, filtered to the current staff member
   const todayOrders = useMemo(() => {
     if (!session) return [];
     const startOfDay = new Date();
@@ -128,7 +139,8 @@ export function POSProvider({ children }: POSProviderProps) {
     return allOrders.filter(o =>
       o.source === 'pos' &&
       o.branch.id === session.branchId &&
-      o.placedAt >= startOfDay.getTime()
+      o.placedAt >= startOfDay.getTime() &&
+      o.staffId === session.staffId
     );
   }, [allOrders, session]);
 
@@ -258,7 +270,6 @@ export function POSProvider({ children }: POSProviderProps) {
     if (!session) return;
     const branch = branches.find(b => b.id === session.branchId);
 
-    // Use real menu item IDs from the branch
     const testOrders: CreateOrderInput[] = [
       {
         source: 'pos', fulfillmentType: 'dine_in', paymentMethod: 'cash',
@@ -289,18 +300,36 @@ export function POSProvider({ children }: POSProviderProps) {
         branchId: session.branchId, branchName: branch?.name ?? '',
         staffId: session.staffId, staffName: session.staffName,
       },
+      {
+        source: 'pos', fulfillmentType: 'takeaway', paymentMethod: 'cash',
+        items: [
+          { menuItemId: '6', name: 'Banku & Tilapia', quantity: 1, unitPrice: 95 },
+          { menuItemId: '7', name: 'Sobolo', quantity: 2, unitPrice: 15 },
+        ],
+        contact: { name: 'Efua Mensah', phone: '0501234567' },
+        branchId: session.branchId, branchName: branch?.name ?? '',
+        staffId: session.staffId, staffName: session.staffName,
+      },
+      {
+        source: 'pos', fulfillmentType: 'dine_in', paymentMethod: 'card',
+        items: [
+          { menuItemId: '8', name: 'Kelewele & Groundnuts', quantity: 1, unitPrice: 35 },
+        ],
+        contact: { name: 'Walk-in', phone: '' },
+        branchId: session.branchId, branchName: branch?.name ?? '',
+        staffId: session.staffId, staffName: session.staffName,
+      },
     ];
 
-    testOrders.forEach(input => createOrder(input));
-  }, [session, branches, createOrder]);
-
-  const login = useCallback((newSession: POSSession) => {
-    sessionStorage.setItem('pos-session', JSON.stringify(newSession));
-    setSession(newSession);
-  }, []);
+    // Create each order then immediately mark it completed
+    testOrders.forEach(input => {
+      createOrder(input).then(order => {
+        storeUpdateStatus(order.id, 'completed', { completedAt: Date.now() });
+      });
+    });
+  }, [session, branches, createOrder, storeUpdateStatus]);
 
   const logout = useCallback(() => {
-    sessionStorage.removeItem('pos-session');
     setSession(null);
     clearCart();
   }, [clearCart]);
@@ -309,6 +338,8 @@ export function POSProvider({ children }: POSProviderProps) {
     session,
     isSessionValid,
     isSessionLoaded,
+    isNeedsBranchSelection,
+    selectBranch,
     cart,
     cartTotal,
     cartCount,
@@ -331,7 +362,6 @@ export function POSProvider({ children }: POSProviderProps) {
     todayOrders,
     updateOrderStatus,
     seedTestOrders,
-    login,
     logout,
   };
 

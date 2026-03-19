@@ -18,6 +18,8 @@ import { useLocation } from '@/app/components/providers/LocationProvider';
 import { useAuth } from '@/app/components/providers/AuthProvider';
 import { useCreateOrder } from '@/lib/api/hooks/useOrders';
 import type { PaymentMethod as UnifiedPaymentMethod, FulfillmentType } from '@/types/order';
+import apiClient from '@/lib/api/client';
+import { toast } from '@/lib/utils/toast';
 
 type OrderType = 'delivery' | 'pickup';
 type PaymentMethod = 'mobile_money' | 'cash';
@@ -27,7 +29,9 @@ type BranchSheetView = 'list' | 'conflict';
 interface ContactDetails { name: string; phone: string; address: string; note: string; }
 
 const DELIVERY_FEE = 15;
-const TAX_RATE = 0.025;
+// Ghana GRA combined rate: VAT 15% + NHIL 2.5% + GETFund 2.5% = 20%, tax-inclusive
+// Display estimate only — actual totals are calculated by the backend
+const TAX_RATE = 0.20;
 const formatPrice = (p: number) => `₵${p.toFixed(2)}`;
 
 // ─── Input Field ──────────────────────────────────────────────────────────────
@@ -355,9 +359,9 @@ function StepIndicator({ current }: { current: Step }) {
 function OrderSummary({ orderType }: { orderType: OrderType }) {
     const { items, subtotal } = useCart();
     const { selectedBranch } = useBranch();
-    const tax = subtotal * TAX_RATE;
+    const tax = subtotal * (TAX_RATE / (1 + TAX_RATE));
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
-    const total = subtotal + delivery + tax;
+    const total = subtotal + delivery;
     return (
         <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
             <div className="flex items-center justify-between">
@@ -382,7 +386,7 @@ function OrderSummary({ orderType }: { orderType: OrderType }) {
             <div className="flex flex-col gap-2 text-sm">
                 <div className="flex justify-between"><span className="text-neutral-gray">Subtotal</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(subtotal)}</span></div>
                 <div className="flex justify-between"><span className="text-neutral-gray">Delivery Fee</span><span className="font-semibold text-text-dark dark:text-text-light">{orderType === 'delivery' ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-gray">Tax (2.5%)</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(tax)}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-gray">Tax (incl. GRA 20%)</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(tax)}</span></div>
             </div>
             <div className="h-px bg-neutral-gray/10" />
             <div className="flex justify-between items-center">
@@ -400,8 +404,11 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
 }) {
     const { selectedBranch } = useBranch();
     const [branchSheetOpen, setBranchSheetOpen] = useState(false);
+    const [phoneTouched, setPhoneTouched] = useState(false);
     const update = (f: keyof ContactDetails) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setContact({ ...contact, [f]: e.target.value });
-    const canProceed = contact.name.trim() && contact.phone.trim() && (orderType === 'pickup' || contact.address.trim());
+    const isValidGhanaPhone = (p: string) => /^(0[0-9]{9}|233[0-9]{9}|\+233[0-9]{9})$/.test(p.replace(/\s+/g, ''));
+    const phoneError = phoneTouched && contact.phone.trim() && !isValidGhanaPhone(contact.phone) ? 'Enter a valid Ghana number (e.g. 0241234567)' : '';
+    const canProceed = contact.name.trim() && contact.phone.trim() && isValidGhanaPhone(contact.phone) && (orderType === 'pickup' || contact.address.trim());
 
     return (
         <>
@@ -455,9 +462,12 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
                         <InputField icon={<UserIcon weight="fill" size={15} />} label="Full Name" required>
                             <input type="text" placeholder="e.g. Kwame Mensah" value={contact.name} onChange={update('name')} className="w-full bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/60" />
                         </InputField>
-                        <InputField icon={<PhoneIcon weight="fill" size={15} />} label="Phone Number" required>
-                            <input type="tel" placeholder="+233 24 000 0000" value={contact.phone} onChange={update('phone')} className="w-full bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/60" />
-                        </InputField>
+                        <div className="flex flex-col gap-1">
+                            <InputField icon={<PhoneIcon weight="fill" size={15} />} label="Phone Number" required>
+                                <input type="tel" placeholder="0241234567" value={contact.phone} onChange={update('phone')} onBlur={() => setPhoneTouched(true)} className="w-full bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/60" />
+                            </InputField>
+                            {phoneError && <p className="text-xs text-red-500 px-1">{phoneError}</p>}
+                        </div>
                     </div>
                     {orderType === 'delivery' && (
                         <AddressSearchField value={contact.address} onChange={addr => setContact({ ...contact, address: addr })} placeholder="Search your delivery address..." />
@@ -485,16 +495,20 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
 // ─── Step 2 ───────────────────────────────────────────────────────────────────
 function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBack, onPlace, placing }: {
     paymentMethod: PaymentMethod; setPaymentMethod: (m: PaymentMethod) => void;
-    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: () => void; placing: boolean;
+    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: (momoPhone?: string) => void; placing: boolean;
 }) {
     const { subtotal } = useCart();
     const { selectedBranch } = useBranch();
     const [branchSheetOpen, setBranchSheetOpen] = useState(false);
-    const tax = subtotal * TAX_RATE;
+    const tax = subtotal * (TAX_RATE / (1 + TAX_RATE));
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
-    const total = subtotal + delivery + tax;
+    const total = subtotal + delivery;
     const [momoPhone, setMomoPhone] = useState(contact.phone);
     const [momoNetwork, setMomoNetwork] = useState<'mtn' | 'telecel' | 'airteltigo'>('mtn');
+    const [momoPhoneTouched, setMomoPhoneTouched] = useState(false);
+    const isValidGhanaPhone = (p: string) => /^(0[0-9]{9}|233[0-9]{9}|\+233[0-9]{9})$/.test(p.replace(/\s+/g, ''));
+    const momoPhoneError = momoPhoneTouched && momoPhone.trim() && !isValidGhanaPhone(momoPhone) ? 'Enter a valid Ghana number (e.g. 0241234567)' : '';
+    const canPlace = paymentMethod !== 'mobile_money' || isValidGhanaPhone(momoPhone);
 
     const methods = [
         { id: 'mobile_money' as const, icon: <DeviceMobileIcon weight="fill" size={20} />, label: 'Mobile Money', sub: 'MTN MoMo · Telecel · AirtelTigo', color: 'text-warning' },
@@ -558,9 +572,12 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                                             ))}
                                         </div>
                                     </div>
-                                    <InputField icon={<PhoneIcon weight="fill" size={13} />} label="MoMo Number" required>
-                                        <input type="tel" placeholder="+233 24 000 0000" value={momoPhone} onChange={e => setMomoPhone(e.target.value)} className="w-full bg-transparent outline-none placeholder:text-neutral-gray/60 text-text-dark dark:text-text-light" />
-                                    </InputField>
+                                    <div className="flex flex-col gap-1">
+                                        <InputField icon={<PhoneIcon weight="fill" size={13} />} label="MoMo Number" required>
+                                            <input type="tel" placeholder="0241234567" value={momoPhone} onChange={e => setMomoPhone(e.target.value)} onBlur={() => setMomoPhoneTouched(true)} className="w-full bg-transparent outline-none placeholder:text-neutral-gray/60 text-text-dark dark:text-text-light" />
+                                        </InputField>
+                                        {momoPhoneError && <p className="text-xs text-red-500 px-1">{momoPhoneError}</p>}
+                                    </div>
                                     <p className="text-xs text-neutral-gray flex items-center gap-1"><LockIcon size={11} /> You'll receive a prompt on your phone to confirm payment</p>
                                 </div>
                             )}
@@ -572,7 +589,7 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                     <button onClick={onBack} className="flex cursor-pointer items-center gap-2 px-5 py-4 rounded-2xl border-2 border-neutral-gray/20 font-bold text-neutral-gray hover:border-primary/40 hover:text-primary transition-all">
                         <ArrowLeftIcon weight="bold" size={16} /> Back
                     </button>
-                    <button onClick={onPlace} disabled={placing}
+                    <button onClick={() => onPlace(paymentMethod === 'mobile_money' ? momoPhone : undefined)} disabled={placing || !canPlace}
                         className="flex-1 flex cursor-pointer items-center justify-between bg-brown dark:bg-brand-dark hover:bg-brown-light disabled:opacity-70 text-white font-bold px-6 py-4 rounded-2xl transition-all active:scale-[0.98] group">
                         <span>{placing ? 'Placing Order...' : paymentMethod === 'mobile_money' ? 'Pay & Place Order' : 'Place Order'}</span>
                         <div className="flex items-center gap-2">
@@ -746,11 +763,11 @@ export default function CheckoutPage() {
     const [orderNumber, setOrderNumber] = useState('');
     const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });
 
-    const handlePlaceOrder = useCallback(async () => {
+    const handlePlaceOrder = useCallback(async (momoPhone?: string) => {
         if (!selectedBranch) return;
         setPlacing(true);
         try {
-            // API creates order from cart - pass contact/delivery details only
+            // Create order via API
             const response = await createOrder({
                 branch_id: Number(selectedBranch.id),
                 order_type: orderType,
@@ -763,11 +780,39 @@ export default function CheckoutPage() {
                 payment_method: paymentMethod,
             });
 
-            setOrderNumber(response.data.order_number);
+            const order = response.data;
+
+            if (paymentMethod === 'mobile_money') {
+                // Format phone to 233XXXXXXXXX for Hubtel
+                const rawPhone = momoPhone || contact.phone;
+                const formattedPhone = rawPhone.replace(/\s+/g, '').replace(/^\+/, '').replace(/^0/, '233');
+
+                // Initiate Hubtel checkout — returns a checkoutUrl to redirect the customer
+                const paymentResponse = await apiClient.post(
+                    `/orders/${order.id}/payments/hubtel/initiate`,
+                    {
+                        description: `Order ${order.order_number} - ${selectedBranch.name}`,
+                        customer_name: contact.name,
+                        customer_phone: formattedPhone,
+                    }
+                ) as { data?: { checkout_url?: string } };
+
+                const checkoutUrl = paymentResponse?.data?.checkout_url;
+                if (checkoutUrl) {
+                    clearCart();
+                    window.location.href = checkoutUrl;
+                    return;
+                }
+                // Fallback: Hubtel not configured — treat as placed
+                toast.info('Payment will be collected on delivery/pickup.');
+            }
+
             clearCart();
+            setOrderNumber(order.order_number);
             setStep(3);
-        } catch (err) {
-            console.error('Failed to place order:', err);
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            toast.error(msg || 'Failed to place order. Please try again.');
         } finally {
             setPlacing(false);
         }

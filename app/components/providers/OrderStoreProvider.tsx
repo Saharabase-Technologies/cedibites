@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import type { Order, OrderFilter, OrderStatus, CreateOrderInput } from '@/types/order';
 import { getOrderService } from '@/lib/services/orders/order.service';
+import { getStaffToken } from '@/lib/api/services/staff.service';
 
 // ─── Context shape ──────────────────────────────────────────────────────────
 
@@ -43,6 +44,10 @@ export function OrderStoreProvider({ children }: { children: ReactNode }) {
         const service = getOrderService();
 
         const loadOrders = async () => {
+            if (!getStaffToken()) {
+                setIsLoading(false);
+                return;
+            }
             try {
                 const data = await service.getAll();
                 setOrders(data);

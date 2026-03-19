@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { useQueryClient } from '@tanstack/react-query';
 import { authService } from '@/lib/api/services/auth.service';
 import { cartService } from '@/lib/api/services/cart.service';
-import { GUEST_SESSION_KEY } from '@/lib/api/client';
+import { GUEST_SESSION_KEY, ApiError } from '@/lib/api/client';
 import { getErrorMessage } from '@/lib/utils/error-handler';
 import type { User } from '@/types/api';
 
@@ -96,11 +96,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const authUser = mapApiUserToAuthUser(response.data);
                 persistUser(authUser);
                 setHydrated(true);
-            } catch (error) {
-                // Token invalid or expired, clear it
-                localStorage.removeItem('cedibites_auth_token');
-                localStorage.removeItem(GUEST_SESSION_KEY);
-                localStorage.removeItem(STORAGE_KEY);
+            } catch (error: unknown) {
+                const status = error instanceof ApiError ? error.status : 0;
+
+                if (status === 401) {
+                    // Token explicitly rejected — clear everything
+                    localStorage.removeItem('cedibites_auth_token');
+                    localStorage.removeItem(GUEST_SESSION_KEY);
+                    localStorage.removeItem(STORAGE_KEY);
+                } else {
+                    // Network error or server error — keep token, restore from cache
+                    const stored = localStorage.getItem(STORAGE_KEY);
+                    if (stored) {
+                        try {
+                            setUser(JSON.parse(stored));
+                        } catch {
+                            // Corrupted cache — ignore
+                        }
+                    }
+                }
+
                 setHydrated(true);
             }
         };

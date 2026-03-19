@@ -89,6 +89,9 @@ export interface Order {
     paymentMethod: PaymentMethod;
     isPaid: boolean;
     paymentStatus: PaymentStatus;
+    paymentId?: number;         // DB payment record ID — used for polling (RMP mobile money)
+    amountPaid?: number;        // POS: cash tendered by customer
+    momoNumber?: string;        // POS: mobile money number used
 
     // Items & pricing
     items: OrderItem[];
@@ -156,7 +159,7 @@ export interface KanbanColumn {
 
 // ─── User roles for permissions ──────────────────────────────────────────────
 
-export type StaffRole = 'super_admin' | 'branch_partner' | 'manager' | 'call_center' | 'kitchen' | 'rider';
+export type StaffRole = 'admin' | 'super_admin' | 'branch_partner' | 'manager' | 'call_center' | 'employee' | 'kitchen' | 'rider';
 export type UserRole = 'call_center' | 'manager' | 'super_admin' | 'branch_partner';
 
 // ─── Filter type (for service layer) ─────────────────────────────────────────

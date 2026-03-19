@@ -222,6 +222,9 @@ export interface Order {
   delivery_note?: string;
   estimated_ready_time?: string;
   estimated_delivery_time?: string;
+  amount_paid?: number;
+  discount?: number;
+  staff_name?: string;
   created_at: string;
   updated_at: string;
 }

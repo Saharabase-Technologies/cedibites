@@ -9,6 +9,7 @@ import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { getPromoService, type Promo } from '@/lib/services/promos/promo.service';
 import { getShiftService } from '@/lib/services/shifts/shift.service';
+import { toast } from '@/lib/utils/toast';
 
 // ─── Context shape ────────────────────────────────────────────────────────────
 
@@ -138,13 +139,11 @@ export function NewOrderProvider({ children }: { children: ReactNode }) {
 
     const submit = useCallback(async () => {
         if (!source || !branchId || !payment) return;
-        console.log('Submit function called with:', { source, branchId, payment, cartLength: cart.length });
-        
+
         setIsSubmitting(true);
         try {
             const branch = branches.find(b => b.id === branchId);
-            console.log('Found branch:', branch);
-            
+
             const orderData = {
                 source,
                 fulfillmentType: orderType,
@@ -178,10 +177,7 @@ export function NewOrderProvider({ children }: { children: ReactNode }) {
                 momoNumber: payment === 'mobile_money' ? customer.phone : undefined, // Add MoMo number for mobile money payments
             };
             
-            console.log('Creating order with data:', orderData);
-            
             const order = await createOrder(orderData);
-            console.log('Order created successfully:', order);
             
             setOrderCode(order.orderNumber);
             // Track order in active shift
@@ -190,9 +186,9 @@ export function NewOrderProvider({ children }: { children: ReactNode }) {
                     if (shift) getShiftService().addOrder(shift.id, order.orderNumber, order.total).catch(() => {});
                 }).catch(() => {});
             }
-        } catch (error) {
-            console.error('Order creation failed:', error);
-            // Handle error — show toast or inline error
+        } catch (error: unknown) {
+            const msg = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            toast.error(msg || 'Failed to create order. Please try again.');
         } finally {
             setIsSubmitting(false);
         }

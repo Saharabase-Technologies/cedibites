@@ -20,6 +20,8 @@ import { formatGHS, timeAgo, getNextStatuses, isDoneStatus, haversineKm } from '
 import type { Order, OrderStatus } from '@/types/order';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import LiveMap from '@/app/components/order/LiveMap';
+import { toast } from '@/lib/utils/toast';
+import apiClient from '@/lib/api/client';
 
 // ─── Refund modal ─────────────────────────────────────────────────────────────
 
@@ -143,11 +145,13 @@ export default function OrderDetailPanel() {
     const handleRefundConfirm = async () => {
         setIsRefunding(true);
         try {
-            await new Promise(r => setTimeout(r, 2000));
+            await apiClient.post(`/orders/${order.id}/refund`);
             setRefundDone(true);
             setShowRefund(false);
-        } catch {
-            // TODO: show error toast
+            toast.success('Refund initiated successfully');
+        } catch (error: unknown) {
+            const msg = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            toast.error(msg || 'Failed to initiate refund. Please try again.');
         } finally {
             setIsRefunding(false);
         }

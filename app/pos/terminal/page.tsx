@@ -27,13 +27,16 @@ import {
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { usePOS } from '../context';
-import { formatGHS} from '@/lib/utils/currency';
+import { formatGHS } from '@/lib/utils/currency';
+import apiClient from '@/lib/api/client';
+import { toast } from '@/lib/utils/toast';
 import type { PaymentMethod, Order } from '@/types/order';
 import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import { printReceipt } from '@/lib/utils/printReceipt';
 import { getPromoService, type Promo } from '@/lib/services/promos/promo.service';
+import { SignOutDialog } from '../components/SignOutDialog';
 
 // Flat row — one per orderable option (no picker modal needed)
 interface DisplayRow {
@@ -78,6 +81,8 @@ export default function POSTerminalPage() {
     session,
     isSessionValid,
     isSessionLoaded,
+    isNeedsBranchSelection,
+    selectBranch,
     cart,
     cartTotal,
     cartCount,
@@ -107,16 +112,18 @@ export default function POSTerminalPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
+  const [pendingMomoOrder, setPendingMomoOrder] = useState<Order | null>(null);
   const [showCart, setShowCart] = useState(false);
   const [activePromo, setActivePromo] = useState<Promo | null>(null);
   const [promoDiscount, setPromoDiscount] = useState(0);
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
-  // Redirect if no session
+  // Redirect if no session (but not if we just need branch selection)
   useEffect(() => {
-    if (isSessionLoaded && !isSessionValid) {
-      router.replace('/pos');
+    if (isSessionLoaded && !isSessionValid && !isNeedsBranchSelection) {
+      router.replace('/staff/login');
     }
-  }, [isSessionLoaded, isSessionValid, router]);
+  }, [isSessionLoaded, isSessionValid, isNeedsBranchSelection, router]);
 
   // Resolve promo whenever cart changes
   useEffect(() => {
@@ -148,7 +155,7 @@ export default function POSTerminalPage() {
   );
 
   const allCategories = useMemo(
-    () => [{ id: 'all', name: 'Popular' }, ...menuCategories],
+    () => [{ id: 'all', name: 'Popular' }, ...menuCategories.filter(c => c.id !== 'all')],
     [menuCategories]
   );
 
@@ -198,9 +205,14 @@ export default function POSTerminalPage() {
   const handlePaymentComplete = async (method: PaymentMethod, amountPaid?: number, momoNumber?: string) => {
     try {
       const order = await processPayment(method, amountPaid, momoNumber, promoDiscount > 0 ? promoDiscount : undefined);
-      setCompletedOrder(order);
-    } catch (error) {
-      console.error('Payment failed:', error);
+      if (method === 'mobile_money' && order.paymentStatus === 'pending') {
+        // RMP: show waiting UI — payment is pending customer USSD approval
+        setPendingMomoOrder(order);
+      } else {
+        setCompletedOrder(order);
+      }
+    } catch {
+      toast.error('Failed to create order. Please try again.');
     }
   };
 
@@ -223,10 +235,36 @@ export default function POSTerminalPage() {
     );
   }
 
+  if (isNeedsBranchSelection) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-neutral-light p-6">
+        <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl p-8 flex flex-col gap-6">
+          <div className="text-center">
+            <StorefrontIcon className="w-12 h-12 text-primary mx-auto mb-3" />
+            <h1 className="text-xl font-bold text-text-dark">Select Branch</h1>
+            <p className="text-sm text-text-muted mt-1">Choose which branch POS to operate</p>
+          </div>
+          <div className="flex flex-col gap-3">
+            {branches.map(branch => (
+              <button
+                key={branch.id}
+                onClick={() => selectBranch(branch.id)}
+                className="w-full text-left px-5 py-4 rounded-2xl border-2 border-neutral-gray/20 hover:border-primary hover:bg-primary/5 transition-colors"
+              >
+                <div className="font-semibold text-text-dark">{branch.name}</div>
+                <div className="text-xs text-text-muted mt-0.5">{branch.address}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-dvh flex flex-col lg:flex-row bg-neutral-light">
+    <div className="h-dvh flex flex-col lg:flex-row bg-neutral-light overflow-hidden">
       {/* Main Content - Menu Grid */}
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
         {/* Header */}
         <header className="shrink-0 px-4 py-3 border-b border-neutral-gray/20 flex items-center justify-between gap-4 bg-white">
           {/* Left - Branch & Staff */}
@@ -288,12 +326,7 @@ export default function POSTerminalPage() {
             </Link>
 
             <button
-              onClick={() => {
-                if (confirm('Sign out of POS?')) {
-                  logout();
-                  router.replace('/pos');
-                }
-              }}
+              onClick={() => setIsSignOutOpen(true)}
               className="w-10 h-10 rounded-xl bg-neutral-gray/10 flex items-center justify-center text-neutral-gray hover:text-error hover:bg-error/10 transition-colors"
               title="Sign Out"
             >
@@ -387,7 +420,7 @@ export default function POSTerminalPage() {
         flex flex-col bg-white
         fixed inset-y-0 right-0 w-80 z-40 shadow-2xl
         transition-transform duration-300 ease-in-out
-        lg:relative lg:inset-auto lg:w-80 lg:shadow-none lg:z-auto lg:border-l lg:border-neutral-gray/20
+        lg:relative lg:inset-auto lg:w-80 lg:shrink-0 lg:shadow-none lg:z-auto lg:border-l lg:border-neutral-gray/20 lg:h-full
         ${showCart ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
       `}>
         {/* Cart Header */}
@@ -615,6 +648,12 @@ export default function POSTerminalPage() {
         </button>
       </div>
 
+      <SignOutDialog
+        isOpen={isSignOutOpen}
+        onCancel={() => setIsSignOutOpen(false)}
+        onConfirm={() => { logout(); router.replace('/pos'); }}
+      />
+
       {/* Payment Modal */}
       {isPaymentOpen && (
         <PaymentModal
@@ -624,11 +663,27 @@ export default function POSTerminalPage() {
         />
       )}
 
+      {/* MoMo Waiting Modal */}
+      {pendingMomoOrder && (
+        <MomoWaitingModal
+          order={pendingMomoOrder}
+          onConfirmed={(confirmedOrder) => {
+            setPendingMomoOrder(null);
+            setCompletedOrder(confirmedOrder);
+          }}
+          onTimeout={() => {
+            setPendingMomoOrder(null);
+            toast.error('Payment timed out. Please ask the customer to try again.');
+          }}
+          onCancel={() => setPendingMomoOrder(null)}
+        />
+      )}
+
       {/* Success Modal */}
       {completedOrder && (
         <OrderSuccessModal
           order={completedOrder}
-          branchName={branchInfo?.name ?? 'CediBites'}
+          branch={{ name: branchInfo?.name ?? 'CediBites', address: branchInfo?.address, phone: branchInfo?.phone }}
           onClose={() => setCompletedOrder(null)}
         />
       )}
@@ -861,11 +916,11 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
 
 interface OrderSuccessModalProps {
   order: Order;
-  branchName: string;
+  branch: { name: string; address?: string; phone?: string };
   onClose: () => void;
 }
 
-function OrderSuccessModal({ order, branchName, onClose }: OrderSuccessModalProps) {
+function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
   // Auto close after 5 seconds
   useEffect(() => {
     const timer = setTimeout(onClose, 5000);
@@ -914,7 +969,7 @@ function OrderSuccessModal({ order, branchName, onClose }: OrderSuccessModalProp
 
           <div className="flex gap-2">
             <button
-              onClick={() => printReceipt(order, branchName)}
+              onClick={() => printReceipt(order, branch)}
               className="
                 flex-1 h-12 rounded-xl font-medium
                 bg-neutral-gray/10 text-text-dark
@@ -946,6 +1001,123 @@ function OrderSuccessModal({ order, branchName, onClose }: OrderSuccessModalProp
             className="h-full bg-primary animate-shrink"
             style={{ animationDuration: '5s' }}
           />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MoMo Waiting Modal ───────────────────────────────────────────────────────
+
+const MOMO_POLL_INTERVAL_MS = 7000;
+const MOMO_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+interface MomoWaitingModalProps {
+  order: Order;
+  onConfirmed: (order: Order) => void;
+  onTimeout: () => void;
+  onCancel: () => void;
+}
+
+function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaitingModalProps) {
+  const [secondsRemaining, setSecondsRemaining] = useState(Math.floor(MOMO_TIMEOUT_MS / 1000));
+
+  useEffect(() => {
+    const startTime = Date.now();
+    let timedOut = false;
+
+    // Countdown timer
+    const countdown = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, Math.floor((MOMO_TIMEOUT_MS - elapsed) / 1000));
+      setSecondsRemaining(remaining);
+    }, 1000);
+
+    // Payment status polling
+    const poll = setInterval(async () => {
+      if (timedOut || !order.paymentId) return;
+
+      const elapsed = Date.now() - startTime;
+      if (elapsed >= MOMO_TIMEOUT_MS) {
+        timedOut = true;
+        clearInterval(poll);
+        clearInterval(countdown);
+        onTimeout();
+        return;
+      }
+
+      try {
+        const response = await apiClient.get(`/payments/${order.paymentId}/verify`);
+        const data = response as unknown as { data?: { payment_status?: string } };
+        const status = data?.data?.payment_status;
+
+        if (status === 'completed') {
+          clearInterval(poll);
+          clearInterval(countdown);
+          onConfirmed({ ...order, paymentStatus: 'completed', isPaid: true });
+        } else if (status === 'failed') {
+          clearInterval(poll);
+          clearInterval(countdown);
+          toast.error('Payment was declined. Please ask the customer to try again.');
+          onCancel();
+        }
+      } catch {
+        // ignore poll errors — keep trying
+      }
+    }, MOMO_POLL_INTERVAL_MS);
+
+    return () => {
+      clearInterval(poll);
+      clearInterval(countdown);
+    };
+  }, [order, onConfirmed, onTimeout, onCancel]);
+
+  const minutes = Math.floor(secondsRemaining / 60);
+  const seconds = secondsRemaining % 60;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden text-center shadow-2xl">
+        <div className="pt-8 pb-4">
+          <div className="w-20 h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+            <DeviceMobileIcon className="w-10 h-10 text-primary" weight="fill" />
+          </div>
+        </div>
+
+        <div className="px-6 pb-8">
+          <h2 className="text-2xl font-bold text-text-dark mb-2">
+            Waiting for Payment
+          </h2>
+          <p className="text-neutral-gray mb-2">
+            A payment prompt has been sent to
+          </p>
+          <p className="text-lg font-semibold text-text-dark mb-6">
+            {order.contact.phone}
+          </p>
+
+          <div className="bg-neutral-light rounded-2xl p-4 mb-6">
+            <p className="text-sm text-neutral-gray mb-1">Amount to pay</p>
+            <p className="text-3xl font-bold text-primary">{formatGHS(order.total)}</p>
+          </div>
+
+          <div className="flex items-center justify-center gap-2 mb-6 text-neutral-gray text-sm">
+            <SpinnerIcon className="w-4 h-4 animate-spin" />
+            <span>
+              Waiting... {minutes}:{seconds.toString().padStart(2, '0')} remaining
+            </span>
+          </div>
+
+          <button
+            onClick={onCancel}
+            className="
+              w-full h-12 rounded-2xl font-medium
+              bg-neutral-gray/10 text-neutral-gray
+              hover:bg-neutral-gray/20 active:scale-[0.98]
+              transition-all duration-150
+            "
+          >
+            Cancel
+          </button>
         </div>
       </div>
     </div>

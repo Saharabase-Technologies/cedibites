@@ -122,10 +122,12 @@ export type BackendRole = 'super_admin' | 'admin' | 'branch_partner' | 'manager'
 /** Map frontend StaffRole to backend role for API */
 export function staffRoleToBackendRole(role: StaffRole): BackendRole {
   const map: Record<StaffRole, BackendRole> = {
+    admin: 'admin',
     super_admin: 'super_admin',
     branch_partner: 'branch_partner',
     manager: 'manager',
     call_center: 'call_center',
+    employee: 'employee',
     kitchen: 'kitchen',
     rider: 'rider',
   };

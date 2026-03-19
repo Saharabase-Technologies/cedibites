@@ -40,10 +40,12 @@ import { toast } from '@/lib/utils/toast';
 // ─── Display helpers ──────────────────────────────────────────────────────────
 
 const ROLE_STYLES: Record<StaffRole, string> = {
+    admin:          'bg-primary/10 text-primary',
     super_admin:    'bg-primary/10 text-primary',
     branch_partner: 'bg-purple-100 text-purple-700',
     manager:        'bg-secondary/10 text-secondary',
     call_center:    'bg-info/10 text-info',
+    employee:       'bg-neutral-200 text-neutral-700',
     kitchen:        'bg-warning/10 text-warning',
     rider:          'bg-secondary/15 text-secondary',
 };
@@ -254,10 +256,12 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
     // Convert StaffRole to database role name
     const staffRoleToDbRole = (staffRole: StaffRole): string => {
         const mapping: Record<StaffRole, string> = {
+            'admin': 'admin',
             'super_admin': 'super_admin',
             'branch_partner': 'branch_partner',
             'manager': 'manager',
             'call_center': 'call_center',
+            'employee': 'employee',
             'kitchen': 'kitchen',
             'rider': 'rider',
         };

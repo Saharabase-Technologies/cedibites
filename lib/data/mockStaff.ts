@@ -4,10 +4,12 @@
 // POS terminal login: 4-digit PIN              (resolveByPin)
 
 export type StaffRole =
+    | 'admin'           // Platform admin — full access, manages the platform
     | 'super_admin'     // God mode — full platform access, creates sub-admins
     | 'branch_partner'  // Read-only investor scoped to their branch(es)
     | 'manager'         // Branch manager — full ops for their branch
     | 'call_center'     // Places orders, cannot advance order status
+    | 'employee'        // General staff member
     | 'kitchen'         // KDS display only, no portal login
     | 'rider';          // Dormant for now
 
@@ -64,14 +66,17 @@ export interface StaffMember {
 
 export function defaultPermissions(role: StaffRole): StaffPermissions {
     switch (role) {
+        case 'admin':
         case 'super_admin':
-            return { canPlaceOrders: true,  canAdvanceOrders: true,  canAccessPOS: false, canViewReports: true,  canManageMenu: true,  canManageStaff: true  };
+            return { canPlaceOrders: true,  canAdvanceOrders: true,  canAccessPOS: true,  canViewReports: true,  canManageMenu: true,  canManageStaff: true  };
         case 'branch_partner':
             return { canPlaceOrders: false, canAdvanceOrders: false, canAccessPOS: false, canViewReports: true,  canManageMenu: false, canManageStaff: false };
         case 'manager':
             return { canPlaceOrders: true,  canAdvanceOrders: true,  canAccessPOS: true,  canViewReports: true,  canManageMenu: true,  canManageStaff: true  };
         case 'call_center':
             return { canPlaceOrders: true,  canAdvanceOrders: false, canAccessPOS: true,  canViewReports: false, canManageMenu: false, canManageStaff: false };
+        case 'employee':
+            return { canPlaceOrders: true,  canAdvanceOrders: true,  canAccessPOS: true,  canViewReports: false, canManageMenu: false, canManageStaff: false };
         case 'kitchen':
         case 'rider':
             return { canPlaceOrders: false, canAdvanceOrders: false, canAccessPOS: false, canViewReports: false, canManageMenu: false, canManageStaff: false };
@@ -82,10 +87,12 @@ export function defaultPermissions(role: StaffRole): StaffPermissions {
 
 export function roleDisplayName(role: StaffRole): string {
     const map: Record<StaffRole, string> = {
+        admin:          'Admin',
         super_admin:    'Super Admin',
         branch_partner: 'Branch Partner',
         manager:        'Branch Manager',
         call_center:    'Call Center',
+        employee:       'Employee',
         kitchen:        'Kitchen Staff',
         rider:          'Rider',
     };

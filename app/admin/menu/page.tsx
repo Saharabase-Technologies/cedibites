@@ -230,7 +230,7 @@ function ImagePicker({ value, onChange, size = 'md' }: { value?: string; onChang
 // ─── Item edit modal ──────────────────────────────────────────────────────────
 
 function ItemModal({
-    item, optionTemplates, addOns, branchNames, categoryOptions, onClose, onSave,
+    item, optionTemplates, addOns, branchNames, categoryOptions, onClose, onSave, isSaving = false,
 }: {
     item: GlobalMenuItem | null;
     optionTemplates: OptionTemplate[];
@@ -239,6 +239,7 @@ function ItemModal({
     categoryOptions: string[];
     onClose: () => void;
     onSave: (item: GlobalMenuItem) => void;
+    isSaving?: boolean;
 }) {
     const isNew = !item;
     const [form, setForm] = useState<ItemFormState>(item ? itemToForm(item) : blankForm(branchNames, categoryOptions));
@@ -523,7 +524,7 @@ function ItemModal({
 
                 <div className="flex gap-3 px-6 py-4 border-t border-[#f0e8d8]">
                     <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-neutral-light text-text-dark rounded-xl text-sm font-medium font-body cursor-pointer hover:bg-[#f0e8d8] transition-colors">Cancel</button>
-                    <button type="button" onClick={(e) => { e.preventDefault(); handleSubmit(); }} className="flex-1 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium font-body cursor-pointer hover:bg-primary-hover transition-colors">{isNew ? 'Add Item' : 'Save Changes'}</button>
+                    <button type="button" onClick={(e) => { e.preventDefault(); handleSubmit(); }} disabled={isSaving} className="flex-1 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium font-body cursor-pointer hover:bg-primary-hover disabled:opacity-60 transition-colors">{isSaving ? 'Saving...' : isNew ? 'Add Item' : 'Save Changes'}</button>
                 </div>
             </div>
         </div>
@@ -754,6 +755,7 @@ export default function AdminMenuPage() {
     const [editItem, setEditItem] = useState<GlobalMenuItem | null | 'new'>(null);
     const [deleteItem, setDeleteItem] = useState<GlobalMenuItem | null>(null);
     const [showImport, setShowImport] = useState(false);
+    const [savingItem, setSavingItem] = useState(false);
 
     const { config } = useMenuConfig();
     const optionTemplates = config?.optionTemplates ?? DEFAULT_CONFIG.optionTemplates;
@@ -800,20 +802,16 @@ export default function AdminMenuPage() {
             is_popular: item.tags.includes('popular'),
         };
 
-        console.log('Saving item with data:', apiData);
-        console.log('Available branches:', branches);
-        console.log('Category mapping:', { category: item.category, categoryId });
-
         // Check if this is a new item or update
         const isNew = !item.numericId || item.id.startsWith('item-');
-        
-        const savePromise = isNew 
+
+        setSavingItem(true);
+        const savePromise = isNew
             ? menuService.createItem(apiData)
             : menuService.updateItem(item.numericId, apiData);
 
         savePromise
             .then(response => {
-                console.log(`Item ${isNew ? 'created' : 'updated'} successfully:`, response.data);
                 
                 // Update local state with the response from server
                 setItems(prev => {
@@ -834,16 +832,11 @@ export default function AdminMenuPage() {
                 refetchMenuItems();
                 
                 toast.success(`Menu item ${isNew ? 'created' : 'updated'} successfully!`);
-                setEditItem(null); // Close modal only on success
+                setEditItem(null);
+                setSavingItem(false);
             })
             .catch(error => {
-                console.error(`Failed to ${isNew ? 'create' : 'update'} item:`, error);
-                console.error('Error details:', {
-                    status: error.status,
-                    message: error.message,
-                    errors: error.errors
-                });
-                
+                setSavingItem(false);
                 if (error.errors) {
                     // Show validation errors
                     const errorMessages = Object.entries(error.errors as Record<string, string[]>)
@@ -1051,6 +1044,7 @@ export default function AdminMenuPage() {
                     categoryOptions={categoryOptions}
                     onClose={() => setEditItem(null)}
                     onSave={saveItem}
+                    isSaving={savingItem}
                 />
             )}
             {deleteItem && (

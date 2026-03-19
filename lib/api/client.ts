@@ -75,7 +75,7 @@ export function ensureGuestSessionId(): string {
 function isStaffRoute(): boolean {
   if (typeof window === 'undefined') return false;
   const p = window.location.pathname;
-  return (p.startsWith('/staff') || p.startsWith('/admin') || p.startsWith('/partner') || p.startsWith('/pos')) && !p.startsWith('/kitchen');
+  return (p.startsWith('/staff') || p.startsWith('/admin') || p.startsWith('/partner') || p.startsWith('/pos') || p.startsWith('/order-manager')) && !p.startsWith('/kitchen');
 }
 
 // Request interceptor - use the token that matches the current route, no fallbacks
@@ -122,11 +122,11 @@ apiClient.interceptors.response.use(
       if (typeof window !== 'undefined') {
         const pathname = window.location.pathname;
         
-        // Kitchen routes are public - don't redirect on 401
-        if (pathname.startsWith('/kitchen')) {
+        // Kitchen and order-manager routes are public - don't redirect on 401
+        if (pathname.startsWith('/kitchen') || pathname.startsWith('/order-manager')) {
           throw new ApiError(status, 'Unauthorized');
         }
-        
+
         const isStaffRoute = pathname.startsWith('/staff') ||
           pathname.startsWith('/admin') ||
           pathname.startsWith('/partner') ||
