@@ -17,8 +17,8 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /var/www/nextjs/cedibites
+            cd /var/www/production/nextjs/cedibites
             git pull origin main
-            npm install
+            npm ci
             npm run build
             pm2 restart cedibites-pos-frontend
