@@ -4,6 +4,8 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import { useRouter } from 'next/navigation';
 import { type StaffRole } from '@/types/staff';
 import { clearStaffToken, getStaffToken, staffService } from '@/lib/api/services/staff.service';
+import { ApiError } from '@/lib/api/client';
+import { disconnectEcho, getEcho } from '@/lib/echo';
 import { getShiftService } from '@/lib/services/shifts/shift.service';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -44,6 +46,7 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
     const [staffUser, setStaffUser] = useState<StaffUser | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    // ── Session hydration + background validation ──
     useEffect(() => {
         const token = getStaffToken();
         if (!token) {
@@ -61,15 +64,44 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
         staffService.me().then(user => {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
             setStaffUser(user);
-        }).catch(() => {
-            // Token invalid/expired — clear everything
-            clearStaffToken();
-            localStorage.removeItem(STORAGE_KEY);
-            setStaffUser(null);
+        }).catch((error: unknown) => {
+            // Only clear the session on 401 — for network errors or transient
+            // server failures, keep the cached user so we don't log out needlessly.
+            if (error instanceof ApiError && error.status === 401) {
+                clearStaffToken();
+                localStorage.removeItem(STORAGE_KEY);
+                setStaffUser(null);
+            }
         }).finally(() => {
             setIsLoading(false);
         });
     }, []);
+
+    // ── Reverb session sync ──
+    useEffect(() => {
+        if (!staffUser) return;
+
+        const echo = getEcho();
+        if (!echo) return;
+
+        const channel = echo.private(`App.Models.User.${staffUser.id}`);
+
+        channel.listen('.staff.session', (event: { type: string; user?: StaffUser }) => {
+            if (event.type === 'session.revoked') {
+                clearStaffToken();
+                localStorage.removeItem(STORAGE_KEY);
+                setStaffUser(null);
+                router.push('/staff/login');
+            } else if (event.type === 'user.updated' && event.user) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(event.user));
+                setStaffUser(event.user);
+            }
+        });
+
+        return () => {
+            echo.leave(`App.Models.User.${staffUser.id}`);
+        };
+    }, [staffUser?.id, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const login = useCallback((user: StaffUser) => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
@@ -93,6 +125,7 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
         }
         staffService.logout().catch(() => {});
         clearStaffToken();
+        disconnectEcho();
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem('cedibites-kitchen-branchId');
         localStorage.removeItem('cedibites-om-branchId');

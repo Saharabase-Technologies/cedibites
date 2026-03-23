@@ -10,6 +10,7 @@ import {
     WarningCircleIcon,
     SpinnerIcon,
 } from '@phosphor-icons/react';
+import Link from 'next/link';
 import Input from '@/app/components/base/Input';
 import { useStaffAuth, roleHomeRoute } from '@/app/components/providers/StaffAuthProvider';
 import { staffService } from '@/lib/api/services/staff.service';
@@ -218,6 +219,16 @@ export default function StaffLoginPage() {
                                 autoComplete="current-password"
                                 required
                             />
+                        </div>
+
+                        {/* Forgot password */}
+                        <div className="text-right -mt-1">
+                            <Link
+                                href="/staff/forgot-password"
+                                className="text-neutral-gray text-xs font-body hover:text-primary transition-colors"
+                            >
+                                Forgot your password?
+                            </Link>
                         </div>
 
                         {/* Submit */}

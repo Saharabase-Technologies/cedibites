@@ -117,4 +117,28 @@ export const staffService = {
       clearStaffToken();
     }
   },
+
+  /**
+   * Request a password reset link via SMS (and email if present).
+   */
+  forgotPassword: async (identifier: string): Promise<void> => {
+    await apiClient.post('/employee/forgot-password', { identifier: identifier.trim() });
+  },
+
+  /**
+   * Reset password using a token received via SMS/email.
+   */
+  resetPassword: async (
+    token: string,
+    identifier: string,
+    password: string,
+    password_confirmation: string,
+  ): Promise<void> => {
+    await apiClient.post('/employee/reset-password', {
+      token,
+      identifier: identifier.trim(),
+      password,
+      password_confirmation,
+    });
+  },
 };
