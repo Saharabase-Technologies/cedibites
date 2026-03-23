@@ -180,7 +180,7 @@ function AddressSearchField({ value, onChange, placeholder }: { value: string; o
 function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const { selectedBranch, setSelectedBranch, getBranchesWithDistance, branches } = useBranch();
     const { coordinates } = useLocation();
-    const { validateCartForBranch, removeUnavailableItems, items } = useCart();
+    const { validateCartForBranch, removeUnavailableItems, displayItems: items } = useCart();
 
     const [sheetView, setSheetView] = useState<BranchSheetView>('list');
     const [pendingBranch, setPendingBranch] = useState<Branch | null>(null);
@@ -358,7 +358,7 @@ function StepIndicator({ current }: { current: Step }) {
 
 // ─── Order Summary ────────────────────────────────────────────────────────────
 function OrderSummary({ orderType }: { orderType: OrderType }) {
-    const { items, subtotal } = useCart();
+    const { displayItems: items, subtotal } = useCart();
     const { selectedBranch } = useBranch();
     const tax = subtotal * (TAX_RATE / (1 + TAX_RATE));
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
@@ -751,7 +751,7 @@ function EmptyCartGuard() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CheckoutPage() {
-    const { items, clearCart, subtotal } = useCart();
+    const { displayItems: items, clearCart, subtotal } = useCart();
     const { selectedBranch, branches } = useBranch();
     const { coordinates } = useLocation();
     const { createOrder } = useCreateOrder();

@@ -24,7 +24,7 @@ type DrawerView = 'cart' | 'branch-select' | 'branch-conflict';
 
 export default function CartDrawer() {
     const { isCartOpen, closeCart } = useModal();
-    const { items, removeFromCart, updateQuantity, totalItems, subtotal,
+    const { displayItems: items, removeFromCart, updateQuantity, totalItems, subtotal,
         validateCartForBranch, removeUnavailableItems } = useCart();
     const { selectedBranch, setSelectedBranch, branches, getBranchesWithDistance } = useBranch();
     const { coordinates } = useLocation();
