@@ -199,11 +199,6 @@ function ListItemRow({ item, onOpen }: { item: SearchableItem; onOpen: (item: Se
                     ? <Image src={item.image} alt={item.name} fill sizes="64px" className="object-cover group-hover:scale-105 transition-transform duration-300" />
                     : <div className="w-full h-full" />
                 }
-                {item.popular && (
-                    <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                        <FireIcon weight="fill" size={10} className="text-white" />
-                    </div>
-                )}
             </div>
             <div className="flex-1 w-full min-w-0">
                 <p className="text-sm font-bold text-text-dark dark:text-text-light truncate">{item.name}</p>

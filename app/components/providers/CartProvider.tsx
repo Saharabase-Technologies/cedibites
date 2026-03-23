@@ -25,7 +25,7 @@ export interface CartValidationResult {
 }
 
 interface CartContextType {
-    items: CartItem[];
+    displayItems: CartItem[];
     addToCart: (item: SearchableItem, sizeKey: string) => Promise<void>;
     removeFromCart: (cartItemId: string) => Promise<void>;
     updateQuantity: (cartItemId: string, quantity: number) => Promise<void>;
@@ -47,7 +47,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const { selectedBranch, branches } = useBranch();
     const apiCart = useApiCart();
 
-    const items: CartItem[] = apiCart.cart ? transformApiCartToLocal(apiCart.cart) : [];
+    const displayItems: CartItem[] = apiCart.cart ? transformApiCartToLocal(apiCart.cart) : [];
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -70,7 +70,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             ? parseInt(String((sizeData as { id?: number }).id))
             : undefined;
 
-        const existing = items.find(i => i.cartItemId === cartItemId);
+        const existing = displayItems.find(i => i.cartItemId === cartItemId);
 
         try {
             if (existing?.apiCartItemId) {
@@ -90,10 +90,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             console.error('Failed to add to cart:', error);
         }
-    }, [effectiveBranch, items, apiCart]);
+    }, [effectiveBranch, displayItems, apiCart]);
 
     const removeFromCart = useCallback(async (cartItemId: string) => {
-        const cartItem = items.find(i => i.cartItemId === cartItemId);
+        const cartItem = displayItems.find(i => i.cartItemId === cartItemId);
         if (!cartItem?.apiCartItemId) return;
 
         try {
@@ -101,7 +101,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             console.error('Failed to remove from cart:', error);
         }
-    }, [items, apiCart]);
+    }, [displayItems, apiCart]);
 
     const updateQuantity = useCallback(async (cartItemId: string, quantity: number) => {
         if (quantity <= 0) {
@@ -109,7 +109,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             return;
         }
 
-        const cartItem = items.find(i => i.cartItemId === cartItemId);
+        const cartItem = displayItems.find(i => i.cartItemId === cartItemId);
         if (!cartItem?.apiCartItemId) return;
 
         try {
@@ -120,7 +120,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             console.error('Failed to update quantity:', error);
         }
-    }, [items, apiCart, removeFromCart]);
+    }, [displayItems, apiCart, removeFromCart]);
 
     const clearCart = useCallback(async () => {
         try {
@@ -130,23 +130,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
     }, [apiCart]);
 
-    // No-op kept for interface compatibility — items are derived from the API
+    // No-op kept for interface compatibility — displayItems are derived from the API
     const removeUnavailableItems = useCallback((_cartItemIds: string[]) => {}, []);
 
     const isInCart = useCallback((itemId: string, sizeKey: string) =>
-        items.some(i => i.cartItemId === makeCartItemId(itemId, sizeKey)),
-        [items]);
+        displayItems.some(i => i.cartItemId === makeCartItemId(itemId, sizeKey)),
+        [displayItems]);
 
     const getCartItem = useCallback((itemId: string, sizeKey: string) =>
-        items.find(i => i.cartItemId === makeCartItemId(itemId, sizeKey)),
-        [items]);
+        displayItems.find(i => i.cartItemId === makeCartItemId(itemId, sizeKey)),
+        [displayItems]);
 
     const validateCartForBranch = useCallback((branchMenuItemIds: string[]): CartValidationResult => {
         const availableSet = new Set(branchMenuItemIds);
         const available: CartItem[] = [];
         const unavailable: CartItem[] = [];
 
-        items.forEach(cartItem => {
+        displayItems.forEach(cartItem => {
             if (availableSet.has(cartItem.item.id)) {
                 available.push(cartItem);
             } else {
@@ -155,14 +155,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
         });
 
         return { available, unavailable };
-    }, [items]);
+    }, [displayItems]);
 
-    const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
-    const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    const totalItems = displayItems.reduce((sum, i) => sum + i.quantity, 0);
+    const subtotal = displayItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
     return (
         <CartContext.Provider value={{
-            items,
+            items: displayItems,
             addToCart,
             removeFromCart,
             updateQuantity,

@@ -29,7 +29,7 @@ type BranchSheetView = 'list' | 'conflict';
 
 interface ContactDetails { name: string; phone: string; address: string; note: string; }
 
-const DELIVERY_FEE = 15;
+const DELIVERY_FEE = 0; // Delivery fees temporarily disabled
 // Ghana GRA combined rate: VAT 15% + NHIL 2.5% + GETFund 2.5% = 20%, tax-inclusive
 // Display estimate only — actual totals are calculated by the backend
 const TAX_RATE = 0.20;

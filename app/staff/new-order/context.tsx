@@ -183,8 +183,8 @@ export function NewOrderProvider({ children }: { children: ReactNode }) {
                 }).catch(() => {});
             }
         } catch (error: unknown) {
-            const msg = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            toast.error(msg || 'Failed to create order. Please try again.');
+            const msg = error instanceof Error ? error.message : 'Failed to create order. Please try again.';
+            toast.error(msg);
         } finally {
             setIsSubmitting(false);
         }
