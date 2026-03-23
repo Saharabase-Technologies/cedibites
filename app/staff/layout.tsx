@@ -141,15 +141,19 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const { staffUser, isLoading, logout } = useStaffAuth();
 
+    const isPublicPath = pathname === '/staff/login'
+        || pathname === '/staff/forgot-password'
+        || pathname === '/staff/reset-password';
+
     // Not logged in → redirect (must be before any early returns)
     useEffect(() => {
-        if (!isLoading && !staffUser && pathname !== '/staff/login') {
+        if (!isLoading && !staffUser && !isPublicPath) {
             router.replace('/staff/login');
         }
-    }, [isLoading, staffUser, pathname, router]);
+    }, [isLoading, staffUser, isPublicPath, router]);
 
-    // Login page gets no chrome
-    if (pathname === '/staff/login') return <>{children}</>;
+    // Public pages get no chrome
+    if (isPublicPath) return <>{children}</>;
 
     // While reading localStorage, render nothing to avoid flash
     if (isLoading) return null;

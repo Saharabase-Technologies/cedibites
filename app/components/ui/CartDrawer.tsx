@@ -101,7 +101,7 @@ export default function CartDrawer() {
             <div
                 className={`fixed z-50 bg-neutral-light dark:bg-brand-darker flex flex-col transition-transform duration-300 ease-out shadow-2xl
                     bottom-0 left-0 right-0 rounded-t-3xl max-h-[92dvh]
-                    md:bottom-auto md:top-0 md:left-auto md:right-0 md:h-full md:w-[420px] md:rounded-none md:rounded-l-3xl md:max-h-full
+                    md:bottom-auto md:top-0 md:left-auto md:right-0 md:h-full md:w-105 md:rounded-none md:rounded-l-3xl md:max-h-full
                     ${isCartOpen ? 'translate-y-0 md:translate-x-0' : 'translate-y-full md:translate-y-0 md:translate-x-full'}`}
             >
                 {/* Header */}

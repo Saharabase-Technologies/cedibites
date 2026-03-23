@@ -238,7 +238,7 @@ export default function UniversalSearch({
                                             {searchResults.length} found
                                         </span>
                                     </div>
-                                    <div className="divide-y divide-neutral-gray/6 max-h-[320px] overflow-y-auto overscroll-contain">
+                                    <div className="divide-y divide-neutral-gray/6 max-h-80 overflow-y-auto overscroll-contain">
                                         {searchResults.slice(0, 7).map(item => (
                                             <ResultRow key={item.id} item={item} onSelect={handleItemSelect} />
                                         ))}

@@ -216,7 +216,7 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         <>
             <div className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={onClose} />
             <div className={`fixed inset-x-0 bottom-0 z-50 bg-white dark:bg-brand-darker rounded-t-3xl shadow-2xl flex flex-col transition-transform duration-300 ease-out max-h-[88dvh]
-                md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[500px] md:rounded-2xl md:max-h-[82vh]
+                md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-125 md:rounded-2xl md:max-h-[82vh]
                 ${isOpen ? 'translate-y-0' : 'translate-y-full md:opacity-0 md:scale-95 md:pointer-events-none'}`}>
 
                 {/* Header */}
@@ -524,7 +524,7 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                         </div>
                         <div>
                             <p className="text-sm font-bold text-text-dark dark:text-text-light">{orderType === 'delivery' ? 'Delivering to' : 'Pickup at'}</p>
-                            <p className="text-xs text-neutral-gray truncate max-w-[200px]">{orderType === 'delivery' ? contact.address : selectedBranch?.name + ' Branch'}</p>
+                            <p className="text-xs text-neutral-gray truncate max-w-50">{orderType === 'delivery' ? contact.address : selectedBranch?.name + ' Branch'}</p>
                         </div>
                     </div>
                     <button onClick={onBack} className="text-xs cursor-pointer font-semibold text-primary hover:underline flex items-center gap-1 shrink-0"><PencilSimpleIcon size={12} /> Edit</button>

@@ -5,11 +5,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { authService } from '@/lib/api/services/auth.service';
 import { cartService } from '@/lib/api/services/cart.service';
 import { GUEST_SESSION_KEY, ApiError } from '@/lib/api/client';
+import { disconnectCustomerEcho, getCustomerEcho } from '@/lib/echo';
 import { getErrorMessage } from '@/lib/utils/error-handler';
 import type { User } from '@/types/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface AuthUser {
+    id?: number;
     name: string;
     phone: string;
     savedAddresses?: string[];
@@ -49,6 +51,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Helper to convert API User to AuthUser
 function mapApiUserToAuthUser(apiUser: User): AuthUser {
     return {
+        id: apiUser.id,
         name: apiUser.name,
         phone: apiUser.phone,
         savedAddresses: [],
@@ -97,6 +100,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(u);
     };
 
+    // ── Reverb session sync ──
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const echo = getCustomerEcho();
+        if (!echo) return;
+
+        const channel = echo.private(`App.Models.User.${user.id}`);
+
+        channel.listen('.customer.session', (event: { type: string }) => {
+            if (event.type === 'session.revoked') {
+                setUser(null);
+                localStorage.removeItem('cedibites_auth_token');
+                localStorage.removeItem(GUEST_SESSION_KEY);
+                localStorage.removeItem('cedibites-cart-cache');
+                setAuthStep('idle');
+                disconnectCustomerEcho();
+            }
+        });
+
+        return () => {
+            echo.leave(`App.Models.User.${user.id}`);
+        };
+    }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const logout = useCallback(async () => {
         try {
             // Call API logout if we have a token
@@ -108,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Ignore logout errors, clear local state anyway
             console.error('Logout error:', error);
         } finally {
+            disconnectCustomerEcho();
             setUser(null);
             localStorage.removeItem('cedibites_auth_token');
             localStorage.removeItem(GUEST_SESSION_KEY);

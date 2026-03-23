@@ -156,7 +156,7 @@ function BranchPill() {
             className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/15 transition-all group shrink-0"
         >
             <MapPinIcon weight="fill" size={14} className="text-primary shrink-0" />
-            <span className="text-sm font-bold text-primary truncate max-w-[120px] sm:max-w-[160px]">
+            <span className="text-sm font-bold text-primary truncate max-w-30 sm:max-w-40">
                 {selectedBranch.name}
             </span>
             {distance !== null && distance !== undefined && (

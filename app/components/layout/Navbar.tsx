@@ -129,7 +129,7 @@ export default function Navbar() {
                             >
                                 <ShoppingBagIcon weight="bold" size={20} className="text-text-dark" />
                                 {totalItems > 0 && (
-                                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-error text-white text-[10px] font-bold rounded-full px-1 leading-none">
+                                    <span className="absolute -top-1 -right-1 min-w-4.5 h-4.5 flex items-center justify-center bg-error text-white text-[10px] font-bold rounded-full px-1 leading-none">
                                         {totalItems > 99 ? '99+' : totalItems}
                                     </span>
                                 )}
@@ -319,7 +319,7 @@ export default function Navbar() {
                             <ShoppingBagIcon weight="fill" size={18} className="text-neutral-gray shrink-0" />
                             <span className="flex-1">View Cart</span>
                             {totalItems > 0 && (
-                                <span className="min-w-[22px] h-5 flex items-center justify-center bg-error text-white text-[10px] font-bold rounded-full px-1.5 shrink-0">
+                                <span className="min-w-5.5 h-5 flex items-center justify-center bg-error text-white text-[10px] font-bold rounded-full px-1.5 shrink-0">
                                     {totalItems > 99 ? '99+' : totalItems}
                                 </span>
                             )}

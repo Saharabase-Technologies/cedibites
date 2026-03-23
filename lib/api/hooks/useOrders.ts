@@ -1,6 +1,9 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderService } from '../services/order.service';
 import type { CreateOrderRequest, OrdersParams } from '../services/order.service';
+import { getPublicEcho } from '@/lib/echo';
+import type { Order } from '@/types/api';
 
 export const useOrders = (params?: OrdersParams) => {
   const {
@@ -25,6 +28,8 @@ export const useOrders = (params?: OrdersParams) => {
 };
 
 export const useOrder = (id: number) => {
+  const queryClient = useQueryClient();
+
   const {
     data: orderData,
     isLoading,
@@ -34,8 +39,29 @@ export const useOrder = (id: number) => {
     queryKey: ['order', id],
     queryFn: () => orderService.getOrder(id),
     enabled: !!id,
-    refetchInterval: 30000, // Refetch every 30 seconds for live updates
   });
+
+  // Subscribe to the public Reverb channel once we know the order number
+  useEffect(() => {
+    const orderNumber = orderData?.data?.order_number;
+    if (!orderNumber) return;
+
+    const echo = getPublicEcho();
+    if (!echo) return;
+
+    const channel = echo.channel(`orders.${orderNumber}`);
+
+    channel.listen('.order.updated', (event: { type: string; order: Order }) => {
+      queryClient.setQueryData(
+        ['order', id],
+        (old: Record<string, unknown> | undefined) => old ? { ...old, data: event.order } : old,
+      );
+    });
+
+    return () => {
+      echo.leave(`orders.${orderNumber}`);
+    };
+  }, [orderData?.data?.order_number, id, queryClient]);
 
   return {
     order: orderData?.data,
@@ -46,6 +72,8 @@ export const useOrder = (id: number) => {
 };
 
 export const useOrderByNumber = (orderNumber: string) => {
+  const queryClient = useQueryClient();
+
   const {
     data: orderData,
     isLoading,
@@ -55,8 +83,28 @@ export const useOrderByNumber = (orderNumber: string) => {
     queryKey: ['order', orderNumber],
     queryFn: () => orderService.getOrderByNumber(orderNumber),
     enabled: !!orderNumber,
-    refetchInterval: 30000, // Refetch every 30 seconds for live updates
   });
+
+  // Subscribe to the public Reverb channel for real-time status updates
+  useEffect(() => {
+    if (!orderNumber) return;
+
+    const echo = getPublicEcho();
+    if (!echo) return;
+
+    const channel = echo.channel(`orders.${orderNumber}`);
+
+    channel.listen('.order.updated', (event: { type: string; order: Order }) => {
+      queryClient.setQueryData(
+        ['order', orderNumber],
+        (old: Record<string, unknown> | undefined) => old ? { ...old, data: event.order } : old,
+      );
+    });
+
+    return () => {
+      echo.leave(`orders.${orderNumber}`);
+    };
+  }, [orderNumber, queryClient]);
 
   return {
     order: orderData?.data,

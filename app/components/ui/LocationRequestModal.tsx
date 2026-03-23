@@ -61,7 +61,7 @@ export default function LocationRequestModal() {
                 </button>
 
                 {/* Icon */}
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-linear-to-br from-primary to-primary-hover flex items-center justify-center">
                     <MapPinIcon weight="fill" size={40} className="text-white" />
                 </div>
 

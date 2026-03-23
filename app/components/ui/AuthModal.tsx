@@ -360,7 +360,7 @@ export default function AuthModal() {
             <div className={`fixed z-50 bg-white dark:bg-brand-darker shadow-2xl transition-all duration-300
                 inset-x-0 bottom-0 rounded-t-3xl max-h-[92dvh] overflow-y-auto
                 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2
-                md:w-[420px] md:rounded-2xl md:max-h-[90vh]
+                md:w-105 md:rounded-2xl md:max-h-[90vh]
                 ${isAuthOpen ? 'translate-y-0 md:opacity-100 md:scale-100' : 'translate-y-full md:opacity-0 md:scale-95 md:pointer-events-none'}`}
             >
                 {/* Header */}
