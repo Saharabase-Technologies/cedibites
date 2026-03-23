@@ -123,17 +123,12 @@ apiClient.interceptors.response.use(
       if (typeof window !== 'undefined') {
         const pathname = window.location.pathname;
         
-        // Kitchen and order-manager require staff auth — redirect to login on 401
-        if (pathname.startsWith('/kitchen') || pathname.startsWith('/order-manager')) {
-          localStorage.removeItem('cedibites_staff_token');
-          localStorage.removeItem('cedibites-staff-session');
-          navigateTo('/staff/login');
-        }
-
         const isStaffRoute = pathname.startsWith('/staff') ||
           pathname.startsWith('/admin') ||
           pathname.startsWith('/partner') ||
-          pathname.startsWith('/pos');
+          pathname.startsWith('/pos') ||
+          pathname.startsWith('/kitchen') ||
+          pathname.startsWith('/order-manager');
 
         if (isStaffRoute) {
           // Don't redirect if already on a login page or POS root (login page)
