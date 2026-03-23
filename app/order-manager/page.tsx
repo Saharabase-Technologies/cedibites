@@ -70,7 +70,7 @@ const ACTIVE_STATUSES = new Set<OrderStatus>(['received', 'accepted', 'preparing
 
 export default function OrderManagerPage() {
   const { updateOrderStatus, updateOrder } = useOrderStore();
-  const { branches } = useBranch();
+  const { branches, isLoading: isBranchesLoading } = useBranch();
   const { staffUser, isLoading: isAuthLoading, logout } = useStaffAuth();
 
   // Branch selection gate — derived from live auth context
@@ -208,8 +208,8 @@ export default function OrderManagerPage() {
     else if (order.status === 'ready') completeOrder(order.id);
   }, [startCooking, markReady, completeOrder]);
 
-  // Block render until auth resolves
-  if (isAuthLoading) {
+  // Block render until auth and branches resolve
+  if (isAuthLoading || isBranchesLoading) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-neutral-light">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
