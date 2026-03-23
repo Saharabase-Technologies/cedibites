@@ -24,6 +24,7 @@ import { mapApiBranchToDisplay } from '@/lib/api/adapters/branch.adapter';
 import type { DisplayBranch } from '@/lib/api/adapters/branch.adapter';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/utils/toast';
+import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ function BranchModal({
         }
 
         // Phone validation (basic Ghana format)
-        if (form.phone && !/^(\+233|0)[0-9]{9}$/.test(form.phone.replace(/\s/g, ''))) {
+        if (form.phone && !isValidGhanaPhone(form.phone)) {
             newErrors.phone = 'Invalid phone format (e.g., 0241234567 or +233241234567)';
         }
 
@@ -199,7 +200,10 @@ function BranchModal({
 
     function handleSave() {
         if (validateForm()) {
-            onSave(form);
+            onSave({
+                ...form,
+                phone: form.phone ? normalizeGhanaPhone(form.phone) : form.phone,
+            });
         }
     }
 

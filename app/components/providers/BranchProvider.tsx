@@ -47,7 +47,7 @@ function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
     // Extract delivery settings
     const deliverySettings = apiBranch.delivery_settings;
     const deliveryRadius = deliverySettings?.delivery_radius_km ?? 10; // Default 10km
-    const deliveryFee = deliverySettings?.base_delivery_fee ?? 15; // Default ₵15
+    const deliveryFee = 0; // Delivery fees temporarily disabled
     
     // Convert operating hours object to string representation
     const operatingHours = apiBranch.operating_hours 

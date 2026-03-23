@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Order, OrderStatus, UserRole, OrderNotification } from '@/types/order';
 import { canAdvanceOrder } from '@/types/order';
 import type { DateRange } from './components/DateFilter';
-import { KANBAN_COLUMNS, BRANCH_COORDS } from '@/lib/constants/order.constants';
+import { KANBAN_COLUMNS } from '@/lib/constants/order.constants';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useSounds, type SoundName } from './hooks/useSounds';
@@ -257,7 +257,8 @@ export function OrdersProvider({ children, role = 'call_center' }: { children: R
             unitPrice: it.unitPrice,
         }));
         const branchName = DEMO_BRANCHES[idx];
-        const branchCoords = BRANCH_COORDS[branchName] ?? { latitude: 5.6465, longitude: -0.1549 };
+        const apiBranch = apiBranches.find(b => b.name === branchName);
+        const branchCoords = apiBranch?.coordinates ?? { latitude: 5.6465, longitude: -0.1549 };
 
         createOrder({
             source: 'whatsapp',

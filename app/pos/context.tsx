@@ -13,9 +13,12 @@ import type { Order, PaymentMethod, CreateOrderInput } from '@/types/order';
 import type { POSSession, POSCartItem } from './types';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 
 // Generate unique IDs for cart items
 const generateId = () => `pos-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+const POS_BRANCH_KEY = 'cedibites-pos-branchId';
 
 interface POSContextValue {
   // Session
@@ -73,6 +76,7 @@ interface POSProviderProps {
 
 export function POSProvider({ children }: POSProviderProps) {
   const { branches } = useBranch();
+  const { staffUser, isLoading: isAuthLoading } = useStaffAuth();
 
   // Session state
   const [session, setSession] = useState<POSSession | null>(null);
@@ -97,26 +101,34 @@ export function POSProvider({ children }: POSProviderProps) {
     updateOrderStatus: storeUpdateStatus,
   } = useOrderStore();
 
-  // Load session on mount from staff portal auth (localStorage)
+  // Build session from live auth context (always fresh from API)
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('cedibites-staff-session');
-      if (stored) {
-        const staffUser = JSON.parse(stored);
-        if (staffUser?.id) {
-          setSession({
-            staffId: staffUser.id,
-            branchId: staffUser.branchId ?? '',
-            staffName: staffUser.name,
-            loginTime: Date.now(),
-          });
-        }
-      }
-    } catch {
-      // ignore
+    if (isAuthLoading) return;
+    if (staffUser?.id) {
+      const branchIds: string[] = staffUser.branchIds?.map(String) ??
+        (staffUser.branchId ? [String(staffUser.branchId)] : []);
+      const defaultBranchId = branchIds.length === 1 ? branchIds[0] : '';
+      setSession(prev => {
+        // Restore persisted branch selection for this staff member
+        const storedBranchId = localStorage.getItem(POS_BRANCH_KEY);
+        // branchIds.length === 0 means admin/super_admin with access to all branches
+        const isStoredValid = storedBranchId && (branchIds.length === 0 || branchIds.includes(storedBranchId));
+        const restoredBranchId = isStoredValid ? storedBranchId : defaultBranchId;
+        // Prefer in-memory prev (same session), then persisted, then default
+        const keepBranch = prev?.staffId === String(staffUser.id) && prev.branchId;
+        return {
+          staffId: String(staffUser.id),
+          branchId: keepBranch ? prev!.branchId : restoredBranchId,
+          branchIds,
+          staffName: staffUser.name,
+          loginTime: prev?.loginTime ?? Date.now(),
+        };
+      });
+    } else {
+      setSession(null);
     }
     setIsSessionLoaded(true);
-  }, []);
+  }, [staffUser, isAuthLoading]);
 
   const isSessionValid = useMemo(() => {
     if (!session || !session.branchId) return false;
@@ -128,6 +140,7 @@ export function POSProvider({ children }: POSProviderProps) {
   }, [isSessionLoaded, session]);
 
   const selectBranch = useCallback((branchId: string) => {
+    localStorage.setItem(POS_BRANCH_KEY, branchId);
     setSession(prev => prev ? { ...prev, branchId } : null);
   }, []);
 

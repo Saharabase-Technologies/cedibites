@@ -7,20 +7,19 @@ import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryPro
 import MenuItemCard from './MenuItemCard';
 import ItemDetailModal from './ItemDetailModal';
 
-const MIX_CONFIG: { category: string; count: number }[] = [
-    { category: 'Basic Meals', count: 2 },
-    { category: 'Combos', count: 2 },
-    { category: 'Budget Bowls', count: 2 },
-    { category: 'Top Ups', count: 1 },
-    { category: 'Drinks', count: 1 },
-];
-
 function buildCediBitesMix(allItems: SearchableItem[]): SearchableItem[] {
+    const byCategory = new Map<string, SearchableItem[]>();
+    for (const item of allItems) {
+        if (!byCategory.has(item.category)) {
+            byCategory.set(item.category, []);
+        }
+        byCategory.get(item.category)!.push(item);
+    }
+
     const result: SearchableItem[] = [];
-    for (const { category, count } of MIX_CONFIG) {
-        const pool = allItems.filter((item) => item.category === category);
-        const sorted = [...pool].sort((a, b) => (b.popular ? 1 : 0) - (a.popular ? 1 : 0));
-        result.push(...sorted.slice(0, count));
+    for (const items of byCategory.values()) {
+        const sorted = [...items].sort((a, b) => (b.popular ? 1 : 0) - (a.popular ? 1 : 0));
+        result.push(...sorted.slice(0, 2));
     }
     return result;
 }

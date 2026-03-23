@@ -20,10 +20,11 @@ import {
     type StaffMember,
     type StaffRole,
     defaultPermissions,
-} from '@/lib/data/mockStaff';
+} from '@/types/staff';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { employeeService } from '@/lib/api/services/employee.service';
 import { useQuery } from '@tanstack/react-query';
+import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -81,8 +82,8 @@ function StaffModal({
         const e: typeof errors = {};
         if (!form.name.trim())  e.name  = 'Name is required';
         if (!form.phone.trim()) e.phone = 'Phone is required';
-        else if (!/^(\+233|0)[2-9]\d{8}$/.test(form.phone.replace(/\s/g, '')))
-                                 e.phone = 'Enter a valid Ghanaian number';
+        else if (!isValidGhanaPhone(form.phone))
+                                 e.phone = 'Enter a valid Ghanaian number (e.g. 0241234567 or +233241234567)';
         if (!form.email.trim()) e.email = 'Email is required';
         else if (!form.email.includes('@')) e.email = 'Enter a valid email';
         if (isPOS && form.pin && !/^\d{4}$/.test(form.pin))
@@ -97,7 +98,7 @@ function StaffModal({
             id:     member?.id,
             name:   form.name.trim(),
             role:   form.role,
-            phone:  form.phone.trim(),
+            phone:  normalizeGhanaPhone(form.phone.trim()),
             email:  form.email.trim(),
             pin:    form.pin,
             branch: currentBranch,

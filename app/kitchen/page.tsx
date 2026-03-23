@@ -1,15 +1,33 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
   MonitorIcon,
   DeviceTabletIcon,
   ArrowRightIcon,
+  StorefrontIcon,
 } from '@phosphor-icons/react';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { useBranch } from '@/app/components/providers/BranchProvider';
+import { useSwitchKitchenBranch } from './branch-context';
+import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 
 export default function KitchenLandingPage() {
   const router = useRouter();
+  const { staffUser } = useStaffAuth();
+  const { branches } = useBranch();
+  const { branchId: currentBranchId, switchBranch } = useSwitchKitchenBranch();
+  const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
+
+  const assignedIds: string[] = staffUser
+    ? (staffUser.branchIds?.map(String) ?? (staffUser.branchId ? [String(staffUser.branchId)] : []))
+    : [];
+  const switchableBranches = assignedIds.length > 0
+    ? branches.filter(b => assignedIds.includes(b.id))
+    : branches;
+  const currentBranchName = branches.find(b => b.id === currentBranchId)?.name;
 
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center p-6 bg-white">
@@ -19,9 +37,27 @@ export default function KitchenLandingPage() {
       <h1 className="text-2xl font-bold text-text-dark mb-1 text-center font-body">
         Kitchen Display
       </h1>
-      <p className="text-neutral-gray text-sm text-center mb-10 max-w-sm font-body">
+      <p className="text-neutral-gray text-sm text-center mb-6 max-w-sm font-body">
         Choose a view mode for the kitchen
       </p>
+
+      {/* Branch indicator */}
+      {switchableBranches.length > 1 && (
+        <button
+          onClick={() => setIsBranchSwitcherOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl border border-neutral-gray/20 hover:border-primary/40 hover:bg-primary/5 transition-colors mb-8 text-sm"
+        >
+          <StorefrontIcon className="w-4 h-4 text-primary" />
+          <span className="text-text-dark font-medium">{currentBranchName ?? 'Select Branch'}</span>
+          <span className="text-xs text-text-muted">· tap to switch</span>
+        </button>
+      )}
+      {switchableBranches.length <= 1 && currentBranchName && (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-neutral-light mb-8 text-sm">
+          <StorefrontIcon className="w-4 h-4 text-primary" />
+          <span className="text-text-dark font-medium">{currentBranchName}</span>
+        </div>
+      )}
 
       {/* Mode Selection */}
       <div className="w-full max-w-lg flex flex-col gap-3">
@@ -73,6 +109,14 @@ export default function KitchenLandingPage() {
           </div>
         </button>
       </div>
+
+      <BranchSwitcherDialog
+        isOpen={isBranchSwitcherOpen}
+        branches={switchableBranches}
+        currentBranchId={currentBranchId}
+        onSelect={id => { switchBranch(id); setIsBranchSwitcherOpen(false); }}
+        onClose={() => setIsBranchSwitcherOpen(false)}
+      />
     </div>
   );
 }

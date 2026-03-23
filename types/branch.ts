@@ -13,7 +13,7 @@ export interface Branch {
     deliveryFee: number;        // in GHS
     operatingHours: string;
     isOpen: boolean;
-    menuItemIds: string[];      // SampleMenu item IDs available at this branch
+    menuItemIds: string[];
 }
 
 export interface BranchWithDistance extends Branch {

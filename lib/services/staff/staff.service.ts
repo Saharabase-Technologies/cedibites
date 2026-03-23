@@ -2,10 +2,8 @@
 
 import { ApiStaffService } from './staff.service.api';
 
-// Re-export types from the authoritative source so callers get the full type
-export type { StaffMember, StaffStatus } from '@/lib/data/mockStaff';
-import type { StaffMember, StaffStatus } from '@/lib/data/mockStaff';
-import type { StaffRole } from '@/types/order';
+export type { StaffMember, StaffStatus, StaffRole } from '@/types/staff';
+import type { StaffMember, StaffStatus, StaffRole } from '@/types/staff';
 
 export interface StaffUser {
     id: string;

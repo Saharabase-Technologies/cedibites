@@ -1,12 +1,13 @@
-import type { MenuItem as ApiMenuItem, MenuItemSize as ApiMenuItemSize } from '@/types/api';
+import type { MenuItem as ApiMenuItem, MenuItemOption as ApiMenuItemOption } from '@/types/api';
 
 /**
- * Display format for menu items - compatible with SampleMenu shape.
+ * Display format for menu items.
  * Uses id (string) for display/React keys; numericId for API calls (promo resolve, cart, orders).
  */
 export interface DisplayMenuItem {
   id: string;
   numericId: number;
+  branchId?: number;
   name: string;
   description: string;
   category: string;
@@ -32,12 +33,13 @@ function toNum(v: unknown): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-function mapApiSizeToDisplay(size: ApiMenuItemSize): { id: number; key: string; label: string; price: number; image?: string } {
+function mapApiOptionToDisplay(option: ApiMenuItemOption): { id: number; key: string; label: string; price: number; image?: string } {
   return {
-    id: size.id,
-    key: size.size_key,
-    label: size.size_label,
-    price: toNum(size.price),
+    id: option.id,
+    key: option.option_key,
+    label: option.option_label,
+    price: toNum(option.price),
+    image: option.image_url ?? undefined,
   };
 }
 
@@ -47,29 +49,30 @@ function mapApiSizeToDisplay(size: ApiMenuItemSize): { id: number; key: string; 
 export function apiMenuItemToDisplayItem(api: ApiMenuItem): DisplayMenuItem {
   const categoryName = api.category?.name ?? 'Uncategorized';
   const slug = api.slug ?? String(api.id);
-  const sizes = api.sizes?.length
-    ? api.sizes.map(mapApiSizeToDisplay)
+  const sizes = api.options?.length
+    ? api.options.map(mapApiOptionToDisplay)
     : undefined;
 
   const hasSizes = sizes !== undefined && sizes.length > 0;
-  const hasVariants = api.has_variants ?? hasSizes;
-  const variants = api.variant_type === 'plain_assorted' && api.sizes?.length === 2
-    ? { plain: toNum(api.sizes[0]?.price), assorted: toNum(api.sizes[1]?.price) }
-    : undefined;
+  const hasVariants = hasSizes;
+  const variants = undefined;
+  const defaultImage = sizes?.[0]?.image ?? api.image_url;
+  const defaultPrice = sizes?.[0]?.price;
 
   return {
     id: String(api.id),
     numericId: api.id,
+    branchId: api.branch_id,
     name: api.name,
     description: api.description ?? '',
     category: categoryName,
-    price: hasSizes ? undefined : toNum(api.base_price),
+    price: hasSizes ? defaultPrice : undefined,
     sizes,
     hasVariants,
     variants,
-    image: api.image_url,
+    image: defaultImage,
     url: `/menu?item=${slug}`,
-    popular: api.is_popular ?? false,
+    popular: api.popular ?? false,
     isNew: api.is_new ?? false,
   };
 }

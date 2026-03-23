@@ -34,9 +34,9 @@ export class ApiOrderService implements OrderService {
         if (pathname.startsWith('/kitchen')) {
           endpoint = '/kitchen/orders';
         }
-        // Order Manager uses public endpoint
+        // Order Manager uses employee-scoped endpoint (multi-branch aware on API)
         else if (pathname.startsWith('/order-manager')) {
-          endpoint = '/order-manager/orders';
+          endpoint = '/employee/orders';
         }
         // Customer routes (home, menu, checkout, etc.) don't load orders
         else if (!pathname.startsWith('/staff') &&
@@ -113,7 +113,7 @@ export class ApiOrderService implements OrderService {
           quantity: item.quantity,
           unit_price: item.unitPrice,
         };
-        if (item.sizeId) itemData.menu_item_size_id = item.sizeId;
+        if (item.sizeId) itemData.menu_item_option_id = item.sizeId;
         if (item.variantKey) itemData.variant_key = item.variantKey;
         return itemData;
       }),

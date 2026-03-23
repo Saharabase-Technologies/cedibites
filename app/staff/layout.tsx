@@ -20,6 +20,7 @@ import {
     MonitorIcon,
     ClipboardTextIcon,
 } from '@phosphor-icons/react';
+import { useEffect } from 'react';
 import { StaffAuthProvider, useStaffAuth, type StaffRole } from '@/app/components/providers/StaffAuthProvider';
 
 // ─── Nav configs per role ──────────────────────────────────────────────────────
@@ -140,17 +141,20 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const { staffUser, isLoading, logout } = useStaffAuth();
 
+    // Not logged in → redirect (must be before any early returns)
+    useEffect(() => {
+        if (!isLoading && !staffUser && pathname !== '/staff/login') {
+            router.replace('/staff/login');
+        }
+    }, [isLoading, staffUser, pathname, router]);
+
     // Login page gets no chrome
     if (pathname === '/staff/login') return <>{children}</>;
 
     // While reading localStorage, render nothing to avoid flash
     if (isLoading) return null;
 
-    // Not logged in → redirect
-    if (!staffUser) {
-        router.replace('/staff/login');
-        return null;
-    }
+    if (!staffUser) return null;
 
 
 

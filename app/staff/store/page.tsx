@@ -28,6 +28,7 @@ import Input from '@/app/components/base/Input';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
 import { useBranch } from '@/app/components/providers/BranchProvider';
+import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -436,8 +437,7 @@ function StepCustomer({
         if (!details.name.trim()) e.name = 'Customer name is required';
         if (!details.phone.trim()) e.phone = 'Phone number is required';
         else {
-            const digits = details.phone.replace(/\D/g, '');
-            if (digits.length < 10) e.phone = 'Enter a valid phone number';
+            if (!isValidGhanaPhone(details.phone)) e.phone = 'Enter a valid Ghanaian phone number (e.g. 0241234567 or +233241234567)';
         }
         if (orderType === 'delivery' && !details.address.trim()) {
             e.address = 'Delivery address is required';
@@ -447,7 +447,10 @@ function StepCustomer({
     };
 
     const handleNext = () => {
-        if (validate()) onNext();
+        if (validate()) {
+            onDetails({ phone: normalizeGhanaPhone(details.phone) });
+            onNext();
+        }
     };
 
     return (

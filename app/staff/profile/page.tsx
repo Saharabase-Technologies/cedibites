@@ -15,7 +15,7 @@ import {
     EyeSlashIcon,
 } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import { roleDisplayName } from '@/lib/data/mockStaff';
+import { roleDisplayName } from '@/types/staff';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

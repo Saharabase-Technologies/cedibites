@@ -4,7 +4,7 @@ import { Cart } from '@/types/api';
 export interface AddCartItemRequest {
   branch_id: number;
   menu_item_id: number;
-  menu_item_size_id?: number;
+  menu_item_option_id?: number;
   quantity: number;
   unit_price: number;
   special_instructions?: string;

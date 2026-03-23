@@ -21,6 +21,8 @@ import {
     CashRegisterIcon,
     MonitorIcon,
     ClipboardTextIcon,
+    PlusCircleIcon,
+    HashStraightIcon,
 } from '@phosphor-icons/react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 
@@ -31,6 +33,8 @@ const ADMIN_NAV = [
     { href: '/admin/orders',     label: 'Orders',     icon: ListIcon                  },
     { href: '/admin/branches',   label: 'Branches',   icon: BuildingsIcon             },
     { href: '/admin/menu',       label: 'Menu',       icon: ForkKnifeIcon             },
+    { href: '/admin/menu-add-ons', label: 'Menu Add-ons', icon: PlusCircleIcon          },
+    { href: '/admin/menu-tags',    label: 'Menu Tags',    icon: HashStraightIcon         },
     { href: '/admin/staff',      label: 'Staff',      icon: UsersThreeIcon            },
     { href: '/admin/customers',  label: 'Customers',  icon: UserCircleIcon            },
     { href: '/admin/promos',     label: 'Promos',     icon: TagIcon                   },
@@ -64,7 +68,7 @@ function SidebarLink({
                 group flex items-center gap-3 py-2.5 rounded-xl
                 text-sm font-medium font-body transition-all duration-150
                 ${active
-                    ? 'bg-[#fff8ec] text-primary px-3 border-l-[3px] border-primary ml-0 pl-[9px]'
+                    ? 'bg-[#fff8ec] text-primary px-3 border-l-[3px] border-primary ml-0 pl-2.25'
                     : 'text-neutral-gray hover:bg-neutral-light hover:text-text-dark px-3'
                 }
             `}

@@ -25,10 +25,17 @@ import {
 import Link from 'next/link';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
-import { useMenuConfig, DEFAULT_CONFIG } from '@/lib/hooks/useMenuConfig';
-import type { OptionTemplate, AddOn } from '@/lib/hooks/useMenuConfig';
 
-const BASE_CATEGORIES = DEFAULT_CONFIG.categories;
+interface OptionTemplate { id: string; name: string; options: { label: string; price: string }[]; }
+
+const DEFAULT_CATEGORIES = ['Basic Meals', 'Budget Bowls', 'Combos', 'Top Ups', 'Drinks'];
+
+const DEFAULT_TEMPLATES: OptionTemplate[] = [
+    { id: 'tpl-sm-lg', name: 'Small / Large', options: [{ label: 'Small', price: '' }, { label: 'Large', price: '' }] },
+    { id: 'tpl-plain-assorted', name: 'Plain / Assorted', options: [{ label: 'Plain', price: '' }, { label: 'Assorted', price: '' }] },
+    { id: 'tpl-full-half-quarter', name: 'Full / Half / Quarter', options: [{ label: 'Full', price: '' }, { label: 'Half', price: '' }, { label: 'Quarter', price: '' }] },
+    { id: 'tpl-350ml-500ml', name: '350ml / 500ml', options: [{ label: '350ml', price: '' }, { label: '500ml', price: '' }] },
+];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,7 +111,6 @@ interface ItemFormState {
     simplePrice: string;
     image?: string;
     options: OptionRow[];  // used when pricingType === 'options'
-    addOns: string[];
     popular: boolean;
     isNew: boolean;
     available: boolean;
@@ -115,7 +121,7 @@ function blankForm(): ItemFormState {
         name: '', description: '', category: 'Basic Meals', newCategory: '',
         pricingType: 'simple', simplePrice: '', image: undefined,
         options: [{ label: '', price: '' }, { label: '', price: '' }],
-        addOns: [], popular: false, isNew: false, available: true,
+        popular: false, isNew: false, available: true,
     };
 }
 
@@ -130,7 +136,6 @@ function itemToForm(item: ManagedMenuItem): ItemFormState {
         simplePrice: !isMulti && item.price != null ? String(item.price) : '',
         image: !isMulti ? item.image : undefined,
         options: isMulti ? getOptionRows(item) : [{ label: '', price: '' }, { label: '', price: '' }],
-        addOns: item.availableAddOns ?? [],
         popular: item.popular ?? false,
         isNew: item.isNew ?? false,
         available: item.available,
@@ -153,7 +158,6 @@ function formToItem(form: ItemFormState, allCategories: string[], existing?: Man
         image: existing?.image,
         popular: form.popular || undefined,
         isNew: form.isNew || undefined,
-        availableAddOns: form.addOns.length > 0 ? form.addOns : undefined,
         available: form.available,
     };
 
@@ -201,14 +205,12 @@ function ItemModal({
     item,
     categories,
     optionTemplates,
-    addOns,
     onSave,
     onClose,
 }: {
     item: ManagedMenuItem | null;
     categories: string[];
     optionTemplates: OptionTemplate[];
-    addOns: AddOn[];
     onSave: (item: ManagedMenuItem) => void;
     onClose: () => void;
 }) {
@@ -255,13 +257,6 @@ function ItemModal({
     function removeOption(i: number) {
         if (form.options.length <= 1) return;
         set('options', form.options.filter((_, idx) => idx !== i));
-    }
-
-    function toggleAddOn(id: string) {
-        set('addOns', form.addOns.includes(id)
-            ? form.addOns.filter(a => a !== id)
-            : [...form.addOns, id]
-        );
     }
 
     function loadTemplate(tpl: OptionTemplate) {
@@ -453,34 +448,6 @@ function ItemModal({
                         </div>
                     )}
 
-                    {/* ── Add-ons ───────────────────────────────────────────── */}
-                    <div>
-                        <label className="block text-sm font-medium font-body text-text-dark mb-2">
-                            Available Add-ons
-                        </label>
-                        <div className="flex flex-col gap-2.5">
-                            {addOns.length === 0 && (
-                                <p className="text-neutral-gray text-xs font-body italic">
-                                    No add-ons configured. <Link href="/staff/manager/settings" className="text-primary hover:underline">Add some in Configure.</Link>
-                                </p>
-                            )}
-                            {addOns.map(addon => (
-                                <button key={addon.id} type="button" onClick={() => toggleAddOn(addon.id)}
-                                    className="flex items-center gap-3 cursor-pointer w-fit">
-                                    <div className={checkboxCls(form.addOns.includes(addon.id))}>
-                                        {form.addOns.includes(addon.id) && <Tick />}
-                                    </div>
-                                    <span className="text-sm font-body text-text-dark">
-                                        {addon.name}
-                                        <span className="text-neutral-gray ml-1.5 text-xs">
-                                            ₵{addon.price}{addon.perPiece ? '/pc' : ''}
-                                        </span>
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
                     {/* ── Flags ─────────────────────────────────────────────── */}
                     <div className="flex gap-6">
                         <button type="button" onClick={() => set('popular', !form.popular)}
@@ -570,7 +537,6 @@ function ArchiveConfirm({ name, onConfirm, onClose }: { name: string; onConfirm:
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ManagerMenuPage() {
-    const { config } = useMenuConfig();
     const { items: menuItems, isLoading: menuLoading } = useMenuItems();
     const [items, setItems] = useState<ManagedMenuItem[]>([]);
     const hasInitialized = useRef(false);
@@ -587,16 +553,12 @@ export default function ManagerMenuPage() {
     const [deletingItem, setDeletingItem] = useState<ManagedMenuItem | null>(null);
     const [showArchive, setShowArchive] = useState(false);
 
-    const categories = config.categories;
-    const optionTemplates = config.optionTemplates;
-    const addOns = config.addOns;
-
     // Derive actual categories from menu items (includes both config categories and any custom ones)
     const actualCategories = useMemo(() => {
         const fromItems = [...new Set(menuItems.map(item => item.category))].filter(Boolean);
-        const combined = [...new Set([...config.categories, ...fromItems])];
+        const combined = [...new Set([...DEFAULT_CATEGORIES, ...fromItems])];
         return combined.sort();
-    }, [menuItems, config.categories]);
+    }, [menuItems]);
 
     const filtered = useMemo(() => items.filter(item => {
         if (item.archived) return false;
@@ -730,7 +692,7 @@ export default function ManagerMenuPage() {
                             <div key={category} className="mb-6">
                                 <div className="flex items-center gap-2 mb-2 px-1">
                                     <p className="text-text-dark text-sm font-bold font-body">{category}</p>
-                                    {!BASE_CATEGORIES.includes(category) && (
+                                    {!DEFAULT_CATEGORIES.includes(category) && (
                                         <span className="flex items-center gap-1 text-[10px] font-bold font-body text-info bg-info/10 border border-info/20 rounded-full px-2 py-0.5">
                                             <TagIcon size={9} weight="fill" /> Custom
                                         </span>
@@ -869,8 +831,7 @@ export default function ManagerMenuPage() {
                 <ItemModal
                     item={editingItem === 'new' ? null : editingItem}
                     categories={actualCategories}
-                    optionTemplates={optionTemplates}
-                    addOns={addOns}
+                    optionTemplates={DEFAULT_TEMPLATES}
                     onSave={handleSave}
                     onClose={() => setEditingItem(null)}
                 />

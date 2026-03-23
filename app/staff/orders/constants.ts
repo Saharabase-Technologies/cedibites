@@ -7,5 +7,4 @@ export {
     PAYMENT_LABELS,
     KANBAN_COLUMNS,
     KANBAN_COLUMNS as COLUMNS,
-    BRANCH_COORDS,
 } from '@/lib/constants/order.constants';

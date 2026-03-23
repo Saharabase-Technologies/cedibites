@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import {
   ClockIcon,
@@ -9,7 +8,6 @@ import {
   CheckCircleIcon,
   SpeakerHighIcon,
   SpeakerSlashIcon,
-  CaretLeftIcon,
   ForkKnifeIcon,
   PackageIcon,
   BicycleIcon,
@@ -18,8 +16,15 @@ import {
   ListIcon,
   XIcon,
   ProhibitIcon,
+  SignOutIcon,
 } from '@phosphor-icons/react';
+import { useKitchenSounds } from '@/app/kitchen/hooks/useSounds';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
+import { useOrderChannel } from '@/lib/hooks/useOrderChannel';
+import { useBranch } from '@/app/components/providers/BranchProvider';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
+import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import type { Order, OrderStatus, FulfillmentType } from '@/types/order';
 import { STATUS_CONFIG } from '@/lib/constants/order.constants';
 import { toast } from '@/lib/utils/toast';
@@ -64,13 +69,32 @@ type ActiveStatus = 'received' | 'accepted' | 'preparing' | 'ready' | 'cancel_re
 const ACTIVE_STATUSES = new Set<OrderStatus>(['received', 'accepted', 'preparing', 'ready', 'cancel_requested']);
 
 export default function OrderManagerPage() {
-  const router = useRouter();
-  const { orders, updateOrderStatus, updateOrder, refresh } = useOrderStore();
+  const { updateOrderStatus, updateOrder } = useOrderStore();
+  const { branches } = useBranch();
+  const { staffUser, isLoading: isAuthLoading, logout } = useStaffAuth();
 
-  useEffect(() => { refresh(); }, [refresh]);
+  // Branch selection gate — derived from live auth context
+  const assignedIds: string[] = staffUser
+    ? (staffUser.branchIds?.map(String) ?? (staffUser.branchId ? [String(staffUser.branchId)] : []))
+    : [];
 
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('cedibites-om-branchId') : null
+  );
+  const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
+
+  // Auto-select if exactly 1 branch; use explicit selection otherwise
+  const autoSelectedBranchId = assignedIds.length === 1 ? assignedIds[0] : null;
+  const effectiveBranchId = selectedBranchId ?? autoSelectedBranchId;
+
+  const { orders } = useOrderChannel(effectiveBranchId);
+  const sounds = useKitchenSounds();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  useEffect(() => {
+    sounds.setEnabled(soundEnabled);
+  }, [soundEnabled, sounds]);
 
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -118,6 +142,18 @@ export default function OrderManagerPage() {
   const readyCount = ordersByStatus.ready.length;
   const cancelReqCount = ordersByStatus.cancel_requested.length;
   const totalActive = allActiveOrders.length;
+
+  // Play sound only when a genuinely new order arrives (not on mount or branch switch)
+  const prevNewCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    prevNewCountRef.current = null;
+  }, [effectiveBranchId]);
+  useEffect(() => {
+    if (prevNewCountRef.current !== null && newCount > prevNewCountRef.current) {
+      sounds.playNewOrder();
+    }
+    prevNewCountRef.current = newCount;
+  }, [newCount, sounds]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -172,7 +208,30 @@ export default function OrderManagerPage() {
     else if (order.status === 'ready') completeOrder(order.id);
   }, [startCooking, markReady, completeOrder]);
 
+  // Block render until auth resolves
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-neutral-light">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
+  // Show picker once auth is loaded, if staff has ≠1 branch and hasn't picked yet
+  const needsBranchSelection = !effectiveBranchId && assignedIds.length !== 1;
+  const selectableBranches = assignedIds.length > 0
+    ? branches.filter(b => assignedIds.includes(b.id))
+    : branches;
+
+  if (needsBranchSelection) {
+    return (
+      <BranchSelectPage
+        branches={selectableBranches}
+        onSelect={id => { localStorage.setItem('cedibites-om-branchId', id); setSelectedBranchId(id); }}
+        subtitle="Choose which branch to manage orders for"
+      />
+    );
+  }
 
   return (
     <div className="min-h-dvh flex flex-col bg-white">
@@ -180,12 +239,6 @@ export default function OrderManagerPage() {
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <header className="shrink-0 px-4 py-3 bg-neutral-card/50 border-b border-brown-light/20 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.back()}
-            className="w-10 h-10 rounded-xl bg-neutral-light border border-brown-light/20 flex items-center justify-center text-neutral-gray/50 active:scale-95 transition-transform"
-          >
-            <CaretLeftIcon className="w-5 h-5" />
-          </button>
           <Image src="/cblogo.webp" alt="CediBites" width={28} height={28} />
           <div>
             <h1 className="text-lg font-bold text-text-dark font-body leading-tight">
@@ -203,11 +256,30 @@ export default function OrderManagerPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {assignedIds.length !== 1 && (
+            <button
+              onClick={() => setIsBranchSwitcherOpen(true)}
+              className="flex items-center gap-1.5 px-3 h-10 rounded-xl bg-neutral-light border border-brown-light/20 text-neutral-gray hover:text-primary hover:border-primary/30 active:scale-95 transition-all text-xs font-medium"
+              title="Switch Branch"
+            >
+              <StorefrontIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">
+                {branches.find(b => b.id === effectiveBranchId)?.name ?? 'All Branches'}
+              </span>
+            </button>
+          )}
           <button
             onClick={() => setSoundEnabled(v => !v)}
             className={`w-10 h-10 rounded-xl flex items-center justify-center active:scale-95 transition-transform ${soundEnabled ? 'bg-primary/10 text-primary' : 'bg-neutral-light text-neutral-gray'}`}
           >
             {soundEnabled ? <SpeakerHighIcon className="w-5 h-5" /> : <SpeakerSlashIcon className="w-5 h-5" />}
+          </button>
+          <button
+            onClick={logout}
+            title="Sign out"
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-neutral-gray hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all"
+          >
+            <SignOutIcon className="w-5 h-5" />
           </button>
         </div>
       </header>
@@ -291,6 +363,14 @@ export default function OrderManagerPage() {
           </div>
         </div>
       )}
+
+      <BranchSwitcherDialog
+        isOpen={isBranchSwitcherOpen}
+        branches={selectableBranches}
+        currentBranchId={effectiveBranchId}
+        onSelect={id => { localStorage.setItem('cedibites-om-branchId', id); setSelectedBranchId(id); setSelectedOrder(null); }}
+        onClose={() => setIsBranchSwitcherOpen(false)}
+      />
     </div>
   );
 }

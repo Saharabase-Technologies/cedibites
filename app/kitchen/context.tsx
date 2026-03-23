@@ -14,6 +14,7 @@ import type { Order, FulfillmentType, OrderSource, CreateOrderInput, OrderStatus
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useKitchenOrders } from './hooks/useKitchenOrders';
 import { useKitchenSounds } from './hooks/useSounds';
+import { useSwitchKitchenBranch } from './branch-context';
 
 // ─── Kitchen-specific stats (UI only) ──────────────────────────────────────
 
@@ -58,13 +59,9 @@ export function useKitchen() {
 }
 
 export function KitchenProvider({ children }: { children: ReactNode }) {
-  const kitchenOrders = useKitchenOrders();
-  const { updateOrderStatus, updateOrder, createOrder, refresh } = useOrderStore();
-
-  // Refresh from storage on mount to pick up orders placed in another tab
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const { branchId } = useSwitchKitchenBranch();
+  const kitchenOrders = useKitchenOrders(branchId ?? undefined);
+  const { updateOrderStatus, updateOrder, createOrder } = useOrderStore();
 
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);

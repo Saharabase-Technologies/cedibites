@@ -13,6 +13,7 @@ import BranchSelectorModal from "./components/ui/BranchSelectorModal";
 import { AuthProvider } from "./components/providers/AuthProvider";
 import { OrderStoreProvider } from "./components/providers/OrderStoreProvider";
 import { QueryProvider } from "./components/providers/QueryProvider";
+import { RouterInitializer } from "./components/providers/RouterInitializer";
 
 const caprasimo = Caprasimo({
   weight: '400',
@@ -48,10 +49,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${cabin.variable} ${caprasimo.variable} bg-neutral-light dark:bg-brand-darker antialiased`}>
       <body className={abeezee.variable} suppressHydrationWarning>
         <Script
-          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
-          strategy="beforeInteractive"
+          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&loading=async`}
+          strategy="afterInteractive"
         />
         <QueryProvider>
+        <RouterInitializer />
         <ModalProvider>
           <AuthProvider>
             <LocationProvider autoRequest={false}>

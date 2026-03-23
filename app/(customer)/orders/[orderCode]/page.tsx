@@ -20,10 +20,10 @@ import type { Order as ApiOrder } from '@/types/api';
 import type { Order as MockOrder, OrderTimelineEvent, OrderStatus as MockOrderStatus } from '@/types/order';
 
 function deriveSizeKey(item: ApiOrder['items'][0]): string {
-    if (item.size_key) return item.size_key;
-    const size = item.menu_item_size;
-    if (size?.size_key) return size.size_key;
-    if (size?.name) return size.name.toLowerCase().replace(/\s+/g, '_');
+    if (item.option_key) return item.option_key;
+    const option = item.menu_item_option;
+    if (option?.option_key) return option.option_key;
+    if (option?.option_label) return option.option_label.toLowerCase().replace(/\s+/g, '_');
     return 'default';
 }
 
@@ -153,7 +153,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
     if (notFound || !order) {
         return (
             <div className="h-screen flex items-center justify-center  bg-neutral-light dark:bg-brand-darker">
-                <main className="w-[90%] md:w-[600px] mx-auto py-12 text-center">
+                <main className="w-[90%] md:w-150 mx-auto py-12 text-center">
                     <div className="bg-white dark:bg-brand-dark rounded-2xl p-8 border border-neutral-gray/10">
                         <PackageIcon size={64} className="text-neutral-gray/40 mx-auto mb-4" />
                         <h1 className="text-2xl font-bold text-text-dark dark:text-text-light mb-2">
@@ -236,7 +236,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
 
                         {/* Live Status Card */}
                         {isOutForDelivery && isDelivery && (
-                            <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-6 border border-primary/20">
+                            <div className="bg-linear-to-br from-primary/10 to-primary/5 rounded-2xl p-6 border border-primary/20">
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
                                     <span className="text-sm font-bold text-primary uppercase tracking-wide">

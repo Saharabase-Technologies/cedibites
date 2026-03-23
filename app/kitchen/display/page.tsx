@@ -3,6 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useKitchen } from '../context';
 import { useKitchenSounds } from '../hooks/useSounds';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { useBranch } from '@/app/components/providers/BranchProvider';
+import { useSwitchKitchenBranch } from '../branch-context';
+import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import type { Order } from '@/types/order';
 import {
   TruckIcon,
@@ -13,6 +17,8 @@ import {
   ArrowsInIcon,
   SpeakerHighIcon,
   SpeakerSlashIcon,
+  StorefrontIcon,
+  SignOutIcon,
 } from '@phosphor-icons/react';
 
 // ─── Elapsed timer hook ────────────────────────────────────────────────────
@@ -99,8 +105,20 @@ export default function KitchenDisplayPage() {
     soundEnabled, setSoundEnabled,
     isFullscreen, toggleFullscreen,
   } = useKitchen();
+  const { staffUser, logout } = useStaffAuth();
+  const { branches } = useBranch();
+  const { branchId: currentBranchId, switchBranch } = useSwitchKitchenBranch();
 
   const sounds = useKitchenSounds();
+  const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
+
+  const assignedIds: string[] = staffUser
+    ? (staffUser.branchIds?.map(String) ?? (staffUser.branchId ? [String(staffUser.branchId)] : []))
+    : [];
+  const switchableBranches = assignedIds.length > 0
+    ? branches.filter(b => assignedIds.includes(b.id))
+    : branches;
+  const currentBranchName = branches.find(b => b.id === currentBranchId)?.name;
 
   useEffect(() => {
     sounds.setEnabled(soundEnabled);
@@ -131,6 +149,18 @@ export default function KitchenDisplayPage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {switchableBranches.length > 1 && (
+              <button
+                onClick={() => setIsBranchSwitcherOpen(true)}
+                title="Switch Branch"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-sm"
+              >
+                <StorefrontIcon size={16} />
+                {currentBranchName && (
+                  <span className="hidden sm:inline">{currentBranchName}</span>
+                )}
+              </button>
+            )}
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
               title={soundEnabled ? 'Mute sounds' : 'Unmute sounds'}
@@ -144,6 +174,13 @@ export default function KitchenDisplayPage() {
               className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
             >
               {isFullscreen ? <ArrowsInIcon size={20} /> : <ArrowsOutIcon size={20} />}
+            </button>
+            <button
+              onClick={logout}
+              title="Sign out"
+              className="p-2 rounded-lg bg-white/10 hover:bg-red-500/30 text-white/70 hover:text-red-300 transition-colors"
+            >
+              <SignOutIcon size={20} />
             </button>
           </div>
         </header>
@@ -184,6 +221,14 @@ export default function KitchenDisplayPage() {
           )}
         </main>
       </div>
+
+      <BranchSwitcherDialog
+        isOpen={isBranchSwitcherOpen}
+        branches={switchableBranches}
+        currentBranchId={currentBranchId}
+        onSelect={id => { switchBranch(id); setIsBranchSwitcherOpen(false); }}
+        onClose={() => setIsBranchSwitcherOpen(false)}
+      />
     </>
   );
 }

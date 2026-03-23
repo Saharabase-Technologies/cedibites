@@ -20,6 +20,7 @@ import { useCreateOrder } from '@/lib/api/hooks/useOrders';
 import type { PaymentMethod as UnifiedPaymentMethod, FulfillmentType } from '@/types/order';
 import apiClient, { ApiError } from '@/lib/api/client';
 import { toast } from '@/lib/utils/toast';
+import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
 type OrderType = 'delivery' | 'pickup';
 type PaymentMethod = 'mobile_money' | 'cash';
@@ -28,7 +29,7 @@ type BranchSheetView = 'list' | 'conflict';
 
 interface ContactDetails { name: string; phone: string; address: string; note: string; }
 
-const DELIVERY_FEE = 15;
+const DELIVERY_FEE = 0; // Delivery fees temporarily disabled
 // Ghana GRA combined rate: VAT 15% + NHIL 2.5% + GETFund 2.5% = 20%, tax-inclusive
 // Display estimate only — actual totals are calculated by the backend
 const TAX_RATE = 0.20;
@@ -179,7 +180,7 @@ function AddressSearchField({ value, onChange, placeholder }: { value: string; o
 function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const { selectedBranch, setSelectedBranch, getBranchesWithDistance, branches } = useBranch();
     const { coordinates } = useLocation();
-    const { validateCartForBranch, removeUnavailableItems, items } = useCart();
+    const { validateCartForBranch, removeUnavailableItems, displayItems: items } = useCart();
 
     const [sheetView, setSheetView] = useState<BranchSheetView>('list');
     const [pendingBranch, setPendingBranch] = useState<Branch | null>(null);
@@ -357,7 +358,7 @@ function StepIndicator({ current }: { current: Step }) {
 
 // ─── Order Summary ────────────────────────────────────────────────────────────
 function OrderSummary({ orderType }: { orderType: OrderType }) {
-    const { items, subtotal } = useCart();
+    const { displayItems: items, subtotal } = useCart();
     const { selectedBranch } = useBranch();
     const tax = subtotal * (TAX_RATE / (1 + TAX_RATE));
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
@@ -406,8 +407,7 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
     const [branchSheetOpen, setBranchSheetOpen] = useState(false);
     const [phoneTouched, setPhoneTouched] = useState(false);
     const update = (f: keyof ContactDetails) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setContact({ ...contact, [f]: e.target.value });
-    const isValidGhanaPhone = (p: string) => /^(0[0-9]{9}|233[0-9]{9}|\+233[0-9]{9})$/.test(p.replace(/\s+/g, ''));
-    const phoneError = phoneTouched && contact.phone.trim() && !isValidGhanaPhone(contact.phone) ? 'Enter a valid Ghana number (e.g. 0241234567)' : '';
+    const phoneError = phoneTouched && contact.phone.trim() && !isValidGhanaPhone(contact.phone) ? 'Enter a valid Ghana number (e.g. 0241234567 or +233241234567)' : '';
     const canProceed = contact.name.trim() && contact.phone.trim() && isValidGhanaPhone(contact.phone) && (orderType === 'pickup' || contact.address.trim());
 
     return (
@@ -506,8 +506,7 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
     const [momoPhone, setMomoPhone] = useState(contact.phone);
     const [momoNetwork, setMomoNetwork] = useState<'mtn' | 'telecel' | 'airteltigo'>('mtn');
     const [momoPhoneTouched, setMomoPhoneTouched] = useState(false);
-    const isValidGhanaPhone = (p: string) => /^(0[0-9]{9}|233[0-9]{9}|\+233[0-9]{9})$/.test(p.replace(/\s+/g, ''));
-    const momoPhoneError = momoPhoneTouched && momoPhone.trim() && !isValidGhanaPhone(momoPhone) ? 'Enter a valid Ghana number (e.g. 0241234567)' : '';
+    const momoPhoneError = momoPhoneTouched && momoPhone.trim() && !isValidGhanaPhone(momoPhone) ? 'Enter a valid Ghana number (e.g. 0241234567 or +233241234567)' : '';
     const canPlace = paymentMethod !== 'mobile_money' || isValidGhanaPhone(momoPhone);
 
     const methods = [
@@ -752,7 +751,7 @@ function EmptyCartGuard() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CheckoutPage() {
-    const { items, clearCart, subtotal } = useCart();
+    const { displayItems: items, clearCart, subtotal } = useCart();
     const { selectedBranch, branches } = useBranch();
     const { coordinates } = useLocation();
     const { createOrder } = useCreateOrder();
@@ -840,7 +839,7 @@ export default function CheckoutPage() {
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
                         <div>
-                            {step === 1 && <StepDetails orderType={orderType} setOrderType={setOrderType} contact={contact} setContact={setContact} onNext={() => setStep(2)} />}
+                            {step === 1 && <StepDetails orderType={orderType} setOrderType={setOrderType} contact={contact} setContact={setContact} onNext={() => { setContact(c => ({ ...c, phone: normalizeGhanaPhone(c.phone) })); setStep(2); }} />}
                             {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} />}
                         </div>
                         <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} /></div>

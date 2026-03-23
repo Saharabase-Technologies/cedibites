@@ -13,6 +13,7 @@ import {
 import Input from '@/app/components/base/Input';
 import { useStaffAuth, roleHomeRoute } from '@/app/components/providers/StaffAuthProvider';
 import { staffService } from '@/lib/api/services/staff.service';
+import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,7 +39,7 @@ function validate(form: FormState): FormErrors {
         errors.identifier = 'Email or phone number is required';
     } else {
         const isEmail = form.identifier.includes('@');
-        const isPhone = /^(\+233|0)[2-9]\d{8}$/.test(form.identifier.replace(/\s/g, ''));
+        const isPhone = isValidGhanaPhone(form.identifier);
         if (!isEmail && !isPhone) {
             errors.identifier = 'Enter a valid email or Ghanaian phone number';
         }
@@ -93,9 +94,17 @@ export default function StaffLoginPage() {
         setErrors({});
 
         try {
-            const { user } = await staffService.login(form.identifier.trim(), form.password);
+            const rawIdentifier = form.identifier.trim();
+            const identifier = isValidGhanaPhone(rawIdentifier)
+                ? normalizeGhanaPhone(rawIdentifier)
+                : rawIdentifier;
+            const { user } = await staffService.login(identifier, form.password);
             login(user);
-            router.replace(roleHomeRoute(user.role as Parameters<typeof roleHomeRoute>[0]));
+            if (user.must_reset_password) {
+                router.replace('/staff/change-password');
+            } else {
+                router.replace(roleHomeRoute(user.role as Parameters<typeof roleHomeRoute>[0]));
+            }
 
         } catch (err) {
             setErrors({

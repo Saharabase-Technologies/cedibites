@@ -16,6 +16,7 @@ import type { FulfillmentType } from '@/types/order';
 import type { CustomerDetails } from '../types';
 import { useNewOrder } from '../context';
 import { formatPhone } from '../utils';
+import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
 // ─── Step 3: Customer details ─────────────────────────────────────────────────
 
@@ -29,9 +30,8 @@ export default function StepCustomer() {
         const e: Partial<CustomerDetails> = {};
         if (!customer.name.trim()) e.name = 'Customer name is required';
         if (!customer.phone.trim()) e.phone = 'Phone number is required';
-        else {
-            const digits = customer.phone.replace(/\D/g, '');
-            if (digits.length < 10) e.phone = 'Enter a valid phone number';
+        else if (!isValidGhanaPhone(customer.phone)) {
+            e.phone = 'Enter a valid Ghanaian phone number (e.g. 0241234567 or +233241234567)';
         }
         if (orderType === 'delivery' && !customer.address.trim()) {
             e.address = 'Delivery address is required';
@@ -41,7 +41,10 @@ export default function StepCustomer() {
     };
 
     const handleNext = () => {
-        if (validate()) setStep(4);
+        if (validate()) {
+            patchCustomer({ phone: normalizeGhanaPhone(customer.phone) });
+            setStep(4);
+        }
     };
 
     return (

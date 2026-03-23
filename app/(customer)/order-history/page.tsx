@@ -101,7 +101,7 @@ export default function OrderHistoryPage() {
                 await addItem({
                     branch_id: order.branch_id,
                     menu_item_id: item.menu_item_id,
-                    menu_item_size_id: undefined,
+                    menu_item_option_id: item.menu_item_option_id ?? undefined,
                     quantity: item.quantity,
                     unit_price: Number(item.unit_price),
                 });

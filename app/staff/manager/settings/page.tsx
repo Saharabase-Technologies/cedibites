@@ -20,12 +20,60 @@ import {
     CreditCardIcon,
     PlusCircleIcon,
 } from '@phosphor-icons/react';
-import { useMenuConfig } from '@/lib/hooks/useMenuConfig';
-import type { MenuConfig, OptionTemplate, AddOn, DayKey, BranchSettings } from '@/lib/hooks/useMenuConfig';
+import Link from 'next/link';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useBranch } from '@/lib/api/hooks/useBranches';
 import { branchService } from '@/lib/api/services/branch.service';
 import { toast } from '@/lib/utils/toast';
+
+// ─── Local types (previously from useMenuConfig) ──────────────────────────────
+
+export type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+export interface DayHours {
+    open: string;
+    close: string;
+    closed: boolean;
+}
+
+export interface BranchSettings {
+    isOpen: boolean;
+    orderTypes: { delivery: boolean; pickup: boolean; dineIn: boolean };
+    paymentMethods: { momo: boolean; cashDelivery: boolean; cashPickup: boolean };
+    hours: Record<DayKey, DayHours>;
+}
+
+export interface OptionTemplate {
+    id: string;
+    name: string;
+    options: { label: string; price: string }[];
+}
+
+const DEFAULT_HOURS: Record<DayKey, DayHours> = {
+    mon: { open: '09:00', close: '22:00', closed: false },
+    tue: { open: '09:00', close: '22:00', closed: false },
+    wed: { open: '09:00', close: '22:00', closed: false },
+    thu: { open: '09:00', close: '22:00', closed: false },
+    fri: { open: '09:00', close: '23:00', closed: false },
+    sat: { open: '09:00', close: '23:00', closed: false },
+    sun: { open: '10:00', close: '21:00', closed: false },
+};
+
+const DEFAULT_BRANCH: BranchSettings = {
+    isOpen: true,
+    orderTypes: { delivery: true, pickup: true, dineIn: false },
+    paymentMethods: { momo: true, cashDelivery: true, cashPickup: true },
+    hours: DEFAULT_HOURS,
+};
+
+const DEFAULT_TEMPLATES: OptionTemplate[] = [
+    { id: 'tpl-sm-lg', name: 'Small / Large', options: [{ label: 'Small', price: '' }, { label: 'Large', price: '' }] },
+    { id: 'tpl-plain-assorted', name: 'Plain / Assorted', options: [{ label: 'Plain', price: '' }, { label: 'Assorted', price: '' }] },
+    { id: 'tpl-full-half-quarter', name: 'Full / Half / Quarter', options: [{ label: 'Full', price: '' }, { label: 'Half', price: '' }, { label: 'Quarter', price: '' }] },
+    { id: 'tpl-350ml-500ml', name: '350ml / 500ml', options: [{ label: '350ml', price: '' }, { label: '500ml', price: '' }] },
+];
+
+const DEFAULT_CATEGORIES = ['Basic Meals', 'Budget Bowls', 'Combos', 'Top Ups', 'Drinks'];
 
 // ─── Shared input class (light text on dark bg) ───────────────────────────────
 
@@ -170,58 +218,6 @@ function TemplateEditor({ template, onSave, onClose }: {
     );
 }
 
-// ─── Add-on editor modal ──────────────────────────────────────────────────────
-
-function AddOnEditor({ addon, onSave, onClose }: {
-    addon: AddOn | null; onSave: (a: AddOn) => void; onClose: () => void;
-}) {
-    const [name,     setName]     = useState(addon?.name     ?? '');
-    const [price,    setPrice]    = useState(addon ? String(addon.price) : '');
-    const [perPiece, setPerPiece] = useState(addon?.perPiece ?? false);
-    const [errors,   setErrors]   = useState<Record<string, string>>({});
-
-    function handleSave() {
-        const e: Record<string, string> = {};
-        if (!name.trim()) e.name = 'Required';
-        if (!price || isNaN(Number(price)) || Number(price) <= 0) e.price = 'Enter a valid price';
-        setErrors(e);
-        if (Object.keys(e).length > 0) return;
-        onSave({ id: addon?.id ?? `addon-${Date.now()}`, name: name.trim(), price: Number(price), perPiece });
-    }
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-brand-darker/60 backdrop-blur-sm">
-            <div className="bg-neutral-card border border-brown-light/20 rounded-3xl p-6 w-full max-w-sm shadow-xl">
-                <h2 className="text-text-dark text-lg font-bold font-body mb-5">
-                    {addon ? 'Edit Add-on' : 'New Add-on'}
-                </h2>
-                <div className="flex flex-col gap-4">
-                    <div>
-                        <label className="block text-xs font-medium font-body text-neutral-gray mb-1.5">Name <span className="text-primary">*</span></label>
-                        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Extra Sauce" className={inputCls} />
-                        {errors.name && <p className="text-error text-xs font-body mt-1">{errors.name}</p>}
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium font-body text-neutral-gray mb-1.5">Price (GHS) <span className="text-primary">*</span></label>
-                        <input type="number" min="0" step="0.5" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" className={inputCls} />
-                        {errors.price && <p className="text-error text-xs font-body mt-1">{errors.price}</p>}
-                    </div>
-                    <button type="button" onClick={() => setPerPiece(p => !p)} className="flex items-center gap-3 cursor-pointer w-fit">
-                        <Toggle checked={perPiece} onChange={() => setPerPiece(p => !p)} size="sm" />
-                        <span className="text-sm font-body text-text-dark">Price is per piece</span>
-                    </button>
-                </div>
-                <div className="flex gap-3 mt-6">
-                    <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-brown-light/20 text-sm font-medium font-body text-neutral-gray hover:text-text-dark transition-colors cursor-pointer">Cancel</button>
-                    <button type="button" onClick={handleSave} className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary-hover text-brand-darker text-sm font-bold font-body transition-colors cursor-pointer">
-                        {addon ? 'Save' : 'Add'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 // ─── Delete confirm ───────────────────────────────────────────────────────────
 
 function DeleteConfirm({ label, onConfirm, onClose }: { label: string; onConfirm: () => void; onClose: () => void }) {
@@ -253,18 +249,16 @@ const DAY_KEYS: DayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MenuSettingsPage() {
-    const { config, save, ready } = useMenuConfig();
     const { staffUser } = useStaffAuth();
     const branchId = staffUser?.branchId ? parseInt(staffUser.branchId, 10) : undefined;
-    
+
     // Fetch real branch data from API
     const { branch: apiBranch } = useBranch(branchId ?? 0);
 
     // Local working copies
-    const [branch,     setBranch]     = useState<BranchSettings>(config.branch);
-    const [categories, setCategories] = useState<string[]>(config.categories);
-    const [templates,  setTemplates]  = useState<OptionTemplate[]>(config.optionTemplates);
-    const [addOns,     setAddOns]     = useState<AddOn[]>(config.addOns);
+    const [branch,     setBranch]     = useState<BranchSettings>(DEFAULT_BRANCH);
+    const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+    const [templates,  setTemplates]  = useState<OptionTemplate[]>(DEFAULT_TEMPLATES);
     const [dirty, setDirty] = useState(false);
 
     const [editingCatIdx,   setEditingCatIdx]   = useState<number | null>(null);
@@ -272,22 +266,11 @@ export default function MenuSettingsPage() {
     const [editingTemplate, setEditingTemplate] = useState<OptionTemplate | null | 'new'>(null);
     const [deletingCat,     setDeletingCat]     = useState<string | null>(null);
     const [deletingTpl,     setDeletingTpl]     = useState<OptionTemplate | null>(null);
-    const [editingAddOn,    setEditingAddOn]    = useState<AddOn | null | 'new'>(null);
-    const [deletingAddOn,   setDeletingAddOn]   = useState<AddOn | null>(null);
-
-    useEffect(() => {
-        if (ready) {
-            setBranch(config.branch);
-            setCategories(config.categories);
-            setTemplates(config.optionTemplates);
-            setAddOns(config.addOns);
-        }
-    }, [ready, config]);
     
     // Update branch settings when API data loads
     useEffect(() => {
         if (apiBranch && apiBranch.operating_hours) {
-            const hours: Record<DayKey, import('@/lib/hooks/useMenuConfig').DayHours> = {
+            const hours: Record<DayKey, DayHours> = {
                 mon: { open: '09:00', close: '22:00', closed: false },
                 tue: { open: '09:00', close: '22:00', closed: false },
                 wed: { open: '09:00', close: '22:00', closed: false },
@@ -349,7 +332,7 @@ export default function MenuSettingsPage() {
         mark();
     }
 
-    function setDayHours(day: DayKey, field: keyof import('@/lib/hooks/useMenuConfig').DayHours, value: string | boolean) {
+    function setDayHours(day: DayKey, field: keyof DayHours, value: string | boolean) {
         setBranch(prev => ({
             ...prev,
             hours: { ...prev.hours, [day]: { ...prev.hours[day], [field]: value } },
@@ -407,21 +390,6 @@ export default function MenuSettingsPage() {
         setTemplates(arr); mark();
     }
 
-    // ── Add-ons ──────────────────────────────────────────────────────────────
-
-    function saveAddOn(a: AddOn) {
-        setAddOns(prev => {
-            const exists = prev.some(x => x.id === a.id);
-            return exists ? prev.map(x => x.id === a.id ? a : x) : [...prev, a];
-        });
-        setEditingAddOn(null); mark();
-    }
-
-    function deleteAddOn(id: string) {
-        setAddOns(prev => prev.filter(a => a.id !== id));
-        setDeletingAddOn(null); mark();
-    }
-
     // ── Commit ───────────────────────────────────────────────────────────────
 
     async function handleSave() {
@@ -463,24 +431,12 @@ export default function MenuSettingsPage() {
                 payment_methods: paymentMethods,
             });
 
-            // Save menu config (categories, templates, add-ons) to localStorage
-            const updated: MenuConfig = { categories, optionTemplates: templates, addOns, branch };
-            save(updated);
-            
             setDirty(false);
             toast.success('Settings saved successfully');
         } catch (error) {
             console.error('Failed to save settings:', error);
             toast.error('Failed to save settings');
         }
-    }
-
-    if (!ready) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <p className="text-neutral-gray text-sm font-body">Loading…</p>
-            </div>
-        );
     }
 
     return (
@@ -607,39 +563,15 @@ export default function MenuSettingsPage() {
                     SECTION 4 — ADD-ONS
                 ════════════════════════════════════════════════════════════════ */}
                 <section className="mb-10">
-                    <div className="flex items-center justify-between mb-3">
-                        <SectionHeader icon={PlusCircleIcon} color="bg-warning" title="Add-ons" sub="Extras customers can add to any item" />
-                        <button type="button" onClick={() => setEditingAddOn('new')}
-                            className="flex items-center gap-1.5 text-sm font-medium font-body text-primary hover:text-primary-hover transition-colors cursor-pointer shrink-0 mb-3">
-                            <PlusIcon size={14} weight="bold" /> Add
-                        </button>
-                    </div>
-
-                    <div className="bg-neutral-card border border-brown-light/15 rounded-2xl overflow-hidden">
-                        {addOns.length === 0 ? (
-                            <p className="text-neutral-gray text-sm font-body px-4 py-6 text-center">No add-ons yet.</p>
-                        ) : (
-                            addOns.map((addon, i) => (
-                                <div key={addon.id} className={`flex items-center gap-3 px-4 py-3.5 ${i < addOns.length - 1 ? 'border-b border-brown-light/10' : ''}`}>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-text-dark text-sm font-semibold font-body">{addon.name}</p>
-                                        <p className="text-neutral-gray text-xs font-body">
-                                            ₵{addon.price}{addon.perPiece ? ' / piece' : ''}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                        <button type="button" onClick={() => setEditingAddOn(addon)}
-                                            className="p-1.5 rounded-lg text-neutral-gray hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer">
-                                            <PencilSimpleIcon size={15} weight="bold" />
-                                        </button>
-                                        <button type="button" onClick={() => setDeletingAddOn(addon)}
-                                            className="p-1.5 rounded-lg text-neutral-gray hover:text-error hover:bg-error/10 transition-colors cursor-pointer">
-                                            <TrashIcon size={15} weight="bold" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                        )}
+                    <SectionHeader icon={PlusCircleIcon} color="bg-warning" title="Add-ons" sub="Extras customers can add to any item" />
+                    <div className="bg-neutral-card border border-brown-light/15 rounded-2xl px-5 py-4 flex items-center justify-between gap-4">
+                        <p className="text-neutral-gray text-sm font-body">
+                            Add-ons are managed in the Admin Console.
+                        </p>
+                        <Link href="/admin/menu-add-ons"
+                            className="shrink-0 flex items-center gap-1.5 text-sm font-medium font-body text-primary hover:text-primary-hover transition-colors">
+                            <PlusCircleIcon size={15} weight="bold" /> Manage Add-ons
+                        </Link>
                     </div>
                 </section>
 
@@ -683,7 +615,7 @@ export default function MenuSettingsPage() {
                         ))}
                         {addingCat && (
                             <div className="flex items-center gap-3 px-4 py-3.5 border-t border-brown-light/10">
-                                <div className="w-[22px] shrink-0" />
+                                <div className="w-5.5 shrink-0" />
                                 <InlineEdit value="" placeholder="New category name…" onSave={addCategory} onCancel={() => setAddingCat(false)} />
                             </div>
                         )}
@@ -762,17 +694,11 @@ export default function MenuSettingsPage() {
             {editingTemplate !== null && (
                 <TemplateEditor template={editingTemplate === 'new' ? null : editingTemplate} onSave={saveTemplate} onClose={() => setEditingTemplate(null)} />
             )}
-            {editingAddOn !== null && (
-                <AddOnEditor addon={editingAddOn === 'new' ? null : editingAddOn} onSave={saveAddOn} onClose={() => setEditingAddOn(null)} />
-            )}
             {deletingCat && (
                 <DeleteConfirm label={deletingCat} onConfirm={() => deleteCategory(deletingCat)} onClose={() => setDeletingCat(null)} />
             )}
             {deletingTpl && (
                 <DeleteConfirm label={deletingTpl.name} onConfirm={() => deleteTemplate(deletingTpl.id)} onClose={() => setDeletingTpl(null)} />
-            )}
-            {deletingAddOn && (
-                <DeleteConfirm label={deletingAddOn.name} onConfirm={() => deleteAddOn(deletingAddOn.id)} onClose={() => setDeletingAddOn(null)} />
             )}
         </>
     );

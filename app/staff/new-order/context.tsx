@@ -75,16 +75,12 @@ export function NewOrderProvider({ children }: { children: ReactNode }) {
     const [promo, setPromo] = useState<Promo | null>(null);
     const [discount, setDiscount] = useState(0);
 
-    // Auto-select branch for non-admin users
+    // Auto-select branch when staff has exactly one assigned branch
     useEffect(() => {
-        if (!staffUser || branchId) return; // Skip if no user or branch already selected
-        
-        // Super admins and call center can select any branch (don't auto-select)
-        if (staffUser.role === 'super_admin' || staffUser.role === 'call_center') return;
-        
-        // For managers and staff, auto-select their branch
-        if (staffUser.branchId) {
-            setBranchId(String(staffUser.branchId));
+        if (!staffUser || branchId) return;
+        const assignedIds = staffUser.branchIds ?? (staffUser.branchId ? [staffUser.branchId] : []);
+        if (assignedIds.length === 1) {
+            setBranchId(String(assignedIds[0]));
         }
     }, [staffUser, branchId]);
 
@@ -187,8 +183,8 @@ export function NewOrderProvider({ children }: { children: ReactNode }) {
                 }).catch(() => {});
             }
         } catch (error: unknown) {
-            const msg = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            toast.error(msg || 'Failed to create order. Please try again.');
+            const msg = error instanceof Error ? error.message : 'Failed to create order. Please try again.';
+            toast.error(msg);
         } finally {
             setIsSubmitting(false);
         }

@@ -92,13 +92,43 @@ export interface MenuCategory {
   is_active: boolean;
 }
 
-export interface MenuItemSize {
+export interface MenuItemOptionBranchPrice {
+  branch_id: number;
+  price: number | null;
+  is_available: boolean | null;
+}
+
+export interface MenuItemOption {
   id: number;
   menu_item_id: number;
-  size_key: string;
-  size_label: string;
+  option_key: string;
+  option_label: string;
+  /** Resolved price for the current branch context (branch override ?? base price) */
   price: number;
+  /** Always the admin-set global base price, never overridden */
+  base_price?: number;
   is_available: boolean;
+  image_url?: string | null;
+  branch_prices?: MenuItemOptionBranchPrice[];
+}
+
+export interface MenuTag {
+  id: number;
+  slug: string;
+  name: string;
+  display_order: number;
+  is_active: boolean;
+  rule_description?: string | null;
+}
+
+export interface MenuAddOn {
+  id: number;
+  branch_id: number;
+  slug: string;
+  name: string;
+  price: number;
+  is_per_piece: boolean;
+  is_active: boolean;
 }
 
 export interface MenuItem {
@@ -109,14 +139,15 @@ export interface MenuItem {
   description: string;
   category_id: number;
   category?: MenuCategory;
-  base_price: number;
-  has_variants: boolean;
-  variant_type?: string;
-  is_popular: boolean;
+  popular?: boolean;
   is_new: boolean;
   is_available: boolean;
+  rating?: number | null;
+  rating_count?: number;
   image_url?: string;
-  sizes?: MenuItemSize[];
+  options?: MenuItemOption[];
+  tags?: MenuTag[];
+  add_ons?: MenuAddOn[];
   created_at: string;
   updated_at: string;
 }
@@ -128,7 +159,17 @@ export interface CartItem {
   menu_item_id: number;
   menu_item: MenuItem;
   quantity: number;
-  size_key?: string;
+  menu_item_option_id?: number | null;
+  menu_item_option?: MenuItemOption | null;
+  menu_item_option_snapshot?: {
+    id: number;
+    option_key: string;
+    option_label: string;
+    price: number;
+    image_url?: string | null;
+  } | null;
+  option_key?: string;
+  option_label?: string;
   variant_key?: string;
   unit_price: number;
   subtotal: number;
@@ -170,9 +211,25 @@ export interface OrderItem {
   order_id: number;
   menu_item_id: number;
   menu_item: MenuItem;
-  menu_item_size?: { size_key?: string; name?: string };
+  menu_item_option_id?: number | null;
+  menu_item_option?: MenuItemOption | null;
+  menu_item_option_snapshot?: {
+    id: number;
+    option_key: string;
+    option_label: string;
+    price: number;
+    image_url?: string | null;
+  } | null;
+  /** Raw snapshot from OrderResource — includes image_url */
+  option_snapshot?: {
+    id: number;
+    option_key: string;
+    option_label: string;
+    price: number;
+    image_url?: string | null;
+  } | null;
   quantity: number;
-  size_key?: string;
+  option_key?: string;
   variant_key?: string;
   unit_price: number;
   subtotal: number;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     MagnifyingGlassIcon,
@@ -26,7 +26,7 @@ import { useStaffRoutes } from '@/app/components/providers/StaffAuthProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
-import type { OrderSource, PaymentMethod } from '@/types/order';
+import type { PaymentMethod } from '@/types/order';
 import { formatGHS, ORDER_SOURCES } from './utils';
 import OrderConfirmed from './steps/OrderConfirmed';
 
@@ -122,6 +122,65 @@ export default function NewOrderFlow() {
     const [momoNumber, setMomoNumber] = useState('');
     const [momoStep, setMomoStep] = useState<'idle' | 'awaiting' | 'confirmed'>('idle');
 
+    // Address autocomplete
+    const [addressSuggestions, setAddressSuggestions] = useState<{ id: string; label: string; full: string }[]>([]);
+    const [showAddressSuggestions, setShowAddressSuggestions] = useState(false);
+    const addressDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const addressContainerRef = useRef<HTMLDivElement>(null);
+    const autocompleteServiceRef = useRef<any>(null);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.google?.maps?.places && !autocompleteServiceRef.current) {
+            autocompleteServiceRef.current = new window.google.maps.places.AutocompleteService();
+        }
+    }, []);
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (addressContainerRef.current && !addressContainerRef.current.contains(e.target as Node)) {
+                setShowAddressSuggestions(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const fetchAddressSuggestions = useCallback((input: string) => {
+        if (input.length < 3) { setAddressSuggestions([]); return; }
+        if (autocompleteServiceRef.current) {
+            autocompleteServiceRef.current.getPlacePredictions(
+                { input, componentRestrictions: { country: 'gh' }, types: ['geocode', 'establishment'] },
+                (preds: any[], status: string) => {
+                    if (status === 'OK' && preds) {
+                        setAddressSuggestions(preds.map(p => ({
+                            id: p.place_id,
+                            label: p.structured_formatting?.main_text ?? p.description,
+                            full: p.description,
+                        })));
+                    } else {
+                        setAddressSuggestions([]);
+                    }
+                }
+            );
+        } else {
+            fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(input + ', Ghana')}&format=json&limit=5`, { headers: { 'Accept-Language': 'en' } })
+                .then(r => r.json())
+                .then((data: any[]) => setAddressSuggestions(data.map(r => ({
+                    id: String(r.place_id),
+                    label: r.display_name.split(',')[0],
+                    full: r.display_name,
+                }))))
+                .catch(() => setAddressSuggestions([]));
+        }
+    }, []);
+
+    const handleAddressChange = useCallback((v: string) => {
+        patchCustomer({ address: v });
+        setShowAddressSuggestions(true);
+        if (addressDebounceRef.current) clearTimeout(addressDebounceRef.current);
+        addressDebounceRef.current = setTimeout(() => fetchAddressSuggestions(v), 300);
+    }, [patchCustomer, fetchAddressSuggestions]);
+
     // Pre-fill MoMo number from customer phone when MoMo is selected
     useEffect(() => {
         if (payment === 'mobile_money' && !momoNumber && customer.phone) {
@@ -151,7 +210,7 @@ export default function NewOrderFlow() {
 
     const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
     const branch = branches.find(b => b.id === branchId);
-    const deliveryFee = orderType === 'delivery' ? (branch?.deliveryFee ?? 15) : 0;
+    const deliveryFee = 0; // Delivery fees temporarily disabled
     const total = subtotal + deliveryFee;
     const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
 
@@ -437,37 +496,60 @@ export default function NewOrderFlow() {
                     </div>
 
                     {/* Branch */}
-                    {(staffUser?.role === 'super_admin' || staffUser?.role === 'call_center') ? (
-                        <div className="mb-3">
-                            <select
-                                value={branchId ?? ''}
-                                onChange={e => setBranchId(e.target.value)}
-                                className="w-full h-9 px-3 rounded-xl bg-neutral-light text-text-dark border border-neutral-gray/20 focus:border-primary/50 outline-none text-xs transition-colors"
-                            >
-                                <option value="" disabled>Select branch…</option>
-                                {branches.filter(b => b.isOpen).map(b => (
-                                    <option key={b.id} value={b.id}>{b.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                    ) : (
-                        <div className="mb-3 px-3 py-2 rounded-xl bg-neutral-light border border-neutral-gray/20 text-xs text-text-dark">
-                            <span className="text-neutral-gray">Branch: </span>
-                            <span className="font-medium">{branches.find(b => b.id === branchId)?.name || 'Loading...'}</span>
-                        </div>
-                    )}
+                    {(() => {
+                        const assignedIds = staffUser?.branchIds ?? (staffUser?.branchId ? [staffUser.branchId] : []);
+                        const selectableBranches = branches.filter(b => assignedIds.includes(b.id));
+                        const isLocked = assignedIds.length <= 1;
+
+                        return isLocked ? (
+                            <div className="mb-3 px-3 py-2 rounded-xl bg-neutral-light border border-neutral-gray/20 text-xs text-text-dark">
+                                <span className="text-neutral-gray">Branch: </span>
+                                <span className="font-medium">{branches.find(b => b.id === branchId)?.name || 'Loading...'}</span>
+                            </div>
+                        ) : (
+                            <div className="mb-3">
+                                <select
+                                    value={branchId ?? ''}
+                                    onChange={e => setBranchId(e.target.value)}
+                                    className="w-full h-9 px-3 rounded-xl bg-neutral-light text-text-dark border border-neutral-gray/20 focus:border-primary/50 outline-none text-xs transition-colors"
+                                >
+                                    <option value="" disabled>Select branch…</option>
+                                    {selectableBranches.map(b => (
+                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        );
+                    })()}
 
                     {/* Address — delivery only */}
                     {orderType === 'delivery' && (
-                        <div className="relative mb-3">
-                            <MapPinIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
+                        <div ref={addressContainerRef} className="relative mb-3">
+                            <MapPinIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray z-10" />
                             <input
                                 type="text"
                                 placeholder="Delivery address"
                                 value={customer.address}
-                                onChange={e => patchCustomer({ address: e.target.value })}
+                                onChange={e => handleAddressChange(e.target.value)}
+                                onFocus={() => { if (customer.address.length >= 3) setShowAddressSuggestions(true); }}
+                                autoComplete="off"
                                 className="w-full h-9 pl-9 pr-3 rounded-xl bg-neutral-light text-text-dark placeholder:text-neutral-gray/60 border border-neutral-gray/20 focus:border-primary/50 outline-none text-xs transition-colors"
                             />
+                            {showAddressSuggestions && addressSuggestions.length > 0 && (
+                                <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-xl shadow-lg border border-neutral-gray/15 overflow-hidden">
+                                    {addressSuggestions.map((s, i) => (
+                                        <button
+                                            key={s.id}
+                                            type="button"
+                                            onClick={() => { patchCustomer({ address: s.full }); setAddressSuggestions([]); setShowAddressSuggestions(false); }}
+                                            className={`w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-primary/5 transition-colors ${i < addressSuggestions.length - 1 ? 'border-b border-neutral-gray/10' : ''}`}
+                                        >
+                                            <MapPinIcon className="w-3 h-3 text-primary mt-0.5 shrink-0" />
+                                            <span className="text-xs text-text-dark truncate">{s.full}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
 

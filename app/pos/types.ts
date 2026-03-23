@@ -4,6 +4,7 @@
 export interface POSSession {
   staffId: string;
   branchId: string;
+  branchIds: string[];
   staffName: string;
   loginTime: number;
 }

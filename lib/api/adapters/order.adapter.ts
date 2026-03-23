@@ -140,8 +140,8 @@ function buildTimeline(
 function getItemName(item: OrderItem): string {
   const snapshot = (item as { menu_item_snapshot?: { name?: string } }).menu_item_snapshot;
   const name = snapshot?.name ?? item.menu_item?.name;
-  const size = (item as { menu_item_size?: { size_label?: string }; menu_item_size_snapshot?: { size_label?: string } }).menu_item_size_snapshot?.size_label
-    ?? (item as { menu_item_size?: { size_label?: string } }).menu_item_size?.size_label;
+  const size = item.menu_item_option_snapshot?.option_label
+    ?? item.menu_item_option?.option_label;
   if (size) return `${name ?? 'Item'} (${size})`;
   return name ?? 'Item';
 }

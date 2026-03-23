@@ -1,5 +1,5 @@
 import apiClient from '../client';
-import type { StaffMember, StaffRole, StaffPermissions } from '@/lib/data/mockStaff';
+import type { StaffMember, StaffRole, StaffPermissions } from '@/types/staff';
 
 export interface EmployeeListParams {
   branch_id?: number;

@@ -46,8 +46,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'cedibites-auth-user';
-
 // Helper to convert API User to AuthUser
 function mapApiUserToAuthUser(apiUser: User): AuthUser {
     return {
@@ -72,50 +70,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ── Load persisted session ──
     useEffect(() => {
         const loadUser = async () => {
-            try {
-                // When staff is logged in, skip customer session validation to avoid
-                // triggering requests that could 401 and clear staff tokens on reload
-                const staffToken = localStorage.getItem('cedibites_staff_token');
-                if (staffToken) {
-                    setHydrated(true);
-                    return;
-                }
-
-                // Check if we have a customer token
-                const token = localStorage.getItem('cedibites_auth_token');
-                if (!token) {
-                    // Fallback to old localStorage user (for backward compatibility)
-                    const stored = localStorage.getItem(STORAGE_KEY);
-                    if (stored) setUser(JSON.parse(stored));
-                    setHydrated(true);
-                    return;
-                }
-
-                // Fetch user from API
-                const response = await authService.getUser();
-                const authUser = mapApiUserToAuthUser(response.data);
-                persistUser(authUser);
+            const token = localStorage.getItem('cedibites_auth_token');
+            if (!token) {
                 setHydrated(true);
+                return;
+            }
+
+            try {
+                const response = await authService.getUser();
+                setUser(mapApiUserToAuthUser(response.data));
             } catch (error: unknown) {
                 const status = error instanceof ApiError ? error.status : 0;
-
                 if (status === 401) {
-                    // Token explicitly rejected — clear everything
                     localStorage.removeItem('cedibites_auth_token');
                     localStorage.removeItem(GUEST_SESSION_KEY);
-                    localStorage.removeItem(STORAGE_KEY);
-                } else {
-                    // Network error or server error — keep token, restore from cache
-                    const stored = localStorage.getItem(STORAGE_KEY);
-                    if (stored) {
-                        try {
-                            setUser(JSON.parse(stored));
-                        } catch {
-                            // Corrupted cache — ignore
-                        }
-                    }
                 }
-
+            } finally {
                 setHydrated(true);
             }
         };
@@ -125,7 +95,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const persistUser = (u: AuthUser) => {
         setUser(u);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
     };
 
     const logout = useCallback(async () => {
@@ -142,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(null);
             localStorage.removeItem('cedibites_auth_token');
             localStorage.removeItem(GUEST_SESSION_KEY);
-            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem('cedibites-cart-cache');
             setAuthStep('idle');
             setPendingPhone('');
             setPendingEmail('');

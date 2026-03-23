@@ -18,14 +18,13 @@ const formatPrice = (p: number | string | null | undefined) => {
     const n = typeof p === 'number' ? p : Number(p);
     return `₵${Number.isNaN(n) ? '0.00' : n.toFixed(2)}`;
 };
-const DELIVERY_FEE = 15;
 const TAX_RATE = 0.025;
 
 type DrawerView = 'cart' | 'branch-select' | 'branch-conflict';
 
 export default function CartDrawer() {
     const { isCartOpen, closeCart } = useModal();
-    const { items, removeFromCart, updateQuantity, totalItems, subtotal,
+    const { displayItems: items, removeFromCart, updateQuantity, totalItems, subtotal,
         validateCartForBranch, removeUnavailableItems } = useCart();
     const { selectedBranch, setSelectedBranch, branches, getBranchesWithDistance } = useBranch();
     const { coordinates } = useLocation();
@@ -35,7 +34,7 @@ export default function CartDrawer() {
     const [conflictResult, setConflictResult] = useState<{ available: CartItem[]; unavailable: CartItem[] } | null>(null);
 
     const tax = subtotal * TAX_RATE;
-    const total = subtotal + DELIVERY_FEE + tax;
+    const total = subtotal + tax;
 
     // Reset to cart view when drawer closes
     useEffect(() => {
@@ -173,10 +172,6 @@ export default function CartDrawer() {
                                     <div className="flex items-center justify-between text-sm">
                                         <span className="text-neutral-gray">Subtotal</span>
                                         <span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(subtotal)}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-neutral-gray flex items-center gap-1"><TagIcon size={12} /> Delivery Fee</span>
-                                        <span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(DELIVERY_FEE)}</span>
                                     </div>
                                     <div className="flex items-center justify-between text-sm">
                                         <span className="text-neutral-gray">Tax (2.5%)</span>

@@ -1,5 +1,5 @@
 import apiClient, { ApiError } from '../client';
-import type { StaffRole } from '@/lib/data/mockStaff';
+import type { StaffRole } from '@/types/staff';
 
 export interface StaffUser {
   id: string;
@@ -7,10 +7,12 @@ export interface StaffUser {
   role: StaffRole;
   branch: string;
   branchId: string;
+  branchIds?: string[];
   email?: string;
   phone?: string;
   pin?: string;
   joinedAt?: string;
+  must_reset_password?: boolean;
 }
 
 export interface StaffLoginResponse {
@@ -82,6 +84,27 @@ export const staffService = {
       ...data,
       user: { ...data.user, role: data.user.role as StaffRole },
     };
+  },
+
+  /**
+   * Change password and clear the must_reset_password flag.
+   */
+  changePassword: async (currentPassword: string, password: string): Promise<void> => {
+    await apiClient.post('/employee/change-password', {
+      current_password: currentPassword,
+      password,
+      password_confirmation: password,
+    });
+  },
+
+  /**
+   * Fetch the currently authenticated staff user's fresh profile from the API.
+   */
+  me: async (): Promise<StaffUser> => {
+    const response = await apiClient.get('/employee/me') as unknown as { data?: { user?: StaffUser } } | { user?: StaffUser };
+    const data = ('data' in response && response.data) ? response.data : (response as { user?: StaffUser });
+    if (!data?.user) throw new ApiError(401, 'Unauthorized');
+    return { ...data.user, role: data.user.role as import('@/types/staff').StaffRole };
   },
 
   /**

@@ -135,14 +135,3 @@ export const KANBAN_COLUMNS: KanbanColumn[] = [
     },
 ];
 
-// ─── Branch coordinates lookup (for staff orders) ───────────────────────────
-
-export const BRANCH_COORDS: Record<string, { latitude: number; longitude: number }> = {
-    'Osu':        { latitude: 5.5557, longitude: -0.1769 },
-    'East Legon': { latitude: 5.6465, longitude: -0.1549 },
-    'Spintex':    { latitude: 5.6372, longitude: -0.0924 },
-    'Tema':       { latitude: 5.6698, longitude: -0.0166 },
-    'Madina':     { latitude: 5.6805, longitude: -0.1665 },
-    'La Paz':     { latitude: 5.6095, longitude: -0.2508 },
-    'Dzorwulu':   { latitude: 5.6141, longitude: -0.1956 },
-};

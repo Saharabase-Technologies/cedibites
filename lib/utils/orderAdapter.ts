@@ -17,10 +17,10 @@ function mapApiSource(api?: string): UnifiedOrder['source'] {
 }
 
 function deriveSizeKey(item: ApiOrder['items'][0]): string {
-  if (item.size_key) return item.size_key;
-  const size = item.menu_item_size;
-  if (size?.size_key) return size.size_key;
-  if (size?.name) return size.name.toLowerCase().replace(/\s+/g, '_');
+  if (item.option_key) return item.option_key;
+  const option = item.menu_item_option;
+  if (option?.option_key) return option.option_key;
+  if (item.menu_item_option_snapshot?.option_key) return item.menu_item_option_snapshot.option_key;
   return 'default';
 }
 
@@ -30,15 +30,18 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
 
   const items: OrderItem[] = (apiOrder.items ?? []).map((item) => {
     const sizeKey = deriveSizeKey(item);
-    const sizeLabel = sizeKey === 'default' ? 'Regular' : sizeKey.replace(/_/g, ' ');
+    const optionLabel = item.menu_item_option_snapshot?.option_label
+      ?? item.menu_item_option?.option_label
+      ?? (sizeKey === 'default' ? 'Regular' : sizeKey.replace(/_/g, ' '));
     return {
       id: String(item.id),
       menuItemId: String(item.menu_item_id),
       name: item.menu_item?.name ?? 'Item',
       quantity: item.quantity,
       unitPrice: Number(item.unit_price) || 0,
-      image: item.menu_item?.image_url,
-      sizeLabel,
+      image: item.menu_item_option_snapshot?.image_url ?? item.menu_item_option?.image_url ?? item.menu_item?.image_url,
+      sizeLabel: optionLabel,
+      sizeId: item.menu_item_option_id ?? undefined,
       variantKey: item.variant_key,
       notes: item.special_instructions,
     };
@@ -68,7 +71,7 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
       notes: apiOrder.delivery_note ?? apiOrder.special_instructions,
     },
     branch: {
-      id: String(apiOrder.branch_id),
+      id: String(apiOrder.branch?.id ?? apiOrder.branch_id),
       name: apiOrder.branch?.name ?? 'Branch',
       address: apiOrder.branch?.address ?? '',
       phone: apiOrder.branch?.phone ?? '',

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
     PlusIcon,
     PencilSimpleIcon,
@@ -25,9 +27,11 @@ import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import { useMenuCategories } from '@/lib/api/hooks/useMenuCategories';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { menuService, CreateMenuItemData } from '@/lib/api/services/menu.service';
+import { menuTagService } from '@/lib/api/services/menuTag.service';
+import { menuAddOnService } from '@/lib/api/services/menuAddOn.service';
+import apiClient from '@/lib/api/client';
 import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
-import { useMenuConfig, DEFAULT_CONFIG } from '@/lib/hooks/useMenuConfig';
-import type { OptionTemplate, AddOn } from '@/lib/hooks/useMenuConfig';
+import type { MenuTag } from '@/types/api';
 import { toast } from '@/lib/utils/toast';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -36,31 +40,42 @@ interface GlobalMenuItem extends DisplayMenuItem {
     globallyAvailable: boolean;
     archived: boolean;
     tags: string[];
-    branchAvailability: Record<string, { available: boolean; priceOverride?: number }>;
+    branchAvailability: Record<string, { available: boolean; optionPrices: Record<string, string> }>;
     sortOrder: number;
+    imageFile?: File;
+    optionImageFiles?: (File | undefined)[];
+    rating?: number | null;
+    rating_count?: number;
 }
 
 type PricingType = 'simple' | 'options';
-interface OptionRow { label: string; price: string; image?: string; }
+interface OptionRow { label: string; price: string; image?: string; imageFile?: File; }
+interface OptionTemplate { id: string; name: string; options: Array<{ label: string; price: string }>; }
+interface AddOn { id: string; name: string; price: string; perPiece?: boolean; }
 
 interface ItemFormState {
     name: string;
     description: string;
     category: string;
+    branchId: number;
     pricingType: PricingType;
     simplePrice: string;
     image?: string;
+    imageFile?: File;
     options: OptionRow[];
     addOns: string[];
     tags: string[];
     globallyAvailable: boolean;
-    branchAvailability: Record<string, { available: boolean; priceOverride?: number }>;
+    branchAvailability: Record<string, { available: boolean; optionPrices: Record<string, string> }>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function hasPricingOptions(item: DisplayMenuItem): boolean {
-    return !!(item.sizes?.length) || !!(item.hasVariants && item.variants);
+    if (!item.sizes?.length && !(item.hasVariants && item.variants)) return false;
+    // A single 'standard' option is the backend representation of simple/single pricing
+    if (item.sizes?.length === 1 && item.sizes[0].key === 'standard') return false;
+    return true;
 }
 
 function getOptionRows(item: DisplayMenuItem): OptionRow[] {
@@ -107,9 +122,10 @@ function itemToForm(item: GlobalMenuItem): ItemFormState {
         name: item.name,
         description: item.description,
         category: item.category,
+        branchId: item.branchId ?? 0,
         pricingType: isMulti ? 'options' : 'simple',
         simplePrice: !isMulti && item.price != null ? String(item.price) : '',
-        image: !isMulti ? item.image : undefined,
+        image: item.image,
         options: isMulti ? getOptionRows(item) : [{ label: '', price: '' }, { label: '', price: '' }],
         addOns: item.availableAddOns ?? [],
         tags: item.tags,
@@ -118,15 +134,16 @@ function itemToForm(item: GlobalMenuItem): ItemFormState {
     };
 }
 
-function blankForm(branchNames: string[], categoryOptions: string[]): ItemFormState {
+function blankForm(categoryOptions: string[], defaultBranchId: number): ItemFormState {
     const defaultCategory = categoryOptions.find(cat => cat !== 'All') || 'Basic Meals';
     return {
         name: '', description: '', category: defaultCategory,
+        branchId: defaultBranchId,
         pricingType: 'simple', simplePrice: '',
         options: [{ label: '', price: '' }, { label: '', price: '' }],
         addOns: [], tags: [],
         globallyAvailable: true,
-        branchAvailability: Object.fromEntries(branchNames.map(b => [b, { available: true }])),
+        branchAvailability: {},
     };
 }
 
@@ -139,10 +156,11 @@ function formToGlobalItem(form: ItemFormState, existing?: GlobalMenuItem): Globa
         description: form.description.trim(),
         category: form.category as DisplayMenuItem['category'],
         url: existing?.url ?? `/menu?item=${id}`,
-        image: existing?.image,
+        image: form.image ?? existing?.image,
         popular: form.tags.includes('popular') || undefined,
         isNew: form.tags.includes('new') || undefined,
         availableAddOns: form.addOns.length > 0 ? form.addOns : undefined,
+        branchId: form.branchId,
         globallyAvailable: form.globallyAvailable,
         archived: existing?.archived ?? false,
         tags: form.tags,
@@ -150,18 +168,27 @@ function formToGlobalItem(form: ItemFormState, existing?: GlobalMenuItem): Globa
         sortOrder: existing?.sortOrder ?? 0,
     };
 
+    let imageFile = form.imageFile;
+    if (!imageFile && form.pricingType === 'options') {
+        const optWithFile = form.options.find(o => o.imageFile);
+        if (optWithFile?.imageFile) {
+            imageFile = optWithFile.imageFile;
+        }
+    }
+    base.imageFile = imageFile;
+
     if (form.pricingType === 'simple') {
         base.price = Number(form.simplePrice);
-        base.image = form.image;
     } else {
         const validOptions = form.options.filter(o => o.label.trim() && o.price);
         base.sizes = validOptions.map((o, index) => ({
-            id: index + 1, // Add required id field
+            id: index + 1,
             key: o.label.trim().toLowerCase().replace(/\s+/g, '-'),
             label: o.label.trim(),
             price: Number(o.price),
             image: o.image,
         }));
+        base.optionImageFiles = validOptions.map(o => o.imageFile);
     }
 
     return base;
@@ -209,7 +236,7 @@ function ConfirmModal({ title, desc, onConfirm, onCancel }: { title: string; des
 
 // ─── Image picker ─────────────────────────────────────────────────────────────
 
-function ImagePicker({ value, onChange, size = 'md' }: { value?: string; onChange: (url: string) => void; size?: 'sm' | 'md' }) {
+function ImagePicker({ value, onChange, size = 'md' }: { value?: string; onChange: (url: string, file: File) => void; size?: 'sm' | 'md' }) {
     const ref = useRef<HTMLInputElement>(null);
     const dim = size === 'sm' ? 'w-9 h-9 rounded-lg' : 'w-20 h-20 rounded-xl';
     return (
@@ -222,7 +249,7 @@ function ImagePicker({ value, onChange, size = 'md' }: { value?: string; onChang
                 }
             </button>
             <input type="file" ref={ref} accept="image/*" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) onChange(URL.createObjectURL(f)); }} />
+                onChange={e => { const f = e.target.files?.[0]; if (f) onChange(URL.createObjectURL(f), f); }} />
         </>
     );
 }
@@ -230,27 +257,32 @@ function ImagePicker({ value, onChange, size = 'md' }: { value?: string; onChang
 // ─── Item edit modal ──────────────────────────────────────────────────────────
 
 function ItemModal({
-    item, optionTemplates, addOns, branchNames, categoryOptions, onClose, onSave, isSaving = false,
+    item, optionTemplates, addOns, menuTags, categoryOptions, branches, onClose, onSave, isSaving = false,
 }: {
     item: GlobalMenuItem | null;
     optionTemplates: OptionTemplate[];
     addOns: AddOn[];
-    branchNames: string[];
+    menuTags: MenuTag[];
     categoryOptions: string[];
+    branches: import('@/app/components/providers/BranchProvider').Branch[];
     onClose: () => void;
     onSave: (item: GlobalMenuItem) => void;
     isSaving?: boolean;
 }) {
     const isNew = !item;
-    const [form, setForm] = useState<ItemFormState>(item ? itemToForm(item) : blankForm(branchNames, categoryOptions));
+    const defaultBranchId = Number(branches[0]?.id ?? 0);
+    const [form, setForm] = useState<ItemFormState>(item ? itemToForm(item) : blankForm(categoryOptions, defaultBranchId));
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [showTemplatePicker, setShowTemplatePicker] = useState(false);
-
-    const ALL_TAGS = ['popular', 'new', 'spicy', 'vegetarian'];
 
     function set<K extends keyof ItemFormState>(key: K, value: ItemFormState[K]) {
         setForm(prev => ({ ...prev, [key]: value }));
         setErrors(prev => { const e = { ...prev }; delete e[key]; return e; });
+    }
+
+    function setListingPhoto(url: string, file: File) {
+        setForm(prev => ({ ...prev, image: url, imageFile: file }));
+        setErrors(prev => { const e = { ...prev }; delete e.image; return e; });
     }
 
     function validate(): boolean {
@@ -274,6 +306,13 @@ function ItemModal({
 
     function updateOption(i: number, field: keyof OptionRow, value: string) {
         set('options', form.options.map((o, idx) => idx === i ? { ...o, [field]: value } : o));
+    }
+
+    function updateOptionImage(i: number, url: string, file: File) {
+        setForm(prev => ({
+            ...prev,
+            options: prev.options.map((o, idx) => (idx === i ? { ...o, image: url, imageFile: file } : o)),
+        }));
     }
 
     function addOption() {
@@ -321,6 +360,13 @@ function ItemModal({
                                 placeholder="e.g. Jollof Rice with Chicken"
                                 className={inputCls} />
                             {errors.name && <p className="text-error text-xs font-body mt-1">{errors.name}</p>}
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1.5">Branch</label>
+                            <select value={form.branchId} onChange={e => set('branchId', Number(e.target.value))}
+                                className={`${inputCls} cursor-pointer`}>
+                                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                            </select>
                         </div>
                         <div>
                             <label className="block text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1.5">Category</label>
@@ -387,7 +433,7 @@ function ItemModal({
                                     {errors.simplePrice && <p className="text-error text-xs font-body mt-1">{errors.simplePrice}</p>}
                                 </div>
                                 <div className="flex flex-col items-center gap-1">
-                                    <ImagePicker value={form.image} onChange={url => set('image', url)} size="md" />
+                                    <ImagePicker value={form.image} onChange={setListingPhoto} size="md" />
                                     <span className="text-[10px] text-neutral-gray font-body">Photo</span>
                                 </div>
                             </div>
@@ -404,7 +450,7 @@ function ItemModal({
                                 <div className="flex flex-col gap-2">
                                     {form.options.map((opt, i) => (
                                         <div key={i} className="grid grid-cols-[36px_1fr_100px_24px] gap-2 items-center">
-                                            <ImagePicker value={opt.image} onChange={url => updateOption(i, 'image', url)} size="sm" />
+                                            <ImagePicker value={opt.image} onChange={(url, file) => updateOptionImage(i, url, file)} size="sm" />
                                             <input type="text" value={opt.label}
                                                 onChange={e => updateOption(i, 'label', e.target.value)}
                                                 placeholder="e.g. Small, Plain…"
@@ -459,13 +505,18 @@ function ItemModal({
                     <div>
                         <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Tags</p>
                         <div className="flex gap-2 flex-wrap">
-                            {ALL_TAGS.map(tag => (
-                                <button key={tag} type="button" onClick={() => toggleTag(tag)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium font-body transition-all cursor-pointer capitalize flex items-center gap-1.5
-                                        ${form.tags.includes(tag) ? 'bg-primary/15 text-primary border border-primary/30' : 'bg-neutral-light text-neutral-gray hover:text-text-dark border border-transparent'}`}>
-                                    {tag === 'popular' && <StarIcon size={11} weight="fill" />}
-                                    {tag === 'new' && <SparkleIcon size={11} weight="fill" />}
-                                    {tag}
+                            {menuTags.filter(t => t.is_active).map(tag => (
+                                <button key={tag.slug} type="button" onClick={() => toggleTag(tag.slug)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium font-body transition-all cursor-pointer capitalize flex flex-col items-start gap-0.5
+                                        ${form.tags.includes(tag.slug) ? 'bg-primary/15 text-primary border border-primary/30' : 'bg-neutral-light text-neutral-gray hover:text-text-dark border border-transparent'}`}>
+                                    <span className="flex items-center gap-1.5">
+                                        {tag.slug === 'popular' && <StarIcon size={11} weight="fill" />}
+                                        {tag.slug === 'new' && <SparkleIcon size={11} weight="fill" />}
+                                        {tag.name}
+                                    </span>
+                                    {tag.rule_description && (
+                                        <span className="text-[9px] font-normal opacity-60 leading-tight text-left">{tag.rule_description}</span>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -489,35 +540,63 @@ function ItemModal({
                     <div>
                         <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Branch Overrides</p>
                         <div className="bg-neutral-light rounded-xl overflow-hidden">
-                            {branchNames.map((branch, i) => (
-                                <div key={`${branch}-${i}`} className={`flex items-center justify-between px-4 py-3 ${i < branchNames.length - 1 ? 'border-b border-[#f0e8d8]' : ''}`}>
-                                    <div className="flex items-center gap-3">
-                                        <button type="button" onClick={() => set('branchAvailability', {
-                                            ...form.branchAvailability,
-                                            [branch]: { ...form.branchAvailability[branch], available: !form.branchAvailability[branch].available }
-                                        })} className="cursor-pointer">
-                                            {form.branchAvailability[branch]?.available
-                                                ? <CheckCircleIcon size={18} weight="fill" className="text-secondary" />
-                                                : <XCircleIcon size={18} weight="fill" className="text-neutral-gray/40" />
-                                            }
-                                        </button>
-                                        <span className="text-text-dark text-sm font-body">{branch}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-neutral-gray text-xs font-body">Price override</span>
-                                        <input
-                                            type="number"
-                                            placeholder="—"
-                                            value={form.branchAvailability[branch]?.priceOverride ?? ''}
-                                            onChange={e => set('branchAvailability', {
+                            {Object.keys(form.branchAvailability).length === 0 && (
+                                <p className="px-4 py-3 text-neutral-gray text-xs font-body">Save the item first to configure per-branch overrides.</p>
+                            )}
+                            {Object.keys(form.branchAvailability).map((branch, i, arr) => {
+                                const branchState = form.branchAvailability[branch];
+                                const activeOptions = form.pricingType === 'options'
+                                    ? form.options.filter(o => o.label.trim())
+                                    : [];
+                                return (
+                                    <div key={`${branch}-${i}`} className={`${i < arr.length - 1 ? 'border-b border-[#f0e8d8]' : ''}`}>
+                                        <div className="flex items-center gap-3 px-4 py-3">
+                                            <button type="button" onClick={() => set('branchAvailability', {
                                                 ...form.branchAvailability,
-                                                [branch]: { ...form.branchAvailability[branch], priceOverride: e.target.value ? Number(e.target.value) : undefined }
-                                            })}
-                                            className="w-20 px-2 py-1.5 bg-neutral-card border border-[#f0e8d8] rounded-lg text-text-dark text-xs font-body focus:outline-none focus:border-primary/40"
-                                        />
+                                                [branch]: { ...branchState, available: !branchState.available }
+                                            })} className="cursor-pointer">
+                                                {branchState.available
+                                                    ? <CheckCircleIcon size={18} weight="fill" className="text-secondary" />
+                                                    : <XCircleIcon size={18} weight="fill" className="text-neutral-gray/40" />
+                                                }
+                                            </button>
+                                            <span className="text-text-dark text-sm font-body">{branch}</span>
+                                        </div>
+                                        {activeOptions.length > 0 && (
+                                            <div className="px-4 pb-3 flex flex-col gap-1.5 pl-10">
+                                                {activeOptions.map(opt => {
+                                                    const optKey = opt.label.trim().toLowerCase().replace(/\s+/g, '-');
+                                                    return (
+                                                        <div key={optKey} className="flex items-center justify-between">
+                                                            <span className="text-neutral-gray text-xs font-body capitalize">{opt.label}</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-neutral-gray text-[10px] font-body">base ₵{opt.price || '—'}</span>
+                                                                <input
+                                                                    type="number"
+                                                                    placeholder="—"
+                                                                    min="0"
+                                                                    value={branchState.optionPrices?.[optKey] ?? ''}
+                                                                    onChange={e => set('branchAvailability', {
+                                                                        ...form.branchAvailability,
+                                                                        [branch]: {
+                                                                            ...branchState,
+                                                                            optionPrices: {
+                                                                                ...branchState.optionPrices,
+                                                                                [optKey]: e.target.value,
+                                                                            },
+                                                                        },
+                                                                    })}
+                                                                    className="w-20 px-2 py-1.5 bg-neutral-card border border-[#f0e8d8] rounded-lg text-text-dark text-xs font-body focus:outline-none focus:border-primary/40"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
@@ -534,6 +613,7 @@ function ItemModal({
 // ─── Bulk import modal ────────────────────────────────────────────────────────
 
 function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId: number }) {
+    const router = useRouter();
     const fileRef = useRef<HTMLInputElement>(null);
     const [step, setStep] = useState<'upload' | 'preview'>('upload');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -577,7 +657,7 @@ function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId:
                 toast.success(`Import completed! Imported: ${imported}, Failed: ${failed}, Skipped: ${skipped}`);
                 onClose();
                 // Refresh menu items
-                window.location.reload();
+                router.refresh();
             })
             .catch(error => {
                 console.error('Bulk import failed:', error);
@@ -739,12 +819,11 @@ export default function AdminMenuPage() {
             hasInitialized.current = true;
             setItems(menuItems.map((item, i) => ({
                 ...item,
+                branchId: item.branchId ?? 0,
                 globallyAvailable: true,
                 archived: false,
                 tags: item.popular ? ['popular'] : item.isNew ? ['new'] : [],
-                branchAvailability: Object.fromEntries(
-                    branchNames.map(b => [b, { available: true }])
-                ),
+                branchAvailability: {},
                 sortOrder: i,
             })));
         }
@@ -756,10 +835,39 @@ export default function AdminMenuPage() {
     const [deleteItem, setDeleteItem] = useState<GlobalMenuItem | null>(null);
     const [showImport, setShowImport] = useState(false);
     const [savingItem, setSavingItem] = useState(false);
+    const [menuTags, setMenuTags] = useState<MenuTag[]>([]);
+    const [addOns, setAddOns] = useState<AddOn[]>([]);
 
-    const { config } = useMenuConfig();
-    const optionTemplates = config?.optionTemplates ?? DEFAULT_CONFIG.optionTemplates;
-    const addOns = config?.addOns ?? DEFAULT_CONFIG.addOns;
+    const optionTemplates: OptionTemplate[] = [];
+    useEffect(() => {
+        menuTagService.list().then(setMenuTags).catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        const selectedBranchId = Number(branches[0]?.id);
+        if (!selectedBranchId) {
+            setAddOns([]);
+            return;
+        }
+
+        menuAddOnService
+            .list(selectedBranchId)
+            .then((response) => {
+                setAddOns(
+                    response
+                        .filter((addOn) => addOn.is_active)
+                        .map((addOn) => ({
+                            id: String(addOn.id),
+                            name: addOn.name,
+                            price: String(addOn.price),
+                            perPiece: addOn.is_per_piece,
+                        })),
+                );
+            })
+            .catch(() => {
+                setAddOns([]);
+            });
+    }, [branches]);
 
     const active = useMemo(() => {
         let list = items.filter(i => !i.archived);
@@ -777,7 +885,7 @@ export default function AdminMenuPage() {
             return;
         }
 
-        const selectedBranchId = branches[0]?.id;
+        const selectedBranchId = item.branchId || branches[0]?.id;
         if (!selectedBranchId) {
             toast.error('Invalid branch selected. Please try again.');
             return;
@@ -791,15 +899,22 @@ export default function AdminMenuPage() {
         const categoryId = categoryMap.get(item.category) || undefined;
 
         // Convert GlobalMenuItem to API format
+        const selectedTagIds = item.tags
+            .map((slug) => menuTags.find(tag => tag.slug === slug)?.id)
+            .filter((id): id is number => typeof id === 'number');
+
+        const isSinglePrice = item.price != null && !item.sizes?.length;
+
         const apiData: CreateMenuItemData = {
             branch_id: Number(selectedBranchId),
             category_id: categoryId,
             name: item.name,
             slug: slug,
             description: item.description || undefined,
-            base_price: item.price || undefined,
             is_available: item.globallyAvailable,
-            is_popular: item.tags.includes('popular'),
+            tag_ids: selectedTagIds,
+            add_on_ids: (item.availableAddOns ?? []).map(x => Number(x)).filter(Number.isFinite),
+            ...(isSinglePrice ? { pricing_type: 'simple', price: item.price } : {}),
         };
 
         // Check if this is a new item or update
@@ -812,28 +927,126 @@ export default function AdminMenuPage() {
 
         savePromise
             .then(response => {
-                
-                // Update local state with the response from server
-                setItems(prev => {
-                    if (isNew) {
-                        const idx = prev.findIndex(x => x.id === item.id);
-                        if (idx >= 0) {
-                            const n = [...prev];
-                            n[idx] = { ...item, numericId: response.data.id };
-                            return n;
-                        }
-                        return [...prev, { ...item, numericId: response.data.id }];
-                    } else {
-                        return prev.map(x => x.id === item.id ? item : x);
+                const savedId = response.data.id;
+
+                const desiredOptions = item.sizes?.length
+                    ? item.sizes
+                    : [{ id: 0, key: 'standard', label: 'Standard', price: item.price ?? 0, image: item.image }];
+
+                const syncOptions = async () => {
+                    if (!desiredOptions.length || isSinglePrice) {
+                        return;
                     }
-                });
-                
-                // Refresh menu items from server to get latest data
-                refetchMenuItems();
-                
-                toast.success(`Menu item ${isNew ? 'created' : 'updated'} successfully!`);
-                setEditItem(null);
-                setSavingItem(false);
+
+                    const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
+                    const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
+                    const existingByKey = Object.fromEntries(existing.map(o => [o.option_key, o]));
+                    const desiredKeys = new Set(desiredOptions.map(o => o.key));
+
+                    // Delete options that are no longer desired
+                    for (const existingOpt of existing) {
+                        if (!desiredKeys.has(existingOpt.option_key)) {
+                            await apiClient.delete(`/admin/menu-items/${savedId}/options/${existingOpt.id}`);
+                        }
+                    }
+
+                    // Upsert desired options (update if key exists, create if new)
+                    const upsertedOptions: Array<{ id: number }> = [];
+                    for (let i = 0; i < desiredOptions.length; i += 1) {
+                        const opt = desiredOptions[i];
+                        const existingOpt = existingByKey[opt.key];
+                        if (existingOpt) {
+                            await apiClient.patch(`/admin/menu-items/${savedId}/options/${existingOpt.id}`, {
+                                option_label: opt.label,
+                                price: opt.price,
+                                display_order: i,
+                                is_available: true,
+                            });
+                            upsertedOptions.push({ id: existingOpt.id });
+                        } else {
+                            const created = await apiClient.post(`/admin/menu-items/${savedId}/options`, {
+                                option_key: opt.key,
+                                option_label: opt.label,
+                                price: opt.price,
+                                display_order: i,
+                                is_available: true,
+                            }) as unknown as { data?: { id: number } };
+                            if (created.data?.id) {
+                                upsertedOptions.push({ id: created.data.id });
+                            }
+                        }
+                    }
+
+                    // Upload per-option images
+                    for (let i = 0; i < upsertedOptions.length; i += 1) {
+                        const imageFile = item.optionImageFiles?.[i];
+                        if (imageFile) {
+                            await menuService.uploadOptionImage(savedId, upsertedOptions[i].id, imageFile);
+                        }
+                    }
+                };
+
+                const syncBranchOverrides = async () => {
+                    if (!desiredOptions.length) {
+                        return;
+                    }
+
+                    const branchesPayload: Record<string, { options: Array<{ option_key: string; price: number | null; is_available: boolean }> }> = {};
+
+                    Object.entries(item.branchAvailability).forEach(([branchName, override]) => {
+                        const branchId = branches.find(branch => branch.name === branchName)?.id;
+                        if (!branchId) {
+                            return;
+                        }
+
+                        branchesPayload[String(branchId)] = {
+                            options: desiredOptions.map((option) => {
+                                const overridePrice = override.optionPrices?.[option.key];
+                                return {
+                                    option_key: option.key,
+                                    price: overridePrice ? Number(overridePrice) : null,
+                                    is_available: override.available,
+                                };
+                            }),
+                        };
+                    });
+
+                    if (Object.keys(branchesPayload).length > 0) {
+                        await apiClient.put(`/admin/menu-items/${savedId}/branch-options`, {
+                            branches: branchesPayload,
+                        });
+                    }
+                };
+
+                const afterSave = () => {
+                    // Update local state with the response from server
+                    setItems(prev => {
+                        if (isNew) {
+                            const idx = prev.findIndex(x => x.id === item.id);
+                            if (idx >= 0) {
+                                const n = [...prev];
+                                n[idx] = { ...item, numericId: savedId };
+                                return n;
+                            }
+                            return [...prev, { ...item, numericId: savedId }];
+                        } else {
+                            return prev.map(x => x.id === item.id ? item : x);
+                        }
+                    });
+
+                    refetchMenuItems();
+                    toast.success(`Menu item ${isNew ? 'created' : 'updated'} successfully!`);
+                    setEditItem(null);
+                    setSavingItem(false);
+                };
+
+                syncOptions()
+                    .then(syncBranchOverrides)
+                    .then(afterSave)
+                    .catch(() => {
+                        toast.error('Item saved but option or branch override sync failed. Please re-open and retry.');
+                        afterSave();
+                    });
             })
             .catch(error => {
                 setSavingItem(false);
@@ -847,6 +1060,38 @@ export default function AdminMenuPage() {
                     toast.error(`Failed to ${isNew ? 'create' : 'update'} menu item: ${error.message || 'Unknown error occurred'}`);
                 }
             });
+    }
+
+    async function openItemEditor(item: GlobalMenuItem) {
+        if (!item.numericId) {
+            setEditItem(item);
+            return;
+        }
+
+        try {
+            const res = await apiClient.get(`/admin/menu-items/${item.numericId}/branch-overrides`) as { data?: Record<string, { available: boolean; options: Record<string, number | null> }> };
+            const overrides = res.data ?? {};
+
+            const updatedAvailability: Record<string, { available: boolean; optionPrices: Record<string, string> }> = {};
+            for (const [branchIdStr, branchData] of Object.entries(overrides)) {
+                const branch = branches.find(b => String(b.id) === branchIdStr);
+                if (!branch) {
+                    continue;
+                }
+                updatedAvailability[branch.name] = {
+                    available: branchData.available,
+                    optionPrices: Object.fromEntries(
+                        Object.entries(branchData.options)
+                            .filter(([, v]) => v !== null)
+                            .map(([k, v]) => [k, String(v)])
+                    ),
+                };
+            }
+
+            setEditItem({ ...item, branchAvailability: updatedAvailability });
+        } catch {
+            setEditItem(item);
+        }
     }
 
     function archiveItem(item: GlobalMenuItem) {
@@ -897,6 +1142,12 @@ export default function AdminMenuPage() {
                     <p className="text-neutral-gray text-sm font-body mt-0.5">Global master menu · {active.length} active items</p>
                 </div>
                 <div className="flex gap-2">
+                    <Link
+                        href="/admin/menu-add-ons"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-neutral-card border border-[#f0e8d8] text-text-dark rounded-xl text-sm font-medium font-body hover:border-primary/40 transition-colors"
+                    >
+                        Manage Add-ons
+                    </Link>
                     <button type="button" onClick={() => setShowImport(true)}
                         className="flex items-center gap-2 px-4 py-2.5 bg-neutral-card border border-[#f0e8d8] text-text-dark rounded-xl text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer">
                         <UploadSimpleIcon size={15} weight="bold" className="text-primary" />
@@ -928,7 +1179,7 @@ export default function AdminMenuPage() {
                         ))
                     )}
                 </div>
-                <div className="relative flex-1 min-w-[200px]">
+                <div className="relative flex-1 min-w-50">
                     <MagnifyingGlassIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray" />
                     <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search items…"
                         className="w-full pl-9 pr-3 py-2.5 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40" />
@@ -978,6 +1229,14 @@ export default function AdminMenuPage() {
 
                             <PriceDisplay item={item} />
 
+                            {item.rating != null && (
+                                <span className="text-neutral-gray text-xs font-body flex items-center gap-0.5">
+                                    <StarIcon size={11} weight="fill" className="text-primary" />
+                                    {item.rating.toFixed(1)}
+                                    <span className="opacity-60">({item.rating_count ?? 0})</span>
+                                </span>
+                            )}
+
                             <span className="text-neutral-gray text-xs font-body">{branchCount(item)} of {branchNames.length} branches</span>
 
                             <button type="button" onClick={() => toggleGlobal(item)} className="cursor-pointer w-fit">
@@ -988,7 +1247,7 @@ export default function AdminMenuPage() {
                             </button>
 
                             <div className="flex items-center gap-1.5">
-                                <button type="button" onClick={() => setEditItem(item)}
+                                <button type="button" onClick={() => openItemEditor(item)}
                                     className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-neutral-light transition-colors cursor-pointer">
                                     <PencilSimpleIcon size={14} weight="bold" className="text-primary" />
                                 </button>
@@ -1040,8 +1299,9 @@ export default function AdminMenuPage() {
                     item={editItem === 'new' ? null : editItem as GlobalMenuItem}
                     optionTemplates={optionTemplates}
                     addOns={addOns}
-                    branchNames={branchNames}
+                    menuTags={menuTags}
                     categoryOptions={categoryOptions}
+                    branches={branches}
                     onClose={() => setEditItem(null)}
                     onSave={saveItem}
                     isSaving={savingItem}

@@ -30,12 +30,13 @@ import {
     roleDisplayName,
     employmentStatusLabel,
     defaultPermissions,
-} from '@/lib/data/mockStaff';
+} from '@/types/staff';
 import { useEmployees } from '@/lib/api/hooks/useEmployees';
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import { useRoles, usePermissions } from '@/lib/api/hooks/useRoles';
 import { employeeService, staffRoleToBackendRole, mapPermissionsToBackend } from '@/lib/api/services/employee.service';
 import { toast } from '@/lib/utils/toast';
+import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
 // ─── Display helpers ──────────────────────────────────────────────────────────
 
@@ -325,7 +326,7 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
     function validate() {
         const e: Record<string, string> = {};
         if (!form.name.trim()) e.name = 'Name is required';
-        if (!/^0[2-5][0-9]{8}$/.test(form.phone.replace(/\s/g, ''))) e.phone = 'Enter a valid Ghanaian phone number';
+        if (!isValidGhanaPhone(form.phone)) e.phone = 'Enter a valid Ghanaian phone number (e.g. 0241234567 or +233241234567)';
         if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email address';
         if (form.pin && !/^\d{4}$/.test(form.pin)) e.pin = 'PIN must be exactly 4 digits';
         setErrors(e);
@@ -385,7 +386,7 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
                 ordersToday: 0,
             }),
             name:             form.name.trim(),
-            phone:            form.phone.trim(),
+            phone:            normalizeGhanaPhone(form.phone.trim()),
             email:            form.email.trim(),
             role:             form.role,
             branch:           isMultiBranch ? branchNames : branchNames[0],

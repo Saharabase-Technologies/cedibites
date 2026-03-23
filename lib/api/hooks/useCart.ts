@@ -14,9 +14,7 @@ const hasCartIdentity = () => {
     return false;
   }
   
-  // Cart is for customers; staff token causes 401 on cart API
-  return !localStorage.getItem('cedibites_staff_token') && 
-         (!!localStorage.getItem('cedibites_auth_token') || !!getGuestSessionId());
+  return !!localStorage.getItem('cedibites_auth_token') || !!getGuestSessionId();
 };
 
 export const useCart = () => {

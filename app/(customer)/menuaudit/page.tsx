@@ -256,7 +256,7 @@ export default function MenuAuditPage() {
                                                 <span className="text-[10px] font-mono bg-white/5 text-neutral-gray px-2 py-0.5 rounded-lg">
                                                     {item.slug ?? item.id}
                                                 </span>
-                                                {item.is_popular && (
+                                                {item.popular && (
                                                     <span className="text-[10px] font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-lg">Popular</span>
                                                 )}
                                                 {item.is_new && (
@@ -265,9 +265,9 @@ export default function MenuAuditPage() {
                                             </div>
 
                                             <div className="mt-2 text-xs text-neutral-gray">
-                                                {item.sizes?.length
-                                                    ? `₵${item.sizes[0].price} – ${item.sizes[item.sizes.length - 1].price}`
-                                                    : `₵${Number(item.base_price)?.toFixed(2) ?? '-'}`}
+                                                {item.options?.length
+                                                    ? `₵${item.options[0].price} – ${item.options[item.options.length - 1].price}`
+                                                    : '—'}
                                             </div>
                                         </div>
                                     );
@@ -283,11 +283,11 @@ export default function MenuAuditPage() {
                         <table className="w-full text-xs border-collapse">
                             <thead>
                                 <tr className="border-b border-white/10">
-                                    <th className="text-left px-4 py-3 font-semibold text-neutral-gray bg-white/5 sticky left-0 min-w-[200px]">
+                                    <th className="text-left px-4 py-3 font-semibold text-neutral-gray bg-white/5 sticky left-0 min-w-50">
                                         Item
                                     </th>
                                     {branchesWithMenu.map((b: any) => (
-                                        <th key={b.id} className={`px-3 py-3 font-semibold text-center min-w-[90px] bg-white/5
+                                        <th key={b.id} className={`px-3 py-3 font-semibold text-center min-w-22.5 bg-white/5
                                             ${b.id === effectiveActiveBranchId ? 'text-primary' : 'text-neutral-gray'}`}>
                                             <div className="flex flex-col items-center gap-1">
                                                 <span className={`w-1.5 h-1.5 rounded-full ${b.isOpen ? 'bg-secondary' : 'bg-error'}`} />

@@ -28,13 +28,13 @@ export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 
 export interface OrderItem {
     id: string;                 // line-item ID (unique within order)
-    menuItemId: string;         // references SampleMenu item.id
+    menuItemId: string;
     name: string;
     quantity: number;
     unitPrice: number;
     image?: string;
     icon?: string;
-    sizeId?: number;            // menu_item_size_id for backend
+    sizeId?: number;            // menu_item_option_id for backend
     sizeLabel?: string;         // display label: "Large", "350ml"
     variantKey?: string;        // lookup key: "plain", "large", "fried-rice"
     notes?: string;             // per-item kitchen notes

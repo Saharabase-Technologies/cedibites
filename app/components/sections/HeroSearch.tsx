@@ -4,12 +4,11 @@ import React from 'react'
 import DynamicGreeting from '../ui/DynamicGreeting'
 import UniversalSearch from '../ui/UniversalSearch'
 
-import { HeroSearchCategoryItems } from '@/lib/data/HeroSearchCategoryItems'
 import { useMenuDiscovery } from '../providers/MenuDiscoveryProvider'
 import PromoBanner from '../ui/PromoBanner'
 
 export default function HeroSearch() {
-    const { selectedCategory, setSelectedCategory } = useMenuDiscovery();
+    const { selectedCategory, setSelectedCategory, categories } = useMenuDiscovery();
 
     return (
         <>
@@ -31,7 +30,7 @@ export default function HeroSearch() {
                 <UniversalSearch />
 
                 <div className='flex gap-3 w-full overflow-x-auto no-scrollbar mt-3 pb-1'>
-                    {HeroSearchCategoryItems.map((item) => (
+                    {categories.map((item) => (
                         <button
                             key={item.id}
                             onClick={() => setSelectedCategory(item.id === selectedCategory ? null : item.id)}

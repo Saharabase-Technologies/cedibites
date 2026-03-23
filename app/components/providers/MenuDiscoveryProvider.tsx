@@ -1,12 +1,25 @@
 'use client';
 
 import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from 'react';
-import type { MenuItem } from '@/lib/data/SampleMenu';
 import type { MenuItem as ApiMenuItem } from '@/types/api';
 import { useMenu } from '@/lib/api/hooks/useMenu';
+import { deriveCategories } from '@/lib/api/adapters/menu.adapter';
 
-// Export the type that matches our MenuItem exactly
-export type SearchableItem = MenuItem;
+export interface SearchableItem {
+    id: string;
+    name: string;
+    description?: string;
+    category: string;
+    price?: number;
+    sizes?: { id: number; key: string; label: string; price: number; image?: string }[];
+    hasVariants?: boolean;
+    variants?: { plain?: number; assorted?: number };
+    availableAddOns?: string[];
+    image?: string;
+    url: string;
+    popular?: boolean;
+    isNew?: boolean;
+}
 
 /**
  * Transform API MenuItem to local SearchableItem format
@@ -16,16 +29,17 @@ function transformApiMenuItemToSearchable(apiItem: ApiMenuItem): SearchableItem 
     const categoryName = apiItem.category?.name || 'Basic Meals';
 
     // Transform sizes if they exist
-    const sizes = apiItem.sizes?.map(size => ({
-        key: size.size_key as any,
-        label: size.size_label,
-        price: size.price,
-        id: size.id,
+    const sizes = apiItem.options?.map(option => ({
+        key: option.option_key as any,
+        label: option.option_label,
+        price: option.price,
+        id: option.id,
+        image: option.image_url ?? undefined,
     }));
 
     // Determine pricing structure
     const hasMultipleSizes = sizes && sizes.length > 0;
-    const price = !hasMultipleSizes ? apiItem.base_price : undefined;
+    const price = hasMultipleSizes ? sizes?.[0]?.price : undefined;
 
     return {
         id: apiItem.id.toString(),
@@ -34,9 +48,9 @@ function transformApiMenuItemToSearchable(apiItem: ApiMenuItem): SearchableItem 
         category: categoryName as any,
         price,
         sizes: hasMultipleSizes ? sizes : undefined,
-        image: apiItem.image_url,
+        image: (hasMultipleSizes ? sizes?.[0]?.image : apiItem.image_url) ?? undefined,
         url: `/menu?item=${apiItem.id}`,
-        popular: apiItem.is_popular,
+        popular: apiItem.popular,
         isNew: apiItem.is_new,
         // Note: API doesn't have variants or add-ons yet, so we omit them
     };
@@ -49,6 +63,7 @@ interface MenuDiscoveryContextType {
     allItems: SearchableItem[];
     filteredItems: SearchableItem[];
     searchResults: SearchableItem[];
+    categories: { id: string; label: string }[];
     isSearching: boolean;
     searchQuery: string;
     setSearchQuery: (query: string) => void;
@@ -83,6 +98,12 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
     
     // Use only transformed API items (no fallback to sample data)
     const menuItems = transformedApiItems;
+
+    // Derive categories from API items, prepend "Most Popular" as a special filter
+    const categories = useMemo(() => {
+        const apiCategories = deriveCategories(menuItems as any).map(c => ({ id: c.name, label: c.name }));
+        return [{ id: 'Most Popular', label: 'Most Popular' }, ...apiCategories];
+    }, [menuItems]);
 
     // Load recent searches from localStorage on mount
     useEffect(() => {
@@ -158,6 +179,7 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
         allItems: menuItems,
         filteredItems,
         searchResults,
+        categories,
         isSearching: isLoadingMenu,
         searchQuery,
         setSearchQuery: handleSetSearchQuery,

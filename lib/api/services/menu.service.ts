@@ -4,7 +4,6 @@ import { MenuItem } from '@/types/api';
 export interface MenuItemsParams {
   category_id?: number;
   search?: string;
-  is_popular?: boolean;
   is_available?: boolean;
   branch_id?: number;
   per_page?: number;
@@ -16,9 +15,11 @@ export interface CreateMenuItemData {
   name: string;
   slug: string;
   description?: string;
-  base_price?: number;
   is_available?: boolean;
-  is_popular?: boolean;
+  tag_ids?: number[];
+  add_on_ids?: number[];
+  pricing_type?: 'simple' | 'options';
+  price?: number;
 }
 
 export interface UpdateMenuItemData extends Partial<CreateMenuItemData> {}
@@ -120,8 +121,19 @@ export const menuService = {
   uploadImage: (id: number, imageFile: File): Promise<{ data: MenuItem }> => {
     const formData = new FormData();
     formData.append('image', imageFile);
-    
+
     return apiClient.post(`/admin/menu-items/${id}/image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  uploadOptionImage: (menuItemId: number, optionId: number, imageFile: File): Promise<{ data: MenuItem }> => {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    return apiClient.post(`/admin/menu-items/${menuItemId}/options/${optionId}/image`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
