@@ -738,9 +738,9 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
     setMomoVerifyError(null);
     setIsVerifying(true);
     try {
-      const res = await apiClient.post('/pos/verify-momo', { momo_number: momoNumber });
-      if (res.data.isRegistered) {
-        setMomoVerified({ name: res.data.name, status: res.data.status, profile: res.data.profile });
+      const res = await apiClient.post('/pos/verify-momo', { momo_number: momoNumber }) as unknown as { isRegistered: boolean; name: string; status: string; profile: string };
+      if (res.isRegistered) {
+        setMomoVerified({ name: res.name, status: res.status, profile: res.profile });
       } else {
         setMomoVerifyError('Number not registered on Mobile Money');
       }
