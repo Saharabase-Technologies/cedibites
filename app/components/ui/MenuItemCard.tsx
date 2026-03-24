@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { PlusIcon, MinusIcon, FireIcon, StarIcon } from '@phosphor-icons/react';
+import { PlusIcon, MinusIcon } from '@phosphor-icons/react';
 import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryProvider';
 import { useCart } from '@/app/components/providers/CartProvider';
 
@@ -13,7 +13,7 @@ interface MenuItemCardProps {
 
 const formatPrice = (price: number | string | null | undefined) => {
     const n = typeof price === 'number' ? price : Number(price);
-    return `₵${Number.isNaN(n) ? '0' : n.toFixed(0)}`;
+    return `₵${Number.isNaN(n) ? '0.00' : n.toFixed(2)}`;
 };
 
 export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) {
@@ -49,6 +49,9 @@ export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) 
     const cartItem = getCartItem(item.id, cartItemId);
     const inCart = !!cartItem;
 
+    const activeSize = hasSizes ? sizes.find(s => s.key === selectedSize) : undefined;
+    const activeImage = activeSize?.image ?? item.image;
+
     const handleToggle = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (inCart) {
@@ -65,9 +68,9 @@ export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) 
         >
             {/* Image */}
             <div className="relative w-full aspect-4/3 bg-primary/20 dark:bg-brand-dark overflow-hidden shrink-0">
-                {item.image && !imgError ? (
+                {activeImage && !imgError ? (
                     <Image
-                        src={item.image}
+                        src={activeImage}
                         alt={item.name}
                         fill
                         sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
@@ -78,18 +81,15 @@ export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) 
                     <div className="w-full h-full" />
                 )}
 
-                <div className="absolute top-2 left-2 flex flex-col gap-1">
-                    {item.popular && (
-                        <span className="flex items-center gap-1 bg-primary text-white text-[10px] font-semibold px-2 py-0.5 rounded-full leading-none">
-                            <FireIcon weight="fill" size={10} /> Popular
-                        </span>
-                    )}
-                    {item.isNew && (
-                        <span className="flex items-center gap-1 bg-secondary text-white text-[10px] font-semibold px-2 py-0.5 rounded-full leading-none">
-                            <StarIcon weight="fill" size={10} /> New
-                        </span>
-                    )}
-                </div>
+                {item.tags && item.tags.length > 0 && (
+                    <div className="absolute top-2 left-2 flex flex-col gap-1">
+                        {item.tags.map(tag => (
+                            <span key={tag.slug} className="flex items-center gap-1 bg-primary text-white text-[10px] font-semibold px-2 py-0.5 rounded-full leading-none capitalize">
+                                {tag.name}
+                            </span>
+                        ))}
+                    </div>
+                )}
 
                 {item.category && (
                     <span className="absolute bottom-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-sm bg-neutral-gray/80 text-white">

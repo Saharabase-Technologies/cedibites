@@ -6,12 +6,12 @@ import { staffService } from '@/lib/api/services/staff.service';
 import { employeeService } from '@/lib/api/services/employee.service';
 import type { StaffRole } from '@/types/order';
 
-function apiUserToStaffUser(user: { id: string; name: string; role: StaffRole; branch: string }): StaffUser {
+function apiUserToStaffUser(user: { id: string; name: string; role: StaffRole; branches: StaffUser['branches'] }): StaffUser {
   return {
     id: user.id,
     name: user.name,
     role: user.role,
-    branch: user.branch,
+    branches: user.branches,
   };
 }
 
@@ -20,16 +20,6 @@ export class ApiStaffService implements StaffService {
     try {
       const { user } = await staffService.login(identifier, password);
       return apiUserToStaffUser(user);
-    } catch {
-      return null;
-    }
-  }
-
-  async resolveByPin(pin: string): Promise<StaffMember | null> {
-    try {
-      const { user } = await staffService.posLogin(pin);
-      const member = await employeeService.getEmployee(user.id);
-      return member;
     } catch {
       return null;
     }

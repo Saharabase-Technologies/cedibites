@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useKitchen } from '../context';
 import { useKitchenSounds } from '../hooks/useSounds';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useSwitchKitchenBranch } from '../branch-context';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
+import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import type { Order } from '@/types/order';
 import {
   TruckIcon,
@@ -106,19 +106,14 @@ export default function KitchenDisplayPage() {
     isFullscreen, toggleFullscreen,
   } = useKitchen();
   const { staffUser, logout } = useStaffAuth();
-  const { branches } = useBranch();
   const { branchId: currentBranchId, switchBranch } = useSwitchKitchenBranch();
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
   const sounds = useKitchenSounds();
   const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
 
-  const assignedIds: string[] = staffUser
-    ? (staffUser.branchIds?.map(String) ?? (staffUser.branchId ? [String(staffUser.branchId)] : []))
-    : [];
-  const switchableBranches = assignedIds.length > 0
-    ? branches.filter(b => assignedIds.includes(b.id))
-    : branches;
-  const currentBranchName = branches.find(b => b.id === currentBranchId)?.name;
+  const switchableBranches = staffUser?.branches ?? [];
+  const currentBranchName = switchableBranches.find(b => b.id === currentBranchId)?.name;
 
   useEffect(() => {
     sounds.setEnabled(soundEnabled);
@@ -176,7 +171,7 @@ export default function KitchenDisplayPage() {
               {isFullscreen ? <ArrowsInIcon size={20} /> : <ArrowsOutIcon size={20} />}
             </button>
             <button
-              onClick={logout}
+              onClick={() => setIsSignOutOpen(true)}
               title="Sign out"
               className="p-2 rounded-lg bg-white/10 hover:bg-red-500/30 text-white/70 hover:text-red-300 transition-colors"
             >
@@ -228,6 +223,12 @@ export default function KitchenDisplayPage() {
         currentBranchId={currentBranchId}
         onSelect={id => { switchBranch(id); setIsBranchSwitcherOpen(false); }}
         onClose={() => setIsBranchSwitcherOpen(false)}
+      />
+
+      <SignOutDialog
+        isOpen={isSignOutOpen}
+        onCancel={() => setIsSignOutOpen(false)}
+        onConfirm={() => logout()}
       />
     </>
   );

@@ -111,8 +111,6 @@ interface ItemFormState {
     simplePrice: string;
     image?: string;
     options: OptionRow[];  // used when pricingType === 'options'
-    popular: boolean;
-    isNew: boolean;
     available: boolean;
 }
 
@@ -121,7 +119,7 @@ function blankForm(): ItemFormState {
         name: '', description: '', category: 'Basic Meals', newCategory: '',
         pricingType: 'simple', simplePrice: '', image: undefined,
         options: [{ label: '', price: '' }, { label: '', price: '' }],
-        popular: false, isNew: false, available: true,
+        available: true,
     };
 }
 
@@ -136,8 +134,6 @@ function itemToForm(item: ManagedMenuItem): ItemFormState {
         simplePrice: !isMulti && item.price != null ? String(item.price) : '',
         image: !isMulti ? item.image : undefined,
         options: isMulti ? getOptionRows(item) : [{ label: '', price: '' }, { label: '', price: '' }],
-        popular: item.popular ?? false,
-        isNew: item.isNew ?? false,
         available: item.available,
     };
 }
@@ -156,8 +152,6 @@ function formToItem(form: ItemFormState, allCategories: string[], existing?: Man
         category: category as DisplayMenuItem['category'],
         url: existing?.url ?? `/menu?item=${id}`,
         image: existing?.image,
-        popular: form.popular || undefined,
-        isNew: form.isNew || undefined,
         available: form.available,
     };
 
@@ -448,30 +442,6 @@ function ItemModal({
                         </div>
                     )}
 
-                    {/* ── Flags ─────────────────────────────────────────────── */}
-                    <div className="flex gap-6">
-                        <button type="button" onClick={() => set('popular', !form.popular)}
-                            className="flex items-center gap-2.5 cursor-pointer">
-                            <div className={checkboxCls(form.popular)}>
-                                {form.popular && <Tick />}
-                            </div>
-                            <span className="text-sm font-body text-text-dark flex items-center gap-1.5">
-                                <StarIcon size={13} weight="fill" className="text-primary" />
-                                Popular
-                            </span>
-                        </button>
-                        <button type="button" onClick={() => set('isNew', !form.isNew)}
-                            className="flex items-center gap-2.5 cursor-pointer">
-                            <div className={checkboxCls(form.isNew)}>
-                                {form.isNew && <Tick />}
-                            </div>
-                            <span className="text-sm font-body text-text-dark flex items-center gap-1.5">
-                                <SparkleIcon size={13} weight="fill" className="text-secondary" />
-                                New item
-                            </span>
-                        </button>
-                    </div>
-
                     {/* ── Availability ──────────────────────────────────────── */}
                     <button type="button" onClick={() => set('available', !form.available)}
                         className="flex items-center gap-3 cursor-pointer w-fit">
@@ -718,12 +688,12 @@ export default function ManagerMenuPage() {
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <p className="text-text-dark text-sm font-semibold font-body">{item.name}</p>
-                                                    {item.popular && (
+                                                    {item.tags?.some(t => t.slug === 'popular') && (
                                                         <span className="flex items-center gap-0.5 text-[10px] font-bold font-body text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5">
                                                             <StarIcon size={9} weight="fill" /> Popular
                                                         </span>
                                                     )}
-                                                    {item.isNew && (
+                                                    {item.tags?.some(t => t.slug === 'new') && (
                                                         <span className="flex items-center gap-0.5 text-[10px] font-bold font-body text-secondary bg-secondary/10 border border-secondary/20 rounded-full px-2 py-0.5">
                                                             <SparkleIcon size={9} weight="fill" /> New
                                                         </span>

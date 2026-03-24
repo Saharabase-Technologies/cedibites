@@ -132,9 +132,9 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 export default function PartnerBranchPage() {
     const { staffUser } = useStaffAuth();
-    const branchId = staffUser?.branchId ? parseInt(staffUser.branchId, 10) : null;
+    const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : null;
     const { branch: apiBranch } = useBranch(branchId ?? 0);
-    const branchName = staffUser?.branch ?? apiBranch?.name ?? '—';
+    const branchName = staffUser?.branches[0]?.name ?? apiBranch?.name ?? '—';
 
     const branch = apiBranch
         ? {

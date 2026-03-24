@@ -5,11 +5,17 @@ import { ApiStaffService } from './staff.service.api';
 export type { StaffMember, StaffStatus, StaffRole } from '@/types/staff';
 import type { StaffMember, StaffStatus, StaffRole } from '@/types/staff';
 
+export interface StaffBranch {
+    id: string;
+    name: string;
+    address: string;
+}
+
 export interface StaffUser {
     id: string;
     name: string;
     role: StaffRole;
-    branch: string;
+    branches: StaffBranch[];
 }
 
 export interface StaffFilter {
@@ -20,7 +26,6 @@ export interface StaffFilter {
 
 export interface StaffService {
     resolveByCredentials(identifier: string, password: string): Promise<StaffUser | null>;
-    resolveByPin(pin: string): Promise<StaffMember | null>;
     getAll(filter?: StaffFilter): Promise<StaffMember[]>;
     getById(id: string): Promise<StaffMember | null>;
 }

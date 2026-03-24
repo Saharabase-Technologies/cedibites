@@ -1,11 +1,10 @@
 'use client';
 
 import { StorefrontIcon, XIcon, CheckIcon } from '@phosphor-icons/react';
-import type { Branch } from '@/app/components/providers/BranchProvider';
 
 interface BranchSwitcherDialogProps {
     isOpen: boolean;
-    branches: Branch[];
+    branches: { id: string; name: string; address?: string }[];
     currentBranchId?: string | null;
     onSelect: (branchId: string) => void;
     onClose: () => void;

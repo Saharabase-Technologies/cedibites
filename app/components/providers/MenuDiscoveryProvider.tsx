@@ -1,9 +1,11 @@
 'use client';
 
 import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import type { MenuItem as ApiMenuItem } from '@/types/api';
 import { useMenu } from '@/lib/api/hooks/useMenu';
 import { deriveCategories } from '@/lib/api/adapters/menu.adapter';
+import { useBranch } from '@/app/components/providers/BranchProvider';
 
 export interface SearchableItem {
     id: string;
@@ -17,8 +19,7 @@ export interface SearchableItem {
     availableAddOns?: string[];
     image?: string;
     url: string;
-    popular?: boolean;
-    isNew?: boolean;
+    tags?: { slug: string; name: string }[];
 }
 
 /**
@@ -50,8 +51,7 @@ function transformApiMenuItemToSearchable(apiItem: ApiMenuItem): SearchableItem 
         sizes: hasMultipleSizes ? sizes : undefined,
         image: (hasMultipleSizes ? sizes?.[0]?.image : apiItem.image_url) ?? undefined,
         url: `/menu?item=${apiItem.id}`,
-        popular: apiItem.popular,
-        isNew: apiItem.is_new,
+        tags: apiItem.tags?.map(t => ({ slug: t.slug, name: t.name })) ?? [],
         // Note: API doesn't have variants or add-ons yet, so we omit them
     };
 }
@@ -84,12 +84,25 @@ interface MenuDiscoveryProviderProps {
 }
 
 export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) {
-    // Fetch menu data from API
-    const { items: apiItems, isLoading: isLoadingMenu, error, refetch } = useMenu();
-    
+    const { selectedBranch } = useBranch();
+    const pathname = usePathname();
+
+    // Fetch menu data filtered by the selected branch
+    const { items: apiItems, isLoading: isLoadingMenu, error, refetch } = useMenu(
+        selectedBranch ? { branch_id: parseInt(selectedBranch.id) } : undefined
+    );
+
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+    // Clear search state when navigating away from the menu page
+    useEffect(() => {
+        if (!pathname.startsWith('/menu')) {
+            setSearchQuery('');
+            setSelectedCategory(null);
+        }
+    }, [pathname]);
     
     // Transform API items to SearchableItem format
     const transformedApiItems = useMemo(() => {
@@ -121,7 +134,7 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
         // Filter by category
         if (selectedCategory) {
             if (selectedCategory === 'Most Popular') {
-                result = result.filter(item => item.popular);
+                result = result.filter(item => item.tags?.some(t => t.slug === 'popular'));
             } else {
                 result = result.filter(item => item.category === selectedCategory);
             }

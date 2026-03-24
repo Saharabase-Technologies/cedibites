@@ -24,7 +24,9 @@ import {
     PlusCircleIcon,
     HashStraightIcon,
 } from '@phosphor-icons/react';
+import { useState } from 'react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
@@ -104,6 +106,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
     const { staffUser, isLoading, logout } = useStaffAuth();
+    const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
     // Redirect to login if not authenticated or not admin/super_admin
     useEffect(() => {
@@ -112,9 +115,9 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                 router.push('/staff/login');
                 return;
             }
-            
-            // Only allow admin or super_admin to access admin panel
-            if (staffUser.role !== 'admin' && staffUser.role !== 'super_admin') {
+
+            // Only allow users with access_admin_panel permission
+            if (!staffUser.permissions?.includes('access_admin_panel')) {
                 router.push('/staff/login');
                 return;
             }
@@ -134,7 +137,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     }
 
     // Don't render anything if not authenticated (will redirect)
-    if (!staffUser || (staffUser.role !== 'admin' && staffUser.role !== 'super_admin')) {
+    if (!staffUser || !staffUser.permissions?.includes('access_admin_panel')) {
         return null;
     }
 
@@ -199,7 +202,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                     </div>
                     <button
                         type="button"
-                        onClick={logout}
+                        onClick={() => setIsSignOutOpen(true)}
                         className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-neutral-gray hover:text-error hover:bg-error/10 text-sm font-medium font-body transition-all cursor-pointer"
                     >
                         <SignOutIcon size={16} weight="regular" className="shrink-0" />
@@ -246,6 +249,11 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                 ))}
             </nav>
 
+            <SignOutDialog
+                isOpen={isSignOutOpen}
+                onCancel={() => setIsSignOutOpen(false)}
+                onConfirm={() => logout()}
+            />
         </div>
     );
 }

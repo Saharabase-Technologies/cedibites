@@ -18,8 +18,7 @@ export interface DisplayMenuItem {
   variants?: { plain?: number; assorted?: number };
   image?: string;
   url: string;
-  popular?: boolean;
-  isNew?: boolean;
+  tags?: { slug: string; name: string }[];
 }
 
 export interface DisplayMenuCategory {
@@ -72,8 +71,7 @@ export function apiMenuItemToDisplayItem(api: ApiMenuItem): DisplayMenuItem {
     variants,
     image: defaultImage,
     url: `/menu?item=${slug}`,
-    popular: api.popular ?? false,
-    isNew: api.is_new ?? false,
+    tags: api.tags?.map(t => ({ slug: t.slug, name: t.name })) ?? [],
   };
 }
 

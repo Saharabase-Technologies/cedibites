@@ -16,7 +16,8 @@ import {
   FlaskIcon,
 } from '@phosphor-icons/react';
 import { usePOS } from '../context';
-import { SignOutDialog } from '../components/SignOutDialog';
+import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { Order } from '@/types/order';
 import { formatGHS } from '@/lib/utils/currency';
 import { useBranch } from '@/app/components/providers/BranchProvider';
@@ -36,8 +37,8 @@ export default function POSOrdersPage() {
     isSessionLoaded,
     todayOrders,
     seedTestOrders,
-    logout,
   } = usePOS();
+  const { logout } = useStaffAuth();
   const { branches } = useBranch();
 
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
@@ -131,7 +132,7 @@ export default function POSOrdersPage() {
       <SignOutDialog
         isOpen={isSignOutOpen}
         onCancel={() => setIsSignOutOpen(false)}
-        onConfirm={() => { logout(); router.replace('/pos'); }}
+        onConfirm={() => logout('/pos')}
       />
 
       {/* Orders list */}

@@ -104,7 +104,7 @@ function QuickLinkCard({
 
 export default function ManagerDashboardPage() {
     const { staffUser } = useStaffAuth();
-    const branchId = staffUser?.branchId ? parseInt(staffUser.branchId, 10) : null;
+    const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : null;
     const { stats } = useBranchStats(branchId, true);
     const { topItems } = useBranchTopItems(branchId, { date: 'today', limit: 5 });
     const { chartData } = useBranchRevenueChart(branchId, { period: 'week' });

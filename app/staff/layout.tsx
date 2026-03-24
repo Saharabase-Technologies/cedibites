@@ -20,55 +20,40 @@ import {
     MonitorIcon,
     ClipboardTextIcon,
 } from '@phosphor-icons/react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StaffAuthProvider, useStaffAuth, type StaffRole } from '@/app/components/providers/StaffAuthProvider';
+import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 
-// ─── Nav configs per role ──────────────────────────────────────────────────────
+// ─── Nav configs (permission-gated) ───────────────────────────────────────────
 
-const MANAGER_DISPLAYS = [
-    { href: '/pos/terminal',  label: 'POS Terminal',    icon: CashRegisterIcon, external: true },
-    { href: '/kitchen/display', label: 'Kitchen Display', icon: MonitorIcon, external: true },
-    { href: '/order-manager', label: 'Order Manager',   icon: ClipboardTextIcon, external: true },
+const MANAGER_NAV_MAIN = [
+    { href: '/staff/manager/dashboard', label: 'Dashboard', icon: SquaresFourIcon },
+    { href: '/staff/manager/new-order', label: 'New Order', icon: PlusCircleIcon,  permission: 'create_orders' },
+    { href: '/staff/manager/orders',    label: 'Orders',    icon: ListIcon },
 ];
 
-const SALES_DISPLAYS = [
-    { href: '/pos/terminal',  label: 'POS Terminal',    icon: CashRegisterIcon,  external: true },
-    { href: '/kitchen/display', label: 'Kitchen Display', icon: MonitorIcon, external: true },
-    { href: '/order-manager', label: 'Order Manager',   icon: ClipboardTextIcon, external: true },
+const MANAGER_NAV_TOOLS = [
+    { href: '/staff/manager/analytics', label: 'Analytics', icon: ChartBarIcon,   permission: 'view_analytics' },
+    { href: '/staff/manager/menu',      label: 'Menu',       icon: ForkKnifeIcon,  permission: 'manage_menu' },
+    { href: '/staff/manager/staff',     label: 'Staff',      icon: UsersThreeIcon, permission: 'manage_employees' },
+    { href: '/staff/manager/shifts',    label: 'Shifts',     icon: ClockIcon,      permission: 'manage_shifts' },
+    { href: '/staff/manager/my-shifts', label: 'My Shifts',  icon: ReceiptIcon,    permission: 'view_my_shifts' },
+    { href: '/staff/manager/settings',  label: 'Configure',  icon: GearSixIcon,    permission: 'manage_settings' },
 ];
 
 const SALES_NAV = [
     { href: '/staff/sales/dashboard',  label: 'Dashboard', icon: SquaresFourIcon },
-    { href: '/staff/sales/new-order',  label: 'New Order', icon: PlusCircleIcon  },
-    { href: '/staff/sales/orders',     label: 'Orders',    icon: ListIcon        },
-    { href: '/staff/sales/my-sales',   label: 'My Sales',  icon: ReceiptIcon     },
-    { href: '/staff/sales/my-shifts',  label: 'My Shifts', icon: ClockIcon       },
+    { href: '/staff/sales/new-order',  label: 'New Order', icon: PlusCircleIcon,  permission: 'create_orders' },
+    { href: '/staff/sales/orders',     label: 'Orders',    icon: ListIcon },
+    { href: '/staff/sales/my-sales',   label: 'My Sales',  icon: ReceiptIcon,     permission: 'view_my_sales' },
+    { href: '/staff/sales/my-shifts',  label: 'My Shifts', icon: ClockIcon,       permission: 'view_my_shifts' },
 ];
 
-const PARTNER_NAV = [
-    { href: '/partner/dashboard', label: 'Dashboard', icon: SquaresFourIcon },
+const DISPLAYS_NAV = [
+    { href: '/pos/terminal',    label: 'POS Terminal',    icon: CashRegisterIcon,  permission: 'access_pos',           external: true },
+    { href: '/kitchen/display', label: 'Kitchen Display', icon: MonitorIcon,       permission: 'access_kitchen',       external: true },
+    { href: '/order-manager',   label: 'Order Manager',   icon: ClipboardTextIcon, permission: 'access_order_manager', external: true },
 ];
-
-const MANAGER_NAV_MAIN = [
-    { href: '/staff/manager/dashboard', label: 'Dashboard', icon: SquaresFourIcon },
-    { href: '/staff/manager/new-order', label: 'New Order', icon: PlusCircleIcon  },
-    { href: '/staff/manager/orders',    label: 'Orders',    icon: ListIcon        },
-];
-
-const MANAGER_NAV_TOOLS = [
-    { href: '/staff/manager/analytics',  label: 'Analytics', icon: ChartBarIcon   },
-    { href: '/staff/manager/menu',       label: 'Menu',       icon: ForkKnifeIcon  },
-    { href: '/staff/manager/staff',      label: 'Staff',      icon: UsersThreeIcon },
-    { href: '/staff/manager/shifts',     label: 'Shifts',     icon: ClockIcon      },
-    { href: '/staff/manager/my-shifts',  label: 'My Shifts',  icon: ReceiptIcon    },
-    { href: '/staff/manager/settings',   label: 'Configure',  icon: GearSixIcon    },
-];
-
-function navItemsForRole(role: StaffRole | string) {
-    if (role === 'manager' || role === 'super_admin') return { main: MANAGER_NAV_MAIN, tools: MANAGER_NAV_TOOLS, displays: MANAGER_DISPLAYS };
-    if (role === 'branch_partner') return { main: PARTNER_NAV, tools: [], displays: [] };
-    return { main: SALES_NAV, tools: [], displays: SALES_DISPLAYS };
-}
 
 // ─── Sidebar link ─────────────────────────────────────────────────────────────
 
@@ -139,7 +124,8 @@ function roleLabel(role: StaffRole | string): string {
 function StaffLayoutShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
-    const { staffUser, isLoading, logout } = useStaffAuth();
+    const { staffUser, isLoading, logout, can } = useStaffAuth();
+    const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
     const isPublicPath = pathname === '/staff/login'
         || pathname === '/staff/forgot-password'
@@ -160,16 +146,20 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
 
     if (!staffUser) return null;
 
+    // ── Build permission-gated nav ──
+    const isManagerPortal = can('access_manager_portal');
 
+    const mainNav = isManagerPortal
+        ? MANAGER_NAV_MAIN.filter(i => !i.permission || can(i.permission))
+        : SALES_NAV.filter(i => !i.permission || can(i.permission));
 
-    const { main: mainNav, tools: toolsNav, displays: displaysNav } = navItemsForRole(staffUser.role);
-    const isManager = staffUser.role === 'manager' || staffUser.role === 'super_admin';
+    const toolsNav = isManagerPortal
+        ? MANAGER_NAV_TOOLS.filter(i => can(i.permission))
+        : [];
+
+    const displaysNav = DISPLAYS_NAV.filter(i => can(i.permission));
+
     const allMobileNav = [...mainNav, ...toolsNav];
-
-    const handleLogout = () => {
-        logout();
-        router.replace('/staff/login');
-    };
 
     return (
         <div className="h-screen overflow-hidden bg-neutral-light dark:bg-brand-darker w-full flex">
@@ -198,7 +188,7 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                         />
                     ))}
 
-                    {isManager && toolsNav.length > 0 && (
+                    {toolsNav.length > 0 && (
                         <>
                             <div className="my-2 border-t border-brown-light/15" />
                             <p className="text-[10px] font-body font-medium text-neutral-gray/60 uppercase tracking-wider px-3 pb-1">
@@ -245,13 +235,13 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                         <div className="min-w-0 flex-1">
                             <p className="text-text-light text-xs font-medium font-body truncate group-hover:text-primary transition-colors">{staffUser.name}</p>
                             <p className="text-neutral-gray text-[10px] font-body truncate">
-                                {roleLabel(staffUser.role)} · {staffUser.branch}
+                                {roleLabel(staffUser.role)} · {staffUser.branches[0]?.name ?? ''}
                             </p>
                         </div>
                     </Link>
                     <button
                         type="button"
-                        onClick={handleLogout}
+                        onClick={() => setIsSignOutOpen(true)}
                         className="
               w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl
               text-neutral-gray hover:text-error hover:bg-error/10
@@ -312,7 +302,7 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                 ))}
                 <button
                     type="button"
-                    onClick={handleLogout}
+                    onClick={() => setIsSignOutOpen(true)}
                     className="flex flex-col items-center gap-1 flex-1 py-2 text-xs font-medium font-body text-neutral-gray cursor-pointer"
                 >
                     <SignOutIcon size={22} weight="regular" />
@@ -320,6 +310,11 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                 </button>
             </nav>
 
+            <SignOutDialog
+                isOpen={isSignOutOpen}
+                onCancel={() => setIsSignOutOpen(false)}
+                onConfirm={() => logout()}
+            />
         </div>
     );
 }

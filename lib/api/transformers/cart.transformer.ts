@@ -94,10 +94,9 @@ export function transformMenuItemToSearchable(menuItem: MenuItem): SearchableIte
     description: menuItem.description,
     category,
     price: sizes?.[0]?.price,
-    image: sizes?.[0]?.image || menuItem.image_url || '/menu_placeholder.png',
+    image: sizes?.[0]?.image || menuItem.image_url || undefined,
     url: `/menu?item=${menuItem.id}`,
-    popular: menuItem.popular,
-    isNew: menuItem.is_new,
+    tags: menuItem.tags?.map(t => ({ slug: t.slug, name: t.name })) ?? [],
     sizes: sizes && sizes.length > 0 ? sizes : undefined,
   };
 }

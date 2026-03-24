@@ -277,7 +277,7 @@ function SmsTab() {
 
     function renderPreview(text: string) {
         return text
-            .replace('{order_number}', 'CB847291')
+            .replace('{order_number}', 'A042')
             .replace('{branch_name}', 'East Legon')
             .replace('{estimated_time}', '25-35 mins')
             .replace('{rider_name}', 'Kweku Mensah')

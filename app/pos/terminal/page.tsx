@@ -36,7 +36,8 @@ import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import { printReceipt } from '@/lib/utils/printReceipt';
 import { getPromoService, type Promo } from '@/lib/services/promos/promo.service';
-import { SignOutDialog } from '../components/SignOutDialog';
+import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
@@ -104,8 +105,8 @@ export default function POSTerminalPage() {
     closePayment,
     processPayment,
     todayOrders,
-    logout
   } = usePOS();
+  const { logout } = useStaffAuth();
   const { branches } = useBranch();
   const { items: menuItems, categories: menuCategories, isLoading: menuLoading } = useMenuItems();
 
@@ -488,7 +489,7 @@ export default function POSTerminalPage() {
             <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
             <input
               type="text"
-              placeholder="Customer name"
+              placeholder="Customer name *"
               value={customerName}
               onChange={e => setCustomerName(e.target.value)}
               className="w-full h-10 pl-9 pr-3 rounded-lg bg-neutral-light text-text-dark placeholder:text-neutral-gray/60 border border-neutral-gray/20 focus:border-primary/50 outline-none text-sm transition-colors"
@@ -498,7 +499,7 @@ export default function POSTerminalPage() {
             <DeviceMobileIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
             <input
               type="tel"
-              placeholder="Phone number"
+              placeholder="Phone number *"
               value={customerPhone}
               onChange={e => setCustomerPhone(e.target.value)}
               className="w-full h-10 pl-9 pr-3 rounded-lg bg-neutral-light text-text-dark placeholder:text-neutral-gray/60 border border-neutral-gray/20 focus:border-primary/50 outline-none text-sm transition-colors"
@@ -606,7 +607,7 @@ export default function POSTerminalPage() {
 
           <button
             onClick={openPayment}
-            disabled={cart.length === 0}
+            disabled={cart.length === 0 || !customerName.trim() || !customerPhone.trim()}
             className="
               w-full h-14 rounded-2xl font-semibold text-lg
               bg-primary text-brown
@@ -647,7 +648,7 @@ export default function POSTerminalPage() {
       <SignOutDialog
         isOpen={isSignOutOpen}
         onCancel={() => setIsSignOutOpen(false)}
-        onConfirm={() => { logout(); router.replace('/pos'); }}
+        onConfirm={() => logout('/pos')}
       />
 
       <BranchSwitcherDialog

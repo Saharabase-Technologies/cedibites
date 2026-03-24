@@ -21,10 +21,10 @@ import {
 import { useKitchenSounds } from '@/app/kitchen/hooks/useSounds';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useOrderChannel } from '@/lib/hooks/useOrderChannel';
-import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
+import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import type { Order, OrderStatus, FulfillmentType } from '@/types/order';
 import { STATUS_CONFIG } from '@/lib/constants/order.constants';
 import { toast } from '@/lib/utils/toast';
@@ -70,18 +70,16 @@ const ACTIVE_STATUSES = new Set<OrderStatus>(['received', 'accepted', 'preparing
 
 export default function OrderManagerPage() {
   const { updateOrderStatus, updateOrder } = useOrderStore();
-  const { branches, isLoading: isBranchesLoading } = useBranch();
   const { staffUser, isLoading: isAuthLoading, logout } = useStaffAuth();
 
   // Branch selection gate — derived from live auth context
-  const assignedIds: string[] = staffUser
-    ? (staffUser.branchIds?.map(String) ?? (staffUser.branchId ? [String(staffUser.branchId)] : []))
-    : [];
+  const assignedIds: string[] = staffUser?.branches.map(b => b.id) ?? [];
 
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('cedibites-om-branchId') : null
   );
   const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
   // Auto-select if exactly 1 branch; use explicit selection otherwise
   const autoSelectedBranchId = assignedIds.length === 1 ? assignedIds[0] : null;
@@ -208,8 +206,8 @@ export default function OrderManagerPage() {
     else if (order.status === 'ready') completeOrder(order.id);
   }, [startCooking, markReady, completeOrder]);
 
-  // Block render until auth and branches resolve
-  if (isAuthLoading || isBranchesLoading) {
+  // Block render until auth resolves
+  if (isAuthLoading) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-neutral-light">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -219,9 +217,7 @@ export default function OrderManagerPage() {
 
   // Show picker once auth is loaded, if staff has ≠1 branch and hasn't picked yet
   const needsBranchSelection = !effectiveBranchId && assignedIds.length !== 1;
-  const selectableBranches = assignedIds.length > 0
-    ? branches.filter(b => assignedIds.includes(b.id))
-    : branches;
+  const selectableBranches = staffUser?.branches ?? [];
 
   if (needsBranchSelection) {
     return (
@@ -264,7 +260,7 @@ export default function OrderManagerPage() {
             >
               <StorefrontIcon className="w-4 h-4" />
               <span className="hidden sm:inline">
-                {branches.find(b => b.id === effectiveBranchId)?.name ?? 'All Branches'}
+                {selectableBranches.find(b => b.id === effectiveBranchId)?.name ?? 'All Branches'}
               </span>
             </button>
           )}
@@ -275,7 +271,7 @@ export default function OrderManagerPage() {
             {soundEnabled ? <SpeakerHighIcon className="w-5 h-5" /> : <SpeakerSlashIcon className="w-5 h-5" />}
           </button>
           <button
-            onClick={logout}
+            onClick={() => setIsSignOutOpen(true)}
             title="Sign out"
             className="w-10 h-10 rounded-xl flex items-center justify-center text-neutral-gray hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all"
           >
@@ -370,6 +366,12 @@ export default function OrderManagerPage() {
         currentBranchId={effectiveBranchId}
         onSelect={id => { localStorage.setItem('cedibites-om-branchId', id); setSelectedBranchId(id); setSelectedOrder(null); }}
         onClose={() => setIsBranchSwitcherOpen(false)}
+      />
+
+      <SignOutDialog
+        isOpen={isSignOutOpen}
+        onCancel={() => setIsSignOutOpen(false)}
+        onConfirm={() => logout()}
       />
     </div>
   );

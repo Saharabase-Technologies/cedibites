@@ -10,7 +10,7 @@ import {
     SpinnerIcon,
 } from '@phosphor-icons/react';
 import Input from '@/app/components/base/Input';
-import { useStaffAuth, roleHomeRoute } from '@/app/components/providers/StaffAuthProvider';
+import { useStaffAuth, permissionsHomeRoute } from '@/app/components/providers/StaffAuthProvider';
 import { staffService } from '@/lib/api/services/staff.service';
 
 export default function ChangePasswordPage() {
@@ -49,7 +49,7 @@ export default function ChangePasswordPage() {
             }
 
             setTimeout(() => {
-                router.replace(roleHomeRoute(user?.role as Parameters<typeof roleHomeRoute>[0]));
+                router.replace(permissionsHomeRoute(user?.permissions ?? []));
             }, 1500);
         } catch (err) {
             setErrors({

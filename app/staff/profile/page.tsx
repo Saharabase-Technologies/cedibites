@@ -104,14 +104,6 @@ export default function StaffProfilePage() {
     const [pwToast, setPwToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
     const [pwLoading, setPwLoading] = useState(false);
 
-    // ── PIN change state ──
-    const [pinForm, setPinForm] = useState({ current: '', next: '', confirm: '' });
-    const [pinErrors, setPinErrors] = useState<Record<string, string>>({});
-    const [pinToast, setPinToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-    const [pinLoading, setPinLoading] = useState(false);
-
-    const isPOSUser = !!(staffUser?.pin);
-
     // ── Handlers ──
 
     async function handlePasswordChange(e: React.FormEvent) {
@@ -134,29 +126,9 @@ export default function StaffProfilePage() {
         setTimeout(() => setPwToast(null), 4000);
     }
 
-    async function handlePinChange(e: React.FormEvent) {
-        e.preventDefault();
-        const errs: Record<string, string> = {};
-        if (!pinForm.current)                       errs.current = 'Required';
-        if (staffUser && pinForm.current !== staffUser.pin) errs.current = 'Current PIN is incorrect';
-        if (!pinForm.next)                          errs.next    = 'Required';
-        else if (!/^\d{4}$/.test(pinForm.next))     errs.next    = 'PIN must be exactly 4 digits';
-        if (pinForm.next !== pinForm.confirm)        errs.confirm = 'PINs do not match';
-
-        if (Object.keys(errs).length > 0) { setPinErrors(errs); return; }
-
-        setPinLoading(true);
-        await new Promise(r => setTimeout(r, 600));
-        setPinLoading(false);
-        setPinForm({ current: '', next: '', confirm: '' });
-        setPinErrors({});
-        setPinToast({ msg: 'POS PIN updated successfully.', type: 'success' });
-        setTimeout(() => setPinToast(null), 4000);
-    }
-
     if (!staffUser) return null;
 
-    const branchDisplay = Array.isArray(staffUser.branch) ? staffUser.branch.join(', ') : staffUser.branch;
+    const branchDisplay = staffUser.branches.map(b => b.name).join(', ');
 
     return (
         <div className="px-4 md:px-8 py-6 max-w-2xl mx-auto">
@@ -223,69 +195,6 @@ export default function StaffProfilePage() {
                         </button>
                     </form>
                 </SectionCard>
-
-                {/* ── Change POS PIN (sales staff only) ────────────────────────── */}
-                {isPOSUser && (
-                    <SectionCard title="POS Terminal PIN" icon={LockKeyIcon}>
-                        <p className="text-neutral-gray text-xs font-body mb-4">
-                            Your 4-digit PIN is used to log into the POS terminal.
-                        </p>
-                        <form onSubmit={handlePinChange} className="flex flex-col gap-4">
-                            <div>
-                                <label className="block text-sm font-medium font-body text-text-dark mb-1.5">Current PIN</label>
-                                <input
-                                    type="password"
-                                    inputMode="numeric"
-                                    maxLength={4}
-                                    value={pinForm.current}
-                                    onChange={e => setPinForm(f => ({ ...f, current: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                                    placeholder="····"
-                                    className={`w-28 bg-neutral-light border rounded-xl px-4 py-3 text-sm font-body font-mono tracking-widest text-text-dark placeholder:text-neutral-gray/40 focus:outline-none focus:border-primary transition-colors ${pinErrors.current ? 'border-error/50' : 'border-brown-light/20'}`}
-                                />
-                                {pinErrors.current && <p className="text-error text-xs font-body mt-1">{pinErrors.current}</p>}
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium font-body text-text-dark mb-1.5">New PIN</label>
-                                    <input
-                                        type="password"
-                                        inputMode="numeric"
-                                        maxLength={4}
-                                        value={pinForm.next}
-                                        onChange={e => setPinForm(f => ({ ...f, next: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                                        placeholder="····"
-                                        className={`w-28 bg-neutral-light border rounded-xl px-4 py-3 text-sm font-body font-mono tracking-widest text-text-dark placeholder:text-neutral-gray/40 focus:outline-none focus:border-primary transition-colors ${pinErrors.next ? 'border-error/50' : 'border-brown-light/20'}`}
-                                    />
-                                    {pinErrors.next && <p className="text-error text-xs font-body mt-1">{pinErrors.next}</p>}
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium font-body text-text-dark mb-1.5">Confirm New PIN</label>
-                                    <input
-                                        type="password"
-                                        inputMode="numeric"
-                                        maxLength={4}
-                                        value={pinForm.confirm}
-                                        onChange={e => setPinForm(f => ({ ...f, confirm: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                                        placeholder="····"
-                                        className={`w-28 bg-neutral-light border rounded-xl px-4 py-3 text-sm font-body font-mono tracking-widest text-text-dark placeholder:text-neutral-gray/40 focus:outline-none focus:border-primary transition-colors ${pinErrors.confirm ? 'border-error/50' : 'border-brown-light/20'}`}
-                                    />
-                                    {pinErrors.confirm && <p className="text-error text-xs font-body mt-1">{pinErrors.confirm}</p>}
-                                </div>
-                            </div>
-
-                            {pinToast && <Toast message={pinToast.msg} type={pinToast.type} />}
-
-                            <button
-                                type="submit"
-                                disabled={pinLoading}
-                                className="flex items-center justify-center gap-2 w-full sm:w-auto sm:self-end px-6 py-2.5 bg-primary hover:bg-primary-hover disabled:opacity-50 text-brand-darker text-sm font-bold font-body rounded-xl transition-colors cursor-pointer"
-                            >
-                                <FloppyDiskIcon size={16} weight="bold" />
-                                {pinLoading ? 'Saving…' : 'Update PIN'}
-                            </button>
-                        </form>
-                    </SectionCard>
-                )}
 
             </div>
 

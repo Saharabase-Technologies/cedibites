@@ -256,10 +256,10 @@ export default function MenuAuditPage() {
                                                 <span className="text-[10px] font-mono bg-white/5 text-neutral-gray px-2 py-0.5 rounded-lg">
                                                     {item.slug ?? item.id}
                                                 </span>
-                                                {item.popular && (
+                                                {item.tags?.some(t => t.slug === 'popular') && (
                                                     <span className="text-[10px] font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-lg">Popular</span>
                                                 )}
-                                                {item.is_new && (
+                                                {item.tags?.some(t => t.slug === 'new') && (
                                                     <span className="text-[10px] font-bold bg-secondary/15 text-secondary px-2 py-0.5 rounded-lg">New</span>
                                                 )}
                                             </div>

@@ -1,10 +1,9 @@
 'use client';
 
 import { StorefrontIcon } from '@phosphor-icons/react';
-import type { Branch } from '@/app/components/providers/BranchProvider';
 
 interface BranchSelectPageProps {
-    branches: Branch[];
+    branches: { id: string; name: string; address?: string }[];
     onSelect: (branchId: string) => void;
     title?: string;
     subtitle?: string;

@@ -13,7 +13,9 @@ import {
     CaretRightIcon,
     HandshakeIcon,
 } from '@phosphor-icons/react';
+import { useState } from 'react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 
@@ -66,13 +68,8 @@ function BottomNavLink({ href, label, icon: Icon, active }: {
 
 export default function PartnerLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
-    const router = useRouter();
     const { staffUser, logout } = useStaffAuth();
-
-    const handleLogout = () => {
-        logout();
-        router.replace('/staff/login');
-    };
+    const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
     const initials = staffUser?.name
         ? staffUser.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
@@ -97,10 +94,10 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
                 </div>
 
                 {/* Branch chip */}
-                {staffUser?.branch && (
+                {staffUser?.branches[0]?.name && (
                     <div className="mx-3 mt-3 flex items-center gap-2 px-3 py-2 bg-primary/8 rounded-xl border border-primary/15">
                         <BuildingsIcon size={13} weight="fill" className="text-primary shrink-0" />
-                        <span className="text-primary text-xs font-semibold font-body truncate">{staffUser.branch}</span>
+                        <span className="text-primary text-xs font-semibold font-body truncate">{staffUser.branches[0].name}</span>
                     </div>
                 )}
 
@@ -130,7 +127,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
                     </div>
                     <button
                         type="button"
-                        onClick={handleLogout}
+                        onClick={() => setIsSignOutOpen(true)}
                         className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-neutral-gray hover:text-error hover:bg-error/10 text-sm font-medium font-body transition-all cursor-pointer"
                     >
                         <SignOutIcon size={16} weight="regular" className="shrink-0" />
@@ -150,7 +147,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
                         <span className="text-neutral-gray text-xs font-body ml-1">Partner</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-neutral-gray text-xs font-body">{staffUser?.branch}</span>
+                        <span className="text-neutral-gray text-xs font-body">{staffUser?.branches[0]?.name}</span>
                         <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center">
                             <span className="text-primary text-[10px] font-bold font-body">{initials}</span>
                         </div>
@@ -175,6 +172,11 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
                     />
                 ))}
             </nav>
+            <SignOutDialog
+                isOpen={isSignOutOpen}
+                onCancel={() => setIsSignOutOpen(false)}
+                onConfirm={() => logout()}
+            />
         </div>
     );
 }
