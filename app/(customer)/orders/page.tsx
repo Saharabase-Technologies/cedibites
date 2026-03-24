@@ -34,8 +34,8 @@ export default function TrackOrderPage() {
             return;
         }
 
-        if (!/^CB\d{6}$/.test(cleanCode)) {
-            setError('Order codes are 8 characters (e.g., CB847291)');
+        if (!/^[A-Z]\d{3}$/.test(cleanCode)) {
+            setError('Enter a valid order code (e.g., A042)');
             return;
         }
 
@@ -43,10 +43,6 @@ export default function TrackOrderPage() {
 
         // Navigate to tracking page
         router.push(`/orders/${cleanCode}`);
-    };
-
-    const handleExampleClick = () => {
-        setOrderCode('CB847291');
     };
 
     return (
@@ -114,9 +110,9 @@ export default function TrackOrderPage() {
                                 setOrderCode(e.target.value.toUpperCase());
                                 setError('');
                             }}
-                            placeholder="Enter order code (e.g., CB847291)"
+                            placeholder="Enter order code (e.g., A042)"
                             className="w-full pl-16 pr-6 py-5 bg-neutral-light  dark:bg-brand-dark border-2 border-neutral-gray/30 focus:border-primary rounded-full text-text-dark dark:text-text-light placeholder:text-neutral-gray transition-all outline-none text-lg font-medium"
-                            maxLength={8}
+                            maxLength={4}
                         />
                     </div>
 
@@ -144,16 +140,6 @@ export default function TrackOrderPage() {
                         )}
                     </button>
 
-                    {/* Example Link */}
-                    <div className="mt-4 text-center">
-                        <button
-                            type="button"
-                            onClick={handleExampleClick}
-                            className="text-sm text-primary hover:underline font-medium"
-                        >
-                            Try example: CB847291
-                        </button>
-                    </div>
                 </form>
 
                 {/* How It Works */}

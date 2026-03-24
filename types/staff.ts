@@ -35,8 +35,6 @@ export interface StaffMember {
     employmentStatus: EmploymentStatus;
     systemAccess:     SystemAccess;
     permissions:      StaffPermissions;
-    /** 4-digit POS PIN — empty string means no POS terminal access. */
-    pin:              string;
     /** Staff-portal password. */
     password:         string;
     joinedAt:         string;

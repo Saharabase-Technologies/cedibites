@@ -22,7 +22,6 @@ export interface StaffUser {
     permissions: string[];
     email?: string;
     phone?: string;
-    pin?: string;
     joinedAt?: string;
     must_reset_password?: boolean;
 }

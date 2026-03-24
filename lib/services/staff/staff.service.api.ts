@@ -25,16 +25,6 @@ export class ApiStaffService implements StaffService {
     }
   }
 
-  async resolveByPin(pin: string): Promise<StaffMember | null> {
-    try {
-      const { user } = await staffService.posLogin(pin);
-      const member = await employeeService.getEmployee(user.id);
-      return member;
-    } catch {
-      return null;
-    }
-  }
-
   async getAll(filter?: StaffFilter): Promise<StaffMember[]> {
     const params: { branch_id?: number; status?: string } = {};
     if (filter?.branchId) {

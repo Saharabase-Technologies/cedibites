@@ -53,7 +53,6 @@ interface StaffFormState {
     role:  StaffRole;
     phone: string;
     email: string;
-    pin:   string;
 }
 
 function StaffModal({
@@ -72,11 +71,8 @@ function StaffModal({
         role:  member?.role  ?? 'call_center',
         phone: member?.phone ?? '',
         email: member?.email ?? '',
-        pin:   member?.pin   ?? '',
     });
     const [errors, setErrors] = useState<Partial<Record<keyof StaffFormState, string>>>({});
-
-    const isPOS = form.role === 'call_center';
 
     function validate() {
         const e: typeof errors = {};
@@ -86,8 +82,6 @@ function StaffModal({
                                  e.phone = 'Enter a valid Ghanaian number (e.g. 0241234567 or +233241234567)';
         if (!form.email.trim()) e.email = 'Email is required';
         else if (!form.email.includes('@')) e.email = 'Enter a valid email';
-        if (isPOS && form.pin && !/^\d{4}$/.test(form.pin))
-                                 e.pin   = 'PIN must be exactly 4 digits';
         return e;
     }
 
@@ -100,7 +94,6 @@ function StaffModal({
             role:   form.role,
             phone:  normalizeGhanaPhone(form.phone.trim()),
             email:  form.email.trim(),
-            pin:    form.pin,
             branch: currentBranch,
         });
     }
@@ -137,7 +130,7 @@ function StaffModal({
                         </label>
                         <select
                             value={form.role}
-                            onChange={e => setForm(p => ({ ...p, role: e.target.value as StaffRole, pin: '' }))}
+                            onChange={e => setForm(p => ({ ...p, role: e.target.value as StaffRole }))}
                             className="w-full bg-neutral-light border border-brown-light/20 rounded-xl px-4 py-3 text-sm font-body text-text-dark focus:outline-none focus:border-primary transition-colors cursor-pointer"
                         >
                             {BRANCH_ROLES.map(r => (
@@ -182,25 +175,6 @@ function StaffModal({
                         {errors.email && <p className="text-error text-xs font-body mt-1">{errors.email}</p>}
                     </div>
 
-                    {/* POS PIN — sales staff only */}
-                    {isPOS && (
-                        <div>
-                            <label className="block text-sm font-medium font-body text-text-dark mb-1.5">
-                                POS PIN
-                                <span className="text-neutral-gray text-xs font-normal ml-1">(4 digits · leave blank to disable POS access)</span>
-                            </label>
-                            <input
-                                type="text"
-                                inputMode="numeric"
-                                maxLength={4}
-                                value={form.pin}
-                                onChange={e => setForm(p => ({ ...p, pin: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                                placeholder="e.g. 1234"
-                                className={`w-full bg-neutral-light border rounded-xl px-4 py-3 text-sm font-body font-mono tracking-widest text-text-dark placeholder:text-neutral-gray/50 focus:outline-none focus:border-primary transition-colors ${errors.pin ? 'border-error/50' : 'border-brown-light/20'}`}
-                            />
-                            {errors.pin && <p className="text-error text-xs font-body mt-1">{errors.pin}</p>}
-                        </div>
-                    )}
                 </div>
 
                 {!member && (
@@ -378,7 +352,6 @@ export default function ManagerStaffPage() {
                 employmentStatus: 'active',
                 systemAccess:     'enabled',
                 permissions:      defaultPermissions(newRole),
-                pin:              data.pin ?? '',
                 password:         'temp123',
                 joinedAt:         new Date().toLocaleDateString('en-GH', { month: 'short', year: 'numeric' }),
                 lastLogin:        'Never',
@@ -486,11 +459,6 @@ export default function ManagerStaffPage() {
                                         <span className={`text-[10px] font-bold font-body border rounded-full px-2 py-0.5 ${getRoleColor(member.role)}`}>
                                             {ROLE_LABELS[member.role] ?? member.role}
                                         </span>
-                                        {!!member.pin && (
-                                            <span className="text-[10px] font-bold font-body bg-primary/8 text-primary/70 rounded-full px-2 py-0.5">
-                                                POS · ****
-                                            </span>
-                                        )}
                                         {member.status === 'inactive' && (
                                             <span className="text-[10px] font-bold font-body border border-neutral-gray/30 text-neutral-gray rounded-full px-2 py-0.5">
                                                 Inactive

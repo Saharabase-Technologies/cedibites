@@ -26,7 +26,6 @@ export interface StaffFilter {
 
 export interface StaffService {
     resolveByCredentials(identifier: string, password: string): Promise<StaffUser | null>;
-    resolveByPin(pin: string): Promise<StaffMember | null>;
     getAll(filter?: StaffFilter): Promise<StaffMember[]>;
     getById(id: string): Promise<StaffMember | null>;
 }

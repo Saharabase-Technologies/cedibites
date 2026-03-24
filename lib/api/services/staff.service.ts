@@ -15,7 +15,6 @@ export interface StaffUser {
   permissions: string[];
   email?: string;
   phone?: string;
-  pin?: string;
   joinedAt?: string;
   must_reset_password?: boolean;
 }
@@ -60,27 +59,6 @@ export const staffService = {
     }
     setStaffToken(data.token);
     // Clear customer session so AuthProvider doesn't validate it on reload
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('cedibites_auth_token');
-      localStorage.removeItem('cedibites-auth-user');
-    }
-    return {
-      ...data,
-      user: { ...data.user, role: data.user.role as StaffRole },
-    };
-  },
-
-  /**
-   * POS login with 4-digit PIN.
-   */
-  posLogin: async (pin: string): Promise<StaffLoginResponse> => {
-    const response = await apiClient.post('/employee/pos-login', { pin }) as unknown as
-      { data?: StaffLoginResponse } | StaffLoginResponse;
-    const data = ('data' in response && response.data) ? response.data : (response as StaffLoginResponse);
-    if (!data?.token || !data?.user) {
-      throw new ApiError(403, 'Invalid PIN or inactive account');
-    }
-    setStaffToken(data.token);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('cedibites_auth_token');
       localStorage.removeItem('cedibites-auth-user');

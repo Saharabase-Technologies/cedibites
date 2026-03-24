@@ -29,7 +29,6 @@ interface ApiEmployee {
   employee_no: string;
   status: string;
   hire_date?: string;
-  pos_pin?: string;
   ssnit_number?: string;
   ghana_card_id?: string;
   tin_number?: string;
@@ -101,7 +100,6 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
     employmentStatus: 'active',
     systemAccess: status === 'active' ? 'enabled' : 'disabled',
     permissions: staffPermissions,
-    pin: api.pos_pin ?? '',
     password: '',
     joinedAt: api.hire_date ?? api.created_at ?? '',
     lastLogin: '',
@@ -167,7 +165,6 @@ export interface CreateEmployeePayload {
   hire_date?: string;
   status?: string;
   // HR fields
-  pos_pin?: string;
   ssnit_number?: string;
   ghana_card_id?: string;
   tin_number?: string;
@@ -189,7 +186,6 @@ export interface UpdateEmployeePayload {
   status?: string;
   hire_date?: string;
   // HR fields
-  pos_pin?: string;
   ssnit_number?: string;
   ghana_card_id?: string;
   tin_number?: string;
@@ -245,7 +241,6 @@ export const employeeService = {
       hire_date: payload.hire_date ?? undefined,
       status: payload.status ?? undefined,
       // HR fields
-      ...(payload.pos_pin && { pos_pin: payload.pos_pin }),
       ...(payload.ssnit_number && { ssnit_number: payload.ssnit_number }),
       ...(payload.ghana_card_id && { ghana_card_id: payload.ghana_card_id }),
       ...(payload.tin_number && { tin_number: payload.tin_number }),
@@ -272,7 +267,6 @@ export const employeeService = {
       ...(payload.status !== undefined && { status: payload.status }),
       ...(payload.hire_date !== undefined && { hire_date: payload.hire_date }),
       // HR fields
-      ...(payload.pos_pin !== undefined && { pos_pin: payload.pos_pin }),
       ...(payload.ssnit_number !== undefined && { ssnit_number: payload.ssnit_number }),
       ...(payload.ghana_card_id !== undefined && { ghana_card_id: payload.ghana_card_id }),
       ...(payload.tin_number !== undefined && { tin_number: payload.tin_number }),
