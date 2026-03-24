@@ -709,6 +709,9 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
   const [cashAmount, setCashAmount] = useState('');
   const [momoNumber, setMomoNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [momoVerified, setMomoVerified] = useState<{ name: string; status: string; profile: string } | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [momoVerifyError, setMomoVerifyError] = useState<string | null>(null);
 
   const cashChange = useMemo(() => {
     const paid = parseFloat(cashAmount) || 0;
@@ -731,6 +734,23 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
     return amounts.slice(0, 4);
   }, [total]);
 
+  const handleVerifyMomo = async () => {
+    setMomoVerifyError(null);
+    setIsVerifying(true);
+    try {
+      const res = await apiClient.post('/pos/verify-momo', { momo_number: momoNumber });
+      if (res.data.isRegistered) {
+        setMomoVerified({ name: res.data.name, status: res.data.status, profile: res.data.profile });
+      } else {
+        setMomoVerifyError('Number not registered on Mobile Money');
+      }
+    } catch {
+      setMomoVerifyError('Could not verify number. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   const handleConfirm = async () => {
     if (!selectedMethod) return;
 
@@ -745,11 +765,6 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
       }
       await onPayment('cash', paid);
     } else if (selectedMethod === 'mobile_money') {
-      if (!isValidGhanaPhone(momoNumber)) {
-        alert('Please enter a valid Ghanaian phone number (e.g. 0241234567 or +233241234567)');
-        setIsProcessing(false);
-        return;
-      }
       await onPayment('mobile_money', undefined, normalizeGhanaPhone(momoNumber));
     } else {
       await onPayment('card');
@@ -849,12 +864,16 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
 
           {/* MoMo Input */}
           {selectedMethod === 'mobile_money' && (
-            <div className="pt-2">
+            <div className="pt-2 space-y-2">
               <input
                 type="tel"
                 placeholder="Customer phone number"
                 value={momoNumber}
-                onChange={e => setMomoNumber(e.target.value)}
+                onChange={e => {
+                  setMomoNumber(e.target.value);
+                  setMomoVerified(null);
+                  setMomoVerifyError(null);
+                }}
                 className="
                   w-full h-14 px-4 rounded-xl text-center text-xl
                   bg-neutral-light text-text-dark placeholder:text-neutral-gray/60
@@ -863,9 +882,43 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
                 "
                 autoFocus
               />
-              <p className="text-neutral-gray/60 text-xs text-center mt-2">
-                Customer will receive a payment prompt
-              </p>
+              {momoVerified ? (
+                <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-secondary/10 border border-secondary/30">
+                  <div className="flex items-center gap-2 text-secondary text-sm font-medium">
+                    <CheckCircleIcon className="w-4 h-4 flex-shrink-0" />
+                    <span>{momoVerified.name} · {momoVerified.status}</span>
+                  </div>
+                  <button
+                    onClick={() => { setMomoVerified(null); setMomoNumber(''); }}
+                    className="text-xs text-neutral-gray underline"
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={handleVerifyMomo}
+                    disabled={!isValidGhanaPhone(momoNumber) || isVerifying}
+                    className="
+                      w-full h-10 rounded-xl font-medium text-sm
+                      bg-neutral-gray/10 text-text-dark
+                      hover:bg-neutral-gray/20
+                      disabled:opacity-40
+                      transition-colors flex items-center justify-center gap-2
+                    "
+                  >
+                    {isVerifying ? (
+                      <><SpinnerIcon className="w-4 h-4 animate-spin" /> Verifying...</>
+                    ) : (
+                      'Verify Number'
+                    )}
+                  </button>
+                  {momoVerifyError && (
+                    <p className="text-red-500 text-xs text-center">{momoVerifyError}</p>
+                  )}
+                </>
+              )}
             </div>
           )}
 
@@ -889,7 +942,7 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
         <div className="p-6 pt-0">
           <button
             onClick={handleConfirm}
-            disabled={!selectedMethod || isProcessing}
+            disabled={!selectedMethod || isProcessing || (selectedMethod === 'mobile_money' && !momoVerified)}
             className="
               w-full h-14 rounded-2xl font-semibold text-lg
               bg-primary text-brown

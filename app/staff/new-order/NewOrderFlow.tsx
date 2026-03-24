@@ -29,6 +29,8 @@ import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
 import type { PaymentMethod } from '@/types/order';
 import { formatGHS, ORDER_SOURCES } from './utils';
 import OrderConfirmed from './steps/OrderConfirmed';
+import apiClient from '@/lib/api/client';
+import { isValidGhanaPhone } from '@/app/lib/phone';
 
 // ─── Display row — one per orderable option ───────────────────────────────────
 
@@ -117,6 +119,9 @@ export default function NewOrderFlow() {
     const [activeCategory, setActiveCategory] = useState('all');
     const [momoNumber, setMomoNumber] = useState('');
     const [momoStep, setMomoStep] = useState<'idle' | 'awaiting' | 'confirmed'>('idle');
+    const [momoVerified, setMomoVerified] = useState<{ name: string; status: string; profile: string } | null>(null);
+    const [isVerifying, setIsVerifying] = useState(false);
+    const [momoVerifyError, setMomoVerifyError] = useState<string | null>(null);
 
     // Address autocomplete
     const [addressSuggestions, setAddressSuggestions] = useState<{ id: string; label: string; full: string }[]>([]);
@@ -182,6 +187,10 @@ export default function NewOrderFlow() {
         if (payment === 'mobile_money' && !momoNumber && customer.phone) {
             console.log('Auto-filling MoMo number:', customer.phone);
             setMomoNumber(customer.phone);
+        }
+        if (payment !== 'mobile_money') {
+            setMomoVerified(null);
+            setMomoVerifyError(null);
         }
     }, [payment, customer.phone, momoNumber]);
 
@@ -580,15 +589,67 @@ export default function NewOrderFlow() {
 
                     {/* MoMo number */}
                     {payment === 'mobile_money' && (
-                        <div className="relative mb-3">
-                            <DeviceMobileIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
-                            <input
-                                type="tel"
-                                placeholder="MoMo number"
-                                value={momoNumber}
-                                onChange={e => setMomoNumber(e.target.value)}
-                                className="w-full h-9 pl-9 pr-3 rounded-xl bg-primary/5 text-text-dark placeholder:text-neutral-gray/60 border border-primary/30 focus:border-primary/60 outline-none text-xs transition-colors"
-                            />
+                        <div className="mb-3 space-y-1.5">
+                            <div className="relative">
+                                <DeviceMobileIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
+                                <input
+                                    type="tel"
+                                    placeholder="MoMo number"
+                                    value={momoNumber}
+                                    onChange={e => {
+                                        setMomoNumber(e.target.value);
+                                        setMomoVerified(null);
+                                        setMomoVerifyError(null);
+                                    }}
+                                    className="w-full h-9 pl-9 pr-3 rounded-xl bg-primary/5 text-text-dark placeholder:text-neutral-gray/60 border border-primary/30 focus:border-primary/60 outline-none text-xs transition-colors"
+                                />
+                            </div>
+                            {momoVerified ? (
+                                <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-secondary/10 border border-secondary/30">
+                                    <div className="flex items-center gap-1.5 text-secondary text-[11px] font-medium">
+                                        <CheckCircleIcon className="w-3.5 h-3.5 shrink-0" />
+                                        <span>{momoVerified.name} · {momoVerified.status}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => { setMomoVerified(null); setMomoNumber(''); }}
+                                        className="text-[10px] text-neutral-gray underline"
+                                    >
+                                        Change
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    <button
+                                        onClick={async () => {
+                                            setMomoVerifyError(null);
+                                            setIsVerifying(true);
+                                            try {
+                                                const res = await apiClient.post('/pos/verify-momo', { momo_number: momoNumber });
+                                                if (res.data.isRegistered) {
+                                                    setMomoVerified({ name: res.data.name, status: res.data.status, profile: res.data.profile });
+                                                } else {
+                                                    setMomoVerifyError('Number not registered on Mobile Money');
+                                                }
+                                            } catch {
+                                                setMomoVerifyError('Could not verify number. Please try again.');
+                                            } finally {
+                                                setIsVerifying(false);
+                                            }
+                                        }}
+                                        disabled={!isValidGhanaPhone(momoNumber) || isVerifying}
+                                        className="w-full h-8 rounded-xl text-[11px] font-medium bg-neutral-light text-text-dark hover:bg-neutral-gray/20 disabled:opacity-40 transition-colors flex items-center justify-center gap-1.5"
+                                    >
+                                        {isVerifying ? (
+                                            <><SpinnerIcon className="w-3.5 h-3.5 animate-spin" /> Verifying...</>
+                                        ) : (
+                                            'Verify Number'
+                                        )}
+                                    </button>
+                                    {momoVerifyError && (
+                                        <p className="text-red-500 text-[10px] text-center">{momoVerifyError}</p>
+                                    )}
+                                </>
+                            )}
                         </div>
                     )}
 
@@ -615,7 +676,7 @@ export default function NewOrderFlow() {
                     {/* Place Order */}
                     <button
                         onClick={handlePlaceOrder}
-                        disabled={!source || !branchId || !payment || cart.length === 0 || isSubmitting || !customer.name.trim() || !customer.phone.trim() || (payment === 'mobile_money' && !momoNumber.trim())}
+                        disabled={!source || !branchId || !payment || cart.length === 0 || isSubmitting || !customer.name.trim() || !customer.phone.trim() || (payment === 'mobile_money' && !momoVerified)}
                         className="w-full h-11 rounded-xl bg-primary text-brown font-semibold text-sm flex items-center justify-center gap-2 hover:bg-primary-hover active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100 transition-all"
                         title={`Debug: source=${source}, branchId=${branchId}, payment=${payment}, cart=${cart.length}, submitting=${isSubmitting}, momoNumber=${payment === 'mobile_money' ? momoNumber : 'N/A'}`}
                     >
@@ -627,11 +688,11 @@ export default function NewOrderFlow() {
                     </button>
 
                     {/* Validation hint */}
-                    {((!source || !branchId || (payment === 'mobile_money' && !momoNumber.trim())) && cart.length > 0) && (
+                    {((!source || !branchId || (payment === 'mobile_money' && !momoVerified)) && cart.length > 0) && (
                         <p className="text-[10px] text-neutral-gray text-center mt-1.5">
-                            {!source ? 'Select a source (Phone/WhatsApp/Social Media)' : 
-                             !branchId ? 'Select a branch' : 
-                             (payment === 'mobile_money' && !momoNumber.trim()) ? 'Enter MoMo number' : 
+                            {!source ? 'Select a source (Phone/WhatsApp/Social Media)' :
+                             !branchId ? 'Select a branch' :
+                             (payment === 'mobile_money' && !momoVerified) ? 'Verify MoMo number to continue' :
                              'Complete all required fields'} to continue
                         </p>
                     )}
