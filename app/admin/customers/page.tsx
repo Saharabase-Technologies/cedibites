@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
     MagnifyingGlassIcon,
     XIcon,
@@ -241,6 +241,30 @@ export default function AdminCustomersPage() {
         return list;
     }, [customers, tab, sortBy]);
 
+    const handleExportCsv = useCallback(() => {
+        const headers = ['Name', 'Phone', 'Email', 'Account Type', 'Status', 'Total Orders', 'Total Spend (GHS)', 'Avg Order Value (GHS)', 'Last Order', 'Join Date'];
+        const rows = filtered.map((c) => [
+            c.name,
+            c.phone,
+            c.email ?? '',
+            c.accountType,
+            c.status,
+            c.totalOrders,
+            c.totalSpend.toFixed(2),
+            c.avgOrderValue.toFixed(2),
+            c.lastOrderDate,
+            c.joinDate,
+        ]);
+        const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `customers-${tab.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [filtered, tab]);
+
     const selectedWithOrders = useMemo(() => {
         if (!selected) return null;
         const api = apiCustomers.find((c) => c.id === selected.id);
@@ -295,7 +319,8 @@ export default function AdminCustomersPage() {
                     <h1 className="text-text-dark text-2xl font-bold font-body">Customers</h1>
                     <p className="text-neutral-gray text-sm font-body mt-0.5">{filtered.length} customers shown</p>
                 </div>
-                <button type="button" className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer shrink-0">
+                <button type="button" onClick={handleExportCsv} disabled={filtered.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
                     <DownloadSimpleIcon size={15} weight="bold" className="text-primary" />
                     Export CSV
                 </button>

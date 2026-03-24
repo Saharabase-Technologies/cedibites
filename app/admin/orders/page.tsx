@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
+import { orderService } from '@/lib/api/services/order.service';
 import type { EmployeeOrdersParams } from '@/lib/api/services/order.service';
 import { useBranches } from '@/lib/api/hooks/useBranches';
 import type { AdminOrder } from '@/lib/api/adapters/order.adapter';
+import { mapApiOrderToAdminOrder } from '@/lib/api/adapters/order.adapter';
 import {
     MagnifyingGlassIcon,
     XIcon,
@@ -374,6 +376,7 @@ export default function AdminOrdersPage() {
     const [page, setPage] = useState(0);
     const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
     const [showFilters, setShowFilters] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     useEffect(() => {
         setMounted(true);
@@ -427,6 +430,62 @@ export default function AdminOrdersPage() {
 
     const activeFilterCount = selectedBranches.length + selectedStatuses.length + selectedSources.length + selectedPayments.length;
 
+    const handleExportCsv = useCallback(async () => {
+        setIsExporting(true);
+        try {
+            const exportParams: EmployeeOrdersParams = { per_page: 1000 };
+            if (search.trim()) exportParams.search = search.trim();
+            if (selectedStatuses.length) exportParams.status = selectedStatuses;
+            if (selectedSources.length) {
+                exportParams.order_source = selectedSources.map((s) => SOURCE_TO_API[s as OrderSource]).join(',');
+            }
+            if (selectedBranches.length === 1 && branchIdByName[selectedBranches[0]]) {
+                exportParams.branch_id = branchIdByName[selectedBranches[0]];
+            }
+            const range = getDateRange(datePreset);
+            if (range.date_from) exportParams.date_from = range.date_from;
+            if (range.date_to) exportParams.date_to = range.date_to;
+
+            const response = await orderService.getEmployeeOrders(exportParams);
+            const rawData = response?.data;
+            const ordersArray = Array.isArray(rawData) ? rawData : (rawData as { data?: unknown[] } | undefined)?.data ?? [];
+            let allOrders = ordersArray.map((item) => mapApiOrderToAdminOrder(item as any));
+
+            if (selectedPayments.length) {
+                allOrders = allOrders.filter((o) => selectedPayments.includes(o.payment));
+            }
+            if (selectedBranches.length > 1) {
+                allOrders = allOrders.filter((o) => selectedBranches.includes(o.branch));
+            }
+
+            const headers = ['Order #', 'Placed At', 'Customer', 'Phone', 'Email', 'Branch', 'Source', 'Status', 'Payment', 'Payment Status', 'Amount (GHS)', 'Items'];
+            const rows = allOrders.map((o) => [
+                o.id,
+                o.createdAt,
+                o.customer,
+                o.phone,
+                o.email ?? '',
+                o.branch,
+                o.source,
+                o.status,
+                o.payment,
+                o.paymentStatus,
+                o.amount.toFixed(2),
+                o.items.map((i) => `${i.name} x${i.qty}`).join('; '),
+            ]);
+            const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `orders-${datePreset.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } finally {
+            setIsExporting(false);
+        }
+    }, [search, selectedStatuses, selectedSources, selectedBranches, selectedPayments, datePreset, branchIdByName]);
+
     return (
         <div className="px-4 md:px-8 py-6 max-w-7xl mx-auto">
 
@@ -438,9 +497,10 @@ export default function AdminOrdersPage() {
                         {`All branches · ${(meta as any)?.total ?? 0} orders`}
                     </p>
                 </div>
-                <button type="button" className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer shrink-0">
+                <button type="button" onClick={handleExportCsv} disabled={isExporting || orders.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
                     <DownloadSimpleIcon size={15} weight="bold" className="text-primary" />
-                    Export CSV
+                    {isExporting ? 'Exporting…' : 'Export CSV'}
                 </button>
             </div>
 

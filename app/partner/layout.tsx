@@ -13,7 +13,7 @@ import {
     CaretRightIcon,
     ShieldCheckIcon,
 } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 
@@ -72,17 +72,17 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
     const { staffUser, isLoading, logout } = useStaffAuth();
+    const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
-    if (isLoading) return null;
+    useEffect(() => {
+        if (!isLoading && (!staffUser || !staffUser.permissions?.includes('access_partner_portal'))) {
+            router.replace('/staff/login');
+        }
+    }, [isLoading, staffUser, router]);
 
-    if (!staffUser || !staffUser.permissions?.includes('access_partner_portal')) {
-        router.replace('/staff/login');
-        return null;
-    }
+    if (isLoading || !staffUser || !staffUser.permissions?.includes('access_partner_portal')) return null;
 
     const initials = staffUser.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
-
-    const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
     return (
         <div className="h-screen overflow-hidden bg-neutral-light w-full flex">
