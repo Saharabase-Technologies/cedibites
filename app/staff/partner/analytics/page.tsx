@@ -185,11 +185,11 @@ function TopItems({ scale }: { scale: number }) {
 
 export default function PartnerAnalyticsPage() {
     const { staffUser } = useStaffAuth();
-    const branchId = staffUser?.branchId ? parseInt(staffUser.branchId, 10) : undefined;
+    const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
     const [period, setPeriod] = useState<Period>('week');
     const analyticsPeriod = period === 'today' ? 'today' : period === 'month' ? 'month' : 'week';
     const { sales, isLoading } = useAnalytics(analyticsPeriod, branchId);
-    const branchName = staffUser?.branch ?? '—';
+    const branchName = staffUser?.branches[0]?.name ?? '—';
 
     const scale = PERIOD_SCALE[period];
 

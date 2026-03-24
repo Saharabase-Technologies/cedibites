@@ -10,24 +10,17 @@ import {
   StorefrontIcon,
 } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useSwitchKitchenBranch } from './branch-context';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 
 export default function KitchenLandingPage() {
   const router = useRouter();
   const { staffUser } = useStaffAuth();
-  const { branches } = useBranch();
   const { branchId: currentBranchId, switchBranch } = useSwitchKitchenBranch();
   const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
 
-  const assignedIds: string[] = staffUser
-    ? (staffUser.branchIds?.map(String) ?? (staffUser.branchId ? [String(staffUser.branchId)] : []))
-    : [];
-  const switchableBranches = assignedIds.length > 0
-    ? branches.filter(b => assignedIds.includes(b.id))
-    : branches;
-  const currentBranchName = branches.find(b => b.id === currentBranchId)?.name;
+  const switchableBranches = staffUser?.branches ?? [];
+  const currentBranchName = switchableBranches.find(b => b.id === currentBranchId)?.name;
 
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center p-6 bg-white">

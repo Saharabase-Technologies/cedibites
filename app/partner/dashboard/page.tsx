@@ -101,7 +101,7 @@ function StatusDot({ status }: { status: string }) {
 export default function PartnerDashboardPage() {
     const { staffUser } = useStaffAuth();
     const { orders } = useOrderStore();
-    const branchName = staffUser?.branch ?? '';
+    const branchName = staffUser?.branches[0]?.name ?? '';
 
     const startOfDay = useMemo(() => {
         const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime();
@@ -126,7 +126,7 @@ export default function PartnerDashboardPage() {
     const completedToday  = todayOrders.filter(o => ['delivered', 'completed'].includes(o.status)).length;
     const cancelledToday  = todayOrders.filter(o => o.status === 'cancelled').length;
 
-    const branchIdNum = staffUser?.branchId ? parseInt(staffUser.branchId, 10) : undefined;
+    const branchIdNum = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
     const { employees: branchStaff } = useEmployees({ branch_id: branchIdNum });
     const nonArchived = branchStaff.filter(s => s.status !== 'archived');
     const activeStaff = nonArchived.filter(s => s.systemAccess === 'enabled').length;

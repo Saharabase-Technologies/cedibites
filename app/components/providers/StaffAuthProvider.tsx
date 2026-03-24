@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { type StaffRole } from '@/types/staff';
-import { clearStaffToken, getStaffToken, staffService } from '@/lib/api/services/staff.service';
+import { clearStaffToken, getStaffToken, staffService, type StaffBranch } from '@/lib/api/services/staff.service';
 import { ApiError } from '@/lib/api/client';
 import { disconnectEcho, getEcho } from '@/lib/echo';
 import { getShiftService } from '@/lib/services/shifts/shift.service';
@@ -12,16 +12,16 @@ import { getShiftService } from '@/lib/services/shifts/shift.service';
 
 export type { StaffRole };
 
+export type { StaffBranch };
+
 export interface StaffUser {
     id: string;
     name: string;
     role: StaffRole;
-    branch: string;      // display name of primary branch
-    branchId: string;    // system ID of primary branch
-    branchIds?: string[]; // all assigned branch IDs
+    branches: StaffBranch[];
+    permissions: string[];
     email?: string;
     phone?: string;
-    pin?: string;
     joinedAt?: string;
     must_reset_password?: boolean;
 }
@@ -30,7 +30,8 @@ interface StaffAuthContextValue {
     staffUser: StaffUser | null;
     isLoading: boolean;
     login: (user: StaffUser) => void;
-    logout: () => void;
+    logout: (redirectTo?: string) => void;
+    can: (permission: string) => boolean;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -56,7 +57,13 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
         // Optimistic: load cached user immediately to avoid flash
         try {
             const stored = localStorage.getItem(STORAGE_KEY);
-            if (stored) setStaffUser(JSON.parse(stored) as StaffUser);
+            if (stored) {
+                const parsed = JSON.parse(stored) as StaffUser;
+                // Guard against old cached sessions that predate the branches/permissions fields
+                if (!parsed.branches) parsed.branches = [];
+                if (!parsed.permissions) parsed.permissions = [];
+                setStaffUser(parsed);
+            }
         } catch {
             localStorage.removeItem(STORAGE_KEY);
         }
@@ -70,6 +77,9 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
             if (error instanceof ApiError && error.status === 401) {
                 clearStaffToken();
                 localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem('cedibites-kitchen-branchId');
+                localStorage.removeItem('cedibites-om-branchId');
+                localStorage.removeItem('cedibites-pos-branchId');
                 setStaffUser(null);
             }
         }).finally(() => {
@@ -90,6 +100,9 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
             if (event.type === 'session.revoked') {
                 clearStaffToken();
                 localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem('cedibites-kitchen-branchId');
+                localStorage.removeItem('cedibites-om-branchId');
+                localStorage.removeItem('cedibites-pos-branchId');
                 setStaffUser(null);
                 router.push('/staff/login');
             } else if (event.type === 'user.updated' && event.user) {
@@ -106,13 +119,14 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
     const login = useCallback((user: StaffUser) => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
         setStaffUser(user);
-        // Start shift tracking (kitchen/rider have no shifts)
-        if (user.role !== 'kitchen' && user.role !== 'rider') {
-            getShiftService().startShift(user.id, user.name, user.branchId, user.branch).catch(() => {});
+        // Start shift tracking for staff/manager/admin portals (not kitchen/rider)
+        const portalPermissions = ['access_manager_portal', 'access_sales_portal', 'access_admin_panel'];
+        if (user.permissions?.some(p => portalPermissions.includes(p))) {
+            getShiftService().startShift(user.id, user.name, user.branches[0]?.id ?? '', user.branches[0]?.name ?? '').catch(() => {});
         }
     }, []);
 
-    const logout = useCallback(() => {
+    const logout = useCallback((redirectTo = '/staff/login') => {
         // End active shift before clearing session
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
@@ -131,11 +145,16 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('cedibites-om-branchId');
         localStorage.removeItem('cedibites-pos-branchId');
         setStaffUser(null);
-        router.push('/staff/login');
+        router.push(redirectTo);
     }, [router]);
 
+    const can = useCallback(
+        (permission: string) => staffUser?.permissions?.includes(permission) ?? false,
+        [staffUser]
+    );
+
     return (
-        <StaffAuthContext.Provider value={{ staffUser, isLoading, login, logout }}>
+        <StaffAuthContext.Provider value={{ staffUser, isLoading, login, logout, can }}>
             {children}
         </StaffAuthContext.Provider>
     );
@@ -149,22 +168,33 @@ export function useStaffAuth() {
     return ctx;
 }
 
-/** Where to redirect after login, by role. */
+/** Where to redirect after login, based on permissions. */
+export function permissionsHomeRoute(permissions: string[]): string {
+    const has = (p: string) => permissions.includes(p);
+    if (has('access_admin_panel'))    return '/admin/dashboard';
+    if (has('access_manager_portal')) return '/staff/manager/dashboard';
+    if (has('access_partner_portal')) return '/partner/dashboard';
+    if (has('access_sales_portal'))   return '/staff/sales/dashboard';
+    if (has('access_kitchen'))        return '/kitchen/display';
+    if (has('access_order_manager'))  return '/order-manager';
+    return '/staff/login';
+}
+
+/** @deprecated Use permissionsHomeRoute instead. */
 export function roleHomeRoute(role: StaffRole | string): string {
     if (role === 'super_admin' || role === 'admin') return '/admin/dashboard';
     if (role === 'manager') return '/staff/manager/dashboard';
     if (role === 'branch_partner') return '/partner/dashboard';
     if (role === 'call_center' || role === 'employee') return '/staff/sales/dashboard';
-    // kitchen and rider have no portal — redirect to login
     return '/staff/login';
 }
 
 // ─── Route helper hook ────────────────────────────────────────────────────────
 
-/** Returns role-correct internal navigation URLs for the logged-in staff member. */
+/** Returns permission-correct internal navigation URLs for the logged-in staff member. */
 export function useStaffRoutes() {
-    const { staffUser } = useStaffAuth();
-    const isManager = staffUser?.role === 'manager' || staffUser?.role === 'super_admin';
+    const { can } = useStaffAuth();
+    const isManager = can('access_manager_portal');
     return {
         dashboard: isManager ? '/staff/manager/dashboard' : '/staff/sales/dashboard',
         orders:    isManager ? '/staff/manager/orders'    : '/staff/sales/orders',

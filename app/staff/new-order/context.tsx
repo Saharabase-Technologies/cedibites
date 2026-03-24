@@ -78,7 +78,7 @@ export function NewOrderProvider({ children }: { children: ReactNode }) {
     // Auto-select branch when staff has exactly one assigned branch
     useEffect(() => {
         if (!staffUser || branchId) return;
-        const assignedIds = staffUser.branchIds ?? (staffUser.branchId ? [staffUser.branchId] : []);
+        const assignedIds = staffUser.branches.map(b => b.id);
         if (assignedIds.length === 1) {
             setBranchId(String(assignedIds[0]));
         }

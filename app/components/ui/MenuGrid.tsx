@@ -18,7 +18,7 @@ function buildCediBitesMix(allItems: SearchableItem[]): SearchableItem[] {
 
     const result: SearchableItem[] = [];
     for (const items of byCategory.values()) {
-        const sorted = [...items].sort((a, b) => (b.popular ? 1 : 0) - (a.popular ? 1 : 0));
+        const sorted = [...items].sort((a, b) => (b.tags?.some(t => t.slug === 'popular') ? 1 : 0) - (a.tags?.some(t => t.slug === 'popular') ? 1 : 0));
         result.push(...sorted.slice(0, 2));
     }
     return result;

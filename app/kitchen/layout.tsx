@@ -4,19 +4,15 @@ import { ReactNode, useEffect } from 'react';
 import { KitchenProvider } from './context';
 import { KitchenBranchProvider, useSwitchKitchenBranch } from './branch-context';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import { useBranch } from '@/app/components/providers/BranchProvider';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 
 // ── Gate ─────────────────────────────────────────────────────────────────────
 
 function KitchenGate({ children }: { children: ReactNode }) {
   const { staffUser, isLoading } = useStaffAuth();
-  const { branches } = useBranch();
   const { branchId, switchBranch } = useSwitchKitchenBranch();
 
-  const assignedIds: string[] = staffUser
-    ? (staffUser.branchIds?.map(String) ?? (staffUser.branchId ? [String(staffUser.branchId)] : []))
-    : [];
+  const assignedIds: string[] = staffUser?.branches.map(b => b.id) ?? [];
 
   // Auto-select when auth resolves and exactly 1 branch is assigned
   useEffect(() => {
@@ -26,9 +22,7 @@ function KitchenGate({ children }: { children: ReactNode }) {
     }
   }, [isLoading, assignedIds.length]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectableBranches = assignedIds.length > 0
-    ? branches.filter(b => assignedIds.includes(b.id))
-    : branches;
+  const selectableBranches = staffUser?.branches ?? [];
 
   // Show spinner while auth is loading OR while auto-selecting (1 branch, not yet committed)
   if (isLoading || (assignedIds.length === 1 && !branchId)) {

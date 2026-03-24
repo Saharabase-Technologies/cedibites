@@ -12,7 +12,7 @@ import {
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import Input from '@/app/components/base/Input';
-import { useStaffAuth, roleHomeRoute } from '@/app/components/providers/StaffAuthProvider';
+import { useStaffAuth, permissionsHomeRoute } from '@/app/components/providers/StaffAuthProvider';
 import { staffService } from '@/lib/api/services/staff.service';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
@@ -104,7 +104,7 @@ export default function StaffLoginPage() {
             if (user.must_reset_password) {
                 router.replace('/staff/change-password');
             } else {
-                router.replace(roleHomeRoute(user.role as Parameters<typeof roleHomeRoute>[0]));
+                router.replace(permissionsHomeRoute(user.permissions ?? []));
             }
 
         } catch (err) {

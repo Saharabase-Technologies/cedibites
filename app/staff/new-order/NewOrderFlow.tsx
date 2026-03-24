@@ -41,7 +41,6 @@ interface DisplayRow {
     variantLabel?: string; // e.g. "Small", "Plain"
     sizeId?: number;       // menu_item_size_id for backend
     originalItem: DisplayMenuItem;
-    isNew?: boolean;
 }
 
 function expandItem(item: DisplayMenuItem): DisplayRow[] {
@@ -56,39 +55,36 @@ function expandItem(item: DisplayMenuItem): DisplayRow[] {
             variantLabel: size.label,
             sizeId: size.id, // Include size ID
             originalItem: item,
-            isNew: item.isNew,
         }));
     }
     // Only use variants if there are no sizes (legacy support)
     if (item.hasVariants && item.variants) {
         const rows: DisplayRow[] = [];
         if (item.variants.plain !== undefined)
-            rows.push({ 
-                key: `${item.id}|plain`, 
-                name: `${item.name} (Plain)`, 
-                price: item.variants.plain, 
-                menuItemId: item.id, 
-                variantKey: 'plain', 
-                variantLabel: 'Plain', 
-                originalItem: item, 
-                isNew: item.isNew 
+            rows.push({
+                key: `${item.id}|plain`,
+                name: `${item.name} (Plain)`,
+                price: item.variants.plain,
+                menuItemId: item.id,
+                variantKey: 'plain',
+                variantLabel: 'Plain',
+                originalItem: item,
             });
         if (item.variants.assorted !== undefined)
-            rows.push({ 
-                key: `${item.id}|assorted`, 
-                name: `${item.name} (Assorted)`, 
-                price: item.variants.assorted, 
-                menuItemId: item.id, 
-                variantKey: 'assorted', 
-                variantLabel: 'Assorted', 
-                originalItem: item, 
-                isNew: item.isNew 
+            rows.push({
+                key: `${item.id}|assorted`,
+                name: `${item.name} (Assorted)`,
+                price: item.variants.assorted,
+                menuItemId: item.id,
+                variantKey: 'assorted',
+                variantLabel: 'Assorted',
+                originalItem: item,
             });
         return rows;
     }
     // Simple item with just a base price
     if (item.price !== undefined)
-        return [{ key: item.id, name: item.name, price: item.price, menuItemId: item.id, variantKey: item.id, originalItem: item, isNew: item.isNew }];
+        return [{ key: item.id, name: item.name, price: item.price, menuItemId: item.id, variantKey: item.id, originalItem: item }];
     return [];
 }
 
@@ -200,7 +196,7 @@ export default function NewOrderFlow() {
             const matchesCategory = search
                 ? true
                 : activeCategory === 'all'
-                    ? row.originalItem.popular
+                    ? row.originalItem.tags?.some(t => t.slug === 'popular')
                     : row.originalItem.category.toLowerCase().replace(/\s+/g, '-') === activeCategory || row.originalItem.category === activeCategory;
             return matchesSearch && matchesCategory;
         });
@@ -319,7 +315,7 @@ export default function NewOrderFlow() {
                         <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
                         <input
                             type="text"
-                            placeholder="Customer name"
+                            placeholder="Customer name *"
                             value={customer.name}
                             onChange={e => patchCustomer({ name: e.target.value })}
                             className="w-full h-10 pl-9 pr-3 rounded-xl bg-neutral-light text-text-dark placeholder:text-neutral-gray/60 border border-neutral-gray/20 focus:border-primary/50 outline-none text-sm transition-colors"
@@ -329,7 +325,7 @@ export default function NewOrderFlow() {
                         <DeviceMobileIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
                         <input
                             type="tel"
-                            placeholder="Phone number"
+                            placeholder="Phone number *"
                             value={customer.phone}
                             onChange={e => patchCustomer({ phone: e.target.value })}
                             className="w-full h-10 pl-9 pr-3 rounded-xl bg-neutral-light text-text-dark placeholder:text-neutral-gray/60 border border-neutral-gray/20 focus:border-primary/50 outline-none text-sm transition-colors"
@@ -390,7 +386,7 @@ export default function NewOrderFlow() {
                                         <div onClick={() => handleRowTap(row)} className="flex-1 min-w-0">
                                             <p className={`text-sm font-semibold truncate ${qty > 0 ? 'text-primary' : 'text-text-dark'}`}>
                                                 {row.name}
-                                                {row.isNew && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-primary text-brown font-bold align-middle">NEW</span>}
+                                                {row.originalItem.tags?.some(t => t.slug === 'new') && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-primary text-brown font-bold align-middle">NEW</span>}
                                             </p>
                                             <p className="text-xs text-neutral-gray">{formatGHS(row.price)}</p>
                                         </div>
@@ -497,7 +493,7 @@ export default function NewOrderFlow() {
 
                     {/* Branch */}
                     {(() => {
-                        const assignedIds = staffUser?.branchIds ?? (staffUser?.branchId ? [staffUser.branchId] : []);
+                        const assignedIds = staffUser?.branches.map((b: { id: string }) => b.id) ?? [];
                         const selectableBranches = branches.filter(b => assignedIds.includes(b.id));
                         const isLocked = assignedIds.length <= 1;
 
@@ -619,7 +615,7 @@ export default function NewOrderFlow() {
                     {/* Place Order */}
                     <button
                         onClick={handlePlaceOrder}
-                        disabled={!source || !branchId || !payment || cart.length === 0 || isSubmitting || (payment === 'mobile_money' && !momoNumber.trim())}
+                        disabled={!source || !branchId || !payment || cart.length === 0 || isSubmitting || !customer.name.trim() || !customer.phone.trim() || (payment === 'mobile_money' && !momoNumber.trim())}
                         className="w-full h-11 rounded-xl bg-primary text-brown font-semibold text-sm flex items-center justify-center gap-2 hover:bg-primary-hover active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100 transition-all"
                         title={`Debug: source=${source}, branchId=${branchId}, payment=${payment}, cart=${cart.length}, submitting=${isSubmitting}, momoNumber=${payment === 'mobile_money' ? momoNumber : 'N/A'}`}
                     >

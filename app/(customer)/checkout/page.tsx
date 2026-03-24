@@ -495,7 +495,7 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
 // ─── Step 2 ───────────────────────────────────────────────────────────────────
 function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBack, onPlace, placing }: {
     paymentMethod: PaymentMethod; setPaymentMethod: (m: PaymentMethod) => void;
-    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: (momoPhone?: string) => void; placing: boolean;
+    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: () => void; placing: boolean;
 }) {
     const { subtotal } = useCart();
     const { selectedBranch } = useBranch();
@@ -503,11 +503,6 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
     const tax = subtotal * (TAX_RATE / (1 + TAX_RATE));
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
     const total = subtotal + delivery;
-    const [momoPhone, setMomoPhone] = useState(contact.phone);
-    const [momoNetwork, setMomoNetwork] = useState<'mtn' | 'telecel' | 'airteltigo'>('mtn');
-    const [momoPhoneTouched, setMomoPhoneTouched] = useState(false);
-    const momoPhoneError = momoPhoneTouched && momoPhone.trim() && !isValidGhanaPhone(momoPhone) ? 'Enter a valid Ghana number (e.g. 0241234567 or +233241234567)' : '';
-    const canPlace = paymentMethod !== 'mobile_money' || isValidGhanaPhone(momoPhone);
 
     const methods = [
         { id: 'mobile_money' as const, icon: <DeviceMobileIcon weight="fill" size={20} />, label: 'Mobile Money', sub: 'MTN MoMo · Telecel · AirtelTigo', color: 'text-warning' },
@@ -558,28 +553,6 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                                     <p className="text-xs text-neutral-gray">{m.sub}</p>
                                 </div>
                             </button>
-                            {m.id === 'mobile_money' && paymentMethod === 'mobile_money' && (
-                                <div className="mt-2 ml-4 flex flex-col gap-3 p-4 rounded-xl bg-neutral-light dark:bg-brown/30">
-                                    <div>
-                                        <label className="text-xs font-semibold text-neutral-gray mb-1.5 block">Mobile Network</label>
-                                        <div className="flex gap-2">
-                                            {(['mtn', 'telecel', 'airteltigo'] as const).map(net => (
-                                                <button key={net} onClick={() => setMomoNetwork(net)}
-                                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all cursor-pointer ${momoNetwork === net ? 'border-primary bg-primary text-white' : 'border-neutral-gray/20 text-neutral-gray hover:border-primary/40'}`}>
-                                                    {net === 'airteltigo' ? 'AirtelTigo' : net.toUpperCase()}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <InputField icon={<PhoneIcon weight="fill" size={13} />} label="MoMo Number" required>
-                                            <input type="tel" placeholder="0241234567" value={momoPhone} onChange={e => setMomoPhone(e.target.value)} onBlur={() => setMomoPhoneTouched(true)} className="w-full bg-transparent outline-none placeholder:text-neutral-gray/60 text-text-dark dark:text-text-light" />
-                                        </InputField>
-                                        {momoPhoneError && <p className="text-xs text-red-500 px-1">{momoPhoneError}</p>}
-                                    </div>
-                                    <p className="text-xs text-neutral-gray flex items-center gap-1"><LockIcon size={11} /> You'll receive a prompt on your phone to confirm payment</p>
-                                </div>
-                            )}
                         </div>
                     ))}
                 </div>
@@ -588,7 +561,7 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                     <button onClick={onBack} className="flex cursor-pointer items-center gap-2 px-5 py-4 rounded-2xl border-2 border-neutral-gray/20 font-bold text-neutral-gray hover:border-primary/40 hover:text-primary transition-all">
                         <ArrowLeftIcon weight="bold" size={16} /> Back
                     </button>
-                    <button onClick={() => onPlace(paymentMethod === 'mobile_money' ? momoPhone : undefined)} disabled={placing || !canPlace}
+                    <button onClick={() => onPlace()} disabled={placing}
                         className="flex-1 flex cursor-pointer items-center justify-between bg-brown dark:bg-brand-dark hover:bg-brown-light disabled:opacity-70 text-white font-bold px-6 py-4 rounded-2xl transition-all active:scale-[0.98] group">
                         <span>{placing ? 'Placing Order...' : paymentMethod === 'mobile_money' ? 'Pay & Place Order' : 'Place Order'}</span>
                         <div className="flex items-center gap-2">
@@ -764,7 +737,7 @@ export default function CheckoutPage() {
 
     const effectiveBranch = selectedBranch ?? branches.find(b => b.isOpen) ?? branches[0] ?? null;
 
-    const handlePlaceOrder = useCallback(async (momoPhone?: string) => {
+    const handlePlaceOrder = useCallback(async () => {
         if (!effectiveBranch) return;
         setPlacing(true);
         try {
@@ -785,8 +758,7 @@ export default function CheckoutPage() {
 
             if (paymentMethod === 'mobile_money') {
                 // Format phone to 233XXXXXXXXX for Hubtel
-                const rawPhone = momoPhone || contact.phone;
-                const formattedPhone = rawPhone.replace(/\s+/g, '').replace(/^\+/, '').replace(/^0/, '233');
+                const formattedPhone = contact.phone.replace(/\s+/g, '').replace(/^\+/, '').replace(/^0/, '233');
 
                 // Initiate Hubtel checkout — returns a checkoutUrl to redirect the customer
                 const paymentResponse = await apiClient.post(

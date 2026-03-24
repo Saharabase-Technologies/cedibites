@@ -250,7 +250,7 @@ const DAY_KEYS: DayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
 export default function MenuSettingsPage() {
     const { staffUser } = useStaffAuth();
-    const branchId = staffUser?.branchId ? parseInt(staffUser.branchId, 10) : undefined;
+    const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
 
     // Fetch real branch data from API
     const { branch: apiBranch } = useBranch(branchId ?? 0);

@@ -143,7 +143,6 @@ interface StaffFormState {
     branch:           string | string[];
     employmentStatus: EmploymentStatus;
     systemAccess:     SystemAccess;
-    pin:              string;
     permissions:      StaffPermissions;
     forcePasswordReset: boolean;
     // HR
@@ -186,7 +185,6 @@ function memberToForm(s: StaffMember): StaffFormState {
         branch: branchValue,
         employmentStatus: s.employmentStatus,
         systemAccess: s.systemAccess,
-        pin: s.pin,
         permissions: { ...s.permissions },
         forcePasswordReset: false, // Always default to false for existing staff
         ssnit: s.ssnit ?? '',
@@ -218,7 +216,6 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
         branch: ALL_BRANCHES[0] || '',
         employmentStatus: 'active',
         systemAccess: 'enabled',
-        pin: '',
         permissions: defaultPermissions('call_center'),
         forcePasswordReset: false,
         ssnit: '', ghanaCard: '', tinNumber: '',
@@ -287,7 +284,7 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
                 case 'update_orders':
                     mapping[perm.name] = { key: 'canAdvanceOrders', label: perm.display_name, description: perm.description };
                     break;
-                case 'view_orders':
+                case 'access_pos':
                     mapping[perm.name] = { key: 'canAccessPOS', label: 'Can Access POS Terminal', description: 'Allows logging in to the POS terminal with a PIN' };
                     break;
                 case 'view_analytics':
@@ -299,6 +296,18 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
                 case 'manage_employees':
                     mapping[perm.name] = { key: 'canManageStaff', label: perm.display_name, description: perm.description };
                     break;
+                case 'manage_shifts':
+                    mapping[perm.name] = { key: 'canManageShifts', label: perm.display_name, description: perm.description };
+                    break;
+                case 'manage_settings':
+                    mapping[perm.name] = { key: 'canManageSettings', label: perm.display_name, description: perm.description };
+                    break;
+                case 'view_my_shifts':
+                    mapping[perm.name] = { key: 'canViewMyShifts', label: perm.display_name, description: perm.description };
+                    break;
+                case 'view_my_sales':
+                    mapping[perm.name] = { key: 'canViewMySales', label: perm.display_name, description: perm.description };
+                    break;
             }
         });
         
@@ -306,7 +315,9 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
     };
 
     const permissionMapping = getPermissionMapping();
-    const displayPermissions = Object.entries(permissionMapping);
+    // Only show permissions not already granted by the selected role
+    const rolePermissions = new Set(roles.find(r => r.name === staffRoleToBackendRole(form.role))?.permissions ?? []);
+    const displayPermissions = Object.entries(permissionMapping).filter(([permName]) => !rolePermissions.has(permName));
 
     const isMultiBranch = MULTI_BRANCH_ROLES.includes(form.role);
 
@@ -316,7 +327,6 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
             ...f,
             role: newRole,
             permissions: defaultPermissions(newRole),
-            pin: newRole === 'call_center' ? f.pin : '',
             branch: MULTI_BRANCH_ROLES.includes(newRole)
                 ? (Array.isArray(f.branch) ? f.branch : [f.branch as string])
                 : (Array.isArray(f.branch) ? f.branch[0] : f.branch),
@@ -328,7 +338,6 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
         if (!form.name.trim()) e.name = 'Name is required';
         if (!isValidGhanaPhone(form.phone)) e.phone = 'Enter a valid Ghanaian phone number (e.g. 0241234567 or +233241234567)';
         if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email address';
-        if (form.pin && !/^\d{4}$/.test(form.pin)) e.pin = 'PIN must be exactly 4 digits';
         setErrors(e);
         return Object.keys(e).length === 0;
     }
@@ -394,7 +403,6 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
             employmentStatus: form.employmentStatus,
             systemAccess:     form.systemAccess,
             permissions:      form.permissions,
-            pin:              form.pin,
             ssnit:            form.ssnit || undefined,
             ghanaCard:        form.ghanaCard || undefined,
             tinNumber:        form.tinNumber || undefined,
@@ -523,24 +531,6 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
                                 </div>
                             </div>
 
-                            {/* POS PIN — for roles with canAccessPOS */}
-                            {form.permissions.canAccessPOS && (
-                                <div>
-                                    <label className="block text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1.5">
-                                        POS PIN <span className="normal-case font-normal">(4 digits · leave blank to skip)</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        maxLength={4}
-                                        value={form.pin}
-                                        onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                                        placeholder="e.g. 1234"
-                                        className={`w-full px-3 py-2.5 bg-neutral-light border rounded-xl text-text-dark text-sm font-body font-mono tracking-widest focus:outline-none ${errors.pin ? 'border-error/50 focus:border-error/70' : 'border-[#f0e8d8] focus:border-primary/40'}`}
-                                    />
-                                    {errors.pin && <p className="text-error text-[10px] font-body mt-1">{errors.pin}</p>}
-                                </div>
-                            )}
                         </>
                     )}
 
@@ -604,12 +594,16 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
                     {modalTab === 'permissions' && (
                         <div className="flex flex-col gap-0.5">
                             <p className="text-neutral-gray text-xs font-body mb-2">
-                                Defaults are set by role. Toggle to grant or restrict individual permissions.
+                                Permissions already included in the <strong className="text-text-dark">{roleDisplayName(form.role)}</strong> role are not shown. These are extras you can grant individually.
                             </p>
                             {permissionsLoading ? (
                                 <div className="text-center py-4">
                                     <p className="text-neutral-gray text-sm font-body">Loading permissions...</p>
                                 </div>
+                            ) : displayPermissions.length === 0 ? (
+                                <p className="text-center text-neutral-gray text-sm font-body py-6">
+                                    All available permissions are already included in the {roleDisplayName(form.role)} role.
+                                </p>
                             ) : (
                                 <div className="divide-y divide-[#f0e8d8]">
                                     {displayPermissions.map(([permName, permConfig]) => (
@@ -622,9 +616,7 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
                                                     ...f.permissions, 
                                                     [permConfig.key]: v
                                                 },
-                                                // Special handling for POS access - clear PIN if disabled
-                                                ...(permConfig.key === 'canAccessPOS' && !v && { pin: '' })
-                                            }))}
+                                                            }))}
                                             label={permConfig.label}
                                             sub={permConfig.description}
                                         />
@@ -766,7 +758,6 @@ export default function AdminStaffPage() {
                     role: staffRoleToBackendRole(s.role),
                     hire_date: s.joinedAt || undefined,
                     // HR fields
-                    pos_pin: s.pin || undefined,
                     ssnit_number: s.ssnit || undefined,
                     ghana_card_id: s.ghanaCard || undefined,
                     tin_number: s.tinNumber || undefined,
@@ -787,7 +778,6 @@ export default function AdminStaffPage() {
                     role: staffRoleToBackendRole(s.role),
                     hire_date: s.joinedAt || undefined,
                     // HR fields
-                    pos_pin: s.pin || undefined,
                     ssnit_number: s.ssnit || undefined,
                     ghana_card_id: s.ghanaCard || undefined,
                     tin_number: s.tinNumber || undefined,

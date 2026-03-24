@@ -139,8 +139,6 @@ export interface MenuItem {
   description: string;
   category_id: number;
   category?: MenuCategory;
-  popular?: boolean;
-  is_new: boolean;
   is_available: boolean;
   rating?: number | null;
   rating_count?: number;

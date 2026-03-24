@@ -49,7 +49,7 @@ function initials(name: string) {
 
 export default function PartnerStaffPage() {
     const { staffUser } = useStaffAuth();
-    const branchIdNum = staffUser?.branchId ? parseInt(staffUser.branchId, 10) : undefined;
+    const branchIdNum = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
     const { employees: branchStaff, isLoading } = useEmployees({ branch_id: branchIdNum });
 
     const [search, setSearch] = useState('');

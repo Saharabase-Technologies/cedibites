@@ -29,7 +29,6 @@ interface ApiEmployee {
   employee_no: string;
   status: string;
   hire_date?: string;
-  pos_pin?: string;
   ssnit_number?: string;
   ghana_card_id?: string;
   tin_number?: string;
@@ -77,12 +76,16 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
   // Map permissions from API to frontend permissions structure
   const permissions = api.user.permissions ?? [];
   const staffPermissions = {
-    canPlaceOrders: permissions.includes('create_orders'),
-    canAdvanceOrders: permissions.includes('update_orders'),
-    canAccessPOS: permissions.includes('view_orders'),
-    canViewReports: permissions.includes('view_analytics'),
-    canManageMenu: permissions.includes('manage_menu'),
-    canManageStaff: permissions.includes('manage_employees'),
+    canPlaceOrders:    permissions.includes('create_orders'),
+    canAdvanceOrders:  permissions.includes('update_orders'),
+    canAccessPOS:      permissions.includes('access_pos'),
+    canViewReports:    permissions.includes('view_analytics'),
+    canManageMenu:     permissions.includes('manage_menu'),
+    canManageStaff:    permissions.includes('manage_employees'),
+    canManageShifts:   permissions.includes('manage_shifts'),
+    canManageSettings: permissions.includes('manage_settings'),
+    canViewMyShifts:   permissions.includes('view_my_shifts'),
+    canViewMySales:    permissions.includes('view_my_sales'),
   };
 
   return {
@@ -97,7 +100,6 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
     employmentStatus: 'active',
     systemAccess: status === 'active' ? 'enabled' : 'disabled',
     permissions: staffPermissions,
-    pin: api.pos_pin ?? '',
     password: '',
     joinedAt: api.hire_date ?? api.created_at ?? '',
     lastLogin: '',
@@ -138,12 +140,16 @@ export function staffRoleToBackendRole(role: StaffRole): BackendRole {
 export function mapPermissionsToBackend(permissions: StaffPermissions): string[] {
   const backendPermissions: string[] = [];
   
-  if (permissions.canPlaceOrders) backendPermissions.push('create_orders');
-  if (permissions.canAdvanceOrders) backendPermissions.push('update_orders');
-  if (permissions.canAccessPOS) backendPermissions.push('view_orders'); // POS access needs view orders
-  if (permissions.canViewReports) backendPermissions.push('view_analytics');
-  if (permissions.canManageMenu) backendPermissions.push('manage_menu');
-  if (permissions.canManageStaff) backendPermissions.push('manage_employees');
+  if (permissions.canPlaceOrders)    backendPermissions.push('create_orders');
+  if (permissions.canAdvanceOrders)  backendPermissions.push('update_orders');
+  if (permissions.canAccessPOS)      backendPermissions.push('access_pos');
+  if (permissions.canViewReports)    backendPermissions.push('view_analytics');
+  if (permissions.canManageMenu)     backendPermissions.push('manage_menu');
+  if (permissions.canManageStaff)    backendPermissions.push('manage_employees');
+  if (permissions.canManageShifts)   backendPermissions.push('manage_shifts');
+  if (permissions.canManageSettings) backendPermissions.push('manage_settings');
+  if (permissions.canViewMyShifts)   backendPermissions.push('view_my_shifts');
+  if (permissions.canViewMySales)    backendPermissions.push('view_my_sales');
   
   return backendPermissions;
 }
@@ -159,7 +165,6 @@ export interface CreateEmployeePayload {
   hire_date?: string;
   status?: string;
   // HR fields
-  pos_pin?: string;
   ssnit_number?: string;
   ghana_card_id?: string;
   tin_number?: string;
@@ -181,7 +186,6 @@ export interface UpdateEmployeePayload {
   status?: string;
   hire_date?: string;
   // HR fields
-  pos_pin?: string;
   ssnit_number?: string;
   ghana_card_id?: string;
   tin_number?: string;
@@ -237,7 +241,6 @@ export const employeeService = {
       hire_date: payload.hire_date ?? undefined,
       status: payload.status ?? undefined,
       // HR fields
-      ...(payload.pos_pin && { pos_pin: payload.pos_pin }),
       ...(payload.ssnit_number && { ssnit_number: payload.ssnit_number }),
       ...(payload.ghana_card_id && { ghana_card_id: payload.ghana_card_id }),
       ...(payload.tin_number && { tin_number: payload.tin_number }),
@@ -264,7 +267,6 @@ export const employeeService = {
       ...(payload.status !== undefined && { status: payload.status }),
       ...(payload.hire_date !== undefined && { hire_date: payload.hire_date }),
       // HR fields
-      ...(payload.pos_pin !== undefined && { pos_pin: payload.pos_pin }),
       ...(payload.ssnit_number !== undefined && { ssnit_number: payload.ssnit_number }),
       ...(payload.ghana_card_id !== undefined && { ghana_card_id: payload.ghana_card_id }),
       ...(payload.tin_number !== undefined && { tin_number: payload.tin_number }),

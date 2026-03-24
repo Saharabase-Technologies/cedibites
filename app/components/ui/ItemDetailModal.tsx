@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import { XIcon, PlusIcon, MinusIcon, FireIcon, StarIcon, ShoppingCartIcon } from '@phosphor-icons/react';
+import { XIcon, PlusIcon, MinusIcon, ShoppingCartIcon } from '@phosphor-icons/react';
 import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryProvider';
 import { useCart } from '@/app/components/providers/CartProvider';
 
@@ -96,18 +96,15 @@ export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps)
                         <div className="w-full h-full" />
                     )}
                     <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-transparent" />
-                    <div className="absolute top-3 left-3 flex gap-2">
-                        {item.popular && (
-                            <span className="flex items-center gap-1 bg-primary text-white text-[11px] font-bold px-2.5 py-1 rounded-full">
-                                <FireIcon weight="fill" size={11} /> Popular
-                            </span>
-                        )}
-                        {item.isNew && (
-                            <span className="flex items-center gap-1 bg-secondary text-white text-[11px] font-bold px-2.5 py-1 rounded-full">
-                                <StarIcon weight="fill" size={11} /> New
-                            </span>
-                        )}
-                    </div>
+                    {item.tags && item.tags.length > 0 && (
+                        <div className="absolute top-3 left-3 flex gap-2">
+                            {item.tags.map(tag => (
+                                <span key={tag.slug} className="flex items-center gap-1 bg-primary text-white text-[11px] font-bold px-2.5 py-1 rounded-full capitalize">
+                                    {tag.name}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                     <button onClick={handleClose} className="absolute cursor-pointer top-3 right-3 w-9 h-9 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 transition-colors">
                         <XIcon size={18} weight="bold" className="text-white" />
                     </button>

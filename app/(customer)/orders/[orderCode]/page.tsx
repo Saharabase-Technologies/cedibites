@@ -27,8 +27,12 @@ function deriveSizeKey(item: ApiOrder['items'][0]): string {
     return 'default';
 }
 
-function mapApiStatusToTimeline(status: string): string {
-    return status === 'received' ? 'pending' : status;
+function mapApiStatusToTimeline(status: string, orderType: string): string {
+    if (status === 'received') return 'pending';
+    if (status === 'accepted') return 'confirmed';
+    if (status === 'ready') return orderType === 'delivery' ? 'out_for_delivery' : 'ready_for_pickup';
+    if (status === 'completed') return 'delivered';
+    return status;
 }
 
 function buildDeliveryTimeline(status: string, placedAt: number): OrderTimelineEvent[] {
@@ -70,7 +74,7 @@ function buildPickupTimeline(status: string, placedAt: number): OrderTimelineEve
 
 function transformApiOrderToMock(apiOrder: ApiOrder): MockOrder {
     const placedAt = new Date(apiOrder.created_at).getTime();
-    const mappedStatus = mapApiStatusToTimeline(apiOrder.status);
+    const mappedStatus = mapApiStatusToTimeline(apiOrder.status, apiOrder.order_type);
     const timeline: OrderTimelineEvent[] = apiOrder.order_type === 'delivery'
         ? buildDeliveryTimeline(mappedStatus, placedAt)
         : buildPickupTimeline(mappedStatus, placedAt);

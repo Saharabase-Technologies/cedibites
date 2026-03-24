@@ -41,7 +41,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 ];
 
 function sortItems(items: SearchableItem[], sort: SortKey): SearchableItem[] {
-    if (sort === 'popular') return [...items].sort((a, b) => (b.popular ? 1 : 0) - (a.popular ? 1 : 0));
+    if (sort === 'popular') return [...items].sort((a, b) => (b.tags?.some(t => t.slug === 'popular') ? 1 : 0) - (a.tags?.some(t => t.slug === 'popular') ? 1 : 0));
     if (sort === 'price_asc') return [...items].sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
     if (sort === 'price_desc') return [...items].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
     return items;

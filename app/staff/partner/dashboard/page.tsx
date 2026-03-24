@@ -101,8 +101,8 @@ function StatusDot({ status }: { status: string }) {
 export default function PartnerDashboardPage() {
     const { staffUser } = useStaffAuth();
     const { orders } = useOrderStore();
-    const branchName = staffUser?.branch ?? '';
-    const branchIdNum = staffUser?.branchId ? parseInt(staffUser.branchId, 10) : undefined;
+    const branchName = staffUser?.branches[0]?.name ?? '';
+    const branchIdNum = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
     const { employees: branchStaff } = useEmployees({ branch_id: branchIdNum });
 
     const startOfDay = useMemo(() => {

@@ -141,7 +141,7 @@ function OrderRow({ order, isLast }: { order: ReturnType<typeof useOrderStore>['
 export default function PartnerOrdersPage() {
     const { staffUser } = useStaffAuth();
     const { orders } = useOrderStore();
-    const branchName = staffUser?.branch ?? '';
+    const branchName = staffUser?.branches[0]?.name ?? '';
 
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');

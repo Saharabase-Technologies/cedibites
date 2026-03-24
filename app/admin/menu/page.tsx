@@ -6,8 +6,6 @@ import Link from 'next/link';
 import {
     PlusIcon,
     PencilSimpleIcon,
-    ArchiveIcon,
-    ArrowCounterClockwiseIcon,
     TrashIcon,
     MagnifyingGlassIcon,
     XIcon,
@@ -36,9 +34,8 @@ import { toast } from '@/lib/utils/toast';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface GlobalMenuItem extends DisplayMenuItem {
+interface GlobalMenuItem extends Omit<DisplayMenuItem, 'tags'> {
     globallyAvailable: boolean;
-    archived: boolean;
     tags: string[];
     branchAvailability: Record<string, { available: boolean; optionPrices: Record<string, string> }>;
     sortOrder: number;
@@ -71,14 +68,14 @@ interface ItemFormState {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function hasPricingOptions(item: DisplayMenuItem): boolean {
+function hasPricingOptions(item: Omit<DisplayMenuItem, 'tags'>): boolean {
     if (!item.sizes?.length && !(item.hasVariants && item.variants)) return false;
     // A single 'standard' option is the backend representation of simple/single pricing
     if (item.sizes?.length === 1 && item.sizes[0].key === 'standard') return false;
     return true;
 }
 
-function getOptionRows(item: DisplayMenuItem): OptionRow[] {
+function getOptionRows(item: Omit<DisplayMenuItem, 'tags'>): OptionRow[] {
     if (item.hasVariants && item.variants) {
         const rows: OptionRow[] = [];
         if (item.variants.plain != null) rows.push({ label: 'Plain', price: String(item.variants.plain) });
@@ -91,7 +88,7 @@ function getOptionRows(item: DisplayMenuItem): OptionRow[] {
     return [{ label: '', price: '' }, { label: '', price: '' }];
 }
 
-function PriceDisplay({ item }: { item: DisplayMenuItem }) {
+function PriceDisplay({ item }: { item: Omit<DisplayMenuItem, 'tags'> }) {
     if (hasPricingOptions(item)) {
         const rows = getOptionRows(item);
         const prices = rows.map(r => Number(r.price)).filter(Boolean);
@@ -157,12 +154,9 @@ function formToGlobalItem(form: ItemFormState, existing?: GlobalMenuItem): Globa
         category: form.category as DisplayMenuItem['category'],
         url: existing?.url ?? `/menu?item=${id}`,
         image: form.image ?? existing?.image,
-        popular: form.tags.includes('popular') || undefined,
-        isNew: form.tags.includes('new') || undefined,
         availableAddOns: form.addOns.length > 0 ? form.addOns : undefined,
         branchId: form.branchId,
         globallyAvailable: form.globallyAvailable,
-        archived: existing?.archived ?? false,
         tags: form.tags,
         branchAvailability: form.branchAvailability,
         sortOrder: existing?.sortOrder ?? 0,
@@ -788,12 +782,19 @@ function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId:
 
 export default function AdminMenuPage() {
     const { branches } = useBranch();
-    const { items: menuItems, isLoading: menuLoading, refetch: refetchMenuItems } = useMenuItems();
+    const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (branches.length > 0 && selectedBranchId === null) {
+            setSelectedBranchId(parseInt(branches[0].id));
+        }
+    }, [branches]);
+    const { items: menuItems, isLoading: menuLoading, refetch: refetchMenuItems } = useMenuItems(
+        selectedBranchId ? { branch_id: selectedBranchId } : undefined
+    );
     const { data: menuCategories = [], isLoading: categoriesLoading } = useMenuCategories({ is_active: true });
     const [items, setItems] = useState<GlobalMenuItem[]>([]);
     const hasInitialized = useRef(false);
-
-    const branchNames = useMemo(() => branches.map(b => b.name), [branches]);
 
     // Create category name to ID mapping
     const categoryMap = useMemo(() => {
@@ -814,23 +815,26 @@ export default function AdminMenuPage() {
         return ['All', ...uniqueCategories];
     }, [menuCategories]);
 
+    // Reset initialization when branch filter changes so items reload
     useEffect(() => {
-        if (!hasInitialized.current && menuItems.length > 0 && branchNames.length > 0) {
+        hasInitialized.current = false;
+    }, [selectedBranchId]);
+
+    useEffect(() => {
+        if (!hasInitialized.current && menuItems.length > 0) {
             hasInitialized.current = true;
             setItems(menuItems.map((item, i) => ({
                 ...item,
                 branchId: item.branchId ?? 0,
                 globallyAvailable: true,
-                archived: false,
-                tags: item.popular ? ['popular'] : item.isNew ? ['new'] : [],
+                tags: item.tags?.map(t => t.slug) ?? [],
                 branchAvailability: {},
                 sortOrder: i,
             })));
         }
-    }, [menuItems, branchNames]);
+    }, [menuItems]);
     const [category, setCategory] = useState('All');
     const [search, setSearch] = useState('');
-    const [showArchived, setShowArchived] = useState(false);
     const [editItem, setEditItem] = useState<GlobalMenuItem | null | 'new'>(null);
     const [deleteItem, setDeleteItem] = useState<GlobalMenuItem | null>(null);
     const [showImport, setShowImport] = useState(false);
@@ -870,13 +874,11 @@ export default function AdminMenuPage() {
     }, [branches]);
 
     const active = useMemo(() => {
-        let list = items.filter(i => !i.archived);
+        let list = items;
         if (category !== 'All') list = list.filter(i => i.category === category);
         if (search.trim()) list = list.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
         return list;
     }, [items, category, search]);
-
-    const archived = useMemo(() => items.filter(i => i.archived), [items]);
 
     function saveItem(item: GlobalMenuItem) {
         // Validate we have a valid branch
@@ -1094,14 +1096,6 @@ export default function AdminMenuPage() {
         }
     }
 
-    function archiveItem(item: GlobalMenuItem) {
-        setItems(prev => prev.map(x => x.id === item.id ? { ...x, archived: true } : x));
-    }
-
-    function restoreItem(item: GlobalMenuItem) {
-        setItems(prev => prev.map(x => x.id === item.id ? { ...x, archived: false } : x));
-    }
-
     function deleteItemFn(item: GlobalMenuItem) {
         if (!item.numericId || item.id.startsWith('item-')) {
             // Item only exists locally, just remove from state
@@ -1130,8 +1124,6 @@ export default function AdminMenuPage() {
         setItems(prev => prev.map(x => x.id === item.id ? { ...x, globallyAvailable: !x.globallyAvailable } : x));
     }
 
-    const branchCount = (item: GlobalMenuItem) => Object.values(item.branchAvailability).filter(b => b.available).length;
-
     return (
         <div className="px-4 md:px-8 py-6 max-w-6xl mx-auto">
 
@@ -1139,7 +1131,7 @@ export default function AdminMenuPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
                 <div>
                     <h1 className="text-text-dark text-2xl font-bold font-body">Menu Management</h1>
-                    <p className="text-neutral-gray text-sm font-body mt-0.5">Global master menu · {active.length} active items</p>
+                    <p className="text-neutral-gray text-sm font-body mt-0.5">{active.length} item{active.length !== 1 ? 's' : ''}</p>
                 </div>
                 <div className="flex gap-2">
                     <Link
@@ -1163,6 +1155,16 @@ export default function AdminMenuPage() {
                         {categoriesLoading ? 'Loading...' : 'Add Item'}
                     </button>
                 </div>
+            </div>
+
+            {/* Branch filter */}
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 mb-4">
+                {branches.map(branch => (
+                    <button key={branch.id} type="button" onClick={() => setSelectedBranchId(parseInt(branch.id))}
+                        className={`px-3 py-2 rounded-xl text-sm font-medium font-body whitespace-nowrap transition-all cursor-pointer ${selectedBranchId === parseInt(branch.id) ? 'bg-primary text-white' : 'bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark'}`}>
+                        {branch.name}
+                    </button>
+                ))}
             </div>
 
             {/* Category tabs + search */}
@@ -1189,7 +1191,7 @@ export default function AdminMenuPage() {
             {/* Items list */}
             <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden mb-6">
                 <div className="hidden md:grid grid-cols-[40px_1fr_110px_160px_120px_80px_100px] gap-4 px-4 py-3 border-b border-[#f0e8d8] bg-[#faf6f0]">
-                    {['', 'Item', 'Category', 'Price', 'Branches', 'Global', 'Actions'].map(h => (
+                    {['', 'Item', 'Category', 'Price', 'Branch', 'Global', 'Actions'].map(h => (
                         <span key={h} className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-wider">{h}</span>
                     ))}
                 </div>
@@ -1237,7 +1239,7 @@ export default function AdminMenuPage() {
                                 </span>
                             )}
 
-                            <span className="text-neutral-gray text-xs font-body">{branchCount(item)} of {branchNames.length} branches</span>
+                            <span className="text-neutral-gray text-xs font-body">{branches.find(b => b.id === String(item.branchId))?.name ?? '—'}</span>
 
                             <button type="button" onClick={() => toggleGlobal(item)} className="cursor-pointer w-fit">
                                 {item.globallyAvailable
@@ -1251,47 +1253,15 @@ export default function AdminMenuPage() {
                                     className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-neutral-light transition-colors cursor-pointer">
                                     <PencilSimpleIcon size={14} weight="bold" className="text-primary" />
                                 </button>
-                                <button type="button" onClick={() => archiveItem(item)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-neutral-light transition-colors cursor-pointer">
-                                    <ArchiveIcon size={14} weight="bold" className="text-neutral-gray" />
+                                <button type="button" onClick={() => setDeleteItem(item)}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-error/10 transition-colors cursor-pointer">
+                                    <TrashIcon size={14} weight="bold" className="text-error" />
                                 </button>
                             </div>
                         </div>
                     ))
                 )}
             </div>
-
-            {/* Archived section */}
-            {archived.length > 0 && (
-                <div>
-                    <button type="button" onClick={() => setShowArchived(!showArchived)}
-                        className="flex items-center gap-2 text-neutral-gray text-sm font-medium font-body mb-3 hover:text-text-dark transition-colors cursor-pointer">
-                        <CaretDownIcon size={14} weight="bold" className={`transition-transform ${showArchived ? 'rotate-0' : '-rotate-90'}`} />
-                        Archived items ({archived.length})
-                    </button>
-                    {showArchived && (
-                        <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden opacity-70">
-                            {archived.map((item, i) => (
-                                <div key={item.id} className={`px-4 py-3 flex items-center justify-between gap-4 ${i < archived.length - 1 ? 'border-b border-[#f0e8d8]' : ''}`}>
-                                    <span className="text-neutral-gray text-sm font-body line-through">{item.name}</span>
-                                    <div className="flex items-center gap-2">
-                                        <button type="button" onClick={() => restoreItem(item)}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 text-secondary rounded-lg text-xs font-medium font-body cursor-pointer">
-                                            <ArrowCounterClockwiseIcon size={12} weight="bold" />
-                                            Restore
-                                        </button>
-                                        <button type="button" onClick={() => setDeleteItem(item)}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-error/10 text-error rounded-lg text-xs font-medium font-body cursor-pointer">
-                                            <TrashIcon size={12} weight="bold" />
-                                            Delete
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
 
             {/* Modals */}
             {editItem !== null && !categoriesLoading && (

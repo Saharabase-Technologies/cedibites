@@ -469,7 +469,7 @@ const PERIODS: { key: Period; label: string }[] = [
 
 export default function PartnerAnalyticsPage() {
     const { staffUser } = useStaffAuth();
-    const branchName = staffUser?.branch ?? 'East Legon';
+    const branchName = staffUser?.branches[0]?.name ?? '';
 
     const [period, setPeriod] = useState<Period>('week');
 

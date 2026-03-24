@@ -13,7 +13,9 @@ import {
     CaretRightIcon,
     ShieldCheckIcon,
 } from '@phosphor-icons/react';
+import { useState } from 'react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 
@@ -73,17 +75,14 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
 
     if (isLoading) return null;
 
-    if (!staffUser || staffUser.role !== 'branch_partner') {
+    if (!staffUser || !staffUser.permissions?.includes('access_partner_portal')) {
         router.replace('/staff/login');
         return null;
     }
 
     const initials = staffUser.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
-    const handleLogout = () => {
-        logout();
-        router.replace('/staff/login');
-    };
+    const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
     return (
         <div className="h-screen overflow-hidden bg-neutral-light w-full flex">
@@ -106,7 +105,7 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
                 {/* Branch chip */}
                 <div className="mx-3 mt-3 flex items-center gap-2 px-3 py-2 bg-primary/8 rounded-xl border border-primary/15">
                     <BuildingsIcon size={13} weight="fill" className="text-primary shrink-0" />
-                    <span className="text-primary text-xs font-semibold font-body truncate">{staffUser.branch}</span>
+                    <span className="text-primary text-xs font-semibold font-body truncate">{staffUser.branches[0]?.name ?? ''}</span>
                 </div>
 
                 {/* Nav */}
@@ -135,7 +134,7 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
                     </div>
                     <button
                         type="button"
-                        onClick={handleLogout}
+                        onClick={() => setIsSignOutOpen(true)}
                         className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-neutral-gray hover:text-error hover:bg-error/10 text-sm font-medium font-body transition-all cursor-pointer"
                     >
                         <SignOutIcon size={16} weight="regular" className="shrink-0" />
@@ -155,7 +154,7 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
                         <span className="text-neutral-gray text-xs font-body ml-1">Partner</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-neutral-gray text-xs font-body hidden sm:block">{staffUser.branch}</span>
+                        <span className="text-neutral-gray text-xs font-body hidden sm:block">{staffUser.branches[0]?.name ?? ''}</span>
                         <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center">
                             <span className="text-primary text-[10px] font-bold font-body">{initials}</span>
                         </div>
@@ -180,6 +179,11 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
                     />
                 ))}
             </nav>
+            <SignOutDialog
+                isOpen={isSignOutOpen}
+                onCancel={() => setIsSignOutOpen(false)}
+                onConfirm={() => logout()}
+            />
         </div>
     );
 }

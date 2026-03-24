@@ -9,7 +9,6 @@ import {
     TrendUpIcon,
     ArrowRightIcon,
     SpinnerGapIcon,
-    FireIcon,
 } from '@phosphor-icons/react';
 import { useMenuDiscovery, type SearchableItem } from '@/app/components/providers/MenuDiscoveryProvider';
 import ItemDetailModal from './ItemDetailModal';
@@ -57,11 +56,11 @@ function ResultRow({ item, onSelect }: { item: SearchableItem; onSelect: (item: 
                             {item.category}
                         </span>
                     )}
-                    {item.popular && (
-                        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-primary">
-                            <FireIcon weight="fill" size={9} /> Popular
+                    {item.tags?.map(tag => (
+                        <span key={tag.slug} className="text-[10px] font-semibold text-primary capitalize">
+                            {tag.name}
                         </span>
-                    )}
+                    ))}
                 </div>
             </div>
 

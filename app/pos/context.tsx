@@ -105,8 +105,7 @@ export function POSProvider({ children }: POSProviderProps) {
   useEffect(() => {
     if (isAuthLoading) return;
     if (staffUser?.id) {
-      const branchIds: string[] = staffUser.branchIds?.map(String) ??
-        (staffUser.branchId ? [String(staffUser.branchId)] : []);
+      const branchIds: string[] = staffUser.branches.map(b => b.id);
       const defaultBranchId = branchIds.length === 1 ? branchIds[0] : '';
       setSession(prev => {
         // Restore persisted branch selection for this staff member

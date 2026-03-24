@@ -572,8 +572,8 @@ export default function ManagerAnalyticsPage() {
     const PAGE_SIZE = 8;
 
     const { staffUser } = useStaffAuth();
-    const branchId = staffUser?.branchId ? parseInt(staffUser.branchId, 10) : undefined;
-    const branchName = staffUser?.branch ?? '—';
+    const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
+    const branchName = staffUser?.branches[0]?.name ?? '—';
 
     const { sales: todaySales, orders: todayOrderAnalytics } = useAnalytics('today', branchId);
     const { sales: weekSales, orders: orderAnalytics } = useAnalytics('week', branchId);
