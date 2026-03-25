@@ -23,6 +23,8 @@ import { formatGHS } from '@/lib/utils/currency';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { printReceipt } from '@/lib/utils/printReceipt';
 import { FULFILLMENT_LABELS } from '@/lib/constants/order.constants';
+import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
+import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
 
 function formatOrderTime(placedAt: number): string {
   const d = new Date(placedAt);
@@ -35,7 +37,6 @@ export default function POSOrdersPage() {
     session,
     isSessionValid,
     isSessionLoaded,
-    todayOrders,
     seedTestOrders,
   } = usePOS();
   const { logout } = useStaffAuth();
@@ -54,9 +55,19 @@ export default function POSOrdersPage() {
     [session, branches]
   );
 
+  // Fetch today's completed orders from API
+  const today = new Date().toISOString().split('T')[0];
+  const { orders: apiOrders, isLoading } = useEmployeeOrders({
+    branch_id: session?.branchId ? Number(session.branchId) : undefined,
+    status: ['completed', 'delivered'],
+    date_from: today,
+    date_to: today,
+    per_page: 100,
+  });
+
   const fulfilledOrders = useMemo(
-    () => todayOrders.filter(o => o.status === 'completed').sort((a, b) => b.placedAt - a.placedAt),
-    [todayOrders]
+    () => apiOrders.map(mapApiOrderToOrder).sort((a, b) => b.placedAt - a.placedAt),
+    [apiOrders]
   );
 
   const todayRevenue = useMemo(
@@ -64,7 +75,7 @@ export default function POSOrdersPage() {
     [fulfilledOrders]
   );
 
-  if (!session) {
+  if (!session || isLoading) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-neutral-light">
         <SpinnerIcon className="w-8 h-8 text-primary animate-spin" />
