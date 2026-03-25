@@ -766,6 +766,8 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
       await onPayment('cash', paid);
     } else if (selectedMethod === 'mobile_money') {
       await onPayment('mobile_money', undefined, normalizeGhanaPhone(momoNumber));
+    } else if (selectedMethod === 'no_charge') {
+      await onPayment('no_charge');
     } else {
       await onPayment('card');
     }

@@ -23,6 +23,7 @@ import {
     ClipboardTextIcon,
     PlusCircleIcon,
     HashStraightIcon,
+    ReceiptIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
@@ -39,8 +40,9 @@ const ADMIN_NAV = [
     { href: '/admin/menu-tags',    label: 'Menu Tags',    icon: HashStraightIcon         },
     { href: '/admin/staff',      label: 'Staff',      icon: UsersThreeIcon            },
     { href: '/admin/customers',  label: 'Customers',  icon: UserCircleIcon            },
-    { href: '/admin/promos',     label: 'Promos',     icon: TagIcon                   },
-    { href: '/admin/analytics',  label: 'Analytics',  icon: ChartBarIcon              },
+    { href: '/admin/promos',        label: 'Promos',        icon: TagIcon                   },
+    { href: '/admin/transactions',  label: 'Transactions',  icon: ReceiptIcon               },
+    { href: '/admin/analytics',     label: 'Analytics',     icon: ChartBarIcon              },
     { href: '/admin/settings',   label: 'Settings',   icon: GearSixIcon               },
     { href: '/admin/audit',      label: 'Audit Log',  icon: ClockCounterClockwiseIcon },
 ];

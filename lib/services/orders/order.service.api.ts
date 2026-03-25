@@ -7,9 +7,8 @@ import { getStaffToken } from '@/lib/api/services/staff.service';
 
 const POLL_INTERVAL_MS = 8000;
 
-/** Map unified status to API status (backend has no 'accepted', maps to 'preparing') */
+/** Map unified status to API status */
 function toApiStatus(status: OrderStatus): string {
-  if (status === 'accepted') return 'preparing';
   if (status === 'cancel_requested') return 'cancelled';
   return status;
 }
@@ -89,7 +88,7 @@ export class ApiOrderService implements OrderService {
       'momo': 'mobile_money',
       'cash': 'cash',
       'card': 'card',
-      'no_charge': 'wallet',
+      'no_charge': 'no_charge',
     };
 
     const fulfillmentTypeMap: Record<string, string> = {

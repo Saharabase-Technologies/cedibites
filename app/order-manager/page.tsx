@@ -46,7 +46,7 @@ const ORDER_TYPE_LABELS: Record<FulfillmentType, { icon: React.ElementType; labe
 // Kitchen-style display labels
 const OM_LABELS: Partial<Record<OrderStatus, string>> = {
   received: 'New',
-  accepted: 'New',
+  accepted: 'Accepted',
   preparing: 'Cooking',
   ready: 'Ready',
   cancel_requested: 'Cancel Req.',
@@ -57,8 +57,8 @@ function getDisplayLabel(status: OrderStatus): string {
 }
 
 const STATUS_STRIPE: Partial<Record<OrderStatus, string>> = {
-  received: 'border-l-gray-400',
-  accepted: 'border-l-gray-400',
+  received: 'border-l-blue-500',
+  accepted: 'border-l-teal-500',
   preparing: 'border-l-amber-500',
   ready: 'border-l-green-600',
   cancel_requested: 'border-l-orange-500',
@@ -135,23 +135,24 @@ export default function OrderManagerPage() {
     ].filter(o => seen.has(o.id) ? false : (seen.add(o.id), true));
   }, [ordersByStatus]);
 
-  const newCount = ordersByStatus.received.length + ordersByStatus.accepted.length;
+  const receivedCount = ordersByStatus.received.length;
+  const acceptedCount = ordersByStatus.accepted.length;
   const cookingCount = ordersByStatus.preparing.length;
   const readyCount = ordersByStatus.ready.length;
   const cancelReqCount = ordersByStatus.cancel_requested.length;
   const totalActive = allActiveOrders.length;
 
   // Play sound only when a genuinely new order arrives (not on mount or branch switch)
-  const prevNewCountRef = useRef<number | null>(null);
+  const prevReceivedCountRef = useRef<number | null>(null);
   useEffect(() => {
-    prevNewCountRef.current = null;
+    prevReceivedCountRef.current = null;
   }, [effectiveBranchId]);
   useEffect(() => {
-    if (prevNewCountRef.current !== null && newCount > prevNewCountRef.current) {
+    if (prevReceivedCountRef.current !== null && receivedCount > prevReceivedCountRef.current) {
       sounds.playNewOrder();
     }
-    prevNewCountRef.current = newCount;
-  }, [newCount, sounds]);
+    prevReceivedCountRef.current = receivedCount;
+  }, [receivedCount, sounds]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -167,6 +168,10 @@ export default function OrderManagerPage() {
       toast.error(message);
     }
   }, [updateOrderStatus]);
+
+  const acceptOrder = useCallback((orderId: string) => {
+    handleStatusUpdate(orderId, 'accepted', { acceptedAt: Date.now() });
+  }, [handleStatusUpdate]);
 
   const startCooking = useCallback((orderId: string) => {
     handleStatusUpdate(orderId, 'preparing', { startedAt: Date.now() });
@@ -201,10 +206,11 @@ export default function OrderManagerPage() {
   }, [updateOrder]);
 
   const handleAction = useCallback((order: Order) => {
-    if (order.status === 'received' || order.status === 'accepted') startCooking(order.id);
+    if (order.status === 'received') acceptOrder(order.id);
+    else if (order.status === 'accepted') startCooking(order.id);
     else if (order.status === 'preparing') markReady(order.id);
     else if (order.status === 'ready') completeOrder(order.id);
-  }, [startCooking, markReady, completeOrder]);
+  }, [acceptOrder, startCooking, markReady, completeOrder]);
 
   // Block render until auth resolves
   if (isAuthLoading) {
@@ -246,7 +252,7 @@ export default function OrderManagerPage() {
               )}
             </h1>
             <p className="text-xs text-neutral-gray font-body">
-              {totalActive} active{newCount > 0 && ` · ${newCount} new`}
+              {totalActive} active{receivedCount > 0 && ` · ${receivedCount} new`}
             </p>
           </div>
         </div>
@@ -289,8 +295,12 @@ export default function OrderManagerPage() {
           </span>
         )}
         <span className="flex items-center gap-1.5 shrink-0">
-          <span className="w-3 h-3 rounded-sm bg-gray-400 inline-block" />
-          New ({newCount})
+          <span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" />
+          New ({receivedCount})
+        </span>
+        <span className="flex items-center gap-1.5 shrink-0">
+          <span className="w-3 h-3 rounded-sm bg-teal-500 inline-block" />
+          Accepted ({acceptedCount})
         </span>
         <span className="flex items-center gap-1.5 shrink-0">
           <span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" />
@@ -396,13 +406,15 @@ function OrderCard({ order, isSelected, onSelect, onAction, onApproveCancel, onR
 
   const actionConfig: { label: string; icon: React.ElementType; color: string } | null =
     isCancelReq ? null
-      : (order.status === 'received' || order.status === 'accepted')
-        ? { label: 'Start Cooking', icon: CheckIcon, color: 'bg-brown hover:bg-brown-light text-text-light' }
-        : order.status === 'preparing'
-          ? { label: 'Mark Ready', icon: CheckIcon, color: 'bg-secondary hover:bg-secondary-hover text-white' }
-          : order.status === 'ready'
-            ? { label: 'Complete', icon: CheckCircleIcon, color: 'bg-primary hover:bg-primary-hover text-white' }
-            : null;
+      : order.status === 'received'
+        ? { label: 'Accept Order', icon: CheckIcon, color: 'bg-teal-600 hover:bg-teal-700 text-white' }
+        : order.status === 'accepted'
+          ? { label: 'Start Cooking', icon: CheckIcon, color: 'bg-brown hover:bg-brown-light text-text-light' }
+          : order.status === 'preparing'
+            ? { label: 'Mark Ready', icon: CheckIcon, color: 'bg-secondary hover:bg-secondary-hover text-white' }
+            : order.status === 'ready'
+              ? { label: 'Complete', icon: CheckCircleIcon, color: 'bg-primary hover:bg-primary-hover text-white' }
+              : null;
 
   return (
     <div
@@ -524,13 +536,15 @@ function OrderDetailPanel({ order, onAction, onApproveCancel, onRejectCancel, on
 
   const actionConfig: { label: string; icon: React.ElementType; color: string } | null =
     isCancelReq ? null
-      : (order.status === 'received' || order.status === 'accepted')
-        ? { label: 'Start Cooking', icon: CheckIcon, color: 'bg-brown hover:bg-brown-light text-text-light' }
-        : order.status === 'preparing'
-          ? { label: 'Mark Ready', icon: CheckIcon, color: 'bg-secondary hover:bg-secondary-hover text-white' }
-          : order.status === 'ready'
-            ? { label: 'Complete', icon: CheckCircleIcon, color: 'bg-primary hover:bg-primary-hover text-white' }
-            : null;
+      : order.status === 'received'
+        ? { label: 'Accept Order', icon: CheckIcon, color: 'bg-teal-600 hover:bg-teal-700 text-white' }
+        : order.status === 'accepted'
+          ? { label: 'Start Cooking', icon: CheckIcon, color: 'bg-brown hover:bg-brown-light text-text-light' }
+          : order.status === 'preparing'
+            ? { label: 'Mark Ready', icon: CheckIcon, color: 'bg-secondary hover:bg-secondary-hover text-white' }
+            : order.status === 'ready'
+              ? { label: 'Complete', icon: CheckCircleIcon, color: 'bg-primary hover:bg-primary-hover text-white' }
+              : null;
 
   return (
     <div className="flex flex-col h-full">
