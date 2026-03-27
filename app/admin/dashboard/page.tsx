@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAdminDashboard } from '@/lib/api/hooks/useAdminDashboard';
 import { useAnalytics } from '@/lib/api/hooks/useAnalytics';
 import { STATUS_CONFIG } from '@/app/staff/orders/constants';
@@ -22,6 +22,8 @@ import {
     CheckCircleIcon,
 } from '@phosphor-icons/react';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
+import { toast } from '@/lib/utils/toast';
+import { exportElementToPdf } from '@/lib/utils/exportPdf';
 
 
 function greeting() {
@@ -61,12 +63,12 @@ function KpiCard({
     icon: React.ElementType;
     label: string;
     value: string;
-    trend: number;
+    trend?: number;
     sub?: string;
     subAlert?: string;
     accent?: boolean;
 }) {
-    const up = trend >= 0;
+    const up = (trend ?? 0) >= 0;
     return (
         <div className={`rounded-2xl px-5 py-4 flex flex-col gap-2 ${accent ? 'bg-primary' : 'bg-neutral-card border border-[#f0e8d8]'}`}>
             <div className="flex items-center gap-2">
@@ -76,15 +78,17 @@ function KpiCard({
             <p className={`text-2xl font-bold font-body leading-none ${accent ? 'text-white' : 'text-text-dark'}`}>{value}</p>
             {sub && <p className={`text-xs font-body ${accent ? 'text-white/70' : 'text-neutral-gray'}`}>{sub}</p>}
             {subAlert && <p className="text-xs font-semibold font-body text-orange-500">{subAlert}</p>}
-            <div className="flex items-center gap-1">
-                {up
-                    ? <ArrowUpIcon size={11} weight="bold" className={accent ? 'text-white/70' : 'text-secondary'} />
-                    : <ArrowDownIcon size={11} weight="bold" className={accent ? 'text-white/70' : 'text-error'} />
-                }
-                <span className={`text-xs font-semibold font-body ${accent ? 'text-white/80' : (up ? 'text-secondary' : 'text-error')}`}>
-                    {Math.abs(trend)}% vs last week
-                </span>
-            </div>
+            {trend !== undefined && (
+                <div className="flex items-center gap-1">
+                    {up
+                        ? <ArrowUpIcon size={11} weight="bold" className={accent ? 'text-white/70' : 'text-secondary'} />
+                        : <ArrowDownIcon size={11} weight="bold" className={accent ? 'text-white/70' : 'text-error'} />
+                    }
+                    <span className={`text-xs font-semibold font-body ${accent ? 'text-white/80' : (up ? 'text-secondary' : 'text-error')}`}>
+                        {Math.abs(trend)}% vs last week
+                    </span>
+                </div>
+            )}
         </div>
     );
 }
@@ -100,29 +104,6 @@ function BranchStatusDot({ status }: { status: 'open' | 'closed' | 'busy' }) {
             <span className={`w-2 h-2 rounded-full ${cfg.color} animate-pulse`} />
             <span className="text-[10px] font-body font-medium text-neutral-gray">{cfg.label}</span>
         </span>
-    );
-}
-
-function Sparkline({ data }: { data: number[] }) {
-    const max = Math.max(...data);
-    const w = 60;
-    const h = 24;
-    const pts = data.map((v, i) => {
-        const x = (i / (data.length - 1)) * w;
-        const y = h - (v / max) * h;
-        return `${x},${y}`;
-    }).join(' ');
-    return (
-        <svg width={w} height={h} className="shrink-0">
-            <polyline
-                points={pts}
-                fill="none"
-                stroke="#e49925"
-                strokeWidth="1.5"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-            />
-        </svg>
     );
 }
 
@@ -147,8 +128,10 @@ function StatusDot({ status }: { status: string }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminDashboardPage() {
+    const exportRef = useRef<HTMLDivElement>(null);
     const [_refresh] = useState(0);
     const [mounted, setMounted] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const { orders } = useOrderStore();
     const { userName, kpis, branches, liveOrders, isLoading } = useAdminDashboard();
     const { sales } = useAnalytics('week');
@@ -186,6 +169,27 @@ export default function AdminDashboardPage() {
         cancelledToday: kpis?.cancelled_today ?? liveKpis.cancelledToday,
     };
 
+    async function handleExportPdf(): Promise<void> {
+        if (!exportRef.current || isExporting) {
+            return;
+        }
+
+        setIsExporting(true);
+        try {
+            const filename = `dashboard-${new Date().toISOString().slice(0, 10)}.pdf`;
+            await exportElementToPdf({
+                element: exportRef.current,
+                filename,
+            });
+            toast.success('Dashboard exported as PDF');
+        } catch (error) {
+            console.error('Failed to export dashboard PDF:', error);
+            toast.error('Failed to export dashboard report');
+        } finally {
+            setIsExporting(false);
+        }
+    }
+
     // Prevent hydration mismatch by only showing dynamic content after mount
     if (!mounted) {
         return (
@@ -203,7 +207,7 @@ export default function AdminDashboardPage() {
     }
 
     return (
-        <div className="px-4 md:px-8 py-6 max-w-6xl mx-auto">
+        <div ref={exportRef} className="px-4 md:px-8 py-6 max-w-6xl mx-auto">
 
             {/* ── Header ──────────────────────────────────────────────────────── */}
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-7">
@@ -213,33 +217,35 @@ export default function AdminDashboardPage() {
                     </h1>
                     <p className="text-neutral-gray text-sm font-body mt-1 flex items-center gap-2">
                         {dateStr}
-                        <span className="inline-flex items-center gap-1 text-secondary">
-                            <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-                            All branches operational
+                        <span className="inline-flex items-center gap-1 text-neutral-gray">
+                            <span className="w-2 h-2 rounded-full bg-secondary" />
+                            {branches.length} active branches
                         </span>
                     </p>
                 </div>
                 <button
                     type="button"
-                    className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer shrink-0"
+                    onClick={() => void handleExportPdf()}
+                    disabled={isExporting}
+                    data-export-ignore
+                    className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                     <DownloadSimpleIcon size={16} weight="bold" className="text-primary" />
-                    Export today&apos;s report
+                    {isExporting ? 'Exporting…' : 'Export PDF'}
                 </button>
             </div>
 
             {/* ── Cross-branch KPI row ─────────────────────────────────────────── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-7">
-                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue Today" value={isLoading ? '…' : formatGHS(displayKpis.revenueToday)} trend={0} accent />
-                <KpiCard icon={ReceiptIcon} label="Orders Today" value={isLoading ? '…' : String(displayKpis.ordersToday)} trend={0} />
-                <KpiCard icon={CircleNotchIcon} label="Active Now" value={isLoading ? '…' : String(displayKpis.activeOrders)} trend={0} />
+                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue Today" value={isLoading ? '…' : formatGHS(displayKpis.revenueToday)} accent />
+                <KpiCard icon={ReceiptIcon} label="Orders Today" value={isLoading ? '…' : String(displayKpis.ordersToday)} />
+                <KpiCard icon={CircleNotchIcon} label="Active Now" value={isLoading ? '…' : String(displayKpis.activeOrders)} />
                 <KpiCard
                     icon={XCircleIcon}
                     label="Cancelled Today"
                     value={isLoading ? '…' : String(displayKpis.cancelledToday)}
                     sub={liveKpis.cancelledToday > 0 ? formatGHS(liveKpis.cancelledValue) + ' lost' : undefined}
                     subAlert={liveKpis.cancelReqCount > 0 ? `${liveKpis.cancelReqCount} pending approval` : undefined}
-                    trend={0}
                 />
             </div>
 
@@ -247,7 +253,11 @@ export default function AdminDashboardPage() {
             <div className="mb-7">
                 <div className="flex items-center justify-between mb-3">
                     <h2 className="text-text-dark font-bold text-sm font-body uppercase tracking-wider">Branch Performance</h2>
-                    <Link href="/admin/branches" className="text-primary text-xs font-body hover:text-primary-hover flex items-center gap-1 transition-colors">
+                    <Link
+                        href="/admin/branches"
+                        data-export-ignore
+                        className="text-primary text-xs font-body hover:text-primary-hover flex items-center gap-1 transition-colors"
+                    >
                         <ArrowUpRightIcon size={13} weight="bold" />
                         Manage branches
                     </Link>
@@ -268,7 +278,6 @@ export default function AdminDashboardPage() {
                                     <p className="text-primary text-lg font-bold font-body leading-none">{formatGHS(branch.revenue_today ?? 0)}</p>
                                     <p className="text-neutral-gray text-xs font-body mt-1">{branch.orders_today ?? 0} orders today</p>
                                 </div>
-                                <Sparkline data={[40, 55, 70, 62, 80, 95, 88]} />
                             </div>
                         </Link>
                     ))}
@@ -282,7 +291,11 @@ export default function AdminDashboardPage() {
             <div className="mb-7">
                 <div className="flex items-center justify-between mb-3">
                     <h2 className="text-text-dark font-bold text-sm font-body uppercase tracking-wider">Live Order Feed</h2>
-                    <Link href="/admin/orders" className="text-primary text-xs font-body hover:text-primary-hover flex items-center gap-1 transition-colors">
+                    <Link
+                        href="/admin/orders"
+                        data-export-ignore
+                        className="text-primary text-xs font-body hover:text-primary-hover flex items-center gap-1 transition-colors"
+                    >
                         <ListIcon size={13} />
                         View all orders
                     </Link>
@@ -317,7 +330,12 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* ── System health ────────────────────────────────────────────────── */}
-            <SystemHealth />
+            <SystemHealth
+                activeBranches={branches.length}
+                activeOrders={displayKpis.activeOrders}
+                liveOrdersCount={liveOrders.length}
+                lastOrderAge={liveOrders[0]?.time_ago ?? null}
+            />
 
         </div>
     );
@@ -327,30 +345,18 @@ export default function AdminDashboardPage() {
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const BRANCH_REVENUE: Record<string, number[]> = {
-    'Osu': [2800, 3100, 2600, 3400, 3200, 4100, 2100],
-    'East Legon': [3100, 3400, 2900, 3800, 3500, 4600, 2400],
-    'Spintex': [1200, 1400, 1100, 1600, 1500, 2000, 1000],
-};
-
-const BRANCH_COLORS = ['#e49925', '#6c833f', '#c8a87a'];
-
 function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total: number; orders: number }> }) {
-    const [stacked, setStacked] = useState(true);
-    const branches = Object.keys(BRANCH_REVENUE);
-    const totals = DAYS.map((_, i) => branches.reduce((s, b) => s + BRANCH_REVENUE[b][i], 0));
-    const maxVal = stacked ? Math.max(...totals, 1) : Math.max(...Object.values(BRANCH_REVENUE).flat(), 1);
     const weekTotal = salesByDay?.length
         ? salesByDay.reduce((s, d) => s + Number(d.total), 0)
-        : totals.reduce((a, b) => a + b, 0);
+        : 0;
 
     const dayLabels = salesByDay?.length
         ? salesByDay.map((d) => DAYS[(new Date(d.date).getDay() + 6) % 7] ?? d.date)
         : DAYS;
     const values = salesByDay?.length
         ? salesByDay.map((d) => Number(d.total))
-        : totals;
-    const chartMax = salesByDay?.length ? Math.max(...values, 1) : maxVal;
+        : DAYS.map(() => 0);
+    const chartMax = Math.max(...values, 1);
 
     return (
         <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl p-5 mb-7">
@@ -359,89 +365,42 @@ function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total
                     <p className="text-text-dark text-sm font-bold font-body">Revenue — All Branches (7 days)</p>
                     <p className="text-primary text-base font-bold font-body mt-0.5">{formatGHS(weekTotal)}</p>
                 </div>
-                {!salesByDay?.length && (
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setStacked(true)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-body transition-all cursor-pointer ${stacked ? 'bg-primary text-white' : 'bg-neutral-light text-neutral-gray hover:text-text-dark'}`}
-                        >
-                            Stacked
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setStacked(false)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-body transition-all cursor-pointer ${!stacked ? 'bg-primary text-white' : 'bg-neutral-light text-neutral-gray hover:text-text-dark'}`}
-                        >
-                            Grouped
-                        </button>
-                    </div>
-                )}
             </div>
 
             <div className="flex items-end gap-2 h-32">
-                {salesByDay?.length ? (
-                    dayLabels.map((day, di) => {
-                        const val = values[di] ?? 0;
-                        const h = Math.round((val / chartMax) * 112) || 4;
-                        return (
-                            <div key={`${day}-${di}`} className="flex-1 flex flex-col items-center gap-1">
-                                <div className="w-full rounded-sm bg-primary/85" style={{ height: h, minHeight: 4, transition: 'height 0.3s ease' }} />
-                                <span className="text-[9px] text-neutral-gray font-body">{day}</span>
-                            </div>
-                        );
-                    })
-                ) : (
-                    DAYS.map((day, di) => (
-                        <div key={day} className="flex-1 flex flex-col items-center gap-1">
-                            <div className={`w-full flex ${stacked ? 'flex-col-reverse' : 'flex-row'} items-end gap-0.5`} style={{ height: 112 }}>
-                                {branches.map((b, bi) => {
-                                    const val = BRANCH_REVENUE[b][di];
-                                    const h = Math.round((val / maxVal) * 112);
-                                    return (
-                                        <div
-                                            key={`${b}-${bi}`}
-                                            className="rounded-sm"
-                                            style={{
-                                                height: h,
-                                                width: stacked ? '100%' : `${100 / branches.length}%`,
-                                                background: BRANCH_COLORS[bi],
-                                                opacity: 0.85,
-                                                transition: 'height 0.3s ease',
-                                                flexShrink: 0,
-                                            }}
-                                        />
-                                    );
-                                })}
-                            </div>
+                {dayLabels.map((day, di) => {
+                    const val = values[di] ?? 0;
+                    const h = Math.round((val / chartMax) * 112) || 4;
+                    return (
+                        <div key={`${day}-${di}`} className="flex-1 flex flex-col items-center gap-1">
+                            <div className="w-full rounded-sm bg-primary/85" style={{ height: h, minHeight: 4, transition: 'height 0.3s ease' }} />
                             <span className="text-[9px] text-neutral-gray font-body">{day}</span>
                         </div>
-                    ))
-                )}
+                    );
+                })}
             </div>
-
-            {!salesByDay?.length && (
-                <div className="flex gap-4 mt-4">
-                    {branches.map((b, bi) => (
-                        <div key={`${b}-${bi}`} className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 rounded-sm" style={{ background: BRANCH_COLORS[bi] }} />
-                            <span className="text-[11px] text-neutral-gray font-body">{b}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
         </div>
     );
 }
 
 // ─── System health panel ──────────────────────────────────────────────────────
 
-function SystemHealth() {
+function SystemHealth({
+    activeBranches,
+    activeOrders,
+    liveOrdersCount,
+    lastOrderAge,
+}: {
+    activeBranches: number;
+    activeOrders: number;
+    liveOrdersCount: number;
+    lastOrderAge: string | null;
+}) {
     const items = [
-        { icon: CheckCircleIcon, label: 'Hubtel API', value: 'Connected', color: 'text-secondary' },
-        { icon: WifiHighIcon, label: 'WebSocket', value: '3 active', color: 'text-secondary' },
-        { icon: DatabaseIcon, label: 'Database', value: '42ms', color: 'text-secondary' },
-        { icon: ClockIcon, label: 'Last order', value: '2 mins ago', color: 'text-neutral-gray' },
+        { icon: CheckCircleIcon, label: 'Active Branches', value: String(activeBranches), color: 'text-secondary' },
+        { icon: WifiHighIcon, label: 'Live Feed', value: `${liveOrdersCount} orders`, color: 'text-secondary' },
+        { icon: DatabaseIcon, label: 'Active Orders', value: String(activeOrders), color: 'text-secondary' },
+        { icon: ClockIcon, label: 'Last order', value: lastOrderAge ? `${lastOrderAge} ago` : 'No recent orders', color: 'text-neutral-gray' },
     ];
     return (
         <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-4 flex flex-wrap gap-4">

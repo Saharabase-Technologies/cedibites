@@ -42,9 +42,9 @@ import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
-// Flat row — one per orderable option (no picker modal needed)
-interface DisplayRow {
+interface ItemOption {
   key: string;
+  label: string;
   name: string;
   price: number;
   menuItemId: string;
@@ -52,11 +52,11 @@ interface DisplayRow {
   variantKey?: string;
 }
 
-// Expand items with sizes/variants into individual tappable rows
-function expandItem(item: DisplayMenuItem): DisplayRow[] {
+function getItemOptions(item: DisplayMenuItem): ItemOption[] {
   if (item.sizes && item.sizes.length > 0) {
     return item.sizes.map(size => ({
       key: `${item.id}|${size.key}`,
+      label: size.label,
       name: `${size.label} ${item.name}`,
       price: size.price,
       menuItemId: item.id,
@@ -64,16 +64,43 @@ function expandItem(item: DisplayMenuItem): DisplayRow[] {
       variantKey: size.key,
     }));
   }
+
   if (item.hasVariants && item.variants) {
-    const rows: DisplayRow[] = [];
-    if (item.variants.plain !== undefined)
-      rows.push({ key: `${item.id}|plain`, name: `${item.name} (Plain)`, price: item.variants.plain, menuItemId: item.id, variantKey: 'plain' });
-    if (item.variants.assorted !== undefined)
-      rows.push({ key: `${item.id}|assorted`, name: `${item.name} (Assorted)`, price: item.variants.assorted, menuItemId: item.id, variantKey: 'assorted' });
-    return rows;
+    const options: ItemOption[] = [];
+    if (item.variants.plain !== undefined) {
+      options.push({
+        key: `${item.id}|plain`,
+        label: 'Plain',
+        name: `${item.name} (Plain)`,
+        price: item.variants.plain,
+        menuItemId: item.id,
+        variantKey: 'plain',
+      });
+    }
+    if (item.variants.assorted !== undefined) {
+      options.push({
+        key: `${item.id}|assorted`,
+        label: 'Assorted',
+        name: `${item.name} (Assorted)`,
+        price: item.variants.assorted,
+        menuItemId: item.id,
+        variantKey: 'assorted',
+      });
+    }
+    return options;
   }
-  if (item.price !== undefined)
-    return [{ key: item.id, name: item.name, price: item.price, menuItemId: item.id }];
+
+  if (item.price !== undefined) {
+    return [{
+      key: item.id,
+      label: 'Regular',
+      name: item.name,
+      price: item.price,
+      menuItemId: item.id,
+      variantKey: 'regular',
+    }];
+  }
+
   return [];
 }
 
@@ -120,6 +147,7 @@ export default function POSTerminalPage() {
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
+  const [optionPickerItem, setOptionPickerItem] = useState<DisplayMenuItem | null>(null);
 
   // Redirect if no session (but not if we just need branch selection)
   useEffect(() => {
@@ -190,22 +218,32 @@ export default function POSTerminalPage() {
     return filteredItems;
   }, [searchQuery, branchMenuItems, filteredItems]);
 
-  // Flat rows — each variant/size is its own tappable card (no picker modal)
-  const expandedRows = useMemo(
-    () => displayedItems.flatMap(expandItem),
-    [displayedItems]
-  );
-
-  // Direct add — no modal needed
-  const handleRowTap = useCallback((row: DisplayRow) => {
+  const handleOptionAdd = useCallback((option: ItemOption) => {
     addToCart({
-      menuItemId: row.menuItemId,
-      name: row.name,
-      price: row.price,
-      sizeId: row.sizeId,
-      variantKey: row.variantKey,
+      menuItemId: option.menuItemId,
+      name: option.name,
+      price: option.price,
+      sizeId: option.sizeId,
+      variantKey: option.variantKey,
     });
   }, [addToCart]);
+
+  const handleItemTap = useCallback((item: DisplayMenuItem) => {
+    const options = getItemOptions(item);
+    if (options.length > 1) {
+      setOptionPickerItem(item);
+      return;
+    }
+    if (options.length === 1) {
+      handleOptionAdd(options[0]);
+    }
+  }, [handleOptionAdd]);
+
+  const getItemCartQty = useCallback((item: DisplayMenuItem): number => {
+    return cart
+      .filter(c => c.menuItemId === item.id)
+      .reduce((sum, c) => sum + c.quantity, 0);
+  }, [cart]);
 
   // Effective total after any promo discount
   const effectiveTotal = Math.max(0, cartTotal - promoDiscount);
@@ -357,18 +395,20 @@ export default function POSTerminalPage() {
           </div>
         </div>
 
-        {/* Menu Grid — image-free, variant-expanded rows */}
+        {/* Menu Grid */}
         <div className="flex-1 overflow-y-auto p-4 pb-24 lg:pb-4">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {expandedRows.map(row => {
-              const cartQty = cart
-                .filter(c => c.menuItemId === row.menuItemId && (c.variantKey ?? '') === (row.variantKey ?? ''))
-                .reduce((sum, c) => sum + c.quantity, 0);
+            {displayedItems.map(item => {
+              const cartQty = getItemCartQty(item);
               const isSelected = cartQty > 0;
+              const hasOptions = (item.sizes?.length ?? 0) > 1 || !!item.variants;
+              const minPrice = item.sizes?.length
+                ? Math.min(...item.sizes.map(size => size.price))
+                : item.price ?? 0;
               return (
                 <button
-                  key={row.key}
-                  onClick={() => handleRowTap(row)}
+                  key={item.id}
+                  onClick={() => handleItemTap(item)}
                   className={`
                     rounded-2xl p-4 text-left shadow-sm min-h-22
                     active:scale-[0.97] transition-all duration-100
@@ -380,10 +420,15 @@ export default function POSTerminalPage() {
                   `}
                 >
                   <p className={`font-semibold text-base leading-snug line-clamp-2 ${isSelected ? 'text-primary' : 'text-text-dark'}`}>
-                    {row.name}
+                    {item.name}
                   </p>
                   <div className="flex items-center justify-between">
-                    <p className="text-primary font-bold text-base">{formatGHS(row.price)}</p>
+                    <div>
+                      <p className="text-primary font-bold text-base">{formatGHS(minPrice)}</p>
+                      {hasOptions && (
+                        <p className="text-[11px] text-neutral-gray">Tap to choose option</p>
+                      )}
+                    </div>
                     {isSelected && (
                       <span className="min-w-6 h-6 px-1.5 rounded-full bg-primary text-brown text-xs font-bold flex items-center justify-center">
                         {cartQty}
@@ -395,7 +440,7 @@ export default function POSTerminalPage() {
             })}
           </div>
 
-          {expandedRows.length === 0 && (
+          {displayedItems.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-neutral-gray">
               <MagnifyingGlassIcon className="w-12 h-12 mb-4 opacity-40" />
               <p>No items found</p>
@@ -692,6 +737,68 @@ export default function POSTerminalPage() {
           onClose={() => setCompletedOrder(null)}
         />
       )}
+
+      {optionPickerItem && (
+        <POSItemOptionModal
+          item={optionPickerItem}
+          cart={cart}
+          onClose={() => setOptionPickerItem(null)}
+          onAdd={handleOptionAdd}
+        />
+      )}
+    </div>
+  );
+}
+
+interface POSItemOptionModalProps {
+  item: DisplayMenuItem;
+  cart: ReturnType<typeof usePOS>['cart'];
+  onClose: () => void;
+  onAdd: (option: ItemOption) => void;
+}
+
+function POSItemOptionModal({ item, cart, onClose, onAdd }: POSItemOptionModalProps) {
+  const options = getItemOptions(item);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-neutral-gray/20 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-neutral-gray">Choose option</p>
+            <h3 className="text-lg font-semibold text-text-dark">{item.name}</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-neutral-gray hover:bg-neutral-gray/10"
+          >
+            <XIcon className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
+          {options.map(option => {
+            const qty = cart
+              .filter(c => c.menuItemId === option.menuItemId && (c.variantKey ?? '') === (option.variantKey ?? ''))
+              .reduce((sum, c) => sum + c.quantity, 0);
+            return (
+              <button
+                key={option.key}
+                onClick={() => onAdd(option)}
+                className="w-full px-4 py-3 rounded-xl border border-neutral-gray/20 hover:border-primary/50 hover:bg-primary/5 transition-colors flex items-center justify-between text-left"
+              >
+                <div>
+                  <p className="font-medium text-text-dark">{option.label}</p>
+                  <p className="text-xs text-neutral-gray">{option.name}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-primary">{formatGHS(option.price)}</p>
+                  {qty > 0 && <p className="text-xs text-neutral-gray">In cart: {qty}</p>}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

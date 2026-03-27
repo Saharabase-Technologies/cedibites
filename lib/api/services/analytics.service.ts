@@ -135,7 +135,7 @@ export const analyticsService = {
     return apiClient.get('/admin/analytics/category-revenue', { params: filters }).then(extractData) as Promise<CategoryRevenue[]>;
   },
 
-  getBranchPerformanceAnalytics: (filters?: Pick<AnalyticsFilters, 'date_from' | 'date_to'>): Promise<BranchPerformance[]> => {
+  getBranchPerformanceAnalytics: (filters?: AnalyticsFilters): Promise<BranchPerformance[]> => {
     return apiClient.get('/admin/analytics/branch-performance', { params: filters }).then(extractData) as Promise<BranchPerformance[]>;
   },
 

@@ -11,6 +11,7 @@ export interface DisplayBranch {
   email: string;
   status: BranchStatus;
   openStatus: BranchOpenStatus;
+  managerId: string | null;
   manager: string;
   ordersToday: number;
   revenueToday: number;
@@ -101,6 +102,7 @@ export function mapApiBranchToDisplay(api: ApiBranch, stats?: { today_orders?: n
     email: api.email || api.manager?.email || '',
     status: api.is_active ? 'active' : 'inactive',
     openStatus,
+    managerId: api.manager?.id != null ? String(api.manager.id) : null,
     manager: api.manager?.name || '—',
     ordersToday: api.today_orders ?? stats?.today_orders ?? 0,
     revenueToday: api.today_revenue ?? stats?.today_revenue ?? 0,

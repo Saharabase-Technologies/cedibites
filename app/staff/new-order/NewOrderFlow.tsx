@@ -34,59 +34,54 @@ import { isValidGhanaPhone } from '@/app/lib/phone';
 
 // ─── Display row — one per orderable option ───────────────────────────────────
 
-interface DisplayRow {
+interface ItemOption {
     key: string;
-    name: string;          // e.g. "Small Jollof Rice" or "Jollof Rice (Plain)"
+    label: string;
     price: number;
-    menuItemId: string;
     variantKey: string;
-    variantLabel?: string; // e.g. "Small", "Plain"
-    sizeId?: number;       // menu_item_size_id for backend
-    originalItem: DisplayMenuItem;
+    variantLabel?: string;
+    sizeId?: number;
 }
 
-function expandItem(item: DisplayMenuItem): DisplayRow[] {
-    // If item has sizes, always use them (even if it also has variants)
+function getItemOptions(item: DisplayMenuItem): ItemOption[] {
     if (item.sizes && item.sizes.length > 0) {
         return item.sizes.map((size) => ({
             key: `${item.id}|${size.key}`,
-            name: `${size.label} ${item.name}`,
+            label: size.label,
             price: size.price,
-            menuItemId: item.id,
             variantKey: size.key,
             variantLabel: size.label,
-            sizeId: size.id, // Include size ID
-            originalItem: item,
+            sizeId: size.id,
         }));
     }
-    // Only use variants if there are no sizes (legacy support)
+
     if (item.hasVariants && item.variants) {
-        const rows: DisplayRow[] = [];
-        if (item.variants.plain !== undefined)
-            rows.push({
+        const options: ItemOption[] = [];
+        if (item.variants.plain !== undefined) {
+            options.push({
                 key: `${item.id}|plain`,
-                name: `${item.name} (Plain)`,
+                label: 'Plain',
                 price: item.variants.plain,
-                menuItemId: item.id,
                 variantKey: 'plain',
                 variantLabel: 'Plain',
-                originalItem: item,
             });
-        if (item.variants.assorted !== undefined)
-            rows.push({
+        }
+        if (item.variants.assorted !== undefined) {
+            options.push({
                 key: `${item.id}|assorted`,
-                name: `${item.name} (Assorted)`,
+                label: 'Assorted',
                 price: item.variants.assorted,
-                menuItemId: item.id,
                 variantKey: 'assorted',
                 variantLabel: 'Assorted',
-                originalItem: item,
             });
-        return rows;
+        }
+        return options;
     }
-    // Simple item with just a base price
-    if (item.price !== undefined)
-        return [{ key: item.id, name: item.name, price: item.price, menuItemId: item.id, variantKey: item.id, originalItem: item }];
+
+    if (item.price !== undefined) {
+        return [{ key: `${item.id}|regular`, label: 'Regular', price: item.price, variantKey: 'regular' }];
+    }
+
     return [];
 }
 
@@ -122,6 +117,7 @@ export default function NewOrderFlow() {
     const [momoVerified, setMomoVerified] = useState<{ name: string; status: string; profile: string } | null>(null);
     const [isVerifying, setIsVerifying] = useState(false);
     const [momoVerifyError, setMomoVerifyError] = useState<string | null>(null);
+    const [optionPickerItem, setOptionPickerItem] = useState<DisplayMenuItem | null>(null);
 
     // Address autocomplete
     const [addressSuggestions, setAddressSuggestions] = useState<{ id: string; label: string; full: string }[]>([]);
@@ -196,20 +192,21 @@ export default function NewOrderFlow() {
 
     // ── Derived menu rows ───────────────────────────────────────────────────
 
-    const allRows = useMemo(() => menuItems.flatMap(expandItem), [menuItems]);
-
-    const filteredRows = useMemo(() => {
+    const filteredItems = useMemo(() => {
         const q = search.toLowerCase();
-        return allRows.filter(row => {
-            const matchesSearch = !q || row.name.toLowerCase().includes(q) || row.originalItem.name.toLowerCase().includes(q);
+        return menuItems.filter(item => {
+            const optionLabels = getItemOptions(item).map(option => option.label.toLowerCase());
+            const matchesSearch = !q
+                || item.name.toLowerCase().includes(q)
+                || optionLabels.some(label => label.includes(q));
             const matchesCategory = search
                 ? true
                 : activeCategory === 'all'
-                    ? row.originalItem.tags?.some(t => t.slug === 'popular')
-                    : row.originalItem.category.toLowerCase().replace(/\s+/g, '-') === activeCategory || row.originalItem.category === activeCategory;
+                    ? item.tags?.some(t => t.slug === 'popular')
+                    : item.category.toLowerCase().replace(/\s+/g, '-') === activeCategory || item.category === activeCategory;
             return matchesSearch && matchesCategory;
         });
-    }, [allRows, search, activeCategory]);
+    }, [menuItems, search, activeCategory]);
 
     // ── Cart calculations ───────────────────────────────────────────────────
 
@@ -221,18 +218,35 @@ export default function NewOrderFlow() {
 
     // ── Handlers ────────────────────────────────────────────────────────────
 
-    const handleRowTap = useCallback((row: DisplayRow) => {
-        addItem(row.originalItem, row.variantKey, row.price, row.variantLabel, row.sizeId);
+    const handleOptionAdd = useCallback((item: DisplayMenuItem, option: ItemOption) => {
+        addItem(item, option.variantKey, option.price, option.variantLabel, option.sizeId);
     }, [addItem]);
 
-    const handleRowMinus = useCallback((row: DisplayRow) => {
-        const cartKey = `${row.menuItemId}|${row.variantKey}`;
+    const handleItemTap = useCallback((item: DisplayMenuItem) => {
+        const options = getItemOptions(item);
+        if (options.length > 1) {
+            setOptionPickerItem(item);
+            return;
+        }
+        if (options.length === 1) {
+            handleOptionAdd(item, options[0]);
+        }
+    }, [handleOptionAdd]);
+
+    const handleSimpleItemMinus = useCallback((item: DisplayMenuItem) => {
+        const options = getItemOptions(item);
+        if (options.length !== 1) {
+            setOptionPickerItem(item);
+            return;
+        }
+        const cartKey = `${item.id}|${options[0].variantKey}`;
         removeItem(cartKey);
     }, [removeItem]);
 
-    const getCartQty = useCallback((row: DisplayRow): number => {
-        const cartKey = `${row.menuItemId}|${row.variantKey}`;
-        return cart.find(c => c.cartKey === cartKey)?.quantity ?? 0;
+    const getItemCartQty = useCallback((item: DisplayMenuItem): number => {
+        return cart
+            .filter(c => c.id === item.id)
+            .reduce((sum, c) => sum + c.quantity, 0);
     }, [cart]);
 
     // ── Place order handler ─────────────────────────────────────────────────
@@ -306,7 +320,8 @@ export default function NewOrderFlow() {
     // ── Main layout ─────────────────────────────────────────────────────────
 
     return (
-        <div className="flex h-screen bg-neutral-light overflow-hidden">
+        <>
+            <div className="flex h-screen bg-neutral-light overflow-hidden">
 
             {/* ── Center: customer info + menu ───────────────────────────── */}
             <div className="flex flex-col flex-1 min-w-0 border-r border-neutral-gray/15">
@@ -381,35 +396,41 @@ export default function NewOrderFlow() {
                             <SpinnerIcon className="w-10 h-10 mb-3 animate-spin opacity-60" />
                             <p className="text-sm">Loading menu…</p>
                         </div>
-                    ) : filteredRows.length === 0 ? (
+                    ) : filteredItems.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16 text-neutral-gray">
                             <MagnifyingGlassIcon className="w-10 h-10 mb-3 opacity-40" />
                             <p className="text-sm">No items found</p>
                         </div>
                     ) : (
                         <div className="divide-y divide-neutral-gray/10">
-                            {filteredRows.map(row => {
-                                const qty = getCartQty(row);
+                            {filteredItems.map(item => {
+                                const qty = getItemCartQty(item);
+                                const options = getItemOptions(item);
+                                const hasOptions = options.length > 1;
+                                const minPrice = options.length > 0 ? Math.min(...options.map(option => option.price)) : 0;
                                 return (
-                                    <div key={row.key} className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${qty > 0 ? 'bg-primary/5' : 'hover:bg-neutral-gray/5'}`}>
-                                        <div onClick={() => handleRowTap(row)} className="flex-1 min-w-0">
+                                    <div key={item.id} className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${qty > 0 ? 'bg-primary/5' : 'hover:bg-neutral-gray/5'}`}>
+                                        <div onClick={() => handleItemTap(item)} className="flex-1 min-w-0">
                                             <p className={`text-sm font-semibold truncate ${qty > 0 ? 'text-primary' : 'text-text-dark'}`}>
-                                                {row.name}
-                                                {row.originalItem.tags?.some(t => t.slug === 'new') && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-primary text-brown font-bold align-middle">NEW</span>}
+                                                {item.name}
+                                                {item.tags?.some(t => t.slug === 'new') && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-primary text-brown font-bold align-middle">NEW</span>}
                                             </p>
-                                            <p className="text-xs text-neutral-gray">{formatGHS(row.price)}</p>
+                                            <p className="text-xs text-neutral-gray">
+                                                {formatGHS(minPrice)}
+                                                {hasOptions && ' · tap to choose option'}
+                                            </p>
                                         </div>
-                                        {qty > 0 ? (
+                                        {qty > 0 && !hasOptions ? (
                                             <div className="flex items-center gap-1.5 shrink-0">
                                                 <button
-                                                    onClick={() => handleRowMinus(row)}
+                                                    onClick={() => handleSimpleItemMinus(item)}
                                                     className="w-7 h-7 rounded-lg bg-neutral-gray/15 flex items-center justify-center text-text-dark hover:bg-neutral-gray/25 active:scale-95 transition-all"
                                                 >
                                                     <MinusIcon className="w-3.5 h-3.5" />
                                                 </button>
                                                 <span className="w-5 text-center text-sm font-bold text-text-dark">{qty}</span>
                                                 <button
-                                                    onClick={() => handleRowTap(row)}
+                                                    onClick={() => handleItemTap(item)}
                                                     className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-brown hover:bg-primary-hover active:scale-95 transition-all"
                                                 >
                                                     <PlusIcon className="w-3.5 h-3.5" />
@@ -417,10 +438,10 @@ export default function NewOrderFlow() {
                                             </div>
                                         ) : (
                                             <button
-                                                onClick={() => handleRowTap(row)}
+                                                onClick={() => handleItemTap(item)}
                                                 className="shrink-0 w-8 h-8 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary flex items-center justify-center active:scale-95 transition-all"
                                             >
-                                                <PlusIcon className="w-4 h-4" />
+                                                {hasOptions ? <span className="text-[10px] font-semibold">Pick</span> : <PlusIcon className="w-4 h-4" />}
                                             </button>
                                         )}
                                     </div>
@@ -699,6 +720,67 @@ export default function NewOrderFlow() {
                 </div>
             </div>
 
+            </div>
+
+            {optionPickerItem && (
+                <OptionPickerModal
+                    item={optionPickerItem}
+                    cart={cart}
+                    onClose={() => setOptionPickerItem(null)}
+                    onAdd={handleOptionAdd}
+                />
+            )}
+        </>
+    );
+}
+
+interface OptionPickerModalProps {
+    item: DisplayMenuItem;
+    cart: ReturnType<typeof useNewOrder>['cart'];
+    onClose: () => void;
+    onAdd: (item: DisplayMenuItem, option: ItemOption) => void;
+}
+
+function OptionPickerModal({ item, cart, onClose, onAdd }: OptionPickerModalProps) {
+    const options = getItemOptions(item);
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40" onClick={onClose}>
+            <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="px-5 py-4 border-b border-neutral-gray/20 flex items-center justify-between">
+                    <div>
+                        <p className="text-xs text-neutral-gray">Choose option</p>
+                        <h3 className="text-lg font-semibold text-text-dark">{item.name}</h3>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-neutral-gray hover:bg-neutral-gray/10"
+                    >
+                        <XIcon className="w-4 h-4" />
+                    </button>
+                </div>
+                <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
+                    {options.map(option => {
+                        const cartKey = `${item.id}|${option.variantKey}`;
+                        const qty = cart.find(cartItem => cartItem.cartKey === cartKey)?.quantity ?? 0;
+                        return (
+                            <button
+                                key={option.key}
+                                onClick={() => onAdd(item, option)}
+                                className="w-full px-4 py-3 rounded-xl border border-neutral-gray/20 hover:border-primary/50 hover:bg-primary/5 transition-colors flex items-center justify-between text-left"
+                            >
+                                <div>
+                                    <p className="font-medium text-text-dark">{option.label}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-semibold text-primary">{formatGHS(option.price)}</p>
+                                    {qty > 0 && <p className="text-xs text-neutral-gray">In cart: {qty}</p>}
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
         </div>
     );
 }
