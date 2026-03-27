@@ -92,7 +92,7 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
   return {
     id: String(api.id),
     name: api.user.name,
-    email: api.user.email,
+    email: api.user.email ?? '',
     phone: api.user.phone ?? '',
     role: staffRole,
     branch: branchDisplay,
