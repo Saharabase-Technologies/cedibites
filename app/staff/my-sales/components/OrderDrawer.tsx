@@ -177,12 +177,6 @@ export default function OrderDrawer({ order, onClose }: OrderDrawerProps) {
                                             <span className="text-text-light text-xs font-body">{formatGHS(order.deliveryFee)}</span>
                                         </div>
                                     )}
-                                    {order.tax > 0 && (
-                                        <div className="flex justify-between items-baseline gap-2">
-                                            <span className="text-neutral-gray text-xs font-body">Tax</span>
-                                            <span className="text-text-light text-xs font-body">{formatGHS(order.tax)}</span>
-                                        </div>
-                                    )}
                                     <div className="border-t border-brown-light/20 pt-2 mt-0.5 flex justify-between items-baseline gap-2">
                                         <span className="text-text-light text-sm font-bold font-body">Total</span>
                                         <span className={`text-sm font-bold font-body ${isCancelled ? 'line-through text-neutral-gray' : 'text-primary'}`}>

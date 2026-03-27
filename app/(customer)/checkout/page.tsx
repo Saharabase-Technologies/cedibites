@@ -30,9 +30,6 @@ type BranchSheetView = 'list' | 'conflict';
 interface ContactDetails { name: string; phone: string; address: string; note: string; }
 
 const DELIVERY_FEE = 0; // Delivery fees temporarily disabled
-// Ghana GRA combined rate: VAT 15% + NHIL 2.5% + GETFund 2.5% = 20%, tax-inclusive
-// Display estimate only — actual totals are calculated by the backend
-const TAX_RATE = 0.20;
 const formatPrice = (p: number) => `₵${p.toFixed(2)}`;
 
 // ─── Input Field ──────────────────────────────────────────────────────────────
@@ -360,7 +357,6 @@ function StepIndicator({ current }: { current: Step }) {
 function OrderSummary({ orderType }: { orderType: OrderType }) {
     const { displayItems: items, subtotal } = useCart();
     const { selectedBranch } = useBranch();
-    const tax = subtotal * (TAX_RATE / (1 + TAX_RATE));
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
     const total = subtotal + delivery;
     return (
@@ -387,7 +383,6 @@ function OrderSummary({ orderType }: { orderType: OrderType }) {
             <div className="flex flex-col gap-2 text-sm">
                 <div className="flex justify-between"><span className="text-neutral-gray">Subtotal</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(subtotal)}</span></div>
                 <div className="flex justify-between"><span className="text-neutral-gray">Delivery Fee</span><span className="font-semibold text-text-dark dark:text-text-light">{orderType === 'delivery' ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-gray">Tax (incl. GRA 20%)</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(tax)}</span></div>
             </div>
             <div className="h-px bg-neutral-gray/10" />
             <div className="flex justify-between items-center">
@@ -500,7 +495,6 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
     const { subtotal } = useCart();
     const { selectedBranch } = useBranch();
     const [branchSheetOpen, setBranchSheetOpen] = useState(false);
-    const tax = subtotal * (TAX_RATE / (1 + TAX_RATE));
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
     const total = subtotal + delivery;
 

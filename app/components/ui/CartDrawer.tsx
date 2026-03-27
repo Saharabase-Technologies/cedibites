@@ -18,7 +18,6 @@ const formatPrice = (p: number | string | null | undefined) => {
     const n = typeof p === 'number' ? p : Number(p);
     return `₵${Number.isNaN(n) ? '0.00' : n.toFixed(2)}`;
 };
-const TAX_RATE = 0.025;
 
 type DrawerView = 'cart' | 'branch-select' | 'branch-conflict';
 
@@ -33,8 +32,7 @@ export default function CartDrawer() {
     const [pendingBranch, setPendingBranch] = useState<Branch | null>(null);
     const [conflictResult, setConflictResult] = useState<{ available: CartItem[]; unavailable: CartItem[] } | null>(null);
 
-    const tax = subtotal * TAX_RATE;
-    const total = subtotal + tax;
+    const total = subtotal;
 
     // Reset to cart view when drawer closes
     useEffect(() => {
@@ -172,10 +170,6 @@ export default function CartDrawer() {
                                     <div className="flex items-center justify-between text-sm">
                                         <span className="text-neutral-gray">Subtotal</span>
                                         <span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(subtotal)}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-neutral-gray">Tax (2.5%)</span>
-                                        <span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(tax)}</span>
                                     </div>
                                     <div className="h-px bg-neutral-gray/15 my-1" />
                                     <div className="flex items-center justify-between">

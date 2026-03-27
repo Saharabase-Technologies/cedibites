@@ -99,13 +99,6 @@ export default function OrderDetails({ order }: OrderDetailsProps) {
                             </div>
                         )}
 
-                        <div className="flex items-center justify-between text-sm">
-                            <span className="text-neutral-gray">Tax</span>
-                            <span className="text-text-dark dark:text-text-light">
-                                {formatPrice(order.tax)}
-                            </span>
-                        </div>
-
                         <div className="flex items-center justify-between pt-2 border-t border-neutral-gray/10">
                             <span className="font-bold text-text-dark dark:text-text-light">
                                 Total

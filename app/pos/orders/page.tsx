@@ -27,6 +27,9 @@ import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
 
 function formatOrderTime(placedAt: number): string {
+  if (!placedAt) {
+    return '—';
+  }
   const d = new Date(placedAt);
   return d.toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit', hour12: true });
 }

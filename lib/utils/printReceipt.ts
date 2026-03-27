@@ -38,13 +38,6 @@ function receiptHTML(order: Order, branch: ReceiptBranch): string {
   }).join('');
 
   const subtotal = order.subtotal ?? order.total;
-  // Prices are tax-inclusive; back-calculate the included tax amounts.
-  // Ghana GRA: VAT 15% + NHIL 2.5% + GETFund 2.5% = 20% total
-  // Included tax = price × 20/120
-  const includedTax = order.tax ?? subtotal * (20 / 120);
-  const vatAmount     = includedTax * (15 / 20);
-  const nhilAmount    = includedTax * (2.5 / 20);
-  const getFundAmount = includedTax * (2.5 / 20);
   const deliveryFee = order.deliveryFee ?? 0;
   const discount = order.discount ?? 0;
   const total = order.total;
@@ -127,7 +120,7 @@ function receiptHTML(order: Order, branch: ReceiptBranch): string {
 <body>
 
   <div class="center brand">CediBites</div>
-  <div class="center invoice-title">TAX INVOICE</div>
+  <div class="center invoice-title">RECEIPT</div>
   <div class="center branch-info">${branch.name}</div>
   ${branch.address ? `<div class="center branch-info">${branch.address}</div>` : ''}
   ${branch.phone ? `<div class="center branch-info">Phone: ${branch.phone}</div>` : ''}
@@ -187,18 +180,6 @@ function receiptHTML(order: Order, branch: ReceiptBranch): string {
     <tr class="grand-total">
       <td colspan="3">TOTAL</td>
       <td class="amount">${total.toFixed(2)}</td>
-    </tr>
-    <tr>
-      <td colspan="3" style="padding-top:4px;font-size:10px;">Incl. VAT (15%)</td>
-      <td class="amount" style="font-size:10px;">${vatAmount.toFixed(2)}</td>
-    </tr>
-    <tr>
-      <td colspan="3" style="font-size:10px;">Incl. NHIL (2.5%)</td>
-      <td class="amount" style="font-size:10px;">${nhilAmount.toFixed(2)}</td>
-    </tr>
-    <tr>
-      <td colspan="3" style="font-size:10px;">Incl. GETFund (2.5%)</td>
-      <td class="amount" style="font-size:10px;">${getFundAmount.toFixed(2)}</td>
     </tr>
     ${amountPaidRow}
     ${changeRow}
