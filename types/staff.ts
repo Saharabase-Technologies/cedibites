@@ -60,7 +60,7 @@ export function defaultPermissions(role: StaffRole): StaffPermissions {
             return { canPlaceOrders: false, canAdvanceOrders: false, canAccessPOS: false, canViewReports: true,  canManageMenu: false, canManageStaff: false, canManageShifts: false, canManageSettings: false, canViewMyShifts: false, canViewMySales: false };
         case 'call_center':
             return { canPlaceOrders: true,  canAdvanceOrders: false, canAccessPOS: false, canViewReports: false, canManageMenu: false, canManageStaff: false, canManageShifts: false, canManageSettings: false, canViewMyShifts: true,  canViewMySales: true  };
-        case 'employee':
+        case 'sales_staff':
             return { canPlaceOrders: true,  canAdvanceOrders: true,  canAccessPOS: true,  canViewReports: false, canManageMenu: false, canManageStaff: false, canManageShifts: false, canManageSettings: false, canViewMyShifts: true,  canViewMySales: true  };
         case 'kitchen':
         case 'rider':
@@ -75,7 +75,7 @@ export function roleDisplayName(role: StaffRole): string {
         branch_partner: 'Branch Partner',
         manager:        'Branch Manager',
         call_center:    'Call Center',
-        employee:       'Employee',
+        sales_staff:    'Sales Staff',
         kitchen:        'Kitchen Staff',
         rider:          'Rider',
     };

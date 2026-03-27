@@ -46,7 +46,7 @@ const ROLE_STYLES: Record<StaffRole, string> = {
     branch_partner: 'bg-purple-100 text-purple-700',
     manager:        'bg-secondary/10 text-secondary',
     call_center:    'bg-info/10 text-info',
-    employee:       'bg-neutral-200 text-neutral-700',
+    sales_staff:    'bg-neutral-200 text-neutral-700',
     kitchen:        'bg-warning/10 text-warning',
     rider:          'bg-secondary/15 text-secondary',
 };
@@ -212,11 +212,11 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
     // Create a dynamic blank form that uses the first available branch
     const createBlankForm = (): StaffFormState => ({
         name: '', phone: '', email: '', password: '', passwordConfirm: '',
-        role: 'call_center',
+        role: 'sales_staff',
         branch: ALL_BRANCHES[0] || '',
         employmentStatus: 'active',
         systemAccess: 'enabled',
-        permissions: defaultPermissions('call_center'),
+        permissions: defaultPermissions('sales_staff'),
         forcePasswordReset: false,
         ssnit: '', ghanaCard: '', tinNumber: '',
         dateOfBirth: '', nationality: 'Ghanaian',
@@ -244,11 +244,12 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
             'branch_partner': 'branch_partner',
             'manager': 'manager',
             'call_center': 'call_center',
+            'sales_staff': 'sales_staff',
             'kitchen': 'kitchen',
             'rider': 'rider',
-            'employee': 'call_center', // Map legacy employee to call_center
+            'employee': 'sales_staff', // Map legacy employee to sales_staff
         };
-        return mapping[dbRoleName] ?? 'call_center';
+        return mapping[dbRoleName] ?? 'sales_staff';
     };
 
     // Convert StaffRole to database role name
@@ -259,17 +260,20 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
             'branch_partner': 'branch_partner',
             'manager': 'manager',
             'call_center': 'call_center',
-            'employee': 'employee',
+            'sales_staff': 'sales_staff',
             'kitchen': 'kitchen',
             'rider': 'rider',
         };
-        return mapping[staffRole] ?? 'call_center';
+        return mapping[staffRole] ?? 'sales_staff';
     };
 
     // Get available roles for the dropdown (filter to only show roles that map to valid StaffRole)
     const availableRoles = roles.filter(role => {
+        if (role.name === 'employee') {
+            return false;
+        }
         const staffRole = dbRoleToStaffRole(role.name);
-        return ['super_admin', 'branch_partner', 'manager', 'call_center', 'kitchen', 'rider'].includes(staffRole);
+        return ['super_admin', 'branch_partner', 'manager', 'call_center', 'sales_staff', 'kitchen', 'rider'].includes(staffRole);
     });
 
     // Map database permissions to frontend permission structure

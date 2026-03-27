@@ -159,7 +159,7 @@ export interface KanbanColumn {
 
 // ─── User roles for permissions ──────────────────────────────────────────────
 
-export type StaffRole = 'admin' | 'super_admin' | 'branch_partner' | 'manager' | 'call_center' | 'employee' | 'kitchen' | 'rider';
+export type StaffRole = 'admin' | 'super_admin' | 'branch_partner' | 'manager' | 'call_center' | 'sales_staff' | 'kitchen' | 'rider';
 export type UserRole = 'call_center' | 'manager' | 'super_admin' | 'branch_partner';
 
 // ─── Filter type (for service layer) ─────────────────────────────────────────

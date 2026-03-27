@@ -185,7 +185,7 @@ export function roleHomeRoute(role: StaffRole | string): string {
     if (role === 'super_admin' || role === 'admin') return '/admin/dashboard';
     if (role === 'manager') return '/staff/manager/dashboard';
     if (role === 'branch_partner') return '/partner/dashboard';
-    if (role === 'call_center' || role === 'employee') return '/staff/sales/dashboard';
+    if (role === 'call_center' || role === 'sales_staff') return '/staff/sales/dashboard';
     return '/staff/login';
 }
 

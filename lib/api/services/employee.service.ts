@@ -57,12 +57,13 @@ function mapApiRoleToStaffRole(roleName: string): StaffRole {
     branch_partner: 'branch_partner',
     manager: 'manager',
     call_center: 'call_center',
+    sales_staff: 'sales_staff',
     kitchen: 'kitchen',
     rider: 'rider',
-    employee: 'call_center', // legacy employee role maps to call_center
+    employee: 'sales_staff', // legacy employee role maps to sales_staff
   };
   const lower = roleName.toLowerCase().replace(/\s+/g, '_');
-  return (map[lower] ?? 'call_center') as StaffRole;
+  return (map[lower] ?? 'sales_staff') as StaffRole;
 }
 
 function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
@@ -119,7 +120,7 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
 }
 
 /** Backend role enum: all available roles */
-export type BackendRole = 'super_admin' | 'admin' | 'branch_partner' | 'manager' | 'call_center' | 'kitchen' | 'rider' | 'employee';
+export type BackendRole = 'super_admin' | 'admin' | 'branch_partner' | 'manager' | 'call_center' | 'sales_staff' | 'kitchen' | 'rider' | 'employee';
 
 /** Map frontend StaffRole to backend role for API */
 export function staffRoleToBackendRole(role: StaffRole): BackendRole {
@@ -129,11 +130,11 @@ export function staffRoleToBackendRole(role: StaffRole): BackendRole {
     branch_partner: 'branch_partner',
     manager: 'manager',
     call_center: 'call_center',
-    employee: 'employee',
+    sales_staff: 'sales_staff',
     kitchen: 'kitchen',
     rider: 'rider',
   };
-  return map[role] ?? 'call_center';
+  return map[role] ?? 'sales_staff';
 }
 
 /** Map frontend permissions to backend permission names */
