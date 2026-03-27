@@ -51,8 +51,12 @@ const ROLE_STYLES: Record<StaffRole, string> = {
     rider:          'bg-secondary/15 text-secondary',
 };
 
-function initials(name: string) {
-    return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+function initials(name?: string | null) {
+    const safeName = (name ?? '').trim();
+    if (!safeName) {
+        return 'NA';
+    }
+    return safeName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 }
 
 function branchDisplay(branch: string | string[]) {

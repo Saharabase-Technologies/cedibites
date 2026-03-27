@@ -67,7 +67,7 @@ function mapApiRoleToStaffRole(roleName: string): StaffRole {
 }
 
 function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
-  const role = api.user.roles?.[0] ?? 'call_center';
+  const role = api.user?.roles?.[0] ?? 'sales_staff';
   const staffRole = mapApiRoleToStaffRole(role);
   const status = api.status === 'active' ? 'active' : api.status === 'archived' ? 'archived' : 'inactive';
   const branchIds: string[] = (api.branch_ids ?? api.branches?.map((b) => String(b.id)) ?? (api.branch ? [String(api.branch.id)] : [])).map((id) => String(id));
@@ -91,9 +91,9 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
 
   return {
     id: String(api.id),
-    name: api.user.name,
-    email: api.user.email ?? '',
-    phone: api.user.phone ?? '',
+    name: api.user?.name ?? `[Deleted User #${api.user_id}]`,
+    email: api.user?.email ?? '',
+    phone: api.user?.phone ?? '',
     role: staffRole,
     branch: branchDisplay,
     branchIds,
