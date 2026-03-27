@@ -114,6 +114,14 @@ function BranchModal({
     employees: Array<{ id: string; name: string }>;
 }) {
     const isNew = !branch;
+    const getEmployeeNameById = (id: string | null): string => {
+        if (!id) {
+            return '—';
+        }
+
+        return employees.find((employee) => employee.id === id)?.name ?? '—';
+    };
+
     const [form, setForm] = useState<DisplayBranch>(
         branch ?? {
             id: `branch-${Date.now()}`,
@@ -123,7 +131,8 @@ function BranchModal({
             email: '',
             status: 'active',
             openStatus: 'open',
-            manager: employees[0]?.name ?? '',
+            managerId: null,
+            manager: '—',
             ordersToday: 0,
             revenueToday: 0,
             deliveryRadius: 5,
@@ -231,15 +240,19 @@ function BranchModal({
                             <div>
                                 <label className="block text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1.5">Assigned Manager</label>
                                 <select
-                                    value={form.manager}
-                                    onChange={e => field('manager', e.target.value)}
+                                    value={form.managerId ?? ''}
+                                    onChange={e => {
+                                        const managerId = e.target.value || null;
+                                        setForm((current) => ({
+                                            ...current,
+                                            managerId,
+                                            manager: getEmployeeNameById(managerId),
+                                        }));
+                                    }}
                                     className="w-full px-3 py-2.5 bg-neutral-light border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40"
                                 >
-                                    {employees.length === 0 ? (
-                                        <option value="">No employees available</option>
-                                    ) : (
-                                        employees.map(emp => <option key={emp.id} value={emp.name}>{emp.name}</option>)
-                                    )}
+                                    <option value="">No manager</option>
+                                    {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -413,9 +426,7 @@ export default function AdminBranchesPage() {
 
     async function saveBranch(b: DisplayBranch) {
         try {
-            // Find the selected manager's employee ID
-            const selectedManager = employeeOptions.find(emp => emp.name === b.manager);
-            const managerId = selectedManager?.id;
+            const managerId = b.managerId;
 
             // Map DisplayBranch to normalized backend structure
             const payload: any = {
@@ -430,7 +441,7 @@ export default function AdminBranchesPage() {
                 longitude: -0.1870,
                 
                 // Include manager_id if a manager is selected
-                ...(managerId && { manager_id: Number(managerId) }),
+                ...(managerId !== null && managerId !== '' && { manager_id: Number(managerId) }),
                 
                 // Map operating hours: { Mon: {...}, Tue: {...} } → { monday: {...}, tuesday: {...} }
                 operating_hours: mapOperatingHours(b.hours),

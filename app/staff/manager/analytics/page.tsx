@@ -179,26 +179,14 @@ function WeeklyRevenue({
 
 // ─── Peak hours heatmap ───────────────────────────────────────────────────────
 
-const HEATMAP_FALLBACK: Record<string, number[]> = {
-    Mon: [2,  4,  6,  5,  8, 14, 12,  9,  7,  6,  8, 10,  9,  7,  5, 2],
-    Tue: [1,  3,  5,  6,  9, 16, 14, 10,  8,  5,  7, 11,  8,  6,  4, 1],
-    Wed: [0,  2,  4,  4,  7, 12, 11,  8,  6,  4,  6,  9,  7,  5,  3, 1],
-    Thu: [2,  5,  7,  6, 10, 18, 15, 11,  9,  7,  9, 12, 10,  8,  5, 2],
-    Fri: [3,  5,  8,  7, 11, 17, 16, 12, 10,  8, 10, 13, 11,  9,  6, 3],
-    Sat: [4,  7, 10,  9, 14, 22, 20, 15, 13, 11, 14, 18, 16, 12,  8, 4],
-    Sun: [1,  3,  5,  4,  6, 10,  9,  7,  5,  4,  5,  7,  6,  4,  2, 1],
-};
-
 function PeakHoursHeatmap({ ordersByHour }: { ordersByHour?: Array<{ hour: number; count: number }> }) {
-    const [selectedDay, setSelectedDay] = useState('Sat');
     const data = useMemo(() => {
-        if (ordersByHour?.length) {
-            const byHour: Record<number, number> = {};
-            for (const { hour, count } of ordersByHour) byHour[hour] = (byHour[hour] ?? 0) + count;
-            return HOURS.map((_, i) => byHour[7 + i] ?? 0);
+        const byHour: Record<number, number> = {};
+        for (const { hour, count } of ordersByHour ?? []) {
+            byHour[hour] = (byHour[hour] ?? 0) + count;
         }
-        return HEATMAP_FALLBACK[selectedDay] ?? HEATMAP_FALLBACK.Sat;
-    }, [selectedDay, ordersByHour]);
+        return HOURS.map((_, i) => byHour[7 + i] ?? 0);
+    }, [ordersByHour]);
     const max  = Math.max(...data, 1);
 
     function cellBg(val: number) {
@@ -213,22 +201,6 @@ function PeakHoursHeatmap({ ordersByHour }: { ordersByHour?: Array<{ hour: numbe
     return (
         <Card>
             <SectionHeader title="Peak Hours Heatmap" sub="Orders by hour — darker = busier" />
-            <div className="flex gap-1.5 mb-3 flex-wrap">
-                {DAYS.map(d => (
-                    <button
-                        key={d}
-                        type="button"
-                        onClick={() => setSelectedDay(d)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold font-body transition-all cursor-pointer ${
-                            selectedDay === d
-                                ? 'bg-primary text-brand-darker'
-                                : 'bg-neutral-gray/10 text-neutral-gray hover:text-text-dark'
-                        }`}
-                    >
-                        {d}
-                    </button>
-                ))}
-            </div>
             <div className="flex gap-1 items-end">
                 {HOURS.map((h, i) => (
                     <div key={h} className="flex-1 flex flex-col items-center gap-1">
@@ -265,60 +237,38 @@ function PeakHoursHeatmap({ ordersByHour }: { ordersByHour?: Array<{ hour: numbe
 function PrepTimeTrend({ avgPrepTime }: { avgPrepTime?: number }) {
     const TARGET = 12;
     const MAX    = 20;
-    
-    // Mock data for now since we don't have hourly prep time breakdown from API
-    const prepTimes = [
-        { label: '6AM',  mins: 9  },
-        { label: '8AM',  mins: 11 },
-        { label: '10AM', mins: 8  },
-        { label: '12PM', mins: 18 },
-        { label: '2PM',  mins: 14 },
-        { label: '4PM',  mins: 10 },
-        { label: 'Now',  mins: avgPrepTime ?? 13 },
-    ];
+    const currentPrepTime = avgPrepTime ?? 0;
+    const hasPrepData = avgPrepTime !== undefined && avgPrepTime > 0;
     
     return (
         <Card>
-            <SectionHeader title="Avg. Prep Time Today" sub={`Target: ${TARGET} mins — red = over`} />
-            <div className="flex items-end gap-2" style={{ height: 80 }}>
-                {prepTimes.map(({ label, mins }) => {
-                    const h     = Math.round((mins / MAX) * 72);
-                    const over  = mins > TARGET;
-                    const isNow = label === 'Now';
-                    return (
-                        <div key={label} className="flex-1 flex flex-col items-center gap-1">
-                            <span
-                                className="text-[10px] font-bold font-body"
-                                style={{ color: over ? '#d32f2f' : '#6c833f' }}
-                            >
-                                {mins}m
-                            </span>
-                            <div
-                                className="w-full rounded-sm"
-                                style={{
-                                    height: h,
-                                    background: isNow ? '#e49925' : over ? '#d32f2f' : '#6c833f',
-                                    opacity: isNow ? 1 : 0.8,
-                                    transition: 'height 0.3s ease',
-                                }}
-                            />
-                            <span
-                                className="text-[9px] font-body"
-                                style={{ color: isNow ? '#e49925' : '#8b7f70', fontWeight: isNow ? 700 : 400 }}
-                            >
-                                {label}
-                            </span>
-                        </div>
-                    );
-                })}
+            <SectionHeader title="Avg. Prep Time Today" sub={`Target: ${TARGET} mins`} />
+            <div className="flex items-end gap-4" style={{ height: 80 }}>
+                <div className="flex-1 flex flex-col items-center gap-1">
+                    <span
+                        className="text-[10px] font-bold font-body"
+                        style={{ color: currentPrepTime > TARGET ? '#d32f2f' : '#6c833f' }}
+                    >
+                        {Math.round(currentPrepTime)}m
+                    </span>
+                    <div
+                        className="w-full rounded-sm"
+                        style={{
+                            height: Math.round((Math.min(currentPrepTime, MAX) / MAX) * 72),
+                            background: currentPrepTime > TARGET ? '#d32f2f' : '#6c833f',
+                            transition: 'height 0.3s ease',
+                        }}
+                    />
+                    <span className="text-[9px] font-body text-primary font-bold">Current</span>
+                </div>
             </div>
             <div className="mt-3 px-3 py-2 bg-neutral-gray/10 rounded-xl flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
                 <p className="text-[11px] text-neutral-gray font-body">
-                    {avgPrepTime ? (
+                    {hasPrepData ? (
                         <>Current avg: <span className="text-text-dark font-semibold">{Math.round(avgPrepTime)} mins</span></>
                     ) : (
-                        <>Lunch rush (12PM) peaked at <span className="text-text-dark font-semibold">18 mins</span> — 6 mins over target</>
+                        <>No prep-time data yet for today.</>
                     )}
                 </p>
             </div>
@@ -383,20 +333,25 @@ function PaymentSplitCard({ methods }: { methods?: PaymentMethod[] }) {
 
 // ─── Fulfilment rate ──────────────────────────────────────────────────────────
 
-function FulfilmentRate() {
-    const onTime  = 91;
-    const delayed = 9;
+function FulfilmentRate({ ordersByStatus }: { ordersByStatus?: Record<string, number> }) {
+    const statusValues = Object.values(ordersByStatus ?? {});
+    const totalOrders = statusValues.reduce((sum, count) => sum + count, 0);
+    const cancelled = ordersByStatus?.cancelled ?? 0;
+    const fulfilled = Math.max(0, totalOrders - cancelled);
+    const onTime = totalOrders > 0 ? Math.round((fulfilled / totalOrders) * 100) : 0;
+    const delayed = totalOrders > 0 ? 100 - onTime : 0;
+
     return (
         <Card>
-            <SectionHeader title="Order Fulfilment Rate" sub="On-time vs delayed today" />
+            <SectionHeader title="Order Fulfilment Rate" sub="Fulfilled vs cancelled today" />
             <div className="flex justify-between items-end mb-4">
                 <div>
                     <p className="text-4xl font-bold font-body text-secondary leading-none">{onTime}%</p>
-                    <p className="text-neutral-gray text-xs font-body mt-1">On-time</p>
+                    <p className="text-neutral-gray text-xs font-body mt-1">Fulfilled</p>
                 </div>
                 <div className="text-right">
                     <p className="text-2xl font-bold font-body text-warning leading-none">{delayed}%</p>
-                    <p className="text-neutral-gray text-xs font-body mt-1">Delayed</p>
+                    <p className="text-neutral-gray text-xs font-body mt-1">Cancelled</p>
                 </div>
             </div>
             <div className="h-2 bg-neutral-gray/15 rounded-full overflow-hidden flex">
@@ -404,7 +359,7 @@ function FulfilmentRate() {
                 <div className="h-full bg-warning rounded-r-full" style={{ width: `${delayed}%` }} />
             </div>
             <p className="text-[11px] text-neutral-gray font-body mt-3">
-                <span className="text-text-dark font-semibold">22 of 24</span> orders fulfilled on time today
+                <span className="text-text-dark font-semibold">{fulfilled} of {totalOrders}</span> orders fulfilled today
             </p>
         </Card>
     );
@@ -472,43 +427,11 @@ function TopItemsCard({ items }: { items?: TopItem[] }) {
 // ─── Out of stock alerts ──────────────────────────────────────────────────────
 
 function OutOfStockCard() {
-    // Mock data - no backend endpoint available yet
-    const outOfStock = [
-        { name: 'Fried Yam',        times: 8, lastOOS: '11:42 AM' },
-        { name: 'Sobolo (Large)',   times: 5, lastOOS: '1:15 PM'  },
-        { name: 'Fufu & Light Soup', times: 3, lastOOS: '12:03 PM' },
-    ];
-    
     return (
         <Card className="flex-1 min-w-[220px]">
-            <SectionHeader title="Out-of-Stock Alerts" sub="Frequency today — action needed" />
-            <div className="flex flex-col gap-2.5">
-                {outOfStock.map(item => (
-                    <div
-                        key={item.name}
-                        className={`flex justify-between items-center px-3 py-2.5 rounded-xl border ${
-                            item.times >= 6
-                                ? 'bg-error/10 border-error/20'
-                                : 'bg-neutral-gray/10 border-brown-light/20'
-                        }`}
-                    >
-                        <div>
-                            <p className="text-xs font-semibold font-body text-text-dark">{item.name}</p>
-                            <p className="text-[10px] text-neutral-gray font-body mt-0.5">Last OOS: {item.lastOOS}</p>
-                        </div>
-                        <span
-                            className="text-lg font-extrabold font-body"
-                            style={{ color: item.times >= 6 ? '#d32f2f' : item.times >= 4 ? '#f9a61a' : '#8b7f70' }}
-                        >
-                            {item.times}×
-                        </span>
-                    </div>
-                ))}
-                <div className="px-3 py-2 bg-neutral-gray/10 rounded-xl">
-                    <p className="text-[11px] text-neutral-gray font-body">
-                        <span className="text-primary font-semibold">Tip:</span> Fried Yam runs out by 12PM — prep extra stock tomorrow
-                    </p>
-                </div>
+            <SectionHeader title="Out-of-Stock Alerts" sub="Live stock alert feed" />
+            <div className="text-center py-8 text-neutral-gray text-sm font-body">
+                No out-of-stock analytics endpoint yet.
             </div>
         </Card>
     );
@@ -620,6 +543,17 @@ export default function ManagerAnalyticsPage() {
     const todayRevenue  = weekRevenue[TODAY_IDX] ?? todaySales?.total_sales ?? 0;
     const lastSatRev    = lastWeekRevenue[TODAY_IDX] ?? 0;
     const revTrend      = lastSatRev > 0 ? Math.round(((todayRevenue - lastSatRev) / lastSatRev) * 100) : 0;
+    const todayOrders = todayOrderAnalytics?.total_orders ?? todaySales?.total_orders ?? 0;
+    const lastSatOrders = lastWeekSales?.sales_by_day?.find(d => ((new Date(d.date).getDay() + 6) % 7) === TODAY_IDX)?.orders ?? 0;
+    const ordersTrend = lastSatOrders > 0 ? Math.round(((todayOrders - lastSatOrders) / lastSatOrders) * 100) : 0;
+    const avgOrderValueToday = todaySales?.average_order_value ?? 0;
+    const lastWeekAvgOrderValue = lastWeekSales?.average_order_value ?? 0;
+    const avgOrderValueTrend = lastWeekAvgOrderValue > 0
+        ? Math.round(((avgOrderValueToday - lastWeekAvgOrderValue) / lastWeekAvgOrderValue) * 100)
+        : 0;
+    const fulfilmentRate = todayOrderAnalytics?.total_orders
+        ? Math.round((((todayOrderAnalytics.total_orders - (todayOrderAnalytics.orders_by_status?.cancelled ?? 0)) / todayOrderAnalytics.total_orders) * 100))
+        : 0;
 
     const orderRange = useMemo(() => getDateRangeForPeriod(period), [period]);
     const { orders: apiOrders, isLoading: ordersLoading } = useEmployeeOrders({
@@ -676,22 +610,22 @@ export default function ManagerAnalyticsPage() {
                     label="Revenue Today"
                     value={formatGHS(todayRevenue)}
                     trend={revTrend}
-                    trendLabel="vs last Sat"
+                    trendLabel="vs same day last week"
                     accent
                 />
                 <KpiCard
                     label="Orders Today"
-                    value={String(todayOrderAnalytics?.total_orders ?? todaySales?.total_orders ?? 0)}
-                    trend={0}
-                    trendLabel="vs last Sat"
+                    value={String(todayOrders)}
+                    trend={ordersTrend}
+                    trendLabel="vs same day last week"
                 />
                 <KpiCard
                     label="Avg. Order Value"
-                    value={formatGHS(todaySales?.average_order_value ?? 0)}
-                    trend={0}
-                    trendLabel="vs last Sat"
+                    value={formatGHS(avgOrderValueToday)}
+                    trend={avgOrderValueTrend}
+                    trendLabel="vs last week avg"
                 />
-                <KpiCard label="Fulfilment Rate" value="—" trend={0} trendLabel="(API pending)" />
+                <KpiCard label="Fulfilment Rate" value={`${fulfilmentRate}%`} />
             </div>
 
             {/* ══ ROW 2 — Weekly revenue + heatmap ════════════════════════════ */}
@@ -708,7 +642,7 @@ export default function ManagerAnalyticsPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                 <PrepTimeTrend avgPrepTime={todayOrderAnalytics?.average_prep_time} />
                 <PaymentSplitCard methods={paymentMethods} />
-                <FulfilmentRate />
+                <FulfilmentRate ordersByStatus={todayOrderAnalytics?.orders_by_status} />
             </div>
 
             {/* ══ ROW 4 — Top items + OOS ══════════════════════════════════════ */}

@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useAnalytics, useOrderSourceAnalytics, useTopItemsAnalytics, useBottomItemsAnalytics, useCategoryRevenueAnalytics, useBranchPerformanceAnalytics, useDeliveryPickupAnalytics, usePaymentMethodAnalytics } from '@/lib/api/hooks/useAnalytics';
+import { useSearchParams } from 'next/navigation';
+import { toast } from '@/lib/utils/toast';
+import { exportElementToPdf } from '@/lib/utils/exportPdf';
 import {
     CalendarIcon,
     CurrencyCircleDollarIcon,
@@ -521,31 +524,71 @@ const PERIODS: { key: Period; label: string }[] = [
 ];
 
 export default function AdminAnalyticsPage() {
+    const exportRef = useRef<HTMLDivElement>(null);
+    const searchParams = useSearchParams();
     const [period, setPeriod] = useState<Period>('week');
-    const { sales, orders, customers, isLoading } = useAnalytics(period);
+    const [isExporting, setIsExporting] = useState(false);
+    const [customDateFrom, setCustomDateFrom] = useState<string>(() => new Date().toISOString().slice(0, 10));
+    const [customDateTo, setCustomDateTo] = useState<string>(() => new Date().toISOString().slice(0, 10));
+    const customRange = period === 'custom'
+        ? { date_from: customDateFrom, date_to: customDateTo }
+        : undefined;
+    const branchId = useMemo(() => {
+        const raw = searchParams.get('branch');
+        if (!raw) {
+            return undefined;
+        }
+
+        const parsed = Number(raw);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+    }, [searchParams]);
+
+    const { sales, orders, customers, isLoading } = useAnalytics(period, branchId, customRange);
     
     // Additional analytics hooks
-    const { data: orderSources } = useOrderSourceAnalytics(period);
-    const { data: topItems } = useTopItemsAnalytics(period, undefined, 10);
-    const { data: bottomItems } = useBottomItemsAnalytics(period, undefined, 3);
-    const { data: categoryRevenue } = useCategoryRevenueAnalytics(period);
-    const { data: branchPerformance } = useBranchPerformanceAnalytics(period);
-    const { data: deliveryPickup } = useDeliveryPickupAnalytics(period);
-    const { data: paymentMethods } = usePaymentMethodAnalytics(period);
+    const { data: orderSources } = useOrderSourceAnalytics(period, branchId, customRange);
+    const { data: topItems } = useTopItemsAnalytics(period, branchId, 10, customRange);
+    const { data: bottomItems } = useBottomItemsAnalytics(period, branchId, 3, customRange);
+    const { data: categoryRevenue } = useCategoryRevenueAnalytics(period, branchId, customRange);
+    const { data: branchPerformance } = useBranchPerformanceAnalytics(period, branchId, customRange);
+    const { data: deliveryPickup } = useDeliveryPickupAnalytics(period, branchId, customRange);
+    const { data: paymentMethods } = usePaymentMethodAnalytics(period, branchId, customRange);
 
     const fulfilmentPct = useMemo(() => {
-        if (!orders?.orders_by_status || !orders?.total_orders) return 91;
+        if (!orders?.orders_by_status || !orders?.total_orders) return 0;
         const completed = (orders.orders_by_status['completed'] ?? 0) + (orders.orders_by_status['delivered'] ?? 0);
-        return orders.total_orders > 0 ? Math.round((completed / orders.total_orders) * 100) : 91;
+        return orders.total_orders > 0 ? Math.round((completed / orders.total_orders) * 100) : 0;
     }, [orders]);
     const cancelledPct = useMemo(() => {
-        if (!orders?.orders_by_status || !orders?.total_orders) return 5.3;
+        if (!orders?.orders_by_status || !orders?.total_orders) return 0;
         const c = orders.orders_by_status['cancelled'] ?? 0;
-        return orders.total_orders > 0 ? Math.round((c / orders.total_orders) * 1000) / 10 : 5.3;
+        return orders.total_orders > 0 ? Math.round((c / orders.total_orders) * 1000) / 10 : 0;
     }, [orders]);
 
+    async function handleExportPdf(): Promise<void> {
+        if (!exportRef.current || isExporting) {
+            return;
+        }
+
+        setIsExporting(true);
+        try {
+            const branchPart = branchId ? `branch-${branchId}` : 'all-branches';
+            const filename = `analytics-${period}-${branchPart}-${new Date().toISOString().slice(0, 10)}.pdf`;
+            await exportElementToPdf({
+                element: exportRef.current,
+                filename,
+            });
+            toast.success('Analytics report exported as PDF');
+        } catch (error) {
+            console.error('Failed to export analytics PDF:', error);
+            toast.error('Failed to export analytics report');
+        } finally {
+            setIsExporting(false);
+        }
+    }
+
     return (
-        <div className="px-4 md:px-8 py-6 max-w-6xl mx-auto">
+        <div ref={exportRef} className="px-4 md:px-8 py-6 max-w-6xl mx-auto">
 
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
@@ -553,12 +596,18 @@ export default function AdminAnalyticsPage() {
                     <h1 className="text-text-dark text-2xl font-bold font-body">Analytics</h1>
                     <p className="text-neutral-gray text-sm font-body mt-0.5 flex items-center gap-1.5">
                         <CalendarIcon size={13} weight="fill" />
-                        All Branches · Admin View
+                        {branchId ? `Branch #${branchId} · Admin View` : 'All Branches · Admin View'}
                     </p>
                 </div>
-                <button type="button" className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer shrink-0">
+                <button
+                    type="button"
+                    onClick={() => void handleExportPdf()}
+                    disabled={isExporting}
+                    data-export-ignore
+                    className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
                     <DownloadSimpleIcon size={15} weight="bold" className="text-primary" />
-                    Export Report
+                    {isExporting ? 'Exporting…' : 'Export PDF'}
                 </button>
             </div>
 
@@ -571,6 +620,22 @@ export default function AdminAnalyticsPage() {
                     </button>
                 ))}
             </div>
+            {period === 'custom' && (
+                <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                    <input
+                        type="date"
+                        value={customDateFrom}
+                        onChange={(event) => setCustomDateFrom(event.target.value)}
+                        className="px-3 py-2 rounded-xl border border-[#f0e8d8] bg-neutral-card text-sm font-body text-text-dark focus:outline-none focus:border-primary/40"
+                    />
+                    <input
+                        type="date"
+                        value={customDateTo}
+                        onChange={(event) => setCustomDateTo(event.target.value)}
+                        className="px-3 py-2 rounded-xl border border-[#f0e8d8] bg-neutral-card text-sm font-body text-text-dark focus:outline-none focus:border-primary/40"
+                    />
+                </div>
+            )}
 
             {/* KPI row */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
@@ -598,7 +663,7 @@ export default function AdminAnalyticsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                 <TopItemsCard items={topItems?.slice(0, 5)} title="Top 5 Items by Revenue" />
                 <div className="flex flex-col gap-3">
-                    <TopItemsCard items={bottomItems?.map(i => ({ ...i, trend: -15 }))} title="Slow Movers (Last 7 Days)" />
+                    <TopItemsCard items={bottomItems} title="Slow Movers (Last 7 Days)" />
                 </div>
             </div>
 

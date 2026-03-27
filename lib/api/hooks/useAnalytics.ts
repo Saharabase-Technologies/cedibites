@@ -16,11 +16,14 @@ import {
 
 export type AnalyticsPeriod = 'today' | 'week' | 'month' | '30d' | '90d' | 'custom';
 
-function getDateRange(period: AnalyticsPeriod): { date_from: string; date_to: string } {
+interface CustomRange {
+  date_from?: string;
+  date_to?: string;
+}
+
+function getDateRange(period: AnalyticsPeriod, customRange?: CustomRange): { date_from: string; date_to: string } {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
 
   switch (period) {
     case 'today':
@@ -44,13 +47,19 @@ function getDateRange(period: AnalyticsPeriod): { date_from: string; date_to: st
       d90.setDate(d90.getDate() - 90);
       return { date_from: d90.toISOString().slice(0, 10), date_to: today };
     }
+    case 'custom': {
+      return {
+        date_from: customRange?.date_from ?? today,
+        date_to: customRange?.date_to ?? today,
+      };
+    }
     default:
       return { date_from: today, date_to: today };
   }
 }
 
-export const useAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number) => {
-  const range = getDateRange(period);
+export const useAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+  const range = getDateRange(period, customRange);
   const filters: AnalyticsFilters = { ...range };
   if (branchId) filters.branch_id = branchId;
 
@@ -86,8 +95,8 @@ export const useAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number
   };
 };
 
-export const useOrderSourceAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number) => {
-  const range = getDateRange(period);
+export const useOrderSourceAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+  const range = getDateRange(period, customRange);
   const filters: AnalyticsFilters = { ...range };
   if (branchId) filters.branch_id = branchId;
 
@@ -98,8 +107,8 @@ export const useOrderSourceAnalytics = (period: AnalyticsPeriod = 'week', branch
   });
 };
 
-export const useTopItemsAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, limit = 10) => {
-  const range = getDateRange(period);
+export const useTopItemsAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, limit = 10, customRange?: CustomRange) => {
+  const range = getDateRange(period, customRange);
   const filters: AnalyticsFilters & { limit?: number } = { ...range, limit };
   if (branchId) filters.branch_id = branchId;
 
@@ -110,8 +119,8 @@ export const useTopItemsAnalytics = (period: AnalyticsPeriod = 'week', branchId?
   });
 };
 
-export const useBottomItemsAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, limit = 5) => {
-  const range = getDateRange(period);
+export const useBottomItemsAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, limit = 5, customRange?: CustomRange) => {
+  const range = getDateRange(period, customRange);
   const filters: AnalyticsFilters & { limit?: number } = { ...range, limit };
   if (branchId) filters.branch_id = branchId;
 
@@ -122,8 +131,8 @@ export const useBottomItemsAnalytics = (period: AnalyticsPeriod = 'week', branch
   });
 };
 
-export const useCategoryRevenueAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number) => {
-  const range = getDateRange(period);
+export const useCategoryRevenueAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+  const range = getDateRange(period, customRange);
   const filters: AnalyticsFilters = { ...range };
   if (branchId) filters.branch_id = branchId;
 
@@ -134,18 +143,20 @@ export const useCategoryRevenueAnalytics = (period: AnalyticsPeriod = 'week', br
   });
 };
 
-export const useBranchPerformanceAnalytics = (period: AnalyticsPeriod = 'week') => {
-  const range = getDateRange(period);
+export const useBranchPerformanceAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+  const range = getDateRange(period, customRange);
+  const filters: AnalyticsFilters = { ...range };
+  if (branchId) filters.branch_id = branchId;
 
   return useQuery({
-    queryKey: ['analytics', 'branch-performance', period],
-    queryFn: () => analyticsService.getBranchPerformanceAnalytics({ date_from: range.date_from, date_to: range.date_to }),
+    queryKey: ['analytics', 'branch-performance', period, branchId, customRange?.date_from, customRange?.date_to],
+    queryFn: () => analyticsService.getBranchPerformanceAnalytics(filters),
     staleTime: 2 * 60 * 1000,
   });
 };
 
-export const useDeliveryPickupAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number) => {
-  const range = getDateRange(period);
+export const useDeliveryPickupAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+  const range = getDateRange(period, customRange);
   const filters: AnalyticsFilters = { ...range };
   if (branchId) filters.branch_id = branchId;
 
@@ -156,8 +167,8 @@ export const useDeliveryPickupAnalytics = (period: AnalyticsPeriod = 'week', bra
   });
 };
 
-export const usePaymentMethodAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number) => {
-  const range = getDateRange(period);
+export const usePaymentMethodAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+  const range = getDateRange(period, customRange);
   const filters: AnalyticsFilters = { ...range };
   if (branchId) filters.branch_id = branchId;
 
