@@ -703,7 +703,7 @@ function FieldInput({ label, value, onChange, placeholder, error, span }: {
 
 // ─── Tab types ────────────────────────────────────────────────────────────────
 
-type FilterTab = 'All' | 'Super Admin' | 'Branch Partner' | 'Branch Manager' | 'Call Center' | 'Support Staff' | 'Suspended' | 'Archived';
+type FilterTab = 'All' | 'Super Admin' | 'Branch Partner' | 'Branch Manager' | 'Sales Staff' | 'Call Center' | 'Support Staff' | 'Suspended' | 'Archived';
 
 const SUPPORT_ROLES: StaffRole[] = ['kitchen', 'rider'];
 
@@ -714,6 +714,7 @@ function matchesTab(s: StaffMember, tab: FilterTab): boolean {
     if (tab === 'Super Admin')    return s.role === 'super_admin'    && s.status !== 'archived';
     if (tab === 'Branch Partner') return s.role === 'branch_partner' && s.status !== 'archived';
     if (tab === 'Branch Manager') return s.role === 'manager'        && s.status !== 'archived';
+    if (tab === 'Sales Staff')   return s.role === 'sales_staff'    && s.status !== 'archived';
     if (tab === 'Call Center')    return s.role === 'call_center'    && s.status !== 'archived';
     if (tab === 'Support Staff')  return SUPPORT_ROLES.includes(s.role) && s.status !== 'archived';
     return false;
@@ -745,7 +746,7 @@ export default function AdminStaffPage() {
     const [editStaff, setEditStaff] = useState<StaffMember | null | 'new'>(null);
     const [deleteStaff, setDeleteStaff] = useState<StaffMember | null>(null);
 
-    const TABS: FilterTab[] = ['All', 'Super Admin', 'Branch Partner', 'Branch Manager', 'Call Center', 'Support Staff', 'Suspended', 'Archived'];
+    const TABS: FilterTab[] = ['All', 'Super Admin', 'Branch Partner', 'Branch Manager', 'Sales Staff', 'Call Center', 'Support Staff', 'Suspended', 'Archived'];
 
     const filtered = useMemo(() => {
         let list = staff.filter(s => matchesTab(s, tab));
