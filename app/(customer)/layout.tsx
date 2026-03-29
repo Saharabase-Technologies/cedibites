@@ -30,9 +30,21 @@ const restaurantJsonLd = {
     addressRegion: 'Greater Accra',
     addressCountry: 'GH',
   },
+  openingHoursSpecification: [
+    {
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+      opens: '10:00',
+      closes: '22:00',
+    },
+  ],
   areaServed: [
     { '@type': 'City', name: 'Tema' },
     { '@type': 'City', name: 'Accra' },
+  ],
+  sameAs: [
+    'https://www.tiktok.com/@cedibites',
+    'https://www.facebook.com/share/1HLf9wXkvC/',
   ],
   menu: 'https://app.cedibites.com/menu',
   hasOfferCatalog: {
