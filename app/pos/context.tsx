@@ -14,6 +14,7 @@ import type { POSSession, POSCartItem } from './types';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { getShiftService } from '@/lib/services/shifts/shift.service';
 
 // Generate unique IDs for cart items
 const generateId = () => `pos-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -265,12 +266,23 @@ export function POSProvider({ children }: POSProviderProps) {
 
     const order = await createOrder(input);
 
+    if (staffUser && staffUser.role !== 'kitchen' && staffUser.role !== 'rider') {
+      getShiftService()
+        .getActive(String(staffUser.id))
+        .then((shift) => {
+          if (shift) {
+            getShiftService().addOrder(shift.id, order.orderNumber, order.total).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
+
     // Clear cart
     clearCart();
     setIsPaymentOpen(false);
 
     return order;
-  }, [cart, customerName, customerPhone, orderNotes, orderType, session, branches, createOrder, clearCart]);
+  }, [cart, customerName, customerPhone, orderNotes, orderType, session, branches, createOrder, clearCart, staffUser]);
 
   const updateOrderStatus = useCallback((orderId: string, status: Order['status']) => {
     const timestamps: Partial<Pick<Order, 'acceptedAt' | 'startedAt' | 'readyAt' | 'completedAt'>> = {};

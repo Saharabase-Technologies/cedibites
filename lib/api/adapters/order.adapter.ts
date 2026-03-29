@@ -151,12 +151,16 @@ function buildTimeline(
 }
 
 function getItemName(item: OrderItem): string {
-  const snapshot = (item as { menu_item_snapshot?: { name?: string } }).menu_item_snapshot;
-  const name = snapshot?.name ?? item.menu_item?.name;
-  const size = item.menu_item_option_snapshot?.option_label
+  const name = item.menu_item_snapshot?.name ?? item.menu_item?.name ?? 'Item';
+  const size =
+    item.menu_item_option_snapshot?.option_label
+    ?? item.option_snapshot?.option_label
     ?? item.menu_item_option?.option_label;
-  if (size) return `${name ?? 'Item'} (${size})`;
-  return name ?? 'Item';
+  if (size) {
+    return `${name} (${size})`;
+  }
+
+  return name;
 }
 
 export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
@@ -212,136 +216,16 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
 }
 
 
-/**
- * Map API order to POS/Kitchen Order type
- */
-/**
- * ISO timestamp from raw API (`created_at`) or from AdminOrder (`createdAt`).
- */
+/** ISO timestamp from raw API (`created_at`). */
 function orderCreatedIso(api: { created_at?: string; createdAt?: string }): string | undefined {
   return api.created_at ?? api.createdAt;
 }
 
-/**
- * `useEmployeeOrders` maps API payloads with `mapApiOrderToAdminOrder` first, which uses
- * line items `{ name, qty, price }`. Detect that shape so reprints get real names/prices.
- */
-function isAdminOrderLineItems(items: unknown): boolean {
-  if (!Array.isArray(items) || items.length === 0) {
-    return false;
-  }
-  const first = items[0] as Record<string, unknown>;
-  return (
-    typeof first === 'object' &&
-    first !== null &&
-    'qty' in first &&
-    'price' in first &&
-    !('unit_price' in first)
-  );
-}
-
-function adminDisplayPaymentToMethod(p: string): import('@/types/order').PaymentMethod {
-  const x = p.toLowerCase();
-  if (x.includes('mobile') || x.includes('momo')) {
-    return 'mobile_money';
-  }
-  if (x.includes('card')) {
-    return 'card';
-  }
-  if (x.includes('no charge')) {
-    return 'no_charge';
-  }
-
-  return 'cash';
-}
-
-function adminDisplaySourceToOrderSource(s: string): import('@/types/order').OrderSource {
-  const map: Record<string, import('@/types/order').OrderSource> = {
-    Online: 'online',
-    POS: 'pos',
-    WhatsApp: 'whatsapp',
-    Instagram: 'social_media',
-    Facebook: 'social_media',
-    Phone: 'phone',
-  };
-
-  return map[s.trim()] ?? 'online';
-}
-
+/** Map OrderResource payload to unified POS `Order` (line items: menu snapshot/name and option fields kept separate). */
 export function mapApiOrderToOrder(api: any): import('@/types/order').Order {
   const createdIso = orderCreatedIso(api);
 
-  if (isAdminOrderLineItems(api.items)) {
-    const primaryPayment = typeof api.payment === 'object' && api.payment ? api.payment : null;
-    const paymentMethod = adminDisplayPaymentToMethod(String(api.payment ?? 'Cash'));
-    const paid =
-      api.paymentStatus === 'paid' ||
-      api.paymentStatus === 'no_charge' ||
-      primaryPayment?.payment_status === 'completed' ||
-      primaryPayment?.payment_status === 'no_charge';
-
-    const amount = Number(api.amount ?? 0);
-    const amountPaid = Number(api.amountPaid ?? 0);
-
-    return {
-      id: String(api.id),
-      orderNumber: String(api.id),
-      status: (api.status ?? 'received') as import('@/types/order').Order['status'],
-      source: adminDisplaySourceToOrderSource(String(api.source ?? 'POS')),
-      fulfillmentType: 'takeaway',
-      paymentMethod,
-      isPaid: paid,
-      paymentStatus: paid ? 'completed' : 'pending',
-      paymentId: primaryPayment?.id,
-      amountPaid: amountPaid > 0 ? amountPaid : undefined,
-      items: (api.items ?? []).map((item: { name?: string; qty?: number; price?: number }, index: number) => ({
-        id: `line-${index}`,
-        menuItemId: `line-${index}`,
-        name: item.name ?? 'Item',
-        quantity: Number(item.qty ?? 1),
-        unitPrice: Number(item.price ?? 0),
-      })),
-      subtotal: amount,
-      deliveryFee: 0,
-      discount: 0,
-      tax: 0,
-      total: amount,
-      contact: {
-        name: api.customer ?? 'Walk-in',
-        phone: typeof api.phone === 'string' ? api.phone : '',
-        email: api.email,
-        address: typeof api.address === 'string' ? api.address : undefined,
-        notes: undefined,
-      },
-      branch: {
-        id: '',
-        name: typeof api.branch === 'string' ? api.branch : (api.branch?.name ?? ''),
-        address: '',
-        phone: '',
-        coordinates: { latitude: 0, longitude: 0 },
-      },
-      staffName: typeof api.assignedEmployee === 'string' ? api.assignedEmployee : undefined,
-      placedAt: createdIso ? new Date(createdIso).getTime() : 0,
-    };
-  }
-
   const primaryPayment = api.payments?.[0] ?? api.payment;
-
-  // Helper to get item name with size (raw API / OrderResource)
-  const getOrderItemName = (item: any): string => {
-    const snapshot = item.menu_item_snapshot;
-    const menuItem = item.menu_item;
-    const name = snapshot?.name ?? menuItem?.name ?? 'Item';
-    const sizeLabel =
-      item.menu_item_option_snapshot?.option_label
-      ?? item.option_snapshot?.option_label
-      ?? item.option?.option_label;
-    if (sizeLabel) {
-      return `${name} (${sizeLabel})`;
-    }
-
-    return name;
-  };
 
   return {
     id: String(api.id),
@@ -361,7 +245,7 @@ export function mapApiOrderToOrder(api: any): import('@/types/order').Order {
     items: (api.items ?? []).map((item: any) => ({
       id: String(item.id),
       menuItemId: String(item.menu_item_id),
-      name: getOrderItemName(item),
+      name: item.menu_item_snapshot?.name ?? item.menu_item?.name ?? '',
       quantity: Number(item.quantity ?? 1),
       unitPrice: Number(item.unit_price ?? 0),
       sizeId: item.menu_item_option_id,
@@ -369,6 +253,10 @@ export function mapApiOrderToOrder(api: any): import('@/types/order').Order {
         item.menu_item_option_snapshot?.option_label
         ?? item.option_snapshot?.option_label
         ?? item.option?.option_label,
+      variantKey:
+        item.menu_item_option_snapshot?.option_key
+        ?? item.option_snapshot?.option_key
+        ?? item.option?.option_key,
       notes: item.special_instructions,
       category: item.menu_item?.category,
     })),

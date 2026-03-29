@@ -17,6 +17,7 @@ import { STATUS_CONFIG } from '@/app/staff/orders/constants';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useAnalytics } from '@/lib/api/hooks/useAnalytics';
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
+import { mapApiOrderToAdminOrder } from '@/lib/api/adapters/order.adapter';
 import { analyticsService, type TopItem, type PaymentMethod } from '@/lib/api/services/analytics.service';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -556,12 +557,14 @@ export default function ManagerAnalyticsPage() {
         : 0;
 
     const orderRange = useMemo(() => getDateRangeForPeriod(period), [period]);
-    const { orders: apiOrders, isLoading: ordersLoading } = useEmployeeOrders({
+    const { orders: rawOrders, isLoading: ordersLoading } = useEmployeeOrders({
         branch_id: branchId,
         date_from: orderRange.date_from,
         date_to: orderRange.date_to,
         per_page: 100,
     });
+
+    const apiOrders = useMemo(() => rawOrders.map(mapApiOrderToAdminOrder), [rawOrders]);
 
     const filteredOrders = useMemo(() => {
         return apiOrders.map((o) => ({

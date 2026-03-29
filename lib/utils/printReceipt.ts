@@ -1,6 +1,7 @@
-import type { Order } from '@/types/order';
+import type { Order, OrderItem } from '@/types/order';
 import { FULFILLMENT_LABELS } from '@/lib/constants/order.constants';
 import { toast } from '@/lib/utils/toast';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 
 export interface ReceiptBranch {
   name: string;
@@ -28,12 +29,26 @@ const paymentLabel: Record<string, string> = {
   no_charge: 'NO CHARGE',
 };
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Receipt item cell HTML — DB-backed option label when present (getOrderItemLineLabel). */
+export function formatReceiptItemLabel(item: OrderItem): string {
+  return escapeHtml(getOrderItemLineLabel(item));
+}
+
+
 function receiptHTML(order: Order, branch: ReceiptBranch, kind: ReceiptKind): string {
   const sectionTitle = kind === 'reprint' ? 'Reprinted Receipt' : 'Original Receipt';
   const createdAt = new Date(order.placedAt);
 
   const itemRows = order.items.map(item => {
-    const label = item.sizeLabel ? `${item.name} (${item.sizeLabel})` : item.name;
+    const label = formatReceiptItemLabel(item);
     const lineTotal = (item.unitPrice * item.quantity).toFixed(2);
     return `
       <tr>

@@ -19,23 +19,35 @@ export function useStaffOrders(branchName?: string): Order[] {
     }, [getOrdersByFilter, branchName]);
 }
 
-/** Start of today in Unix ms */
+/** Start of today in local calendar (Unix ms). */
 function startOfToday(): number {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return d.getTime();
 }
 
+/** End of today in local calendar (Unix ms). */
+function endOfToday(): number {
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    return d.getTime();
+}
+
 /**
- * Returns orders created by a specific staff member today (for My Sales).
+ * Returns orders assigned to this staff member for the current local calendar day (My Sales / daily reconciliation).
  */
 export function useMySalesOrders(staffId: string): Order[] {
     const { getOrdersByFilter } = useOrderStore();
 
     return useMemo(() => {
+        if (!staffId) {
+            return [];
+        }
+
         return getOrdersByFilter({
             staffId,
             dateFrom: startOfToday(),
+            dateTo: endOfToday(),
         });
     }, [getOrdersByFilter, staffId]);
 }
