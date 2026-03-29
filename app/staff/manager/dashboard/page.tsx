@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import {
     ListIcon,
@@ -16,6 +17,7 @@ import {
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useBranchStats, useBranchTopItems, useBranchRevenueChart } from '@/lib/api/hooks/useBranches';
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
+import { mapApiOrderToAdminOrder } from '@/lib/api/adapters/order.adapter';
 import { STATUS_CONFIG } from '@/app/staff/orders/constants';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -108,11 +110,13 @@ export default function ManagerDashboardPage() {
     const { stats } = useBranchStats(branchId, true);
     const { topItems } = useBranchTopItems(branchId, { date: 'today', limit: 5 });
     const { chartData } = useBranchRevenueChart(branchId, { period: 'week' });
-    const { orders } = useEmployeeOrders({
+    const { orders: rawOrders } = useEmployeeOrders({
         branch_id: branchId ?? undefined,
         status: ['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery'],
         per_page: 5,
     });
+
+    const orders = useMemo(() => rawOrders.map(mapApiOrderToAdminOrder), [rawOrders]);
 
     const todayRevenue = stats?.today_revenue ?? 0;
     const todayOrders = stats?.today_orders ?? 0;

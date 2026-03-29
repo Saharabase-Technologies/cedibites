@@ -375,7 +375,10 @@ function OrderDetailPanel({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-function getDateRange(preset: string): { date_from?: string; date_to?: string } {
+function getDateRange(
+    preset: string,
+    custom?: { date_from: string; date_to: string },
+): { date_from?: string; date_to?: string } {
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
     if (preset === 'Today') {
@@ -398,6 +401,10 @@ function getDateRange(preset: string): { date_from?: string; date_to?: string } 
     if (preset === 'This Month') {
         return { date_from: monthStartStr, date_to: today };
     }
+    if (preset === 'Custom' && custom?.date_from && custom?.date_to) {
+        const { date_from: from, date_to: to } = custom;
+        return from <= to ? { date_from: from, date_to: to } : { date_from: to, date_to: from };
+    }
     return {};
 }
 
@@ -410,6 +417,8 @@ export default function AdminOrdersPage() {
     const [selectedPayments, setSelectedPayments] = useState<string[]>([]);
     const [selectedPaymentStatuses, setSelectedPaymentStatuses] = useState<string[]>([]);
     const [datePreset, setDatePreset] = useState('Today');
+    const [customDateFrom, setCustomDateFrom] = useState<string>(() => new Date().toISOString().slice(0, 10));
+    const [customDateTo, setCustomDateTo] = useState<string>(() => new Date().toISOString().slice(0, 10));
     const [page, setPage] = useState(0);
     const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
     const [showFilters, setShowFilters] = useState(false);
@@ -444,13 +453,18 @@ export default function AdminOrdersPage() {
         if (selectedBranches.length === 1 && branchIdByName[selectedBranches[0]]) {
             params.branch_id = branchIdByName[selectedBranches[0]];
         }
-        const range = getDateRange(datePreset);
+        const range = getDateRange(
+            datePreset,
+            datePreset === 'Custom' ? { date_from: customDateFrom, date_to: customDateTo } : undefined,
+        );
         if (range.date_from) params.date_from = range.date_from;
         if (range.date_to) params.date_to = range.date_to;
         return params;
-    }, [search, selectedStatuses, selectedSources, selectedBranches, selectedPaymentStatuses, datePreset, page, branchIdByName]);
+    }, [search, selectedStatuses, selectedSources, selectedBranches, selectedPaymentStatuses, datePreset, customDateFrom, customDateTo, page, branchIdByName]);
 
-    const { orders, meta, isLoading } = useEmployeeOrders(orderParams);
+    const { orders: apiOrders, meta, isLoading } = useEmployeeOrders(orderParams);
+
+    const orders = useMemo(() => apiOrders.map(mapApiOrderToAdminOrder), [apiOrders]);
 
     const pageOrders = useMemo(() => {
         let list = orders;
@@ -486,7 +500,10 @@ export default function AdminOrdersPage() {
             if (selectedBranches.length === 1 && branchIdByName[selectedBranches[0]]) {
                 exportParams.branch_id = branchIdByName[selectedBranches[0]];
             }
-            const range = getDateRange(datePreset);
+            const range = getDateRange(
+                datePreset,
+                datePreset === 'Custom' ? { date_from: customDateFrom, date_to: customDateTo } : undefined,
+            );
             if (range.date_from) exportParams.date_from = range.date_from;
             if (range.date_to) exportParams.date_to = range.date_to;
 
@@ -528,7 +545,7 @@ export default function AdminOrdersPage() {
         } finally {
             setIsExporting(false);
         }
-    }, [search, selectedStatuses, selectedSources, selectedBranches, selectedPayments, selectedPaymentStatuses, datePreset, branchIdByName]);
+    }, [search, selectedStatuses, selectedSources, selectedBranches, selectedPayments, selectedPaymentStatuses, datePreset, customDateFrom, customDateTo, branchIdByName]);
 
     return (
         <div className="px-4 md:px-8 py-6 max-w-7xl mx-auto">
@@ -580,13 +597,29 @@ export default function AdminOrdersPage() {
                         <button
                             key={p}
                             type="button"
-                            onClick={() => setDatePreset(p)}
+                            onClick={() => { setDatePreset(p); setPage(0); }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium font-body transition-all cursor-pointer ${datePreset === p ? 'bg-primary text-white' : 'bg-neutral-light text-neutral-gray hover:text-text-dark'}`}
                         >
                             {p}
                         </button>
                     ))}
                 </div>
+                {datePreset === 'Custom' && (
+                    <div className="flex flex-col sm:flex-row gap-3 mb-3">
+                        <input
+                            type="date"
+                            value={customDateFrom}
+                            onChange={(event) => { setCustomDateFrom(event.target.value); setPage(0); }}
+                            className="px-3 py-2 rounded-xl border border-[#f0e8d8] bg-neutral-light text-sm font-body text-text-dark focus:outline-none focus:border-primary/40"
+                        />
+                        <input
+                            type="date"
+                            value={customDateTo}
+                            onChange={(event) => { setCustomDateTo(event.target.value); setPage(0); }}
+                            className="px-3 py-2 rounded-xl border border-[#f0e8d8] bg-neutral-light text-sm font-body text-text-dark focus:outline-none focus:border-primary/40"
+                        />
+                    </div>
+                )}
 
                 {/* Expanded filters */}
                 {showFilters && (

@@ -208,6 +208,8 @@ export interface OrderItem {
   id: number;
   order_id: number;
   menu_item_id: number;
+  /** Point-in-time menu fields from order_items.menu_item_snapshot */
+  menu_item_snapshot?: { id?: number; name?: string; description?: string | null } | null;
   menu_item: MenuItem;
   menu_item_option_id?: number | null;
   menu_item_option?: MenuItemOption | null;

@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { orderService } from '../services/order.service';
 import type { EmployeeOrdersParams } from '../services/order.service';
-import { mapApiOrderToAdminOrder } from '../adapters/order.adapter';
-import type { AdminOrder } from '../adapters/order.adapter';
+import type { Order as ApiOrder } from '@/types/api';
 
 export const useEmployeeOrderStats = () => {
   const { data, isLoading, error, refetch } = useQuery({
@@ -28,7 +27,7 @@ export const useEmployeePendingOrders = (perPage?: number) => {
   });
   const rawData = response?.data;
   const ordersArray = Array.isArray(rawData) ? rawData : (rawData as { data?: unknown[] } | undefined)?.data ?? [];
-  const orders = ordersArray.map((item) => mapApiOrderToAdminOrder(item as any));
+  const orders = ordersArray as ApiOrder[];
   const meta = (rawData as { meta?: unknown } | undefined)?.meta ?? response?.meta;
   const links = (rawData as { links?: unknown } | undefined)?.links ?? response?.links;
   return { orders, meta, links, isLoading, error, refetch };
@@ -48,7 +47,7 @@ export const useEmployeeOrders = (params?: EmployeeOrdersParams) => {
 
   const rawData = response?.data;
   const ordersArray = Array.isArray(rawData) ? rawData : (rawData as { data?: unknown[] } | undefined)?.data ?? [];
-  const orders: AdminOrder[] = ordersArray.map((item) => mapApiOrderToAdminOrder(item as any));
+  const orders = ordersArray as ApiOrder[];
   const meta = (rawData as { meta?: unknown } | undefined)?.meta ?? response?.meta;
   const links = (rawData as { links?: unknown } | undefined)?.links ?? response?.links;
 

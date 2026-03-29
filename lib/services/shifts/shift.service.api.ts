@@ -20,6 +20,8 @@ function extractData<T>(response: unknown): T {
 }
 
 function toStaffShift(raw: ApiShift): StaffShift {
+  const logoutMs = raw.logoutAt != null ? Number(raw.logoutAt) : NaN;
+
   return {
     id: String(raw.id),
     staffId: String(raw.staffId),
@@ -27,7 +29,7 @@ function toStaffShift(raw: ApiShift): StaffShift {
     branchId: String(raw.branchId),
     branchName: raw.branchName ?? '',
     loginAt: Number(raw.loginAt) || 0,
-    logoutAt: raw.logoutAt != null ? Number(raw.logoutAt) : undefined,
+    logoutAt: Number.isFinite(logoutMs) && logoutMs > 0 ? logoutMs : undefined,
     orderIds: Array.isArray(raw.orderIds) ? raw.orderIds.map(String) : [],
     totalSales: Number(raw.totalSales) || 0,
     orderCount: Number(raw.orderCount) || 0,

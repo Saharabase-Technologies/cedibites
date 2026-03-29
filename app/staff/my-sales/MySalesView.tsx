@@ -8,9 +8,12 @@ import {
     ListChecksIcon,
     TrendUpIcon,
     WarningCircleIcon,
+    SpinnerGapIcon,
 } from '@phosphor-icons/react';
 import type { Order } from '@/types/order';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { useMySalesOrders } from '@/app/staff/hooks/useStaffOrders';
 import { formatGHS, formatDate, itemCount } from './utils';
 import StatCard from './components/StatCard';
 import SourcePills from './components/SourcePills';
@@ -18,8 +21,13 @@ import SalesTable from './components/SalesTable';
 import OrderDrawer from './components/OrderDrawer';
 
 export default function MySalesView() {
-    // TODO: filter by staffId once auth is in place (useMySalesOrders hook)
-    const { orders } = useOrderStore();
+    const { staffUser } = useStaffAuth();
+    const { isLoading } = useOrderStore();
+    const rawMySales = useMySalesOrders(staffUser?.id ?? '');
+    const myOrders = useMemo(
+        () => [...rawMySales].sort((a, b) => b.placedAt - a.placedAt),
+        [rawMySales],
+    );
 
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
@@ -28,8 +36,8 @@ export default function MySalesView() {
         setSelectedOrder(prev => prev?.id === order.id ? null : order);
     }, []);
 
-    const activeOrders = useMemo(() => orders.filter(o => o.status !== 'cancelled'), [orders]);
-    const cancelledOrders = useMemo(() => orders.filter(o => o.status === 'cancelled'), [orders]);
+    const activeOrders = useMemo(() => myOrders.filter(o => o.status !== 'cancelled'), [myOrders]);
+    const cancelledOrders = useMemo(() => myOrders.filter(o => o.status === 'cancelled'), [myOrders]);
     const totalRevenue = useMemo(() => activeOrders.reduce((s, o) => s + o.total, 0), [activeOrders]);
     const totalItems = useMemo(() => activeOrders.reduce((s, o) => s + itemCount(o), 0), [activeOrders]);
     const avgOrderValue = activeOrders.length > 0 ? totalRevenue / activeOrders.length : 0;
@@ -39,6 +47,15 @@ export default function MySalesView() {
         activeOrders.forEach(o => { map[o.source] = (map[o.source] ?? 0) + 1; });
         return Object.entries(map).sort((a, b) => b[1] - a[1]);
     }, [activeOrders]);
+
+    if (isLoading) {
+        return (
+            <div className="px-4 md:px-8 py-16 flex items-center justify-center gap-2 text-neutral-gray text-sm font-body">
+                <SpinnerGapIcon size={18} className="animate-spin" />
+                Loading your sales…
+            </div>
+        );
+    }
 
     return (
         <>

@@ -1,8 +1,10 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { PlusCircleIcon, ListIcon } from '@phosphor-icons/react';
 import { useEmployeeOrderStats, useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
+import { mapApiOrderToAdminOrder } from '@/lib/api/adapters/order.adapter';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { STATUS_CONFIG } from '@/app/staff/orders/constants';
 
@@ -33,10 +35,12 @@ function StatusBadge({ status }: { status: string }) {
 export default function SalesDashboardView() {
   const { staffUser } = useStaffAuth();
   const { stats } = useEmployeeOrderStats();
-  const { orders } = useEmployeeOrders({
+  const { orders: rawOrders } = useEmployeeOrders({
     status: ['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery'],
     per_page: 10,
   });
+
+  const orders = useMemo(() => rawOrders.map(mapApiOrderToAdminOrder), [rawOrders]);
 
   const staffName = staffUser?.name ?? 'Staff';
   const h = new Date().getHours();

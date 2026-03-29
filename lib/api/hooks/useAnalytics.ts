@@ -64,19 +64,19 @@ export const useAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number
   if (branchId) filters.branch_id = branchId;
 
   const salesQuery = useQuery({
-    queryKey: ['analytics', 'sales', period, branchId],
+    queryKey: ['analytics', 'sales', period, branchId, range.date_from, range.date_to],
     queryFn: () => analyticsService.getSalesAnalytics(filters),
     staleTime: 2 * 60 * 1000,
   });
 
   const ordersQuery = useQuery({
-    queryKey: ['analytics', 'orders', period, branchId],
+    queryKey: ['analytics', 'orders', period, branchId, range.date_from, range.date_to],
     queryFn: () => analyticsService.getOrderAnalytics(filters),
     staleTime: 2 * 60 * 1000,
   });
 
   const customersQuery = useQuery({
-    queryKey: ['analytics', 'customers', period, branchId],
+    queryKey: ['analytics', 'customers', period, branchId, range.date_from, range.date_to],
     queryFn: () => analyticsService.getCustomerAnalytics({ date_from: range.date_from, date_to: range.date_to }),
     staleTime: 2 * 60 * 1000,
   });
@@ -101,7 +101,7 @@ export const useOrderSourceAnalytics = (period: AnalyticsPeriod = 'week', branch
   if (branchId) filters.branch_id = branchId;
 
   return useQuery({
-    queryKey: ['analytics', 'order-sources', period, branchId],
+    queryKey: ['analytics', 'order-sources', period, branchId, range.date_from, range.date_to],
     queryFn: () => analyticsService.getOrderSourceAnalytics(filters),
     staleTime: 2 * 60 * 1000,
   });
@@ -113,7 +113,7 @@ export const useTopItemsAnalytics = (period: AnalyticsPeriod = 'week', branchId?
   if (branchId) filters.branch_id = branchId;
 
   return useQuery({
-    queryKey: ['analytics', 'top-items', period, branchId, limit],
+    queryKey: ['analytics', 'top-items', period, branchId, limit, range.date_from, range.date_to],
     queryFn: () => analyticsService.getTopItemsAnalytics(filters),
     staleTime: 2 * 60 * 1000,
   });
@@ -125,7 +125,7 @@ export const useBottomItemsAnalytics = (period: AnalyticsPeriod = 'week', branch
   if (branchId) filters.branch_id = branchId;
 
   return useQuery({
-    queryKey: ['analytics', 'bottom-items', period, branchId, limit],
+    queryKey: ['analytics', 'bottom-items', period, branchId, limit, range.date_from, range.date_to],
     queryFn: () => analyticsService.getBottomItemsAnalytics(filters),
     staleTime: 2 * 60 * 1000,
   });
@@ -137,7 +137,7 @@ export const useCategoryRevenueAnalytics = (period: AnalyticsPeriod = 'week', br
   if (branchId) filters.branch_id = branchId;
 
   return useQuery({
-    queryKey: ['analytics', 'category-revenue', period, branchId],
+    queryKey: ['analytics', 'category-revenue', period, branchId, range.date_from, range.date_to],
     queryFn: () => analyticsService.getCategoryRevenueAnalytics(filters),
     staleTime: 2 * 60 * 1000,
   });
@@ -149,7 +149,7 @@ export const useBranchPerformanceAnalytics = (period: AnalyticsPeriod = 'week', 
   if (branchId) filters.branch_id = branchId;
 
   return useQuery({
-    queryKey: ['analytics', 'branch-performance', period, branchId, customRange?.date_from, customRange?.date_to],
+    queryKey: ['analytics', 'branch-performance', period, branchId, range.date_from, range.date_to],
     queryFn: () => analyticsService.getBranchPerformanceAnalytics(filters),
     staleTime: 2 * 60 * 1000,
   });
@@ -161,7 +161,7 @@ export const useDeliveryPickupAnalytics = (period: AnalyticsPeriod = 'week', bra
   if (branchId) filters.branch_id = branchId;
 
   return useQuery({
-    queryKey: ['analytics', 'delivery-pickup', period, branchId],
+    queryKey: ['analytics', 'delivery-pickup', period, branchId, range.date_from, range.date_to],
     queryFn: () => analyticsService.getDeliveryPickupAnalytics(filters),
     staleTime: 2 * 60 * 1000,
   });
@@ -173,7 +173,7 @@ export const usePaymentMethodAnalytics = (period: AnalyticsPeriod = 'week', bran
   if (branchId) filters.branch_id = branchId;
 
   return useQuery({
-    queryKey: ['analytics', 'payment-methods', period, branchId],
+    queryKey: ['analytics', 'payment-methods', period, branchId, range.date_from, range.date_to],
     queryFn: () => analyticsService.getPaymentMethodAnalytics(filters),
     staleTime: 2 * 60 * 1000,
   });

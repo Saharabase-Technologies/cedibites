@@ -25,6 +25,7 @@ import { printReceipt } from '@/lib/utils/printReceipt';
 import { FULFILLMENT_LABELS } from '@/lib/constants/order.constants';
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
+import { formatOrderLineItemSummary } from '@/lib/utils/orderItemDisplay';
 
 function formatOrderTime(placedAt: number): string {
   if (!placedAt) {
@@ -59,7 +60,7 @@ export default function POSOrdersPage() {
 
   // Fetch today's completed orders from API
   const today = new Date().toISOString().split('T')[0];
-  const { orders: apiOrders, isLoading } = useEmployeeOrders({
+  const { orders: rawOrders, isLoading } = useEmployeeOrders({
     branch_id: session?.branchId ? Number(session.branchId) : undefined,
     status: ['completed', 'delivered'],
     date_from: today,
@@ -68,8 +69,8 @@ export default function POSOrdersPage() {
   });
 
   const fulfilledOrders = useMemo(
-    () => apiOrders.map(mapApiOrderToOrder).sort((a, b) => b.placedAt - a.placedAt),
-    [apiOrders]
+    () => rawOrders.map(mapApiOrderToOrder).sort((a, b) => b.placedAt - a.placedAt),
+    [rawOrders]
   );
 
   const todayRevenue = useMemo(
@@ -171,9 +172,7 @@ interface OrderCardProps {
 }
 
 function OrderCard({ order, branchName }: OrderCardProps) {
-  const itemSummary = order.items
-    .map(i => `${i.name} ×${i.quantity}`)
-    .join(', ');
+  const itemSummary = order.items.map((i) => formatOrderLineItemSummary(i)).join(', ');
 
   return (
     <div className="bg-white rounded-2xl border border-neutral-gray/15 shadow-sm overflow-hidden">
