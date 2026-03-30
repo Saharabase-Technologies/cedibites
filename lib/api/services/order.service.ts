@@ -24,6 +24,7 @@ export interface OrdersParams {
 
 export interface EmployeeOrdersParams {
   branch_id?: number;
+  staff_id?: string | number;
   status?: string | string[];
   order_type?: string;
   order_source?: string;

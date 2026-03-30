@@ -58,10 +58,11 @@ export default function POSOrdersPage() {
     [session, branches]
   );
 
-  // Fetch all of today's POS orders for this branch
+  // Fetch today's POS orders placed by this staff member only
   const today = new Date().toISOString().split('T')[0];
   const { orders: rawOrders, isLoading } = useEmployeeOrders({
     branch_id: session?.branchId ? Number(session.branchId) : undefined,
+    staff_id: session?.staffId,
     order_source: 'pos',
     date_from: today,
     date_to: today,
