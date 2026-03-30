@@ -24,6 +24,23 @@ function deriveSizeKey(item: ApiOrder['items'][0]): string {
   return 'default';
 }
 
+/**
+ * Resolves a display name for a combo item by baking the chosen option label
+ * into the shared menu item name.
+ *
+ * e.g. "Fried Rice / Noodles + 3 Drums" + "Fried Rice" → "Fried Rice + 3 Drums"
+ *
+ * If the name has no "/" (no variants), it is returned unchanged.
+ */
+export function resolveDisplayName(rawName: string, optionLabel?: string): string {
+  if (!optionLabel || !rawName.includes('/')) return rawName;
+  const afterSlash = rawName.substring(rawName.indexOf('/') + 1).trim();
+  // Shared suffix starts at the first " +" / " -" / " ," after the trailing variant word
+  const sharedStart = afterSlash.search(/\s+[+\-,]/);
+  const suffix = sharedStart >= 0 ? afterSlash.substring(sharedStart) : '';
+  return suffix ? optionLabel + suffix : optionLabel;
+}
+
 export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
   const placedAt = new Date(apiOrder.created_at).getTime();
   const payment = apiOrder.payment ?? apiOrder.payments?.[0];
@@ -32,15 +49,21 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
     const sizeKey = deriveSizeKey(item);
     const optionLabel = item.menu_item_option_snapshot?.option_label
       ?? item.menu_item_option?.option_label
-      ?? (sizeKey === 'default' ? 'Regular' : sizeKey.replace(/_/g, ' '));
+      ?? (sizeKey === 'default' ? undefined : sizeKey.replace(/_/g, ' '));
+
+    const rawName = item.menu_item_snapshot?.name ?? item.menu_item?.name ?? 'Item';
+    const resolvedName = resolveDisplayName(rawName, optionLabel);
+    const variantBakedIn = resolvedName !== rawName;
+
     return {
       id: String(item.id),
       menuItemId: String(item.menu_item_id),
-      name: item.menu_item?.name ?? 'Item',
+      name: resolvedName,
       quantity: item.quantity,
       unitPrice: Number(item.unit_price) || 0,
       image: item.menu_item_option_snapshot?.image_url ?? item.menu_item_option?.image_url ?? item.menu_item?.image_url,
-      sizeLabel: optionLabel,
+      // If the option was baked into the name (combo item), don't repeat it as sizeLabel
+      sizeLabel: variantBakedIn ? undefined : (optionLabel ?? 'Regular'),
       sizeId: item.menu_item_option_id ?? undefined,
       variantKey: item.variant_key,
       notes: item.special_instructions,

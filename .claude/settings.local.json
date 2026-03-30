@@ -22,7 +22,10 @@
       "Bash(ls /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/\\\\\\(customer\\\\\\)/order-history)",
       "Bash(ls /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/\\\\\\(customer\\\\\\)/menuaudit)",
       "Bash(ls /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/\\\\\\(staff-auth\\\\\\))",
-      "Bash(find c:UsersiamjnDesktopWEBZCediBitescedibites -type f -name *menu* -o -name *sample*)"
+      "Bash(find c:UsersiamjnDesktopWEBZCediBitescedibites -type f -name *menu* -o -name *sample*)",
+      "Bash(find /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites -name *Menu* -o -name *menu*)",
+      "Bash(find /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites -path */node_modules -prune -o -type f \\\\\\(-name *sample* -o -name *mock* -o -name *data* \\\\\\) -print)",
+      "Bash(xargs ls:*)"
     ]
   }
 }
