@@ -22,7 +22,7 @@ import type { Order } from '@/types/order';
 import { formatGHS } from '@/lib/utils/currency';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { printReceipt } from '@/lib/utils/printReceipt';
-import { FULFILLMENT_LABELS } from '@/lib/constants/order.constants';
+import { FULFILLMENT_LABELS, STATUS_CONFIG } from '@/lib/constants/order.constants';
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
 import { formatOrderLineItemSummary } from '@/lib/utils/orderItemDisplay';
@@ -58,24 +58,24 @@ export default function POSOrdersPage() {
     [session, branches]
   );
 
-  // Fetch today's completed orders from API
+  // Fetch all of today's POS orders for this branch
   const today = new Date().toISOString().split('T')[0];
   const { orders: rawOrders, isLoading } = useEmployeeOrders({
     branch_id: session?.branchId ? Number(session.branchId) : undefined,
-    status: ['completed', 'delivered'],
+    order_source: 'pos',
     date_from: today,
     date_to: today,
     per_page: 100,
   });
 
-  const fulfilledOrders = useMemo(
+  const todayOrders = useMemo(
     () => rawOrders.map(mapApiOrderToOrder).sort((a, b) => b.placedAt - a.placedAt),
     [rawOrders]
   );
 
   const todayRevenue = useMemo(
-    () => fulfilledOrders.reduce((s, o) => s + o.total, 0),
-    [fulfilledOrders]
+    () => todayOrders.reduce((s, o) => s + o.total, 0),
+    [todayOrders]
   );
 
   if (!session || isLoading) {
@@ -110,7 +110,7 @@ export default function POSOrdersPage() {
           <div className="hidden sm:flex items-center gap-4 px-4 py-2 rounded-xl bg-neutral-gray/10">
             <div className="text-center">
               <p className="text-xs text-neutral-gray">Orders</p>
-              <p className="text-lg font-medium text-text-dark">{fulfilledOrders.length}</p>
+              <p className="text-lg font-medium text-text-dark">{todayOrders.length}</p>
             </div>
             <div className="w-px h-8 bg-neutral-gray/20" />
             <div className="text-center">
@@ -132,7 +132,7 @@ export default function POSOrdersPage() {
 
       {/* Page title */}
       <div className="shrink-0 px-4 pt-4 pb-3 bg-white border-b border-neutral-gray/15">
-        <h1 className="text-xl font-bold text-text-dark">Fulfilled Orders</h1>
+        <h1 className="text-xl font-bold text-text-dark">Today's Orders</h1>
         <p className="text-xs text-neutral-gray mt-0.5">Today · {session.staffName}</p>
       </div>
 
@@ -144,14 +144,14 @@ export default function POSOrdersPage() {
 
       {/* Orders list */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {fulfilledOrders.length === 0 ? (
+        {todayOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-neutral-gray">
             <ReceiptIcon className="w-14 h-14 mb-4 opacity-30" />
-            <p className="text-lg font-medium mb-1">No fulfilled orders yet</p>
-            <p className="text-sm opacity-60">Completed orders will appear here</p>
+            <p className="text-lg font-medium mb-1">No orders yet today</p>
+            <p className="text-sm opacity-60">Orders placed from the terminal will appear here</p>
           </div>
         ) : (
-          fulfilledOrders.map(order => (
+          todayOrders.map(order => (
             <OrderCard
               key={order.id}
               order={order}
@@ -176,7 +176,7 @@ function OrderCard({ order, branchName }: OrderCardProps) {
 
   return (
     <div className="bg-white rounded-2xl border border-neutral-gray/15 shadow-sm overflow-hidden">
-      {/* Top row: order number, type, time */}
+      {/* Top row: order number, type, status, time */}
       <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono font-bold text-text-dark text-sm">#{order.orderNumber}</span>
@@ -186,6 +186,17 @@ function OrderCard({ order, branchName }: OrderCardProps) {
           `}>
             {FULFILLMENT_LABELS[order.fulfillmentType]}
           </span>
+          {(() => {
+            const cfg = STATUS_CONFIG[order.status];
+            return (
+              <span
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wide ${cfg.bg}${cfg.pulse ? ' animate-pulse' : ''}`}
+                style={{ color: cfg.textColor }}
+              >
+                {cfg.label}
+              </span>
+            );
+          })()}
         </div>
         <span className="text-xs text-neutral-gray whitespace-nowrap shrink-0 mt-0.5">
           {formatOrderTime(order.placedAt)}
