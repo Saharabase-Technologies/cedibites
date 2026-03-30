@@ -14,7 +14,7 @@ import {
   type PaymentMethod,
 } from '../services/analytics.service';
 
-export type AnalyticsPeriod = 'today' | 'week' | 'month' | '30d' | '90d' | 'custom';
+export type AnalyticsPeriod = 'today' | 'yesterday' | 'week' | 'month' | '30d' | '90d' | 'custom';
 
 interface CustomRange {
   date_from?: string;
@@ -28,6 +28,12 @@ function getDateRange(period: AnalyticsPeriod, customRange?: CustomRange): { dat
   switch (period) {
     case 'today':
       return { date_from: today, date_to: today };
+    case 'yesterday': {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const y = yesterday.toISOString().slice(0, 10);
+      return { date_from: y, date_to: y };
+    }
     case 'week': {
       const weekStart = new Date(now);
       weekStart.setDate(weekStart.getDate() - weekStart.getDay());
