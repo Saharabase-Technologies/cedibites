@@ -687,7 +687,7 @@ export default function AdminOrdersPage() {
                             <StatusBadge status={order.status} />
                             <div className="flex flex-col">
                                 <span className="text-text-dark text-sm font-bold font-body">{formatGHS(order.amount)}</span>
-                                <span className="text-neutral-gray text-[10px] font-body">Paid: {formatGHS(order.amountPaid)}</span>
+                                <span className="text-neutral-gray text-[10px] font-body">{order.paymentStatus === 'no_charge' ? `Waived: ${formatGHS(order.amount)}` : `Paid: ${formatGHS(order.amountPaid)}`}</span>
                             </div>
                             <span className="text-neutral-gray text-xs font-body">{order.placedAt}</span>
                         </div>

@@ -37,7 +37,10 @@
       "Bash(/dev/null -type d)",
       "Bash(grep -r apiOrderToUnifiedOrder --include=*.ts /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/lib/utils/)",
       "Bash(grep -A5 \"showByNumber\\\\|kitchenOrders\\\\|orderManagerOrders\" routes/*.php)",
-      "Bash(php artisan:*)"
+      "Bash(php artisan:*)",
+      "Bash(grep '\"\"laravel/framework\"\"' composer.json)",
+      "Bash(xargs cat:*)",
+      "Bash(grep -n \"pending\\\\|status.*enum\\\\|ENUM\" /c/Users/iamjn/Desktop/WEBZ/cedibites_api/cedibites_api/database/migrations/*orders*)"
     ]
   }
 }
