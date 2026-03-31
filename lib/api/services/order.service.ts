@@ -68,10 +68,10 @@ export const orderService = {
   },
 
   /**
-   * Cancel order
+   * Cancel order with optional reason
    */
-  cancelOrder: (id: number): Promise<{ data: Order }> => {
-    return apiClient.delete(`/orders/${id}`);
+  cancelOrder: (id: number, reason?: string): Promise<{ data: Order }> => {
+    return apiClient.post(`/orders/${id}/cancel`, { reason: reason ?? null });
   },
 
   /**

@@ -1,9 +1,9 @@
 // app/(customer)/orders/[orderCode]/page.tsx
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useOrderByNumber } from '@/lib/api/hooks/useOrders';
+import { useOrderByNumber, useCancelOrder } from '@/lib/api/hooks/useOrders';
 import {
     ArrowLeftIcon,
     ShareIcon,
@@ -16,6 +16,8 @@ import { timeAgo, buildOrderTimeline } from '@/types/order';
 import OrderTimeline from '@/app/components/order/OrderTimeline';
 import OrderDetails from '@/app/components/order/OrderDetails';
 import Button from '@/app/components/base/Button';
+import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
+import { toast } from '@/lib/utils/toast';
 import type { Order as ApiOrder } from '@/types/api';
 import type { Order as MockOrder, OrderTimelineEvent, OrderStatus as MockOrderStatus } from '@/types/order';
 
@@ -139,9 +141,12 @@ export default function OrderTrackingPage({ params }: PageProps) {
     const searchParams = useSearchParams();
     const resolvedParams = use(params);
     const backPath = searchParams.get('from') === 'order-history' ? '/order-history' : '/orders';
-    const { order: apiOrder, isLoading: loading, error } = useOrderByNumber(resolvedParams.orderCode);
+    const { order: apiOrder, isLoading: loading, error, refetch } = useOrderByNumber(resolvedParams.orderCode);
     const order = apiOrder ? transformApiOrderToMock(apiOrder) : null;
     const notFound = !loading && (!!error || !order);
+    const [showCancel, setShowCancel] = useState(false);
+    const { cancelOrder } = useCancelOrder();
+    const isCancellable = order && order.status !== 'cancelled' && order.status !== 'delivered' && order.status !== 'completed';
 
     if (loading) {
         return (
@@ -360,9 +365,35 @@ export default function OrderTrackingPage({ params }: PageProps) {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Cancel Order */}
+                        {isCancellable && (
+                            <div className="bg-white dark:bg-brand-dark rounded-2xl p-6 border border-neutral-gray/10">
+                                <button
+                                    onClick={() => setShowCancel(true)}
+                                    className="w-full py-3 rounded-xl border border-error/30 text-error text-sm font-semibold hover:bg-error/5 transition-colors"
+                                >
+                                    Cancel Order
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div >
             </main >
+
+            {showCancel && (
+                <CancelOrderModal
+                    orderNumber={order.orderNumber}
+                    theme="light"
+                    onCancel={() => setShowCancel(false)}
+                    onConfirm={async (reason) => {
+                        await cancelOrder({ id: Number(order.id), reason });
+                        toast.success('Order cancelled');
+                        setShowCancel(false);
+                        refetch();
+                    }}
+                />
+            )}
         </div >
     );
 }

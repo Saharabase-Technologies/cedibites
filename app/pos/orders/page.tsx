@@ -26,6 +26,9 @@ import { FULFILLMENT_LABELS, STATUS_CONFIG } from '@/lib/constants/order.constan
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
 import { formatOrderLineItemSummary } from '@/lib/utils/orderItemDisplay';
+import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
+import { useCancelOrder } from '@/lib/api/hooks/useOrders';
+import { toast } from '@/lib/utils/toast';
 
 function formatOrderTime(placedAt: number): string {
   if (!placedAt) {
@@ -46,6 +49,8 @@ export default function POSOrdersPage() {
   const { branches } = useBranch();
 
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  const { cancelOrder } = useCancelOrder();
 
   useEffect(() => {
     if (isSessionLoaded && !isSessionValid) {
@@ -143,6 +148,19 @@ export default function POSOrdersPage() {
         onConfirm={() => logout('/pos')}
       />
 
+      {cancelTarget && (
+        <CancelOrderModal
+          orderNumber={cancelTarget.orderNumber}
+          theme="light"
+          onCancel={() => setCancelTarget(null)}
+          onConfirm={async (reason) => {
+            await cancelOrder({ id: Number(cancelTarget.id), reason });
+            toast.success(`Order #${cancelTarget.orderNumber} cancelled`);
+            setCancelTarget(null);
+          }}
+        />
+      )}
+
       {/* Orders list */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {todayOrders.length === 0 ? (
@@ -157,6 +175,7 @@ export default function POSOrdersPage() {
               key={order.id}
               order={order}
               branchName={branchInfo?.name ?? 'CediBites'}
+              onCancelRequested={setCancelTarget}
             />
           ))
         )}
@@ -170,9 +189,10 @@ export default function POSOrdersPage() {
 interface OrderCardProps {
   order: Order;
   branchName: string;
+  onCancelRequested: (order: Order) => void;
 }
 
-function OrderCard({ order, branchName }: OrderCardProps) {
+function OrderCard({ order, branchName, onCancelRequested }: OrderCardProps) {
   const itemSummary = order.items.map((i) => formatOrderLineItemSummary(i)).join(', ');
 
   return (
@@ -231,17 +251,28 @@ function OrderCard({ order, branchName }: OrderCardProps) {
         </div>
       )}
 
-      {/* Bottom row: total + reprint */}
+      {/* Bottom row: total + actions */}
       <div className="px-4 pb-3 flex items-center justify-between gap-2 border-t border-neutral-gray/10 pt-2.5 mt-1">
         <span className="font-bold text-primary">{formatGHS(order.total)}</span>
-        <button
-          onClick={() => printReceipt(order, branchName, { kind: 'reprint' })}
-          className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium text-neutral-gray border border-neutral-gray/20 hover:text-text-dark hover:border-neutral-gray/40 transition-colors"
-          title="Reprint Receipt"
-        >
-          <PrinterIcon className="w-3.5 h-3.5" />
-          Reprint
-        </button>
+        <div className="flex items-center gap-2">
+          {order.status !== 'cancelled' && (
+            <button
+              onClick={() => onCancelRequested(order)}
+              className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium text-error border border-error/25 hover:bg-error/8 transition-colors"
+              title="Cancel Order"
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            onClick={() => printReceipt(order, branchName, { kind: 'reprint' })}
+            className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium text-neutral-gray border border-neutral-gray/20 hover:text-text-dark hover:border-neutral-gray/40 transition-colors"
+            title="Reprint Receipt"
+          >
+            <PrinterIcon className="w-3.5 h-3.5" />
+            Reprint
+          </button>
+        </div>
       </div>
     </div>
   );

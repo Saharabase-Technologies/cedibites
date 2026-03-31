@@ -27,7 +27,9 @@
       "Bash(find /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites -path */node_modules -prune -o -type f \\\\\\(-name *sample* -o -name *mock* -o -name *data* \\\\\\) -print)",
       "Bash(xargs ls:*)",
       "Bash(find c:UsersiamjnDesktopWEBZcedibites_apicedibites_api/database/migrations -name *branch* -type f)",
-      "Bash(find c:UsersiamjnDesktopWEBZcedibites_apicedibites_api -name *operating* -o -name *hours*)"
+      "Bash(find c:UsersiamjnDesktopWEBZcedibites_apicedibites_api -name *operating* -o -name *hours*)",
+      "Bash(ls \"c:\\\\Users\\\\iamjn\\\\Desktop\\\\WEBZ\\\\cedibites_api\\\\cedibites_api\\\\app\\\\Console\\\\Commands\"\" 2>/dev/null || echo \"empty or missing \")",
+      "Bash(grep -rn \"cancelOrder\\\\|cancel_order\\\\|cancelOrder\\\\|/cancel\" /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/lib --include=*.ts)"
     ]
   }
 }

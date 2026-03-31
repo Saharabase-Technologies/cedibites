@@ -19,6 +19,7 @@ export interface TimelineEvent {
 
 export interface AdminOrder {
   id: string;
+  dbId: number;
   customer: string;
   phone: string;
   email?: string;
@@ -194,6 +195,7 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
 
   return {
     id: api.order_number ?? String(api.id),
+    dbId: Number(api.id),
     createdAt: api.created_at ?? '',
     customer: api.contact_name ?? api.customer_name ?? api.customer?.name ?? '—',
     phone: api.contact_phone ?? api.customer_phone ?? api.customer?.phone ?? '—',

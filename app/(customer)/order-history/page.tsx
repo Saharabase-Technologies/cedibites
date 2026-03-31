@@ -5,9 +5,10 @@ import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useModal } from '../../components/providers/ModalProvider';
 import { useAuth } from '../../components/providers/AuthProvider';
-import { useOrders } from '@/lib/api/hooks/useOrders';
+import { useOrders, useCancelOrder } from '@/lib/api/hooks/useOrders';
 import { useCart } from '@/lib/api/hooks/useCart';
 import { toast } from '@/lib/utils/toast';
+import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
 import {
     MagnifyingGlassIcon,
     XIcon,
@@ -61,10 +62,12 @@ export default function OrderHistoryPage() {
     const { isLoggedIn } = useAuth();
     const { addItem } = useCart();
     const [reordering, setReordering] = useState<number | null>(null);
+    const [cancelTarget, setCancelTarget] = useState<ApiOrder | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<ApiOrderStatus | undefined>(undefined);
     const [page, setPage] = useState(1);
     const [mounted, setMounted] = useState(false);
+    const { cancelOrder } = useCancelOrder();
 
     useEffect(() => {
         setMounted(true);
@@ -217,6 +220,7 @@ export default function OrderHistoryPage() {
                                 {filteredOrders.map((order) => {
                                     const statusConfig = STATUS_CONFIG[order.status];
                                     const isCompleted = ['delivered', 'completed'].includes(order.status);
+                                    const isCancellable = !['cancelled', 'delivered', 'completed'].includes(order.status);
 
                                     return (
                                         <button
@@ -296,16 +300,26 @@ export default function OrderHistoryPage() {
                                                     </p>
                                                 </div>
 
-                                                {isCompleted && (
-                                                    <button
-                                                        onClick={(e) => handleReorder(e, order)}
-                                                        disabled={reordering === order.id}
-                                                        className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary hover:text-white text-primary rounded-full font-semibold transition-all disabled:opacity-60"
-                                                    >
-                                                        <ArrowsClockwiseIcon size={18} weight="bold" className={reordering === order.id ? 'animate-spin' : ''} />
-                                                        <span>{reordering === order.id ? 'Adding...' : 'Reorder'}</span>
-                                                    </button>
-                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    {isCancellable && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setCancelTarget(order); }}
+                                                            className="flex items-center gap-2 px-4 py-2.5 border border-error/30 text-error rounded-full text-sm font-semibold hover:bg-error/5 transition-all"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    )}
+                                                    {isCompleted && (
+                                                        <button
+                                                            onClick={(e) => handleReorder(e, order)}
+                                                            disabled={reordering === order.id}
+                                                            className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary hover:text-white text-primary rounded-full font-semibold transition-all disabled:opacity-60"
+                                                        >
+                                                            <ArrowsClockwiseIcon size={18} weight="bold" className={reordering === order.id ? 'animate-spin' : ''} />
+                                                            <span>{reordering === order.id ? 'Adding...' : 'Reorder'}</span>
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         </button>
                                     );
@@ -315,6 +329,19 @@ export default function OrderHistoryPage() {
                     </>
                 )}
             </main>
+
+            {cancelTarget && (
+                <CancelOrderModal
+                    orderNumber={cancelTarget.order_number}
+                    theme="light"
+                    onCancel={() => setCancelTarget(null)}
+                    onConfirm={async (reason) => {
+                        await cancelOrder({ id: cancelTarget.id, reason });
+                        toast.success('Order cancelled');
+                        setCancelTarget(null);
+                    }}
+                />
+            )}
         </div>
     );
 }
