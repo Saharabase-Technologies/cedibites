@@ -45,15 +45,15 @@ const MENU_SUB_TABS = [
 function MenuSubTabs() {
   const pathname = usePathname();
   return (
-    <div className="flex gap-1.5 mb-6">
+    <div className="flex gap-6 border-b border-[#f0e8d8] mb-5">
       {MENU_SUB_TABS.map(tab => (
         <Link
           key={tab.href}
           href={tab.href}
-          className={`px-4 py-2 rounded-xl text-sm font-medium font-body transition-all ${
+          className={`pb-2.5 text-sm font-medium font-body transition-colors border-b-2 -mb-px ${
             pathname === tab.href
-              ? 'bg-primary text-white'
-              : 'bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark'
+              ? 'text-primary border-primary'
+              : 'text-neutral-gray border-transparent hover:text-text-dark'
           }`}
         >
           {tab.label}
