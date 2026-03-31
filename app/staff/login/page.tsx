@@ -156,9 +156,9 @@ export default function StaffLoginPage() {
                     <div className="mb-8">
                         <h2 className="text-text-dark dark:text-text-light text-2xl font-semibold font-body tracking-tight">
                             Welcome Back
-                        </h2>
+                        </h2>s
                         <p className="text-neutral-gray text-sm mt-1 font-body">
-                            Sign in with the credentials your admin provided.
+                            Sign in with the credentials your Admin Provided.
                         </p>
                     </div>
 

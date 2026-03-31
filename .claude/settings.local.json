@@ -11,7 +11,25 @@
       "Read(//c/Users/iamjn/.claude/projects/c--Users-iamjn-Desktop-WEBZ-CediBites-cedibites/87ef4c42-447d-4213-aae8-a47f4162f4ce/tool-results/**)",
       "Bash(xargs grep:*)",
       "Bash(grep -o \"id: ''''CB[0-9]*''''\" lib/services/orders/order.service.mock.ts)",
-      "Bash(xargs sed:*)"
+      "Bash(xargs sed:*)",
+      "Bash(find /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites -name robots.txt -o -name sitemap.* -o -name manifest.*)",
+      "Bash(ls -la /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/'\\(customer\\)'/)",
+      "Bash(ls /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/\\\\\\(customer\\\\\\))",
+      "Bash(ls /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/\\\\\\(customer\\\\\\)/orders)",
+      "Bash(ls /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/\\\\\\(customer\\\\\\)/menu)",
+      "Bash(ls /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/\\\\\\(customer\\\\\\)/checkout)",
+      "Bash(ls /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/\\\\\\(customer\\\\\\)/orders/[orderCode])",
+      "Bash(ls /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/\\\\\\(customer\\\\\\)/order-history)",
+      "Bash(ls /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/\\\\\\(customer\\\\\\)/menuaudit)",
+      "Bash(ls /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/\\\\\\(staff-auth\\\\\\))",
+      "Bash(find c:UsersiamjnDesktopWEBZCediBitescedibites -type f -name *menu* -o -name *sample*)",
+      "Bash(find /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites -name *Menu* -o -name *menu*)",
+      "Bash(find /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites -path */node_modules -prune -o -type f \\\\\\(-name *sample* -o -name *mock* -o -name *data* \\\\\\) -print)",
+      "Bash(xargs ls:*)",
+      "Bash(find c:UsersiamjnDesktopWEBZcedibites_apicedibites_api/database/migrations -name *branch* -type f)",
+      "Bash(find c:UsersiamjnDesktopWEBZcedibites_apicedibites_api -name *operating* -o -name *hours*)",
+      "Bash(ls \"c:\\\\Users\\\\iamjn\\\\Desktop\\\\WEBZ\\\\cedibites_api\\\\cedibites_api\\\\app\\\\Console\\\\Commands\"\" 2>/dev/null || echo \"empty or missing \")",
+      "Bash(grep -rn \"cancelOrder\\\\|cancel_order\\\\|cancelOrder\\\\|/cancel\" /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/lib --include=*.ts)"
     ]
   }
 }

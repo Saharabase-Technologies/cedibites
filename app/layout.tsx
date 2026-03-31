@@ -34,8 +34,31 @@ const abeezee = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "CediBites Restaurant | Authentic Ghanaian food",
-  description: "Authentic Ghanaian food",
+  metadataBase: new URL('https://app.cedibites.com'),
+  title: {
+    template: '%s | CediBites',
+    default: 'CediBites — Authentic Ghanaian Food Delivery',
+  },
+  description:
+    'Order authentic Ghanaian dishes online — jollof rice, waakye, kelewele, soups and more. Delivered fresh to your door across Ghana.',
+  openGraph: {
+    type: 'website',
+    siteName: 'CediBites',
+    locale: 'en_GH',
+    url: 'https://app.cedibites.com',
+    title: 'CediBites — Authentic Ghanaian Food Delivery',
+    description: 'Order authentic Ghanaian dishes online, delivered fresh.',
+    images: [{ url: '/og-default.png', width: 1200, height: 630, alt: 'CediBites' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'CediBites — Authentic Ghanaian Food Delivery',
+    description: 'Order authentic Ghanaian dishes online, delivered fresh.',
+    images: ['/og-default.png'],
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GSC_VERIFICATION ?? '',
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

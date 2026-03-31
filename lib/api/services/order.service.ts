@@ -24,6 +24,7 @@ export interface OrdersParams {
 
 export interface EmployeeOrdersParams {
   branch_id?: number;
+  staff_id?: string | number;
   status?: string | string[];
   order_type?: string;
   order_source?: string;
@@ -67,10 +68,10 @@ export const orderService = {
   },
 
   /**
-   * Cancel order
+   * Cancel order with optional reason
    */
-  cancelOrder: (id: number): Promise<{ data: Order }> => {
-    return apiClient.delete(`/orders/${id}`);
+  cancelOrder: (id: number, reason?: string): Promise<{ data: Order }> => {
+    return apiClient.post(`/orders/${id}/cancel`, { reason: reason ?? null });
   },
 
   /**

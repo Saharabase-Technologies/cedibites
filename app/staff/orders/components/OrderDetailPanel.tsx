@@ -22,6 +22,8 @@ import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import LiveMap from '@/app/components/order/LiveMap';
 import { toast } from '@/lib/utils/toast';
 import apiClient from '@/lib/api/client';
+import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
+import { useCancelOrder } from '@/lib/api/hooks/useOrders';
 
 // ─── Refund modal ─────────────────────────────────────────────────────────────
 
@@ -117,6 +119,8 @@ export default function OrderDetailPanel() {
     const [showRefund, setShowRefund] = useState(false);
     const [isRefunding, setIsRefunding] = useState(false);
     const [refundDone, setRefundDone] = useState(false);
+    const [showCancel, setShowCancel] = useState(false);
+    const { cancelOrder } = useCancelOrder();
 
     if (!selectedOrder) return null;
 
@@ -363,7 +367,7 @@ export default function OrderDetailPanel() {
                             ))}
                             <button
                                 type="button"
-                                onClick={() => { handleAdvance(order.id, 'cancelled'); onClose(); }}
+                                onClick={() => setShowCancel(true)}
                                 className="w-full flex items-center justify-center gap-2 border border-error/30 hover:bg-error/10 text-error font-semibold font-body py-3 rounded-full text-sm transition-colors cursor-pointer"
                             >
                                 <WarningCircleIcon size={16} weight="fill" />
@@ -408,6 +412,25 @@ export default function OrderDetailPanel() {
 
                 </div>
             </div>
+
+            {/* Cancel modal */}
+            {showCancel && (
+                <CancelOrderModal
+                    orderNumber={order.orderNumber}
+                    theme="dark"
+                    onCancel={() => setShowCancel(false)}
+                    onConfirm={async (reason) => {
+                        try {
+                            await cancelOrder({ id: Number(order.id), reason });
+                            toast.success(`Order #${order.orderNumber} cancelled`);
+                            setShowCancel(false);
+                            onClose();
+                        } catch {
+                            toast.error('Failed to cancel order. Please try again.');
+                        }
+                    }}
+                />
+            )}
 
             {/* Refund modal — mounts over panel */}
             {showRefund && (

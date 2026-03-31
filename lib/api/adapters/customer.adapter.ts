@@ -35,9 +35,10 @@ function formatRelativeDate(iso?: string): string {
   const today = now.toDateString();
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
-  if (d.toDateString() === today) return `Today ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
-  if (d.toDateString() === yesterday.toDateString()) return `Yesterday ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const tz = { timeZone: 'Africa/Accra' };
+  if (d.toDateString() === today) return `Today ${d.toLocaleTimeString('en-GB', { ...tz, hour: '2-digit', minute: '2-digit' })}`;
+  if (d.toDateString() === yesterday.toDateString()) return `Yesterday ${d.toLocaleTimeString('en-GB', { ...tz, hour: '2-digit', minute: '2-digit' })}`;
+  return d.toLocaleDateString('en-GB', { ...tz, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export function mapApiCustomerToDisplay(api: ApiCustomer, orders?: Array<{ id: number; order_number?: string; branch?: { name: string }; status: string; total_amount: number; created_at: string }>): DisplayCustomer {

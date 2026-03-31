@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { useAnalytics, useOrderSourceAnalytics, useTopItemsAnalytics, useBottomItemsAnalytics, useCategoryRevenueAnalytics, useBranchPerformanceAnalytics, useDeliveryPickupAnalytics, usePaymentMethodAnalytics } from '@/lib/api/hooks/useAnalytics';
 import { useSearchParams } from 'next/navigation';
+import { useBranch } from '@/app/components/providers/BranchProvider';
 import { toast } from '@/lib/utils/toast';
 import { exportElementToPdf } from '@/lib/utils/exportPdf';
 import {
@@ -21,7 +22,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Period = 'today' | 'week' | 'month' | '30d' | '90d' | 'custom';
+type Period = 'today' | 'yesterday' | 'week' | 'month' | '30d' | '90d' | 'custom';
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 
@@ -83,6 +84,8 @@ function SectionTitle({ title, sub }: { title: string; sub?: string }) {
 // ─── Revenue chart (from API sales_by_day) ─────────────────────────────────────
 
 function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total: number; orders: number }> }) {
+    const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
     const dayLabels = useMemo(() => {
         if (!salesByDay?.length) return DAYS;
         return salesByDay.map((d) => {
@@ -91,18 +94,38 @@ function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total
         });
     }, [salesByDay]);
     const values = useMemo(() => salesByDay?.map((d) => Number(d.total)) ?? [], [salesByDay]);
+    const orderCounts = useMemo(() => salesByDay?.map((d) => d.orders) ?? [], [salesByDay]);
     const maxVal = values.length ? Math.max(...values, 1) : 1;
+    const labels = salesByDay?.length ? dayLabels : DAYS;
 
     return (
         <Card>
             <SectionTitle title="Daily Revenue — All Branches" sub={salesByDay?.length ? `${salesByDay.length}-day view` : '7-day view'} />
-            <div className="flex items-end gap-2 h-32">
-                {(salesByDay?.length ? dayLabels : DAYS).map((day, di) => {
+            <div className="flex items-end gap-2 h-36">
+                {labels.map((day, di) => {
                     const val = values[di] ?? 0;
+                    const orders = orderCounts[di] ?? 0;
                     const h = Math.round((val / maxVal) * 112) || 4;
+                    const isHovered = hoveredIdx === di;
                     return (
-                        <div key={`${day}-${di}`} className="flex-1 flex flex-col items-center gap-1">
-                            <div className="w-full rounded-sm bg-primary/85" style={{ height: h, minHeight: 4, transition: 'height 0.3s ease' }} />
+                        <div
+                            key={`${day}-${di}`}
+                            className="flex-1 flex flex-col items-center gap-1 relative group"
+                            onMouseEnter={() => setHoveredIdx(di)}
+                            onMouseLeave={() => setHoveredIdx(null)}
+                        >
+                            {/* Tooltip */}
+                            {isHovered && val > 0 && (
+                                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 bg-text-dark text-white rounded-lg px-2.5 py-1.5 text-[10px] font-body whitespace-nowrap shadow-lg pointer-events-none">
+                                    <p className="font-bold">{formatGHS(val)}</p>
+                                    <p className="text-white/70">{orders} order{orders !== 1 ? 's' : ''}</p>
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-text-dark" />
+                                </div>
+                            )}
+                            <div
+                                className={`w-full rounded-sm transition-all duration-200 ${isHovered ? 'bg-primary' : 'bg-primary/70'}`}
+                                style={{ height: h, minHeight: 4 }}
+                            />
                             <span className="text-[9px] text-neutral-gray font-body">{day}</span>
                         </div>
                     );
@@ -114,21 +137,59 @@ function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total
 
 // ─── Peak hours heatmap ───────────────────────────────────────────────────────
 
+function timeStrToHour(t: string | null | undefined): number | null {
+    if (!t) return null;
+    const h = parseInt(t.split(':')[0], 10);
+    return isNaN(h) ? null : h;
+}
+
 function PeakHoursHeatmap({ ordersByHour }: { ordersByHour?: Array<{ hour: number; count: number }> }) {
     const [selectedDay, setSelectedDay] = useState<string>('All');
+    const { branches } = useBranch();
     const allDays = ['All', ...DAYS];
+
+    // Derive hour range from branch operating hours
+    const { startHour, endHour } = useMemo(() => {
+        let earliest = 7;
+        let latest = 22;
+        if (branches.length > 0) {
+            const opens: number[] = [];
+            const closes: number[] = [];
+            branches.forEach((b: any) => {
+                if (b.operatingHours) {
+                    Object.values(b.operatingHours).forEach((oh: any) => {
+                        if (oh?.isOpen) {
+                            const o = timeStrToHour(oh.openTime ?? oh.open_time);
+                            const c = timeStrToHour(oh.closeTime ?? oh.close_time);
+                            if (o !== null) opens.push(o);
+                            if (c !== null) closes.push(c);
+                        }
+                    });
+                }
+            });
+            if (opens.length) earliest = Math.min(...opens);
+            if (closes.length) latest = Math.max(...closes);
+        }
+        // clamp to reasonable bounds
+        return { startHour: Math.max(0, earliest), endHour: Math.min(23, latest) };
+    }, [branches]);
+
+    const hours = useMemo(() => {
+        const result: string[] = [];
+        for (let h = startHour; h <= endHour; h++) result.push(String(h));
+        return result;
+    }, [startHour, endHour]);
 
     const data = useMemo(() => {
         if (ordersByHour?.length) {
             const byHour: Record<number, number> = {};
             for (const { hour, count } of ordersByHour) byHour[hour] = (byHour[hour] ?? 0) + count;
-            return HOURS.map((_, i) => byHour[7 + i] ?? 0);
+            return hours.map((_, i) => byHour[startHour + i] ?? 0);
         }
-        // Return empty data if no backend data
-        return HOURS.map(() => 0);
-    }, [selectedDay, ordersByHour]);
+        return hours.map(() => 0);
+    }, [selectedDay, ordersByHour, hours, startHour]);
 
-    const max = Math.max(...data, 1); // Ensure max is at least 1 to avoid division by zero
+    const max = Math.max(...data, 1);
 
     function cellBg(val: number) {
         if (max === 0) return '#f5ede0';
@@ -141,10 +202,11 @@ function PeakHoursHeatmap({ ordersByHour }: { ordersByHour?: Array<{ hour: numbe
     }
 
     const hasData = ordersByHour && ordersByHour.length > 0;
+    const openLabel = `${startHour}:00 – ${endHour}:00`;
 
     return (
         <Card>
-            <SectionTitle title="Peak Hours Heatmap" sub="Orders by hour — darker = busier" />
+            <SectionTitle title="Peak Hours Heatmap" sub={`Orders by hour — darker = busier · ${openLabel}`} />
             {!hasData ? (
                 <div className="flex items-center justify-center h-32 text-neutral-gray text-sm">
                     No peak hours data available
@@ -160,7 +222,7 @@ function PeakHoursHeatmap({ ordersByHour }: { ordersByHour?: Array<{ hour: numbe
                         ))}
                     </div>
                     <div className="flex gap-1 items-end">
-                        {HOURS.map((h, i) => (
+                        {hours.map((h, i) => (
                             <div key={h} className="flex-1 flex flex-col items-center gap-1">
                                 <div className="w-full rounded-sm flex items-center justify-center" style={{ height: 44, background: cellBg(data[i]), transition: 'background 0.3s ease' }}>
                                     <span className="text-[8px] font-bold font-body" style={{ color: data[i] / max > 0.5 ? '#5c3d00' : '#9a8878' }}>{data[i]}</span>
@@ -245,47 +307,75 @@ function OrderSourceChart({ orderSources }: { orderSources?: Array<{ name: strin
 
 // ─── Top items ────────────────────────────────────────────────────────────────
 
-function TopItemsCard({ items, title }: { items?: Array<{ id?: number; name: string; units: number; rev: number; trend?: number }>; title: string }) {
-    const itemList = items || [];
-    const maxRev = itemList.length > 0 ? Math.max(...itemList.map(i => i.rev)) : 1;
-    
+function TopItemsCard({ items, title, allowSortToggle = false }: { items?: Array<{ id?: number; name: string; units: number; rev: number; trend?: number }>; title: string; allowSortToggle?: boolean }) {
+    const [sortBy, setSortBy] = useState<'revenue' | 'quantity'>('revenue');
+
+    const itemList = useMemo(() => {
+        const base = items || [];
+        if (!allowSortToggle || sortBy === 'revenue') return [...base].sort((a, b) => b.rev - a.rev);
+        return [...base].sort((a, b) => b.units - a.units);
+    }, [items, sortBy, allowSortToggle]);
+
+    const maxVal = itemList.length > 0
+        ? (sortBy === 'quantity' ? Math.max(...itemList.map(i => i.units), 1) : Math.max(...itemList.map(i => i.rev), 1))
+        : 1;
+
     return (
         <Card>
-            <SectionTitle title={title} />
+            <div className="flex items-start justify-between mb-4">
+                <div>
+                    <p className="text-text-dark text-sm font-bold font-body">{title}</p>
+                </div>
+                {allowSortToggle && (
+                    <div className="flex rounded-lg overflow-hidden border border-[#f0e8d8] shrink-0">
+                        <button type="button" onClick={() => setSortBy('revenue')}
+                            className={`px-2.5 py-1 text-[10px] font-semibold font-body transition-colors cursor-pointer ${sortBy === 'revenue' ? 'bg-primary text-white' : 'bg-neutral-card text-neutral-gray hover:text-text-dark'}`}>
+                            Revenue
+                        </button>
+                        <button type="button" onClick={() => setSortBy('quantity')}
+                            className={`px-2.5 py-1 text-[10px] font-semibold font-body transition-colors cursor-pointer ${sortBy === 'quantity' ? 'bg-primary text-white' : 'bg-neutral-card text-neutral-gray hover:text-text-dark'}`}>
+                            Qty
+                        </button>
+                    </div>
+                )}
+            </div>
             {itemList.length === 0 ? (
                 <div className="flex items-center justify-center h-32 text-neutral-gray text-sm">
                     No items data available
                 </div>
             ) : (
                 <div className="flex flex-col gap-3">
-                    {itemList.map((item, i) => (
-                        <div key={item.id || `${item.name}-${i}`}>
-                            <div className="flex justify-between items-center mb-1">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold font-body text-neutral-gray/50 w-4">{i + 1}</span>
-                                    <span className="text-xs font-semibold font-body text-text-dark">{item.name}</span>
-                                    <span className="text-[10px] font-body text-neutral-gray">×{item.units}</span>
+                    {itemList.map((item, i) => {
+                        const barVal = sortBy === 'quantity' ? item.units : item.rev;
+                        return (
+                            <div key={item.id || `${item.name}-${i}`}>
+                                <div className="flex justify-between items-center mb-1">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <span className="text-[10px] font-bold font-body text-neutral-gray/50 w-4 shrink-0">{i + 1}</span>
+                                        <span className="text-xs font-semibold font-body text-text-dark truncate">{item.name}</span>
+                                        <span className="text-[10px] font-body text-neutral-gray shrink-0">×{item.units}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                                        <span className="text-xs font-bold font-body text-primary">{formatGHS(item.rev)}</span>
+                                        {item.trend !== undefined && (
+                                            <div className="flex items-center gap-0.5">
+                                                {item.trend > 0
+                                                    ? <ArrowUpIcon size={10} className="text-secondary" />
+                                                    : <ArrowDownIcon size={10} className="text-error" />
+                                                }
+                                                <span className={`text-[10px] font-body ${item.trend > 0 ? 'text-secondary' : 'text-error'}`}>
+                                                    {Math.abs(item.trend)}%
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <span className="text-xs font-bold font-body text-primary">{formatGHS(item.rev)}</span>
-                                    {item.trend !== undefined && (
-                                        <div className="flex items-center gap-0.5">
-                                            {item.trend > 0
-                                                ? <ArrowUpIcon size={10} className="text-secondary" />
-                                                : <ArrowDownIcon size={10} className="text-error" />
-                                            }
-                                            <span className={`text-[10px] font-body ${item.trend > 0 ? 'text-secondary' : 'text-error'}`}>
-                                                {Math.abs(item.trend)}%
-                                            </span>
-                                        </div>
-                                    )}
+                                <div className="h-1 bg-neutral-gray/15 rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full" style={{ width: `${(barVal / maxVal) * 100}%`, background: i === 0 ? '#e49925' : '#c8a87a', transition: 'width 0.4s ease' }} />
                                 </div>
                             </div>
-                            <div className="h-1 bg-neutral-gray/15 rounded-full overflow-hidden">
-                                <div className="h-full rounded-full" style={{ width: `${(item.rev / maxRev) * 100}%`, background: i === 0 ? '#e49925' : '#c8a87a', transition: 'width 0.4s ease' }} />
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </Card>
@@ -512,11 +602,211 @@ function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
     );
 }
 
+// ─── Repeat vs New Customers ──────────────────────────────────────────────────
+
+function RepeatVsNewCustomers({ totalCustomers, newCustomers }: { totalCustomers?: number; newCustomers?: number }) {
+    const total = totalCustomers ?? 0;
+    const newC = newCustomers ?? 0;
+    const repeat = Math.max(0, total - newC);
+    const newPct = total > 0 ? Math.round((newC / total) * 100) : 0;
+    const repeatPct = total > 0 ? Math.round((repeat / total) * 100) : 0;
+    const circumference = 2 * Math.PI * 28;
+    const newDash = (newPct / 100) * circumference;
+
+    return (
+        <Card>
+            <SectionTitle title="Repeat vs New Customers" sub="Based on customer lifetime data" />
+            {total === 0 ? (
+                <div className="flex items-center justify-center h-24 text-neutral-gray text-sm">No customer data available</div>
+            ) : (
+                <div className="flex items-center gap-5">
+                    <div className="relative w-20 h-20 shrink-0">
+                        <svg width="80" height="80" viewBox="0 0 80 80">
+                            <circle cx="40" cy="40" r="28" fill="none" stroke="#f0e8d8" strokeWidth="12" />
+                            <circle cx="40" cy="40" r="28" fill="none" stroke="#6c833f" strokeWidth="12"
+                                strokeDasharray={`${newDash} ${circumference}`}
+                                strokeLinecap="round" transform="rotate(-90 40 40)" />
+                            <circle cx="40" cy="40" r="28" fill="none" stroke="#e49925" strokeWidth="12"
+                                strokeDasharray={`${(repeatPct / 100) * circumference} ${circumference}`}
+                                strokeDashoffset={-newDash}
+                                strokeLinecap="round" transform="rotate(-90 40 40)" />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-xs font-bold font-body text-text-dark">{total}</span>
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-2 flex-1">
+                        {[
+                            { label: 'New', count: newC, pct: newPct, color: '#6c833f' },
+                            { label: 'Repeat', count: repeat, pct: repeatPct, color: '#e49925' },
+                        ].map(row => (
+                            <div key={row.label}>
+                                <div className="flex justify-between mb-1">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-2 h-2 rounded-full" style={{ background: row.color }} />
+                                        <span className="text-xs font-body text-text-dark">{row.label}</span>
+                                        <span className="text-[10px] font-body text-neutral-gray">({row.count})</span>
+                                    </div>
+                                    <span className="text-xs font-bold font-body text-text-dark">{row.pct}%</span>
+                                </div>
+                                <div className="h-1 bg-neutral-gray/15 rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full" style={{ width: `${row.pct}%`, background: row.color, transition: 'width 0.4s ease' }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </Card>
+    );
+}
+
+// ─── Orders by Day of Week ────────────────────────────────────────────────────
+
+function OrdersByDayOfWeek({ salesByDay }: { salesByDay?: Array<{ date: string; orders: number }> }) {
+    const dayCounts = useMemo(() => {
+        const counts = Array(7).fill(0) as number[];
+        if (salesByDay?.length) {
+            for (const { date, orders } of salesByDay) {
+                const idx = (new Date(date).getDay() + 6) % 7; // 0=Mon…6=Sun
+                counts[idx] += orders;
+            }
+        }
+        return counts;
+    }, [salesByDay]);
+
+    const maxCount = Math.max(...dayCounts, 1);
+    const hasData = dayCounts.some(c => c > 0);
+
+    return (
+        <Card>
+            <SectionTitle title="Orders by Day of Week" sub="Aggregated from selected period" />
+            {!hasData ? (
+                <div className="flex items-center justify-center h-24 text-neutral-gray text-sm">No data for selected period</div>
+            ) : (
+                <div className="flex items-end gap-2 h-28 pt-2">
+                    {DAYS.map((day, i) => {
+                        const val = dayCounts[i];
+                        const h = Math.round((val / maxCount) * 80) || 3;
+                        return (
+                            <div key={day} className="flex-1 flex flex-col items-center gap-1 group relative">
+                                {val > 0 && (
+                                    <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 z-10 bg-text-dark text-white rounded-md px-2 py-1 text-[10px] font-body whitespace-nowrap shadow pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {val} order{val !== 1 ? 's' : ''}
+                                    </div>
+                                )}
+                                <div className="w-full rounded-sm bg-primary/70 hover:bg-primary transition-colors" style={{ height: h, minHeight: 3 }} />
+                                <span className="text-[9px] text-neutral-gray font-body">{day}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </Card>
+    );
+}
+
+// ─── Avg Items Per Order (UI-only) ────────────────────────────────────────────
+
+function AvgItemsPerOrder() {
+    const HARDCODED = [
+        { label: '1 item', pct: 22 },
+        { label: '2 items', pct: 38 },
+        { label: '3 items', pct: 25 },
+        { label: '4+ items', pct: 15 },
+    ];
+    return (
+        <Card>
+            <div className="mb-4">
+                <p className="text-text-dark text-sm font-bold font-body">Avg. Items per Order</p>
+                <p className="text-[10px] font-body mt-0.5 text-warning font-semibold">UI only · Connect backend to activate</p>
+            </div>
+            <p className="text-3xl font-bold text-primary font-body mb-4">2.4</p>
+            <div className="flex flex-col gap-2">
+                {HARDCODED.map(row => (
+                    <div key={row.label}>
+                        <div className="flex justify-between mb-0.5">
+                            <span className="text-xs font-body text-text-dark">{row.label}</span>
+                            <span className="text-xs font-bold font-body text-text-dark">{row.pct}%</span>
+                        </div>
+                        <div className="h-1 bg-neutral-gray/15 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full bg-primary/60" style={{ width: `${row.pct}%` }} />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </Card>
+    );
+}
+
+// ─── Discount Usage (UI-only) ─────────────────────────────────────────────────
+
+function DiscountUsage() {
+    const HARDCODED = [
+        { label: 'CEDIBITES10', used: 48, savings: 240 },
+        { label: 'WELCOME20', used: 31, savings: 310 },
+        { label: 'FREESHIP', used: 19, savings: 95 },
+    ];
+    return (
+        <Card>
+            <div className="mb-4">
+                <p className="text-text-dark text-sm font-bold font-body">Discount Usage</p>
+                <p className="text-[10px] font-body mt-0.5 text-warning font-semibold">UI only · Connect backend to activate</p>
+            </div>
+            <div className="flex flex-col gap-0">
+                {HARDCODED.map((d, i) => (
+                    <div key={d.label} className={`flex items-center justify-between py-2.5 ${i < HARDCODED.length - 1 ? 'border-b border-[#f0e8d8]' : ''}`}>
+                        <div>
+                            <p className="text-xs font-semibold font-body text-text-dark font-mono">{d.label}</p>
+                            <p className="text-[10px] font-body text-neutral-gray">{d.used} uses</p>
+                        </div>
+                        <span className="text-xs font-bold font-body text-primary">-{formatGHS(d.savings)}</span>
+                    </div>
+                ))}
+            </div>
+        </Card>
+    );
+}
+
+// ─── Cancellation Reasons (UI-only) ──────────────────────────────────────────
+
+function CancellationReasons() {
+    const HARDCODED = [
+        { label: 'Customer changed mind', pct: 40 },
+        { label: 'Long wait time', pct: 28 },
+        { label: 'Item unavailable', pct: 18 },
+        { label: 'Duplicate order', pct: 9 },
+        { label: 'Other', pct: 5 },
+    ];
+    return (
+        <Card>
+            <div className="mb-4">
+                <p className="text-text-dark text-sm font-bold font-body">Cancellation Reasons</p>
+                <p className="text-[10px] font-body mt-0.5 text-warning font-semibold">UI only · Connect backend to activate</p>
+            </div>
+            <div className="flex flex-col gap-2.5">
+                {HARDCODED.map(row => (
+                    <div key={row.label}>
+                        <div className="flex justify-between mb-0.5">
+                            <span className="text-xs font-body text-text-dark">{row.label}</span>
+                            <span className="text-xs font-bold font-body text-text-dark">{row.pct}%</span>
+                        </div>
+                        <div className="h-1 bg-neutral-gray/15 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full bg-error/60" style={{ width: `${row.pct}%` }} />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </Card>
+    );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const PERIODS: { key: Period; label: string }[] = [
-    { key: 'today', label: 'Today' },
-    { key: 'week',  label: 'This Week' },
+    { key: 'today',     label: 'Today' },
+    { key: 'yesterday', label: 'Yesterday' },
+    { key: 'week',      label: 'This Week' },
     { key: 'month', label: 'This Month' },
     { key: '30d',   label: 'Last 30 Days' },
     { key: '90d',   label: 'Last 90 Days' },
@@ -661,7 +951,7 @@ export default function AdminAnalyticsPage() {
 
             {/* Top items */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                <TopItemsCard items={topItems?.slice(0, 5)} title="Top 5 Items by Revenue" />
+                <TopItemsCard items={topItems?.slice(0, 5)} title="Top 5 Items" allowSortToggle />
                 <div className="flex flex-col gap-3">
                     <TopItemsCard items={bottomItems} title="Slow Movers (Last 7 Days)" />
                 </div>
@@ -673,11 +963,27 @@ export default function AdminAnalyticsPage() {
             </div>
 
             {/* Customer insights */}
-            <CustomerInsights 
-                topCustomers={customers?.top_customers_by_orders ?? customers?.top_customers_by_spending} 
+            <CustomerInsights
+                topCustomers={customers?.top_customers_by_orders ?? customers?.top_customers_by_spending}
                 deliveryPickup={deliveryPickup}
                 paymentMethods={paymentMethods}
             />
+
+            {/* Repeat vs new + orders by day */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                <RepeatVsNewCustomers
+                    totalCustomers={customers?.total_customers}
+                    newCustomers={customers?.new_customers_30_days}
+                />
+                <OrdersByDayOfWeek salesByDay={sales?.sales_by_day} />
+            </div>
+
+            {/* Avg items / discounts / cancellations */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                <AvgItemsPerOrder />
+                <DiscountUsage />
+                <CancellationReasons />
+            </div>
         </div>
     );
 }

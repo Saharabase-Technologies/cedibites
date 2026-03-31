@@ -16,8 +16,9 @@ export interface PrintReceiptOptions {
 }
 
 function formatDateTime(d: Date): string {
-  const date = d.toLocaleDateString('en-GH', { day: 'numeric', month: 'long', year: 'numeric' });
-  const time = d.toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  const tz = { timeZone: 'Africa/Accra' };
+  const date = d.toLocaleDateString('en-GH', { ...tz, day: 'numeric', month: 'long', year: 'numeric' });
+  const time = d.toLocaleTimeString('en-GH', { ...tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
   return `${date}, ${time}`;
 }
 

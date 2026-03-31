@@ -1,4 +1,5 @@
 import type { Order, OrderItem, Payment } from '@/types/api';
+import { resolveDisplayName } from '@/lib/utils/orderAdapter';
 
 export type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone';
 export type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash at Pickup' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
@@ -18,6 +19,7 @@ export interface TimelineEvent {
 
 export interface AdminOrder {
   id: string;
+  dbId: number;
   customer: string;
   phone: string;
   email?: string;
@@ -64,7 +66,7 @@ const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleTimeString('en-GB', { timeZone: 'Africa/Accra', hour: 'numeric', minute: '2-digit' });
 }
 
 function formatPlacedAt(iso: string): string {
@@ -79,7 +81,7 @@ function formatPlacedAt(iso: string): string {
   if (d.toDateString() === yesterday.toDateString()) {
     return `Yesterday ${formatTime(iso)}`;
   }
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('en-GB', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 function formatTimeAgo(iso: string): string {
@@ -106,7 +108,7 @@ function formatPlacedAtFull(iso: string): string {
   if (d.toDateString() === yesterday.toDateString()) {
     return `Yesterday ${formatTime(iso)}`;
   }
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('en-GB', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function formatStatusLabel(status: string): string {
@@ -193,6 +195,7 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
 
   return {
     id: api.order_number ?? String(api.id),
+    dbId: Number(api.id),
     createdAt: api.created_at ?? '',
     customer: api.contact_name ?? api.customer_name ?? api.customer?.name ?? '—',
     phone: api.contact_phone ?? api.customer_phone ?? api.customer?.phone ?? '—',
@@ -242,24 +245,30 @@ export function mapApiOrderToOrder(api: any): import('@/types/order').Order {
       typeof api.assignedEmployee === 'string'
         ? api.assignedEmployee
         : api.assigned_employee?.name,
-    items: (api.items ?? []).map((item: any) => ({
-      id: String(item.id),
-      menuItemId: String(item.menu_item_id),
-      name: item.menu_item_snapshot?.name ?? item.menu_item?.name ?? '',
-      quantity: Number(item.quantity ?? 1),
-      unitPrice: Number(item.unit_price ?? 0),
-      sizeId: item.menu_item_option_id,
-      sizeLabel:
+    items: (api.items ?? []).map((item: any) => {
+      const optionLabel =
         item.menu_item_option_snapshot?.option_label
         ?? item.option_snapshot?.option_label
-        ?? item.option?.option_label,
-      variantKey:
-        item.menu_item_option_snapshot?.option_key
-        ?? item.option_snapshot?.option_key
-        ?? item.option?.option_key,
-      notes: item.special_instructions,
-      category: item.menu_item?.category,
-    })),
+        ?? item.option?.option_label;
+      const rawName = item.menu_item_snapshot?.name ?? item.menu_item?.name ?? '';
+      const resolvedName = resolveDisplayName(rawName, optionLabel);
+      const variantBakedIn = resolvedName !== rawName;
+      return {
+        id: String(item.id),
+        menuItemId: String(item.menu_item_id),
+        name: resolvedName,
+        quantity: Number(item.quantity ?? 1),
+        unitPrice: Number(item.unit_price ?? 0),
+        sizeId: item.menu_item_option_id,
+        sizeLabel: variantBakedIn ? undefined : optionLabel,
+        variantKey:
+          item.menu_item_option_snapshot?.option_key
+          ?? item.option_snapshot?.option_key
+          ?? item.option?.option_key,
+        notes: item.special_instructions,
+        category: item.menu_item?.category,
+      };
+    }),
     subtotal: Number(api.subtotal ?? 0),
     deliveryFee: Number(api.delivery_fee ?? 0),
     discount: 0,

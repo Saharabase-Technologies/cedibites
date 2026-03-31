@@ -26,6 +26,10 @@ import {
     DownloadSimpleIcon,
     XCircleIcon,
 } from '@phosphor-icons/react';
+import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
+import { useCancelOrder } from '@/lib/api/hooks/useOrders';
+import { toast } from '@/lib/utils/toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -162,6 +166,8 @@ function OrderDetailPanel({
     const [showConfirm, setShowConfirm] = useState<null | 'cancel' | 'refund'>(null);
     const [noteText, setNoteText] = useState('');
     const [showNote, setShowNote] = useState(false);
+    const { cancelOrder } = useCancelOrder();
+    const queryClient = useQueryClient();
 
     const subtotal = order.items.reduce((s, i) => s + i.qty * i.price, 0);
 
@@ -353,12 +359,17 @@ function OrderDetailPanel({
 
             {/* Confirm modals */}
             {showConfirm === 'cancel' && (
-                <ConfirmModal
-                    title="Cancel this order?"
-                    description={`Order #${order.id} for ${order.customer} will be cancelled. An SMS will be sent to the customer.`}
-                    onConfirm={() => setShowConfirm(null)}
+                <CancelOrderModal
+                    orderNumber={order.id}
+                    theme="light"
                     onCancel={() => setShowConfirm(null)}
-                    dangerous
+                    onConfirm={async (reason) => {
+                        await cancelOrder({ id: order.dbId, reason });
+                        toast.success(`Order #${order.id} cancelled`);
+                        queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+                        setShowConfirm(null);
+                        onClose();
+                    }}
                 />
             )}
             {showConfirm === 'refund' && (

@@ -241,7 +241,7 @@ export default function AdminCustomersPage() {
         return list;
     }, [customers, tab, sortBy]);
 
-    const handleExportCsv = useCallback(() => {
+    const buildExportRows = useCallback(() => {
         const headers = ['Name', 'Phone', 'Email', 'Account Type', 'Status', 'Total Orders', 'Total Spend (GHS)', 'Avg Order Value (GHS)', 'Last Order', 'Join Date'];
         const rows = filtered.map((c) => [
             c.name,
@@ -249,21 +249,43 @@ export default function AdminCustomersPage() {
             c.email ?? '',
             c.accountType,
             c.status,
-            c.totalOrders,
+            String(c.totalOrders),
             c.totalSpend.toFixed(2),
             c.avgOrderValue.toFixed(2),
             c.lastOrderDate,
             c.joinDate,
         ]);
-        const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        return [headers, ...rows];
+    }, [filtered]);
+
+    const handleExportCsv = useCallback(() => {
+        const allRows = buildExportRows();
+        const csv = allRows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `customers-${tab.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`;
         a.click();
         URL.revokeObjectURL(url);
-    }, [filtered, tab]);
+    }, [buildExportRows, tab]);
+
+    const handleExportExcel = useCallback(() => {
+        const allRows = buildExportRows();
+        const esc = (v: string) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const tableHtml = allRows.map((r, ri) => {
+            const tag = ri === 0 ? 'th' : 'td';
+            return `<tr>${r.map((v) => `<${tag}>${esc(String(v))}</${tag}>`).join('')}</tr>`;
+        }).join('');
+        const xls = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Customers</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table>${tableHtml}</table></body></html>`;
+        const blob = new Blob(['\ufeff' + xls], { type: 'application/vnd.ms-excel;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `customers-${tab.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.xls`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [buildExportRows, tab]);
 
     const selectedWithOrders = useMemo(() => {
         if (!selected) return null;
@@ -319,11 +341,18 @@ export default function AdminCustomersPage() {
                     <h1 className="text-text-dark text-2xl font-bold font-body">Customers</h1>
                     <p className="text-neutral-gray text-sm font-body mt-0.5">{filtered.length} customers shown</p>
                 </div>
-                <button type="button" onClick={handleExportCsv} disabled={filtered.length === 0}
-                    className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <DownloadSimpleIcon size={15} weight="bold" className="text-primary" />
-                    Export CSV
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                    <button type="button" onClick={handleExportCsv} disabled={filtered.length === 0}
+                        className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                        <DownloadSimpleIcon size={15} weight="bold" className="text-primary" />
+                        CSV
+                    </button>
+                    <button type="button" onClick={handleExportExcel} disabled={filtered.length === 0}
+                        className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                        <DownloadSimpleIcon size={15} weight="bold" className="text-secondary" />
+                        Excel
+                    </button>
+                </div>
             </div>
 
             {/* Tabs + controls */}
