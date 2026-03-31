@@ -222,6 +222,18 @@ function OrderCard({ order, branchName, staffName, onCancelRequested }: OrderCar
         <span className="text-xs text-neutral-gray whitespace-nowrap shrink-0 mt-0.5">
           {formatOrderTime(order.placedAt)}
         </span>
+        {/* Cancel row — separated to avoid accidental taps */}
+        {order.status !== 'cancelled' && (
+          <div className="">
+            <button
+              onClick={() => onCancelRequested(order)}
+              className="w-ful px-3 py-2 rounded-lg text-xs font-medium text-error/70 hover:text-error hover:bg-error/5 transition-colors border border-dashed border-error/20 hover:border-error/40"
+              title="Cancel Order"
+            >
+              Cancel order
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Items summary */}
@@ -264,18 +276,7 @@ function OrderCard({ order, branchName, staffName, onCancelRequested }: OrderCar
         </button>
       </div>
 
-      {/* Cancel row — separated to avoid accidental taps */}
-      {order.status !== 'cancelled' && (
-        <div className="px-4 pb-3">
-          <button
-            onClick={() => onCancelRequested(order)}
-            className="w-full py-2 rounded-lg text-xs font-medium text-error/70 hover:text-error hover:bg-error/5 transition-colors border border-dashed border-error/20 hover:border-error/40"
-            title="Cancel Order"
-          >
-            Cancel order
-          </button>
-        </div>
-      )}
+
     </div>
   );
 }
