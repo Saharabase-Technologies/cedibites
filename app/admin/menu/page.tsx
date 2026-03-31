@@ -1183,17 +1183,7 @@ export default function AdminMenuPage() {
             {/* Menu sub-tabs */}
             <MenuSubTabs />
 
-            {/* Branch filter */}
-            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 mb-4">
-                {branches.map(branch => (
-                    <button key={branch.id} type="button" onClick={() => setSelectedBranchId(parseInt(branch.id))}
-                        className={`px-3 py-2 rounded-xl text-sm font-medium font-body whitespace-nowrap transition-all cursor-pointer ${selectedBranchId === parseInt(branch.id) ? 'bg-primary text-white' : 'bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark'}`}>
-                        {branch.name}
-                    </button>
-                ))}
-            </div>
-
-            {/* Category tabs + search */}
+            {/* Category tabs + branch select + search (all in one row) */}
             <div className="flex flex-col sm:flex-row gap-3 mb-5">
                 <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
                     {categoriesLoading ? (
@@ -1206,6 +1196,17 @@ export default function AdminMenuPage() {
                             </button>
                         ))
                     )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                    <select
+                        value={selectedBranchId ?? ''}
+                        onChange={e => setSelectedBranchId(parseInt(e.target.value))}
+                        className="px-3 py-2.5 bg-neutral-card border border-[#f0e8d8] rounded-xl text-sm font-body text-neutral-gray focus:outline-none focus:border-primary/40 cursor-pointer"
+                    >
+                        {branches.map(branch => (
+                            <option key={branch.id} value={branch.id}>{branch.name}</option>
+                        ))}
+                    </select>
                 </div>
                 <div className="relative flex-1 min-w-50">
                     <MagnifyingGlassIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray" />
