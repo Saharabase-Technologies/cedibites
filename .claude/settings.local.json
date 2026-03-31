@@ -34,7 +34,9 @@
       "Read(//c/Users/iamjn/AppData/Local/Temp/claude/c--Users-iamjn-Desktop-WEBZ-CediBites-cedibites/38022479-b111-48f7-a460-3f0b1f117428/tasks/**)",
       "Bash(ls \"/c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/\\(customer\\)/orders/\")",
       "Bash(find /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/app/kitchen/ -name *.tsx -o -name *.ts)",
-      "Bash(/dev/null -type d)"
+      "Bash(/dev/null -type d)",
+      "Bash(grep -r apiOrderToUnifiedOrder --include=*.ts /c/Users/iamjn/Desktop/WEBZ/CediBites/cedibites/lib/utils/)",
+      "Bash(grep -A5 \"showByNumber\\\\|kitchenOrders\\\\|orderManagerOrders\" routes/*.php)"
     ]
   }
 }
