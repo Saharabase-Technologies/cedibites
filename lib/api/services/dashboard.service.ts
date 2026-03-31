@@ -6,6 +6,8 @@ export interface DashboardKpis {
   active_orders: number;
   cancelled_today: number;
   cancelled_revenue_today?: number;
+  no_charge_today?: number;
+  no_charge_today_amount?: number;
 }
 
 export interface DashboardBranch {

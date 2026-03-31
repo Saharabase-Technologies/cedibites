@@ -105,6 +105,6 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
     },
     placedAt,
     staffId: apiOrder.assigned_employee_id ? String(apiOrder.assigned_employee_id) : undefined,
-    staffName: apiOrder.staff_name,
+    staffName: apiOrder.assigned_employee?.name ?? apiOrder.staff_name ?? undefined,
   };
 }

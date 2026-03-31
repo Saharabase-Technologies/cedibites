@@ -256,6 +256,7 @@ export interface Order {
   branch_id: number;
   branch?: Branch;
   assigned_employee_id?: number | null;
+  assigned_employee?: { id: number; name?: string | null; phone?: string | null } | null;
   order_type: OrderType;
   order_source?: string;
   status: OrderStatus;

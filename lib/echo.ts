@@ -23,7 +23,9 @@ function reverbConfig(auth?: { headers: Record<string, string> }) {
     forceTLS: process.env.NEXT_PUBLIC_REVERB_SCHEME === 'https',
     enabledTransports: ['ws', 'wss'] as ['ws', 'wss'],
     ...(auth && {
-      authEndpoint: `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/v1'}/broadcasting/auth`,
+      // Broadcasting auth is at /v1/broadcasting/auth (registered with prefix 'v1'),
+      // NOT under /api/v1. Strip /api from the API URL to get the correct base.
+      authEndpoint: `${(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1').replace(/\/api\//, '/')}/broadcasting/auth`,
       auth,
     }),
   };

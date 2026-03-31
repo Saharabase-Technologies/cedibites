@@ -18,6 +18,7 @@ import {
     ArrowDownIcon,
     DownloadSimpleIcon,
     BuildingsIcon,
+    TagIcon,
 } from '@phosphor-icons/react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,8 +43,8 @@ function formatGHS(v: number) {
 
 // ─── KPI card ─────────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, trend, accent = false, icon: Icon }: {
-    label: string; value: string; trend?: number; accent?: boolean; icon: React.ElementType;
+function KpiCard({ label, value, sub, trend, accent = false, icon: Icon }: {
+    label: string; value: string; sub?: string; trend?: number; accent?: boolean; icon: React.ElementType;
 }) {
     const up = (trend ?? 0) >= 0;
     return (
@@ -53,6 +54,7 @@ function KpiCard({ label, value, trend, accent = false, icon: Icon }: {
                 <span className={`text-[10px] font-bold font-body uppercase tracking-widest ${accent ? 'text-white/80' : 'text-neutral-gray'}`}>{label}</span>
             </div>
             <p className={`text-2xl font-bold font-body leading-none ${accent ? 'text-white' : 'text-text-dark'}`}>{value}</p>
+            {sub && <p className={`text-xs font-body ${accent ? 'text-white/70' : 'text-neutral-gray'}`}>{sub}</p>}
             {trend !== undefined && (
                 <div className="flex items-center gap-1">
                     {up ? <ArrowUpIcon size={11} weight="bold" className={accent ? 'text-white/70' : 'text-secondary'} />
@@ -928,13 +930,19 @@ export default function AdminAnalyticsPage() {
             )}
 
             {/* KPI row */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
                 <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue" value={isLoading ? '…' : formatGHS(sales?.total_sales ?? 0)} accent />
                 <KpiCard icon={ReceiptIcon} label="Orders" value={isLoading ? '…' : String(sales?.total_orders ?? orders?.total_orders ?? 0)} />
                 <KpiCard icon={TrendUpIcon} label="Avg. Order" value={isLoading ? '…' : formatGHS(sales?.average_order_value ?? 0)} />
                 <KpiCard icon={UsersIcon} label="New Customers" value={isLoading ? '…' : String(customers?.new_customers_30_days ?? 0)} />
                 <KpiCard icon={CheckCircleIcon} label="Fulfilment" value={`${fulfilmentPct}%`} />
                 <KpiCard icon={XCircleIcon} label="Cancellations" value={`${cancelledPct}%`} />
+                <KpiCard
+                    icon={TagIcon}
+                    label="No Charge"
+                    value={isLoading ? '…' : String(sales?.no_charge_count ?? 0)}
+                    sub={sales?.no_charge_amount ? formatGHS(sales.no_charge_amount) + ' waived' : undefined}
+                />
             </div>
 
             {/* Revenue + heatmap */}

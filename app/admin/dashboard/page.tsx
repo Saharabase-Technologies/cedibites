@@ -20,6 +20,7 @@ import {
     DatabaseIcon,
     ClockIcon,
     CheckCircleIcon,
+    TagIcon,
 } from '@phosphor-icons/react';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { toast } from '@/lib/utils/toast';
@@ -196,8 +197,8 @@ export default function AdminDashboardPage() {
             <div className="px-4 md:px-8 py-6 max-w-6xl mx-auto">
                 <div className="animate-pulse">
                     <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-7">
-                        {[1, 2, 3, 4].map(i => (
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-7">
+                        {[1, 2, 3, 4, 5].map(i => (
                             <div key={i} className="h-24 bg-gray-200 rounded-2xl"></div>
                         ))}
                     </div>
@@ -236,7 +237,7 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* ── Cross-branch KPI row ─────────────────────────────────────────── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-7">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-7">
                 <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue Today" value={isLoading ? '…' : formatGHS(displayKpis.revenueToday)} accent />
                 <KpiCard icon={ReceiptIcon} label="Orders Today" value={isLoading ? '…' : String(displayKpis.ordersToday)} />
                 <KpiCard icon={CircleNotchIcon} label="Active Now" value={isLoading ? '…' : String(displayKpis.activeOrders)} />
@@ -246,6 +247,12 @@ export default function AdminDashboardPage() {
                     value={isLoading ? '…' : String(displayKpis.cancelledToday)}
                     sub={(kpis?.cancelled_revenue_today ?? liveKpis.cancelledValue) > 0 ? formatGHS(kpis?.cancelled_revenue_today ?? liveKpis.cancelledValue) + ' lost' : undefined}
                     subAlert={liveKpis.cancelReqCount > 0 ? `${liveKpis.cancelReqCount} pending approval` : undefined}
+                />
+                <KpiCard
+                    icon={TagIcon}
+                    label="No Charge Today"
+                    value={isLoading ? '…' : String(kpis?.no_charge_today ?? 0)}
+                    sub={(kpis?.no_charge_today_amount ?? 0) > 0 ? formatGHS(kpis?.no_charge_today_amount ?? 0) + ' waived' : undefined}
                 />
             </div>
 

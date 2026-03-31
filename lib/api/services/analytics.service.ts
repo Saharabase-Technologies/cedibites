@@ -24,6 +24,8 @@ export interface SalesAnalytics {
   average_order_value: number;
   sales_by_day: SalesByDay[];
   sales_by_type: SalesByType[];
+  no_charge_count: number;
+  no_charge_amount: number;
 }
 
 export interface OrdersByHour {
