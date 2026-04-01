@@ -12,6 +12,7 @@ import {
     CaretLeftIcon,
     ArrowUpIcon,
     ArrowDownIcon,
+    FileCsvIcon,
 } from '@phosphor-icons/react';
 import { STATUS_CONFIG } from '@/app/staff/orders/constants';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
@@ -20,6 +21,7 @@ import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
 import { mapApiOrderToAdminOrder } from '@/lib/api/adapters/order.adapter';
 import { analyticsService, type TopItem, type PaymentMethod } from '@/lib/api/services/analytics.service';
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
+import { buildReportHtml, printReport, generateCsv, type ReportData, type ReportMeta, type ItemSoldRow } from '@/lib/utils/reportGenerator';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -539,6 +541,10 @@ export default function ManagerAnalyticsPage() {
     const [period, setPeriod] = useState<Period>('today');
     const [page,   setPage  ] = useState(0);
     const PAGE_SIZE = 8;
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [reportFormat, setReportFormat] = useState<'pdf' | 'csv'>('pdf');
+    const [reportSections, setReportSections] = useState({ summary: true, itemsSold: true, dailyBreakdown: true, topCustomers: true });
+    const [isGenerating, setIsGenerating] = useState(false);
 
     const { staffUser } = useStaffAuth();
     const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
@@ -638,6 +644,108 @@ export default function ManagerAnalyticsPage() {
     const totalPages = Math.ceil(filteredOrders.length / PAGE_SIZE);
     const pageOrders = filteredOrders.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
+    async function handleGenerateReport(): Promise<void> {
+        setIsGenerating(true);
+        try {
+            const range = getDateRangeForPeriod(period);
+            const PERIOD_LABELS: Record<Period, string> = { today: 'Today', week: 'This Week', month: 'This Month', custom: 'All Time' };
+            const periodLabel = PERIOD_LABELS[period];
+            const dateRange = `${range.date_from} – ${range.date_to}`;
+            const generatedAt = new Date().toLocaleString('en-GH', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+            const [salesData, ordersData, customersData, allItemsData] = await Promise.all([
+                (reportSections.summary || reportSections.dailyBreakdown)
+                    ? analyticsService.getSalesAnalytics({ ...range, branch_id: branchId })
+                    : Promise.resolve(undefined),
+                reportSections.summary
+                    ? analyticsService.getOrderAnalytics({ ...range, branch_id: branchId })
+                    : Promise.resolve(undefined),
+                reportSections.topCustomers
+                    ? analyticsService.getCustomerAnalytics({ date_from: range.date_from, date_to: range.date_to })
+                    : Promise.resolve(undefined),
+                reportSections.itemsSold
+                    ? analyticsService.getTopItemsAnalytics({ ...range, branch_id: branchId, limit: 500 })
+                    : Promise.resolve(undefined),
+            ]);
+
+            const totalRev = allItemsData?.reduce((s, i) => s + i.rev, 0) ?? 0;
+            const itemRows: ItemSoldRow[] = (allItemsData ?? []).map(i => ({
+                name: i.size_label || i.name,
+                units: i.units,
+                revenue: i.rev,
+                pctOfTotal: totalRev > 0 ? Math.round((i.rev / totalRev) * 1000) / 10 : 0,
+                trend: i.trend,
+            }));
+
+            const meta: ReportMeta = { title: 'Sales Report', branchName, periodLabel, dateRange, generatedAt };
+
+            if (reportFormat === 'pdf') {
+                const reportData: ReportData = {
+                    meta,
+                    summary: reportSections.summary && salesData ? {
+                        totalRevenue: salesData.total_sales,
+                        totalOrders: salesData.total_orders,
+                        avgOrderValue: salesData.average_order_value,
+                        noChargeOrders: salesData.no_charge_count,
+                        noChargeAmount: salesData.no_charge_amount,
+                        cancelledOrders: ordersData?.orders_by_status?.['cancelled'] ?? 0,
+                        avgItemsPerOrder: salesData.avg_items_per_order,
+                    } : undefined,
+                    itemsSold: reportSections.itemsSold && itemRows.length ? itemRows : undefined,
+                    dailyBreakdown: reportSections.dailyBreakdown && salesData?.sales_by_day?.length
+                        ? salesData.sales_by_day.map(d => ({ date: d.date, orders: d.orders, revenue: Number(d.total) }))
+                        : undefined,
+                    topCustomers: reportSections.topCustomers && customersData?.top_customers_by_spending?.length
+                        ? customersData.top_customers_by_spending.slice(0, 10).map(c => ({
+                            name: c.user?.name ?? c.name ?? 'Unknown',
+                            phone: c.user?.phone ?? '—',
+                            orders: c.orders_count ?? 0,
+                            totalSpend: c.total_spend ?? 0,
+                        }))
+                        : undefined,
+                };
+                printReport(buildReportHtml(reportData));
+            } else {
+                if (reportSections.summary && salesData) {
+                    generateCsv(['Metric', 'Value'], [
+                        ['Total Revenue', String(salesData.total_sales)],
+                        ['Total Orders', String(salesData.total_orders)],
+                        ['Avg. Order Value', String(salesData.average_order_value)],
+                        ['No-Charge Orders', String(salesData.no_charge_count)],
+                        ['No-Charge Amount', String(salesData.no_charge_amount)],
+                        ['Cancelled Orders', String(ordersData?.orders_by_status?.['cancelled'] ?? 0)],
+                        ['Avg. Items per Order', String(salesData.avg_items_per_order ?? '—')],
+                    ], `sales-summary-${range.date_from}.csv`);
+                }
+                if (reportSections.itemsSold && itemRows.length) {
+                    generateCsv(['Item', 'Qty Sold', 'Revenue (GHS)', '% of Total', 'Trend (%)'],
+                        itemRows.map(i => [i.name, String(i.units), String(i.revenue), String(i.pctOfTotal ?? ''), String(i.trend ?? '')]),
+                        `items-sold-${range.date_from}.csv`);
+                }
+                if (reportSections.dailyBreakdown && salesData?.sales_by_day?.length) {
+                    generateCsv(['Date', 'Orders', 'Revenue (GHS)'],
+                        salesData.sales_by_day.map(d => [d.date, String(d.orders), String(d.total)]),
+                        `daily-breakdown-${range.date_from}.csv`);
+                }
+                if (reportSections.topCustomers && customersData?.top_customers_by_spending?.length) {
+                    generateCsv(['Name', 'Phone', 'Orders', 'Total Spend (GHS)'],
+                        customersData.top_customers_by_spending.slice(0, 10).map(c => [
+                            c.user?.name ?? c.name ?? 'Unknown',
+                            c.user?.phone ?? '—',
+                            String(c.orders_count ?? 0),
+                            String(c.total_spend ?? 0),
+                        ]),
+                        `top-customers-${range.date_from}.csv`);
+                }
+            }
+            setShowReportModal(false);
+        } catch (err) {
+            console.error('Failed to generate report:', err);
+        } finally {
+            setIsGenerating(false);
+        }
+    }
+
     return (
         <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
 
@@ -650,6 +758,14 @@ export default function ManagerAnalyticsPage() {
                         {branchName} · Branch Manager
                     </p>
                 </div>
+                <button
+                    type="button"
+                    onClick={() => setShowReportModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium font-body hover:bg-primary-hover transition-colors cursor-pointer shrink-0 self-start"
+                >
+                    <FileCsvIcon size={15} weight="bold" />
+                    Generate Report
+                </button>
             </div>
 
             {/* ══ ROW 1 — KPIs ════════════════════════════════════════════════ */}
@@ -836,6 +952,58 @@ export default function ManagerAnalyticsPage() {
             <p className="text-neutral-gray/40 text-xs font-body text-center mt-6">
                 {branchName} branch · Data refreshes every 60 seconds · Managers only
             </p>
+
+            {/* Report generation modal */}
+            {showReportModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowReportModal(false)}>
+                    <div className="bg-neutral-card rounded-2xl border border-[#f0e8d8] w-full max-w-sm p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-text-dark text-base font-bold font-body mb-1">Generate Report</h2>
+                        <p className="text-neutral-gray text-xs font-body mb-5">
+                            {({ today: 'Today', week: 'This Week', month: 'This Month', custom: 'All Time' } as Record<Period, string>)[period]}
+                            &nbsp;·&nbsp; {branchName}
+                        </p>
+
+                        <p className="text-text-dark text-xs font-semibold font-body mb-2">Format</p>
+                        <div className="flex rounded-xl overflow-hidden border border-[#f0e8d8] mb-5">
+                            {(['pdf', 'csv'] as const).map(f => (
+                                <button key={f} type="button" onClick={() => setReportFormat(f)}
+                                    className={`flex-1 py-2 text-xs font-semibold font-body transition-colors cursor-pointer ${reportFormat === f ? 'bg-primary text-white' : 'bg-neutral-card text-neutral-gray hover:text-text-dark'}`}>
+                                    {f === 'pdf' ? 'PDF (Printable)' : 'CSV (Spreadsheet)'}
+                                </button>
+                            ))}
+                        </div>
+
+                        <p className="text-text-dark text-xs font-semibold font-body mb-2">Include sections</p>
+                        <div className="flex flex-col gap-2.5 mb-6">
+                            {([
+                                ['summary', 'Sales Summary'],
+                                ['itemsSold', 'Items Sold Detail'],
+                                ['dailyBreakdown', 'Daily Breakdown'],
+                                ['topCustomers', 'Top Customers'],
+                            ] as const).map(([key, label]) => (
+                                <label key={key} className="flex items-center gap-2.5 cursor-pointer">
+                                    <input type="checkbox" checked={reportSections[key]}
+                                        onChange={e => setReportSections(s => ({ ...s, [key]: e.target.checked }))}
+                                        className="accent-primary w-4 h-4" />
+                                    <span className="text-text-dark text-xs font-body">{label}</span>
+                                </label>
+                            ))}
+                        </div>
+
+                        <div className="flex gap-2">
+                            <button type="button" onClick={() => setShowReportModal(false)}
+                                className="flex-1 py-2.5 rounded-xl border border-[#f0e8d8] text-xs font-semibold font-body text-neutral-gray hover:text-text-dark cursor-pointer transition-colors">
+                                Cancel
+                            </button>
+                            <button type="button" onClick={() => void handleGenerateReport()}
+                                disabled={isGenerating || !Object.values(reportSections).some(Boolean)}
+                                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold font-body hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer transition-colors">
+                                {isGenerating ? 'Generating…' : 'Generate'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

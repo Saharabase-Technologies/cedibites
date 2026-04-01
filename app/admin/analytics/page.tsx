@@ -6,6 +6,9 @@ import { useSearchParams } from 'next/navigation';
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import { toast } from '@/lib/utils/toast';
 import { exportElementToPdf } from '@/lib/utils/exportPdf';
+import { buildReportHtml, printReport, generateCsv, type ReportData, type ReportMeta, type ItemSoldRow } from '@/lib/utils/reportGenerator';
+import { analyticsService } from '@/lib/api/services/analytics.service';
+import { getDateRange } from '@/lib/api/hooks/useAnalytics';
 import {
     CalendarIcon,
     CurrencyCircleDollarIcon,
@@ -19,6 +22,7 @@ import {
     DownloadSimpleIcon,
     BuildingsIcon,
     TagIcon,
+    FileCsvIcon,
 } from '@phosphor-icons/react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -781,6 +785,10 @@ export default function AdminAnalyticsPage() {
     const searchParams = useSearchParams();
     const [period, setPeriod] = useState<Period>('today');
     const [isExporting, setIsExporting] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [reportFormat, setReportFormat] = useState<'pdf' | 'csv'>('pdf');
+    const [reportSections, setReportSections] = useState({ summary: true, itemsSold: true, dailyBreakdown: true, topCustomers: true });
+    const [isGenerating, setIsGenerating] = useState(false);
     const [customDateFrom, setCustomDateFrom] = useState<string>(() => new Date().toISOString().slice(0, 10));
     const [customDateTo, setCustomDateTo] = useState<string>(() => new Date().toISOString().slice(0, 10));
     const customRange = period === 'custom'
@@ -840,6 +848,100 @@ export default function AdminAnalyticsPage() {
         }
     }
 
+    async function handleGenerateReport(): Promise<void> {
+        setIsGenerating(true);
+        try {
+            const range = getDateRange(period, customRange ?? undefined);
+            const periodLabel = PERIODS.find(p => p.key === period)?.label ?? period;
+            const branchName = branchId ? `Branch #${branchId}` : 'All Branches';
+            const dateRange = `${range.date_from} – ${range.date_to}`;
+            const generatedAt = new Date().toLocaleString('en-GH', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+            // Fetch all items if needed (full list, not just top 10)
+            let allItemsData = topItems;
+            if (reportSections.itemsSold) {
+                allItemsData = await analyticsService.getTopItemsAnalytics({ ...range, branch_id: branchId, limit: 500 });
+            }
+
+            const totalRev = allItemsData?.reduce((s, i) => s + i.rev, 0) ?? 0;
+            const itemRows: ItemSoldRow[] = (allItemsData ?? []).map(i => ({
+                name: i.size_label || i.name,
+                units: i.units,
+                revenue: i.rev,
+                pctOfTotal: totalRev > 0 ? Math.round((i.rev / totalRev) * 1000) / 10 : 0,
+                trend: i.trend,
+            }));
+
+            const meta: ReportMeta = { title: 'Sales Report', branchName, periodLabel, dateRange, generatedAt };
+
+            if (reportFormat === 'pdf') {
+                const reportData: ReportData = {
+                    meta,
+                    summary: reportSections.summary && sales ? {
+                        totalRevenue: sales.total_sales,
+                        totalOrders: sales.total_orders,
+                        avgOrderValue: sales.average_order_value,
+                        noChargeOrders: sales.no_charge_count,
+                        noChargeAmount: sales.no_charge_amount,
+                        cancelledOrders: orders?.orders_by_status?.['cancelled'] ?? 0,
+                        avgItemsPerOrder: sales.avg_items_per_order,
+                    } : undefined,
+                    itemsSold: reportSections.itemsSold && itemRows.length ? itemRows : undefined,
+                    dailyBreakdown: reportSections.dailyBreakdown && sales?.sales_by_day?.length
+                        ? sales.sales_by_day.map(d => ({ date: d.date, orders: d.orders, revenue: Number(d.total) }))
+                        : undefined,
+                    topCustomers: reportSections.topCustomers && customers?.top_customers_by_spending?.length
+                        ? customers.top_customers_by_spending.slice(0, 10).map(c => ({
+                            name: c.user?.name ?? c.name ?? 'Unknown',
+                            phone: c.user?.phone ?? '—',
+                            orders: c.orders_count ?? 0,
+                            totalSpend: c.total_spend ?? 0,
+                        }))
+                        : undefined,
+                };
+                printReport(buildReportHtml(reportData));
+            } else {
+                if (reportSections.summary && sales) {
+                    generateCsv(['Metric', 'Value'], [
+                        ['Total Revenue', String(sales.total_sales)],
+                        ['Total Orders', String(sales.total_orders)],
+                        ['Avg. Order Value', String(sales.average_order_value)],
+                        ['No-Charge Orders', String(sales.no_charge_count)],
+                        ['No-Charge Amount', String(sales.no_charge_amount)],
+                        ['Cancelled Orders', String(orders?.orders_by_status?.['cancelled'] ?? 0)],
+                        ['Avg. Items per Order', String(sales.avg_items_per_order ?? '—')],
+                    ], `sales-summary-${range.date_from}.csv`);
+                }
+                if (reportSections.itemsSold && itemRows.length) {
+                    generateCsv(['Item', 'Qty Sold', 'Revenue (GHS)', '% of Total', 'Trend (%)'],
+                        itemRows.map(i => [i.name, String(i.units), String(i.revenue), String(i.pctOfTotal ?? ''), String(i.trend ?? '')]),
+                        `items-sold-${range.date_from}.csv`);
+                }
+                if (reportSections.dailyBreakdown && sales?.sales_by_day?.length) {
+                    generateCsv(['Date', 'Orders', 'Revenue (GHS)'],
+                        sales.sales_by_day.map(d => [d.date, String(d.orders), String(d.total)]),
+                        `daily-breakdown-${range.date_from}.csv`);
+                }
+                if (reportSections.topCustomers && customers?.top_customers_by_spending?.length) {
+                    generateCsv(['Name', 'Phone', 'Orders', 'Total Spend (GHS)'],
+                        customers.top_customers_by_spending.slice(0, 10).map(c => [
+                            c.user?.name ?? c.name ?? 'Unknown',
+                            c.user?.phone ?? '—',
+                            String(c.orders_count ?? 0),
+                            String(c.total_spend ?? 0),
+                        ]),
+                        `top-customers-${range.date_from}.csv`);
+                }
+            }
+            setShowReportModal(false);
+        } catch (err) {
+            console.error('Failed to generate report:', err);
+            toast.error('Failed to generate report');
+        } finally {
+            setIsGenerating(false);
+        }
+    }
+
     return (
         <div ref={exportRef} className="px-4 md:px-8 py-6 max-w-6xl mx-auto">
 
@@ -852,16 +954,25 @@ export default function AdminAnalyticsPage() {
                         {branchId ? `Branch #${branchId} · Admin View` : 'All Branches · Admin View'}
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => void handleExportPdf()}
-                    disabled={isExporting}
-                    data-export-ignore
-                    className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                    <DownloadSimpleIcon size={15} weight="bold" className="text-primary" />
-                    {isExporting ? 'Exporting…' : 'Export PDF'}
-                </button>
+                <div className="flex items-center gap-2" data-export-ignore>
+                    <button
+                        type="button"
+                        onClick={() => void handleExportPdf()}
+                        disabled={isExporting}
+                        className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        <DownloadSimpleIcon size={15} weight="bold" className="text-primary" />
+                        {isExporting ? 'Exporting…' : 'Export PDF'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setShowReportModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium font-body hover:bg-primary-hover transition-colors cursor-pointer shrink-0"
+                    >
+                        <FileCsvIcon size={15} weight="bold" />
+                        Generate Report
+                    </button>
+                </div>
             </div>
 
             {/* Period tabs */}
@@ -954,6 +1065,57 @@ export default function AdminAnalyticsPage() {
                 <DiscountUsage />
                 <CancellationReasons />
             </div>
+
+            {/* Report generation modal */}
+            {showReportModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowReportModal(false)}>
+                    <div className="bg-neutral-card rounded-2xl border border-[#f0e8d8] w-full max-w-sm p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-text-dark text-base font-bold font-body mb-1">Generate Report</h2>
+                        <p className="text-neutral-gray text-xs font-body mb-5">
+                            {PERIODS.find(p => p.key === period)?.label} &nbsp;·&nbsp; {branchId ? `Branch #${branchId}` : 'All Branches'}
+                        </p>
+
+                        <p className="text-text-dark text-xs font-semibold font-body mb-2">Format</p>
+                        <div className="flex rounded-xl overflow-hidden border border-[#f0e8d8] mb-5">
+                            {(['pdf', 'csv'] as const).map(f => (
+                                <button key={f} type="button" onClick={() => setReportFormat(f)}
+                                    className={`flex-1 py-2 text-xs font-semibold font-body transition-colors cursor-pointer ${reportFormat === f ? 'bg-primary text-white' : 'bg-neutral-card text-neutral-gray hover:text-text-dark'}`}>
+                                    {f === 'pdf' ? 'PDF (Printable)' : 'CSV (Spreadsheet)'}
+                                </button>
+                            ))}
+                        </div>
+
+                        <p className="text-text-dark text-xs font-semibold font-body mb-2">Include sections</p>
+                        <div className="flex flex-col gap-2.5 mb-6">
+                            {([
+                                ['summary', 'Sales Summary'],
+                                ['itemsSold', 'Items Sold Detail'],
+                                ['dailyBreakdown', 'Daily Breakdown'],
+                                ['topCustomers', 'Top Customers'],
+                            ] as const).map(([key, label]) => (
+                                <label key={key} className="flex items-center gap-2.5 cursor-pointer">
+                                    <input type="checkbox" checked={reportSections[key]}
+                                        onChange={e => setReportSections(s => ({ ...s, [key]: e.target.checked }))}
+                                        className="accent-primary w-4 h-4" />
+                                    <span className="text-text-dark text-xs font-body">{label}</span>
+                                </label>
+                            ))}
+                        </div>
+
+                        <div className="flex gap-2">
+                            <button type="button" onClick={() => setShowReportModal(false)}
+                                className="flex-1 py-2.5 rounded-xl border border-[#f0e8d8] text-xs font-semibold font-body text-neutral-gray hover:text-text-dark cursor-pointer transition-colors">
+                                Cancel
+                            </button>
+                            <button type="button" onClick={() => void handleGenerateReport()}
+                                disabled={isGenerating || !Object.values(reportSections).some(Boolean)}
+                                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-xs font-semibold font-body hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer transition-colors">
+                                {isGenerating ? 'Generating…' : 'Generate'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

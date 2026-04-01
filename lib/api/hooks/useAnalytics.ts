@@ -21,7 +21,7 @@ interface CustomRange {
   date_to?: string;
 }
 
-function getDateRange(period: AnalyticsPeriod, customRange?: CustomRange): { date_from: string; date_to: string } {
+export function getDateRange(period: AnalyticsPeriod, customRange?: CustomRange): { date_from: string; date_to: string } {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
 
