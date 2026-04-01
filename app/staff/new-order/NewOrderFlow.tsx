@@ -51,7 +51,7 @@ function getItemOptions(item: DisplayMenuItem): ItemOption[] {
             label: size.label,
             price: size.price,
             variantKey: size.key,
-            variantLabel: size.label,
+            variantLabel: size.displayName ?? size.label,
             sizeId: size.id,
         }));
     }

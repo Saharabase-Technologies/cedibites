@@ -25,20 +25,23 @@ function deriveSizeKey(item: ApiOrder['items'][0]): string {
 }
 
 /**
- * Resolves a display name for a combo item by baking the chosen option label
- * into the shared menu item name.
+ * Resolves the best display label for an order item's option.
  *
- * e.g. "Fried Rice / Noodles + 3 Drums" + "Fried Rice" → "Fried Rice + 3 Drums"
- *
- * If the name has no "/" (no variants), it is returned unchanged.
+ * Priority chain:
+ *  1. snapshot display_name  (immutable receipt name captured at order time)
+ *  2. snapshot option_label  (pill label at order time)
+ *  3. live option display_name / option_label
+ *  4. human-readable key fallback
  */
-export function resolveDisplayName(rawName: string, optionLabel?: string): string {
-  if (!optionLabel || !rawName.includes('/')) return rawName;
-  const afterSlash = rawName.substring(rawName.indexOf('/') + 1).trim();
-  // Shared suffix starts at the first " +" / " -" / " ," after the trailing variant word
-  const sharedStart = afterSlash.search(/\s+[+\-,]/);
-  const suffix = sharedStart >= 0 ? afterSlash.substring(sharedStart) : '';
-  return suffix ? optionLabel + suffix : optionLabel;
+function resolveOptionLabel(item: ApiOrder['items'][0], sizeKey: string): string | undefined {
+  const snap = item.menu_item_option_snapshot ?? item.option_snapshot;
+  const live = item.menu_item_option;
+
+  return snap?.display_name
+    ?? snap?.option_label
+    ?? live?.display_name
+    ?? live?.option_label
+    ?? (sizeKey === 'default' ? undefined : sizeKey.replace(/_/g, ' '));
 }
 
 export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
@@ -47,26 +50,24 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
 
   const items: OrderItem[] = (apiOrder.items ?? []).map((item) => {
     const sizeKey = deriveSizeKey(item);
-    const optionLabel = item.menu_item_option_snapshot?.option_label
-      ?? item.menu_item_option?.option_label
-      ?? (sizeKey === 'default' ? undefined : sizeKey.replace(/_/g, ' '));
-
-    const rawName = item.menu_item_snapshot?.name ?? item.menu_item?.name ?? 'Item';
-    const resolvedName = resolveDisplayName(rawName, optionLabel);
-    const variantBakedIn = resolvedName !== rawName;
+    const displayLabel = resolveOptionLabel(item, sizeKey);
+    const itemName = item.menu_item_snapshot?.name ?? item.menu_item?.name ?? 'Item';
 
     return {
       id: String(item.id),
       menuItemId: String(item.menu_item_id),
-      name: resolvedName,
+      name: itemName,
       quantity: item.quantity,
       unitPrice: Number(item.unit_price) || 0,
-      image: item.menu_item_option_snapshot?.image_url ?? item.menu_item_option?.image_url ?? item.menu_item?.image_url,
-      // If the option was baked into the name (combo item), don't repeat it as sizeLabel
-      sizeLabel: variantBakedIn ? undefined : (optionLabel ?? 'Regular'),
+      image: item.menu_item_option_snapshot?.image_url
+        ?? item.option_snapshot?.image_url
+        ?? item.menu_item_option?.image_url
+        ?? item.menu_item?.image_url,
+      sizeLabel: displayLabel,
       sizeId: item.menu_item_option_id ?? undefined,
       variantKey: item.variant_key,
       notes: item.special_instructions,
+      category: item.menu_item?.category?.name ?? item.menu_item?.category as string | undefined,
     };
   });
 

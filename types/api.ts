@@ -103,6 +103,8 @@ export interface MenuItemOption {
   menu_item_id: number;
   option_key: string;
   option_label: string;
+  /** Full descriptive label for orders, receipts, and analytics. Falls back to option_label when null. */
+  display_name?: string | null;
   /** Resolved price for the current branch context (branch override ?? base price) */
   price: number;
   /** Always the admin-set global base price, never overridden */
@@ -217,6 +219,7 @@ export interface OrderItem {
     id: number;
     option_key: string;
     option_label: string;
+    display_name?: string | null;
     price: number;
     image_url?: string | null;
   } | null;
@@ -225,6 +228,7 @@ export interface OrderItem {
     id: number;
     option_key: string;
     option_label: string;
+    display_name?: string | null;
     price: number;
     image_url?: string | null;
   } | null;

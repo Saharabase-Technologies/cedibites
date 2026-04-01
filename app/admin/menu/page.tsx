@@ -46,7 +46,7 @@ interface GlobalMenuItem extends Omit<DisplayMenuItem, 'tags'> {
 }
 
 type PricingType = 'simple' | 'options';
-interface OptionRow { label: string; price: string; image?: string; imageFile?: File; }
+interface OptionRow { label: string; displayName: string; price: string; image?: string; imageFile?: File; }
 interface OptionTemplate { id: string; name: string; options: Array<{ label: string; price: string }>; }
 interface AddOn { id: string; name: string; price: string; perPiece?: boolean; }
 
@@ -78,14 +78,14 @@ function hasPricingOptions(item: Omit<DisplayMenuItem, 'tags'>): boolean {
 function getOptionRows(item: Omit<DisplayMenuItem, 'tags'>): OptionRow[] {
     if (item.hasVariants && item.variants) {
         const rows: OptionRow[] = [];
-        if (item.variants.plain != null) rows.push({ label: 'Plain', price: String(item.variants.plain) });
-        if (item.variants.assorted != null) rows.push({ label: 'Assorted', price: String(item.variants.assorted) });
+        if (item.variants.plain != null) rows.push({ label: 'Plain', displayName: '', price: String(item.variants.plain) });
+        if (item.variants.assorted != null) rows.push({ label: 'Assorted', displayName: '', price: String(item.variants.assorted) });
         return rows;
     }
     if (item.sizes?.length) {
-        return item.sizes.map(s => ({ label: s.label, price: String(s.price), image: s.image }));
+        return item.sizes.map(s => ({ label: s.label, displayName: s.displayName ?? '', price: String(s.price), image: s.image }));
     }
-    return [{ label: '', price: '' }, { label: '', price: '' }];
+    return [{ label: '', displayName: '', price: '' }, { label: '', displayName: '', price: '' }];
 }
 
 function PriceDisplay({ item }: { item: Omit<DisplayMenuItem, 'tags'> }) {
@@ -123,7 +123,7 @@ function itemToForm(item: GlobalMenuItem): ItemFormState {
         pricingType: isMulti ? 'options' : 'simple',
         simplePrice: !isMulti && item.price != null ? String(item.price) : '',
         image: item.image,
-        options: isMulti ? getOptionRows(item) : [{ label: '', price: '' }, { label: '', price: '' }],
+        options: isMulti ? getOptionRows(item) : [{ label: '', displayName: '', price: '' }, { label: '', displayName: '', price: '' }],
         addOns: item.availableAddOns ?? [],
         tags: item.tags,
         globallyAvailable: item.globallyAvailable,
@@ -137,7 +137,7 @@ function blankForm(categoryOptions: string[], defaultBranchId: number): ItemForm
         name: '', description: '', category: defaultCategory,
         branchId: defaultBranchId,
         pricingType: 'simple', simplePrice: '',
-        options: [{ label: '', price: '' }, { label: '', price: '' }],
+        options: [{ label: '', displayName: '', price: '' }, { label: '', displayName: '', price: '' }],
         addOns: [], tags: [],
         globallyAvailable: true,
         branchAvailability: {},
@@ -179,6 +179,7 @@ function formToGlobalItem(form: ItemFormState, existing?: GlobalMenuItem): Globa
             id: index + 1,
             key: o.label.trim().toLowerCase().replace(/\s+/g, '-'),
             label: o.label.trim(),
+            displayName: o.displayName?.trim() || undefined,
             price: Number(o.price),
             image: o.image,
         }));
@@ -310,7 +311,7 @@ function ItemModal({
     }
 
     function addOption() {
-        set('options', [...form.options, { label: '', price: '' }]);
+        set('options', [...form.options, { label: '', displayName: '', price: '' }]);
     }
 
     function removeOption(i: number) {
@@ -328,7 +329,7 @@ function ItemModal({
 
     function loadTemplate(tpl: OptionTemplate) {
         set('pricingType', 'options');
-        set('options', tpl.options.map(o => ({ label: o.label, price: o.price })));
+        set('options', tpl.options.map(o => ({ label: o.label, displayName: '', price: o.price })));
         setShowTemplatePicker(false);
     }
 
@@ -404,7 +405,7 @@ function ItemModal({
                                 </div>
                             )}
                         </div>
-                        <div className="flex gap-2 mb-3">
+                        <div className="flex gap-2 mb-1">
                             {(['simple', 'options'] as PricingType[]).map(type => (
                                 <button key={type} type="button"
                                     onClick={() => set('pricingType', type)}
@@ -413,10 +414,15 @@ function ItemModal({
                                             ? 'bg-primary/15 border-primary/50 text-primary'
                                             : 'border-[#f0e8d8] text-neutral-gray hover:text-text-dark'
                                         }`}>
-                                    {type === 'simple' ? 'Single price' : 'Named options'}
+                                    {type === 'simple' ? 'Single price' : 'Combined (options)'}
                                 </button>
                             ))}
                         </div>
+                        <p className="text-[10px] text-neutral-gray font-body mb-3">
+                            {form.pricingType === 'simple'
+                                ? 'One item, one price. Shows the menu item name on receipts.'
+                                : 'Multiple variations with their own prices. Each option has a display name shown on receipts & orders.'}
+                        </p>
 
                         {form.pricingType === 'simple' && (
                             <div className="flex items-start gap-3">
@@ -435,19 +441,24 @@ function ItemModal({
 
                         {form.pricingType === 'options' && (
                             <div>
-                                <div className="grid grid-cols-[36px_1fr_100px_24px] gap-2 mb-1.5 px-0.5">
+                                <div className="grid grid-cols-[36px_1fr_1fr_90px_24px] gap-2 mb-1.5 px-0.5">
                                     <span className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Img</span>
-                                    <span className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Option name</span>
-                                    <span className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Price (GHS)</span>
+                                    <span className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Option (pill)</span>
+                                    <span className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Receipt name</span>
+                                    <span className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Price</span>
                                     <span />
                                 </div>
                                 <div className="flex flex-col gap-2">
                                     {form.options.map((opt, i) => (
-                                        <div key={i} className="grid grid-cols-[36px_1fr_100px_24px] gap-2 items-center">
+                                        <div key={i} className="grid grid-cols-[36px_1fr_1fr_90px_24px] gap-2 items-center">
                                             <ImagePicker value={opt.image} onChange={(url, file) => updateOptionImage(i, url, file)} size="sm" />
                                             <input type="text" value={opt.label}
                                                 onChange={e => updateOption(i, 'label', e.target.value)}
-                                                placeholder="e.g. Small, Plain…"
+                                                placeholder="e.g. Fried Rice"
+                                                className={inputCls} />
+                                            <input type="text" value={opt.displayName}
+                                                onChange={e => updateOption(i, 'displayName', e.target.value)}
+                                                placeholder="e.g. Assorted Fried Rice + 3 Drums"
                                                 className={inputCls} />
                                             <input type="number" min="0" step="1" value={opt.price}
                                                 onChange={e => updateOption(i, 'price', e.target.value)}
@@ -989,6 +1000,7 @@ export default function AdminMenuPage() {
                         if (existingOpt) {
                             await apiClient.patch(`/admin/menu-items/${savedId}/options/${existingOpt.id}`, {
                                 option_label: opt.label,
+                                display_name: opt.displayName || null,
                                 price: opt.price,
                                 display_order: i,
                                 is_available: true,
@@ -998,6 +1010,7 @@ export default function AdminMenuPage() {
                             const created = await apiClient.post(`/admin/menu-items/${savedId}/options`, {
                                 option_key: opt.key,
                                 option_label: opt.label,
+                                display_name: opt.displayName || null,
                                 price: opt.price,
                                 display_order: i,
                                 is_available: true,

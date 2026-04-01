@@ -12,7 +12,7 @@ export interface DisplayMenuItem {
   description: string;
   category: string;
   price?: number;
-  sizes?: { id: number; key: string; label: string; price: number; image?: string }[];
+  sizes?: { id: number; key: string; label: string; displayName?: string; price: number; image?: string }[];
   hasVariants?: boolean;
   availableAddOns?: string[];
   variants?: { plain?: number; assorted?: number };
@@ -32,11 +32,12 @@ function toNum(v: unknown): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-function mapApiOptionToDisplay(option: ApiMenuItemOption): { id: number; key: string; label: string; price: number; image?: string } {
+function mapApiOptionToDisplay(option: ApiMenuItemOption): { id: number; key: string; label: string; displayName?: string; price: number; image?: string } {
   return {
     id: option.id,
     key: option.option_key,
     label: option.option_label,
+    displayName: option.display_name ?? undefined,
     price: toNum(option.price),
     image: option.image_url ?? undefined,
   };
