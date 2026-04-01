@@ -7,6 +7,7 @@ import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import { toast } from '@/lib/utils/toast';
 import { exportElementToPdf } from '@/lib/utils/exportPdf';
 import { buildReportHtml, printReport, generateCsv, type ReportData, type ReportMeta, type ItemSoldRow } from '@/lib/utils/reportGenerator';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { analyticsService } from '@/lib/api/services/analytics.service';
 import { getDateRange } from '@/lib/api/hooks/useAnalytics';
 import {
@@ -359,7 +360,7 @@ function TopItemsCard({ items, title, allowSortToggle = false }: { items?: Array
                                     <div className="flex items-center gap-2 min-w-0">
                                         <span className="text-[10px] font-bold font-body text-neutral-gray/50 w-4 shrink-0">{i + 1}</span>
                                         <span className="text-xs font-semibold font-body text-text-dark truncate">
-                                            {item.size_label || item.name}
+                                            {getOrderItemLineLabel({ name: item.name, sizeLabel: item.size_label })}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0 ml-2">
@@ -781,10 +782,10 @@ function ProductSummaryCard({ items }: { items?: ProductItem[] }) {
     const filtered = useMemo(() => {
         if (!items?.length) return [];
         const q = search.toLowerCase();
-        const base = q ? items.filter(i => (i.size_label || i.name).toLowerCase().includes(q)) : items;
+        const base = q ? items.filter(i => getOrderItemLineLabel({ name: i.name, sizeLabel: i.size_label }).toLowerCase().includes(q)) : items;
         return [...base].sort((a, b) => {
             let av: string | number, bv: string | number;
-            if (sortKey === 'name') { av = (a.size_label || a.name).toLowerCase(); bv = (b.size_label || b.name).toLowerCase(); }
+            if (sortKey === 'name') { av = getOrderItemLineLabel({ name: a.name, sizeLabel: a.size_label }).toLowerCase(); bv = getOrderItemLineLabel({ name: b.name, sizeLabel: b.size_label }).toLowerCase(); }
             else if (sortKey === 'units') { av = a.units; bv = b.units; }
             else { av = a.rev; bv = b.rev; }
             return sortDir === 'asc' ? (av < bv ? -1 : av > bv ? 1 : 0) : (av > bv ? -1 : av < bv ? 1 : 0);
@@ -806,7 +807,7 @@ function ProductSummaryCard({ items }: { items?: ProductItem[] }) {
             ['#', 'Item', 'Units Sold', 'Revenue (GHS)', '% of Total'],
             filtered.map((item, idx) => [
                 String(idx + 1),
-                item.size_label || item.name,
+                getOrderItemLineLabel({ name: item.name, sizeLabel: item.size_label }),
                 String(item.units),
                 item.rev.toFixed(2),
                 grandRev > 0 ? (item.rev / grandRev * 100).toFixed(1) : '0.0',
@@ -863,7 +864,7 @@ function ProductSummaryCard({ items }: { items?: ProductItem[] }) {
                             <tbody>
                                 {filtered.map((item, idx) => {
                                     const pct = grandRev > 0 ? (item.rev / grandRev * 100).toFixed(1) : '0.0';
-                                    const displayName = item.size_label || item.name;
+                                    const displayName = getOrderItemLineLabel({ name: item.name, sizeLabel: item.size_label });
                                     return (
                                         <tr key={`${displayName}-${idx}`} className="border-b border-[#f0e8d8] last:border-0 hover:bg-primary/5 transition-colors">
                                             <td className="py-2 pr-3 text-neutral-gray/50">{idx + 1}</td>

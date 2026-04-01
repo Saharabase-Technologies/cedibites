@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { CaretDownIcon, CaretUpIcon, ReceiptIcon } from '@phosphor-icons/react';
 import type { Order } from '@/types/order';
 import { formatPrice, getPaymentLabel } from '@/types/order';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 
 interface OrderDetailsProps {
     order: Order;
@@ -66,10 +67,10 @@ export default function OrderDetails({ order }: OrderDetailsProps) {
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="flex-1 min-w-0">
                                             <h3 className="font-semibold text-text-dark dark:text-text-light truncate">
-                                                {item.name}
+                                                {getOrderItemLineLabel(item)}
                                             </h3>
                                             <p className="text-sm text-neutral-gray">
-                                                {item.sizeLabel} × {item.quantity}
+                                                × {item.quantity}
                                             </p>
                                         </div>
                                         <span className="font-semibold text-text-dark dark:text-text-light shrink-0">

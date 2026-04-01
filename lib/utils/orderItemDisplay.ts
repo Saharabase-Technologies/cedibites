@@ -1,26 +1,31 @@
 import type { OrderItem } from '@/types/order';
 
 /**
- * Line label from API-backed fields only. When both menu `name` and option `sizeLabel` are set,
- * uses `name (sizeLabel)` so parent combo text (e.g. "+ 3 Drums") stays visible alongside the variant.
+ * Derives the display label for an order/cart item from its name and selected option.
+ *
+ * - "Standard" option (single-price items): suppressed → just the item name.
+ * - Option found verbatim inside combo name: slices from that position.
+ *   e.g. name="Assorted / Jollof / Noodles + 3 Drums", sizeLabel="Noodles" → "Noodles + 3 Drums"
+ * - Option not found in name (simple item): prepends option to name.
+ *   e.g. name="Fried Rice", sizeLabel="Seafood" → "Seafood Fried Rice"
  */
 export function getOrderItemLineLabel(item: Pick<OrderItem, 'name' | 'sizeLabel'>): string {
   const name = item.name?.trim() ?? '';
   const option = item.sizeLabel?.trim() ?? '';
 
-  if (name && option) {
-    if (name.localeCompare(option, undefined, { sensitivity: 'accent' }) === 0) {
-      return name;
-    }
-
-    return `${name} (${option})`;
+  // No meaningful option → just name
+  if (!option || option.toLowerCase() === 'standard') {
+    return name || option;
   }
 
-  if (name) {
-    return name;
-  }
+  if (!name) return option;
 
-  return option;
+  // Option appears verbatim inside full combo name → slice from that point
+  const idx = name.indexOf(option);
+  if (idx !== -1) return name.slice(idx);
+
+  // Option not found in name (simple item) → prepend option
+  return `${option} ${name}`;
 }
 
 export function formatOrderLineItemSummary(item: Pick<OrderItem, 'name' | 'sizeLabel' | 'quantity'>): string {

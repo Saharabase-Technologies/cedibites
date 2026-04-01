@@ -13,6 +13,7 @@ import { useModal } from '@/app/components/providers/ModalProvider';
 import { useBranch, Branch, BranchWithDistance } from '@/app/components/providers/BranchProvider';
 import { useLocation } from '@/app/components/providers/LocationProvider';
 import { useAuth } from '../providers/AuthProvider';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 
 const formatPrice = (p: number | string | null | undefined) => {
     const n = typeof p === 'number' ? p : Number(p);
@@ -254,8 +255,8 @@ export default function CartDrawer() {
                                         {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{ci.item.name}</p>
-                                        <p className="text-xs text-neutral-gray">{ci.sizeLabel} · Qty: {ci.quantity}</p>
+                                        <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
+                                        <p className="text-xs text-neutral-gray">Qty: {ci.quantity}</p>
                                     </div>
                                     <XIcon size={14} weight="bold" className="text-error shrink-0" />
                                 </div>
@@ -272,8 +273,8 @@ export default function CartDrawer() {
                                             {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{ci.item.name}</p>
-                                            <p className="text-xs text-neutral-gray">{ci.sizeLabel} · Qty: {ci.quantity}</p>
+                                            <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
+                                            <p className="text-xs text-neutral-gray">Qty: {ci.quantity}</p>
                                         </div>
                                         <CheckCircleIcon size={14} weight="fill" className="text-secondary shrink-0" />
                                     </div>
@@ -311,8 +312,7 @@ function CartItemRow({ cartItem, onRemove, onIncrease, onDecrease }: {
                 {cartItem.item.image && !imgError ? <Image src={cartItem.item.image} alt={cartItem.item.name} fill sizes="64px" className="object-cover" onError={() => setImgError(true)} /> : <div className="w-full h-full" />}
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-text-dark dark:text-text-light leading-tight truncate">{cartItem.item.name}</p>
-                <p className="text-xs text-neutral-gray mt-0.5">{cartItem.sizeLabel}</p>
+                <p className="text-sm font-semibold text-text-dark dark:text-text-light leading-tight truncate">{getOrderItemLineLabel({ name: cartItem.item.name, sizeLabel: cartItem.sizeLabel })}</p>
                 <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center gap-2 bg-neutral-gray/10 rounded-full px-1 py-0.5">
                         <button onClick={onDecrease} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-primary/20 active:scale-90 transition-all">

@@ -16,6 +16,7 @@ import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { formatPrice, type OrderStatus } from '@/types/order';
 import { STATUS_CONFIG } from '@/app/staff/orders/constants';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ function OrderRow({ order, isLast }: { order: ReturnType<typeof useOrderStore>['
                     <div className="border-t border-[#f0e8d8] pt-3 flex flex-col gap-1.5">
                         {order.items.map((item, i) => (
                             <div key={i} className="flex items-center justify-between text-xs font-body">
-                                <span className="text-text-dark">{item.quantity}× {item.name}{item.sizeLabel ? ` (${item.sizeLabel})` : ''}</span>
+                                <span className="text-text-dark">{item.quantity}× {getOrderItemLineLabel(item)}</span>
                                 <span className="text-neutral-gray">{formatPrice(item.unitPrice * item.quantity)}</span>
                             </div>
                         ))}

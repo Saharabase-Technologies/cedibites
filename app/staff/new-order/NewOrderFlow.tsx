@@ -28,6 +28,7 @@ import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
 import type { PaymentMethod } from '@/types/order';
 import { formatGHS, ORDER_SOURCES } from './utils';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import OrderConfirmed from './steps/OrderConfirmed';
 import apiClient from '@/lib/api/client';
 import { isValidGhanaPhone } from '@/app/lib/phone';
@@ -472,7 +473,7 @@ export default function NewOrderFlow() {
                             <div key={item.cartKey} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-neutral-light group">
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-semibold text-text-dark leading-snug truncate">
-                                        {item.variantLabel ? `${item.variantLabel} ${item.name}` : item.name}
+                                        {getOrderItemLineLabel({ name: item.name, sizeLabel: item.variantLabel })}
                                     </p>
                                     <p className="text-[11px] text-neutral-gray">{item.quantity} × {formatGHS(item.price)}</p>
                                 </div>

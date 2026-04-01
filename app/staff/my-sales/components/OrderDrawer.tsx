@@ -15,6 +15,7 @@ import {
 import type { Order } from '@/types/order';
 import { SOURCE_ICON, SOURCE_LABEL, STATUS_CONFIG, PAYMENT_LABELS } from '@/lib/constants/order.constants';
 import { formatGHS, formatTime, itemCount } from '../utils';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 
 interface OrderDrawerProps {
     order: Order | null;
@@ -143,7 +144,7 @@ export default function OrderDrawer({ order, onClose }: OrderDrawerProps) {
                                         <div key={i} className="flex justify-between items-baseline gap-3">
                                             <div className="flex items-baseline gap-1.5 min-w-0">
                                                 <span className="text-primary text-xs font-bold font-body shrink-0">{item.quantity}×</span>
-                                                <span className="text-text-light text-xs font-body truncate">{item.name}</span>
+                                                <span className="text-text-light text-xs font-body truncate">{getOrderItemLineLabel(item)}</span>
                                                 <span className="text-neutral-gray/60 text-[10px] font-body shrink-0">@ {formatGHS(item.unitPrice)}</span>
                                             </div>
                                             <span className="text-text-light text-xs font-semibold font-body shrink-0">

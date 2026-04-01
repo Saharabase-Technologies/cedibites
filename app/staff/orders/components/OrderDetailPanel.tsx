@@ -24,6 +24,7 @@ import { toast } from '@/lib/utils/toast';
 import apiClient from '@/lib/api/client';
 import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
 import { useCancelOrder } from '@/lib/api/hooks/useOrders';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 
 // ─── Refund modal ─────────────────────────────────────────────────────────────
 
@@ -277,7 +278,7 @@ export default function OrderDetailPanel() {
                         <div className="flex flex-col gap-2">
                             {order.items.map((item, i) => (
                                 <div key={i} className="flex items-center justify-between">
-                                    <span className="text-text-light text-sm font-body">{item.quantity}× {item.name}</span>
+                                    <span className="text-text-light text-sm font-body">{item.quantity}× {getOrderItemLineLabel(item)}</span>
                                     <span className="text-neutral-gray text-sm font-body">{formatGHS(item.unitPrice * item.quantity)}</span>
                                 </div>
                             ))}

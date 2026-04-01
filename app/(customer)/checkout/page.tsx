@@ -18,6 +18,7 @@ import { useLocation } from '@/app/components/providers/LocationProvider';
 import { useAuth } from '@/app/components/providers/AuthProvider';
 import { useCreateOrder } from '@/lib/api/hooks/useOrders';
 import type { PaymentMethod as UnifiedPaymentMethod, FulfillmentType } from '@/types/order';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import apiClient, { ApiError } from '@/lib/api/client';
 import { toast } from '@/lib/utils/toast';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
@@ -285,8 +286,8 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                                         {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{ci.item.name}</p>
-                                        <p className="text-xs text-neutral-gray">{ci.sizeLabel} · Qty {ci.quantity}</p>
+                                        <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
+                                        <p className="text-xs text-neutral-gray">Qty {ci.quantity}</p>
                                     </div>
                                     <XIcon size={14} weight="bold" className="text-error shrink-0" />
                                 </div>
@@ -302,8 +303,8 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                                             {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{ci.item.name}</p>
-                                            <p className="text-xs text-neutral-gray">{ci.sizeLabel} · Qty {ci.quantity}</p>
+                                            <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
+                                            <p className="text-xs text-neutral-gray">Qty {ci.quantity}</p>
                                         </div>
                                         <CheckCircleIcon size={14} weight="fill" className="text-secondary shrink-0" />
                                     </div>

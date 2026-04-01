@@ -27,6 +27,7 @@ import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import type { Order, OrderStatus, FulfillmentType } from '@/types/order';
 import { STATUS_CONFIG } from '@/lib/constants/order.constants';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { toast } from '@/lib/utils/toast';
 
 function formatTimeAgo(timestamp: number): string {
@@ -463,7 +464,7 @@ function OrderCard({ order, isSelected, onSelect, onAction, onApproveCancel, onR
               <span className="w-5 h-5 rounded bg-neutral-gray/5 border border-neutral-gray/25 text-text-gray text-xs font-bold flex items-center justify-center">
                 {item.quantity}
               </span>
-              <span className="truncate">{item.name}</span>
+              <span className="truncate">{getOrderItemLineLabel(item)}</span>
             </div>
           ))}
           {order.items.length > 3 && (
@@ -596,7 +597,7 @@ function OrderDetailPanel({ order, onAction, onApproveCancel, onRejectCancel, on
                 {item.quantity}
               </span>
               <div>
-                <p className="text-text-dark font-medium font-body">{item.name}</p>
+                <p className="text-text-dark font-medium font-body">{getOrderItemLineLabel(item)}</p>
                 {item.notes && <p className="text-sm text-warning mt-0.5 font-body">{item.notes}</p>}
               </div>
             </div>

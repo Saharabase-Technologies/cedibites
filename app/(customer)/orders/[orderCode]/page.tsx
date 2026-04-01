@@ -94,7 +94,7 @@ function transformApiOrderToMock(apiOrder: ApiOrder): MockOrder {
         isPaid: payment?.payment_status === 'paid' || payment?.payment_status === 'completed',
         items: (apiOrder.items || []).map(item => {
             const sizeKey = deriveSizeKey(item);
-            const sizeLabel = sizeKey === 'default' ? 'Regular' : sizeKey.replace(/_/g, ' ');
+            const sizeLabel = sizeKey === 'default' ? '' : sizeKey.replace(/_/g, ' ');
             return {
                 id: item.id.toString(),
                 menuItemId: String(item.menu_item_id),
