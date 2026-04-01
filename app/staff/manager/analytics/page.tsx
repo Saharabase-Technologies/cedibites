@@ -472,6 +472,127 @@ function TopItemsCard({ items }: { items?: TopItem[] }) {
     );
 }
 
+// ─── Product Summary Table ────────────────────────────────────────────────────
+
+type ProductSortKey = 'name' | 'units' | 'rev';
+
+function ProductSummaryCard({ items }: { items?: TopItem[] }) {
+    const [search, setSearch] = useState('');
+    const [sortKey, setSortKey] = useState<ProductSortKey>('rev');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+    const filtered = useMemo(() => {
+        if (!items?.length) return [];
+        const q = search.toLowerCase();
+        const base = q ? items.filter(i => (i.size_label || i.name).toLowerCase().includes(q)) : items;
+        return [...base].sort((a, b) => {
+            let av: string | number, bv: string | number;
+            if (sortKey === 'name') { av = (a.size_label || a.name).toLowerCase(); bv = (b.size_label || b.name).toLowerCase(); }
+            else if (sortKey === 'units') { av = a.units; bv = b.units; }
+            else { av = a.rev; bv = b.rev; }
+            return sortDir === 'asc' ? (av < bv ? -1 : av > bv ? 1 : 0) : (av > bv ? -1 : av < bv ? 1 : 0);
+        });
+    }, [items, search, sortKey, sortDir]);
+
+    const grandRev = items?.reduce((s, i) => s + i.rev, 0) ?? 0;
+    const grandUnits = items?.reduce((s, i) => s + i.units, 0) ?? 0;
+    const filteredRev = filtered.reduce((s, i) => s + i.rev, 0);
+    const filteredUnits = filtered.reduce((s, i) => s + i.units, 0);
+
+    function toggleSort(key: ProductSortKey) {
+        if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        else { setSortKey(key); setSortDir(key === 'name' ? 'asc' : 'desc'); }
+    }
+
+    function handleExportCsv() {
+        generateCsv(
+            ['#', 'Item', 'Units Sold', 'Revenue (GHS)', '% of Total'],
+            filtered.map((item, idx) => [
+                String(idx + 1),
+                item.size_label || item.name,
+                String(item.units),
+                item.rev.toFixed(2),
+                grandRev > 0 ? (item.rev / grandRev * 100).toFixed(1) : '0.0',
+            ]),
+            `product-summary.csv`,
+        );
+    }
+
+    function ColHeader({ label, sk, right }: { label: string; sk: ProductSortKey; right?: boolean }) {
+        const active = sortKey === sk;
+        return (
+            <th onClick={() => toggleSort(sk)}
+                className={`text-[10px] font-bold uppercase tracking-wider pb-2 pr-3 ${right ? 'text-right' : 'text-left'} cursor-pointer select-none whitespace-nowrap transition-colors ${active ? 'text-primary' : 'text-neutral-gray hover:text-text-dark'}`}>
+                {label}{active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+            </th>
+        );
+    }
+
+    return (
+        <Card>
+            <div className="flex items-start justify-between mb-4">
+                <div>
+                    <p className="text-text-dark text-sm font-bold font-body">Product Summary</p>
+                    <p className="text-neutral-gray text-xs font-body mt-0.5">
+                        {items?.length ?? 0} items &nbsp;·&nbsp; {grandUnits.toLocaleString()} units sold &nbsp;·&nbsp; {formatGHS(grandRev)}
+                    </p>
+                </div>
+                <button type="button" onClick={handleExportCsv} disabled={!filtered.length}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#f0e8d8] text-xs font-semibold font-body text-neutral-gray hover:text-text-dark hover:border-primary/40 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
+                    <FileCsvIcon size={13} weight="bold" className="text-primary" />
+                    Export CSV
+                </button>
+            </div>
+            <input type="text" placeholder="Search items…" value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full px-3 py-2 mb-3 rounded-xl border border-[#f0e8d8] bg-neutral-card/50 text-sm font-body text-text-dark placeholder:text-neutral-gray/60 focus:outline-none focus:border-primary/40" />
+            {!items?.length ? (
+                <div className="flex items-center justify-center h-32 text-neutral-gray text-sm font-body">No product data available</div>
+            ) : filtered.length === 0 ? (
+                <div className="flex items-center justify-center h-20 text-neutral-gray text-sm font-body">No items match your search</div>
+            ) : (
+                <div className="overflow-x-auto">
+                    <div className="max-h-96 overflow-y-auto">
+                        <table className="w-full text-xs font-body">
+                            <thead className="sticky top-0 bg-neutral-card z-10">
+                                <tr className="border-b border-[#f0e8d8]">
+                                    <th className="text-neutral-gray text-[10px] font-bold uppercase tracking-wider pb-2 pr-3 text-left w-8 select-none">#</th>
+                                    <ColHeader label="Item" sk="name" />
+                                    <ColHeader label="Units Sold" sk="units" right />
+                                    <ColHeader label="Revenue" sk="rev" right />
+                                    <th className="text-neutral-gray text-[10px] font-bold uppercase tracking-wider pb-2 text-right select-none whitespace-nowrap">% of Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filtered.map((item, idx) => {
+                                    const pct = grandRev > 0 ? (item.rev / grandRev * 100).toFixed(1) : '0.0';
+                                    const displayName = item.size_label || item.name;
+                                    return (
+                                        <tr key={`${displayName}-${idx}`} className="border-b border-[#f0e8d8] last:border-0 hover:bg-primary/5 transition-colors">
+                                            <td className="py-2 pr-3 text-neutral-gray/50">{idx + 1}</td>
+                                            <td className="py-2 pr-3 text-text-dark font-semibold">{displayName}</td>
+                                            <td className="py-2 pr-3 text-text-dark text-right">{item.units.toLocaleString()}</td>
+                                            <td className="py-2 pr-3 text-primary font-bold text-right">{formatGHS(item.rev)}</td>
+                                            <td className="py-2 text-neutral-gray text-right">{pct}%</td>
+                                        </tr>
+                                    );
+                                })}
+                                <tr className="bg-[#fff8ee]">
+                                    <td></td>
+                                    <td className="py-2.5 pr-3 font-bold text-text-dark">TOTAL</td>
+                                    <td className="py-2.5 pr-3 font-bold text-text-dark text-right">{filteredUnits.toLocaleString()}</td>
+                                    <td className="py-2.5 pr-3 font-bold text-primary text-right">{formatGHS(filteredRev)}</td>
+                                    <td className="py-2.5 text-neutral-gray text-right">100%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+        </Card>
+    );
+}
+
 // ─── Out of stock alerts ──────────────────────────────────────────────────────
 
 function OutOfStockCard() {
@@ -570,11 +691,22 @@ export default function ManagerAnalyticsPage() {
 
     const { data: topItems } = useQuery({
         queryKey: ['analytics', 'top-items', 'today', branchId],
-        queryFn: () => analyticsService.getTopItemsAnalytics({ 
+        queryFn: () => analyticsService.getTopItemsAnalytics({
             date_from: new Date().toISOString().slice(0, 10),
             date_to: new Date().toISOString().slice(0, 10),
             branch_id: branchId,
             limit: 5
+        }),
+        staleTime: 2 * 60 * 1000,
+    });
+
+    const { data: allProductItems } = useQuery({
+        queryKey: ['analytics', 'all-items', 'today', branchId],
+        queryFn: () => analyticsService.getTopItemsAnalytics({
+            date_from: new Date().toISOString().slice(0, 10),
+            date_to: new Date().toISOString().slice(0, 10),
+            branch_id: branchId,
+            limit: 500
         }),
         staleTime: 2 * 60 * 1000,
     });
@@ -810,9 +942,14 @@ export default function ManagerAnalyticsPage() {
             </div>
 
             {/* ══ ROW 4 — Top items + OOS ══════════════════════════════════════ */}
-            <div className="flex flex-col md:flex-row gap-3 mb-8">
+            <div className="flex flex-col md:flex-row gap-3 mb-3">
                 <TopItemsCard items={topItems} />
                 <OutOfStockCard />
+            </div>
+
+            {/* ══ ROW 5 — Product Summary ══════════════════════════════════════ */}
+            <div className="mb-8">
+                <ProductSummaryCard items={allProductItems} />
             </div>
 
             {/* ── Divider ─────────────────────────────────────────────────────── */}
