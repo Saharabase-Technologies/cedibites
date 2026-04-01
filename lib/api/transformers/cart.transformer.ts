@@ -77,9 +77,10 @@ export function transformLocalToApiRequest(
 const VALID_CATEGORIES = ['Basic Meals', 'Budget Bowls', 'Combos', 'Top Ups', 'Drinks'] as const;
 
 export function transformMenuItemToSearchable(menuItem: MenuItem): SearchableItem {
-  const sizes = (menuItem.options?.map((option: { option_key?: string; option_label?: string; price?: number; id?: number; image_url?: string | null }) => ({
+  const sizes = (menuItem.options?.map((option: { option_key?: string; option_label?: string; display_name?: string | null; price?: number; id?: number; image_url?: string | null }) => ({
     key: option.option_key ?? 'default',
     label: option.option_label ?? 'Default',
+    displayName: option.display_name ?? undefined,
     price: option.price ?? 0,
     id: option.id,
     image: option.image_url ?? undefined,
@@ -121,10 +122,10 @@ function getOptionLabel(menuItem: MenuItem, optionKey: string): string {
   }
 
   const option = menuItem.options.find(
-    (s: { option_key?: string; option_label?: string }) =>
+    (s: { option_key?: string; option_label?: string; display_name?: string | null }) =>
       s.option_key === optionKey
   );
-  return option?.option_label ?? optionKey;
+  return option?.display_name || option?.option_label || optionKey;
 }
 
 /**

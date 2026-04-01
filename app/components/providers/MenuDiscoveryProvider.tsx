@@ -13,7 +13,7 @@ export interface SearchableItem {
     description?: string;
     category: string;
     price?: number;
-    sizes?: { id: number; key: string; label: string; price: number; image?: string }[];
+    sizes?: { id: number; key: string; label: string; displayName?: string; price: number; image?: string }[];
     hasVariants?: boolean;
     variants?: { plain?: number; assorted?: number };
     availableAddOns?: string[];
@@ -33,6 +33,7 @@ function transformApiMenuItemToSearchable(apiItem: ApiMenuItem): SearchableItem 
     const sizes = apiItem.options?.map(option => ({
         key: option.option_key as any,
         label: option.option_label,
+        displayName: option.display_name ?? undefined,
         price: option.price,
         id: option.id,
         image: option.image_url ?? undefined,

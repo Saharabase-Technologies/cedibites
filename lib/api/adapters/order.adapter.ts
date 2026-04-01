@@ -1,5 +1,4 @@
 import type { Order, OrderItem, Payment } from '@/types/api';
-import { resolveDisplayName } from '@/lib/utils/orderAdapter';
 
 export type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone';
 export type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash at Pickup' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
@@ -154,12 +153,14 @@ function buildTimeline(
 }
 
 function getItemName(item: OrderItem): string {
+  const snap = item.menu_item_option_snapshot ?? item.option_snapshot;
+  const live = item.menu_item_option;
+  const displayName = snap?.display_name ?? live?.display_name;
+  if (displayName) return displayName;
+
   const name = item.menu_item_snapshot?.name ?? item.menu_item?.name ?? 'Item';
-  const size =
-    item.menu_item_option_snapshot?.option_label
-    ?? item.option_snapshot?.option_label
-    ?? item.menu_item_option?.option_label;
-  if (size) {
+  const size = snap?.option_label ?? live?.option_label;
+  if (size && size.toLowerCase() !== 'standard') {
     return `${name} (${size})`;
   }
 
@@ -179,10 +180,10 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
           : 'pending';
 
   const items: AdminOrderItem[] = (api.items ?? []).map((item) => {
-    const sizeLabel =
-      item.menu_item_option_snapshot?.option_label
-      ?? item.option_snapshot?.option_label
-      ?? item.menu_item_option?.option_label;
+    const snap = item.menu_item_option_snapshot ?? item.option_snapshot;
+    const live = item.menu_item_option;
+    const sizeLabel = snap?.display_name ?? snap?.option_label
+      ?? live?.display_name ?? live?.option_label;
     return {
       name: item.menu_item_snapshot?.name ?? item.menu_item?.name ?? 'Item',
       sizeLabel,
@@ -254,25 +255,21 @@ export function mapApiOrderToOrder(api: any): import('@/types/order').Order {
         ? api.assignedEmployee
         : api.assigned_employee?.name,
     items: (api.items ?? []).map((item: any) => {
-      const optionLabel =
-        item.menu_item_option_snapshot?.option_label
-        ?? item.option_snapshot?.option_label
-        ?? item.option?.option_label;
-      const rawName = item.menu_item_snapshot?.name ?? item.menu_item?.name ?? '';
-      const resolvedName = resolveDisplayName(rawName, optionLabel);
-      const variantBakedIn = resolvedName !== rawName;
+      const snap = item.menu_item_option_snapshot ?? item.option_snapshot;
+      const live = item.option ?? item.menu_item_option;
+      const displayLabel = snap?.display_name ?? snap?.option_label
+        ?? live?.display_name ?? live?.option_label;
       return {
         id: String(item.id),
         menuItemId: String(item.menu_item_id),
-        name: resolvedName,
+        name: item.menu_item_snapshot?.name ?? item.menu_item?.name ?? '',
         quantity: Number(item.quantity ?? 1),
         unitPrice: Number(item.unit_price ?? 0),
         sizeId: item.menu_item_option_id,
-        sizeLabel: variantBakedIn ? undefined : optionLabel,
+        sizeLabel: displayLabel,
         variantKey:
-          item.menu_item_option_snapshot?.option_key
-          ?? item.option_snapshot?.option_key
-          ?? item.option?.option_key,
+          snap?.option_key
+          ?? live?.option_key,
         notes: item.special_instructions,
         category: item.menu_item?.category,
       };

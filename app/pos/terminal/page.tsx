@@ -57,7 +57,7 @@ function getItemOptions(item: DisplayMenuItem): ItemOption[] {
     return item.sizes.map(size => ({
       key: `${item.id}|${size.key}`,
       label: size.label,
-      name: `${size.label} ${item.name}`,
+      name: size.displayName || `${size.label} ${item.name}`,
       price: size.price,
       menuItemId: item.id,
       sizeId: size.id,
