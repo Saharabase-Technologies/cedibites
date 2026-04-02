@@ -89,6 +89,7 @@ export class ApiOrderService implements OrderService {
       'cash': 'cash',
       'card': 'card',
       'no_charge': 'no_charge',
+      'manual_momo': 'manual_momo',
     };
 
     const fulfillmentTypeMap: Record<string, string> = {
@@ -98,7 +99,7 @@ export class ApiOrderService implements OrderService {
       'takeaway': 'takeaway',
     };
 
-    const requestBody = {
+    const requestBody: Record<string, unknown> = {
       branch_id: parseInt(input.branchId),
       fulfillment_type: fulfillmentTypeMap[input.fulfillmentType] || 'takeaway',
       payment_method: paymentMethodMap[input.paymentMethod] || input.paymentMethod,
@@ -123,6 +124,13 @@ export class ApiOrderService implements OrderService {
       momo_number: input.momoNumber,
       discount: input.discount,
     };
+
+    // Manual entry fields
+    if (input.isManualEntry) {
+      requestBody.is_manual_entry = true;
+      requestBody.recorded_at = input.recordedAt;
+      if (input.momoReference) requestBody.momo_reference = input.momoReference;
+    }
 
     const response = await apiClient.post('/pos/orders', requestBody);
     const apiOrder = extractData<ApiOrder>(response as unknown);

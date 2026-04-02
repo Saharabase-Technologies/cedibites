@@ -8,6 +8,7 @@ import {
     ShareNetworkIcon,
     GlobeIcon,
     DeviceMobileIcon,
+    ClockIcon,
 } from '@phosphor-icons/react';
 import type { OrderStatus, OrderSource, PaymentMethod, FulfillmentType, KanbanColumn } from '@/types/order';
 
@@ -56,6 +57,7 @@ export const SOURCE_CONFIG: Record<OrderSource, SourceDisplayConfig> = {
     whatsapp:     { label: 'WhatsApp',     icon: WhatsappLogoIcon },
     social_media: { label: 'Social Media', icon: ShareNetworkIcon },
     pos:          { label: 'Walk-in',      icon: DeviceMobileIcon },
+    manual_entry: { label: 'Manual Entry', icon: ClockIcon },
 };
 
 // Convenience re-exports for backward compat
@@ -74,6 +76,7 @@ export const PAYMENT_LABELS: Record<PaymentMethod, { short: string; full: string
     cash:         { short: 'Cash',      full: 'Cash Payment' },
     card:         { short: 'Card',      full: 'Card Payment' },
     no_charge:    { short: 'No Charge', full: 'No Charge (Staff)' },
+    manual_momo:  { short: 'Direct MoMo', full: 'Direct MoMo Transfer' },
 };
 
 // ─── Fulfillment labels ─────────────────────────────────────────────────────

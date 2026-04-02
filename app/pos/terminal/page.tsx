@@ -24,6 +24,7 @@ import {
   ClipboardTextIcon,
   PrinterIcon,
   TagIcon,
+  ClockIcon,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { usePOS } from '../context';
@@ -131,6 +132,8 @@ export default function POSTerminalPage() {
     openPayment,
     closePayment,
     processPayment,
+    isManualEntry,
+    setIsManualEntry,
     todayOrders,
   } = usePOS();
   const { logout } = useStaffAuth();
@@ -249,9 +252,9 @@ export default function POSTerminalPage() {
   const effectiveTotal = Math.max(0, cartTotal - promoDiscount);
 
   // Handle payment complete
-  const handlePaymentComplete = async (method: PaymentMethod, amountPaid?: number, momoNumber?: string) => {
+  const handlePaymentComplete = async (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string }) => {
     try {
-      const order = await processPayment(method, amountPaid, momoNumber, promoDiscount > 0 ? promoDiscount : undefined);
+      const order = await processPayment(method, amountPaid, momoNumber, promoDiscount > 0 ? promoDiscount : undefined, manualOpts);
       if (method === 'mobile_money' && order.paymentStatus === 'pending') {
         // RMP: show waiting UI — payment is pending customer USSD approval
         setPendingMomoOrder(order);
@@ -650,6 +653,23 @@ export default function POSTerminalPage() {
             </span>
           </div>
 
+          {/* Manual entry toggle */}
+          <button
+            type="button"
+            onClick={() => setIsManualEntry(!isManualEntry)}
+            className={`
+              w-full py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2
+              transition-all duration-150 mb-2
+              ${isManualEntry
+                ? 'bg-amber-50 text-amber-700 border border-amber-300'
+                : 'bg-neutral-gray/5 text-neutral-gray hover:bg-neutral-gray/10 border border-transparent'
+              }
+            `}
+          >
+            <ClockIcon className="w-4 h-4" />
+            {isManualEntry ? 'Recording Past Order' : 'Record Past Order'}
+          </button>
+
           <button
             onClick={openPayment}
             disabled={cart.length === 0 || !customerName.trim() || !customerPhone.trim()}
@@ -710,6 +730,7 @@ export default function POSTerminalPage() {
           total={effectiveTotal}
           onClose={closePayment}
           onPayment={handlePaymentComplete}
+          isManualEntry={isManualEntry}
         />
       )}
 
@@ -808,10 +829,11 @@ function POSItemOptionModal({ item, cart, onClose, onAdd }: POSItemOptionModalPr
 interface PaymentModalProps {
   total: number;
   onClose: () => void;
-  onPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string) => void;
+  onPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string }) => void;
+  isManualEntry?: boolean;
 }
 
-function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
+function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModalProps) {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [cashAmount, setCashAmount] = useState('');
   const [momoNumber, setMomoNumber] = useState('');
@@ -819,6 +841,9 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
   const [momoVerified, setMomoVerified] = useState<{ name: string; status: string; profile: string } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [momoVerifyError, setMomoVerifyError] = useState<string | null>(null);
+  // Manual entry fields
+  const [recordedAt, setRecordedAt] = useState('');
+  const [momoReference, setMomoReference] = useState('');
 
   const cashChange = useMemo(() => {
     const paid = parseFloat(cashAmount) || 0;
@@ -861,7 +886,15 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
   const handleConfirm = async () => {
     if (!selectedMethod) return;
 
+    // Manual entry requires a date
+    if (isManualEntry && !recordedAt) {
+      alert('Please enter the date & time the order was taken');
+      return;
+    }
+
     setIsProcessing(true);
+
+    const manualOpts = isManualEntry ? { recordedAt, momoReference: momoReference || undefined } : undefined;
 
     if (selectedMethod === 'cash') {
       const paid = parseFloat(cashAmount) || total;
@@ -870,13 +903,15 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
         setIsProcessing(false);
         return;
       }
-      await onPayment('cash', paid);
+      await onPayment('cash', paid, undefined, manualOpts);
     } else if (selectedMethod === 'mobile_money') {
-      await onPayment('mobile_money', undefined, normalizeGhanaPhone(momoNumber));
+      await onPayment('mobile_money', undefined, normalizeGhanaPhone(momoNumber), manualOpts);
+    } else if (selectedMethod === 'manual_momo') {
+      await onPayment('manual_momo', undefined, undefined, manualOpts);
     } else if (selectedMethod === 'no_charge') {
-      await onPayment('no_charge');
+      await onPayment('no_charge', undefined, undefined, manualOpts);
     } else {
-      await onPayment('card');
+      await onPayment('card', undefined, undefined, manualOpts);
     }
 
     setIsProcessing(false);
@@ -887,7 +922,9 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
       <div className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl">
         {/* Header */}
         <div className="px-6 py-4 border-b border-neutral-gray/20 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-text-dark">Payment</h2>
+          <h2 className="text-xl font-semibold text-text-dark">
+            {isManualEntry ? 'Record Past Order' : 'Payment'}
+          </h2>
           <button
             onClick={onClose}
             className="w-10 h-10 rounded-xl flex items-center justify-center text-neutral-gray hover:text-text-dark hover:bg-neutral-gray/10 transition-all"
@@ -902,17 +939,40 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
           <p className="text-4xl font-bold text-primary">{formatGHS(total)}</p>
         </div>
 
-        {/* Payment Methods */}
-        <div className="p-6 space-y-4">
+        {/* Scrollable content */}
+        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+
+          {/* Manual entry: date/time picker */}
+          {isManualEntry && (
+            <div className="space-y-2">
+              <p className="text-neutral-gray text-sm">When was this order?</p>
+              <input
+                type="datetime-local"
+                value={recordedAt}
+                max={new Date().toISOString().slice(0, 16)}
+                onChange={e => setRecordedAt(e.target.value)}
+                className="
+                  w-full h-12 px-4 rounded-xl text-sm
+                  bg-neutral-light text-text-dark
+                  border border-neutral-gray/20 focus:border-primary/50
+                  outline-none transition-colors
+                "
+              />
+            </div>
+          )}
+
           <p className="text-neutral-gray text-sm">Select payment method</p>
 
           <div className="grid grid-cols-2 gap-3">
-            {[
-              { id: 'cash' as const, label: 'Cash', icon: CurrencyDollarIcon },
-              { id: 'mobile_money' as const, label: 'MoMo', icon: DeviceMobileIcon },
-              { id: 'card' as const, label: 'Card', icon: CreditCardIcon },
-              { id: 'no_charge' as const, label: 'No Charge', icon: ProhibitIcon },
-            ].map(method => (
+            {([
+              { id: 'cash' as PaymentMethod, label: 'Cash', icon: CurrencyDollarIcon },
+              ...(isManualEntry
+                ? [{ id: 'manual_momo' as PaymentMethod, label: 'Direct MoMo', icon: DeviceMobileIcon }]
+                : [{ id: 'mobile_money' as PaymentMethod, label: 'MoMo', icon: DeviceMobileIcon }]
+              ),
+              { id: 'card' as PaymentMethod, label: 'Card', icon: CreditCardIcon },
+              { id: 'no_charge' as PaymentMethod, label: 'No Charge', icon: ProhibitIcon },
+            ]).map(method => (
               <button
                 key={method.id}
                 onClick={() => setSelectedMethod(method.id)}
@@ -1039,6 +1099,24 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
             </div>
           )}
 
+          {selectedMethod === 'manual_momo' && (
+            <div className="pt-2 space-y-2">
+              <p className="text-neutral-gray text-xs">Customer paid via direct MoMo transfer to branch number</p>
+              <input
+                type="text"
+                placeholder="MoMo transaction ID (optional)"
+                value={momoReference}
+                onChange={e => setMomoReference(e.target.value)}
+                className="
+                  w-full h-12 px-4 rounded-xl text-sm
+                  bg-neutral-light text-text-dark placeholder:text-neutral-gray/60
+                  border border-neutral-gray/20 focus:border-primary/50
+                  outline-none transition-colors
+                "
+              />
+            </div>
+          )}
+
           {selectedMethod === 'no_charge' && (
             <div className="pt-2 text-center text-neutral-gray">
               <p>Staff meal — no payment required</p>
@@ -1051,7 +1129,11 @@ function PaymentModal({ total, onClose, onPayment }: PaymentModalProps) {
         <div className="p-6 pt-0">
           <button
             onClick={handleConfirm}
-            disabled={!selectedMethod || isProcessing || (selectedMethod === 'mobile_money' && !momoVerified)}
+            disabled={
+              !selectedMethod || isProcessing
+              || (selectedMethod === 'mobile_money' && !momoVerified)
+              || (isManualEntry && !recordedAt)
+            }
             className="
               w-full h-14 rounded-2xl font-semibold text-lg
               bg-primary text-brown

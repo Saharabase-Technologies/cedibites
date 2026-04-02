@@ -52,7 +52,11 @@ interface POSContextValue {
   isPaymentOpen: boolean;
   openPayment: () => void;
   closePayment: () => void;
-  processPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, discount?: number) => Promise<Order>;
+  processPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, discount?: number, manualOpts?: { recordedAt: string; momoReference?: string }) => Promise<Order>;
+
+  // Manual entry mode
+  isManualEntry: boolean;
+  setIsManualEntry: (v: boolean) => void;
 
   // Order history (today)
   todayOrders: Order[];
@@ -94,6 +98,9 @@ export function POSProvider({ children }: POSProviderProps) {
 
   // Payment modal
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+
+  // Manual entry mode
+  const [isManualEntry, setIsManualEntry] = useState(false);
 
   // OrderStore
   const {
@@ -227,7 +234,8 @@ export function POSProvider({ children }: POSProviderProps) {
     method: PaymentMethod,
     amountPaid?: number,
     momoNumber?: string,
-    discount?: number
+    discount?: number,
+    manualOpts?: { recordedAt: string; momoReference?: string }
   ): Promise<Order> => {
     // Simulate payment processing delay
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -235,7 +243,7 @@ export function POSProvider({ children }: POSProviderProps) {
     const branch = branches.find(b => b.id === session?.branchId);
 
     const input: CreateOrderInput = {
-      source: 'pos',
+      source: isManualEntry ? 'manual_entry' : 'pos',
       fulfillmentType: orderType,
       paymentMethod: method,
       items: cart.map(item => ({
@@ -262,6 +270,10 @@ export function POSProvider({ children }: POSProviderProps) {
       discount: discount && discount > 0 ? discount : undefined,
       amountPaid,
       momoNumber,
+      // Manual entry
+      isManualEntry: isManualEntry || undefined,
+      recordedAt: manualOpts?.recordedAt,
+      momoReference: manualOpts?.momoReference,
     };
 
     const order = await createOrder(input);
@@ -277,12 +289,13 @@ export function POSProvider({ children }: POSProviderProps) {
         .catch(() => {});
     }
 
-    // Clear cart
+    // Clear cart and reset manual entry mode
     clearCart();
     setIsPaymentOpen(false);
+    if (isManualEntry) setIsManualEntry(false);
 
     return order;
-  }, [cart, customerName, customerPhone, orderNotes, orderType, session, branches, createOrder, clearCart, staffUser]);
+  }, [cart, customerName, customerPhone, orderNotes, orderType, session, branches, createOrder, clearCart, staffUser, isManualEntry]);
 
   const updateOrderStatus = useCallback((orderId: string, status: Order['status']) => {
     const timestamps: Partial<Pick<Order, 'acceptedAt' | 'startedAt' | 'readyAt' | 'completedAt'>> = {};
@@ -383,6 +396,8 @@ export function POSProvider({ children }: POSProviderProps) {
     openPayment,
     closePayment,
     processPayment,
+    isManualEntry,
+    setIsManualEntry,
     todayOrders,
     updateOrderStatus,
     seedTestOrders,

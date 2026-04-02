@@ -16,6 +16,7 @@ import {
     CaretDownIcon,
     CaretUpIcon,
 } from '@phosphor-icons/react';
+import ActionMenu from '@/app/components/ui/ActionMenu';
 import {
     type StaffMember,
     type StaffRole,
@@ -497,44 +498,17 @@ export default function ManagerStaffPage() {
                                 </p>
 
                                 {/* Actions */}
-                                <div className="flex items-center gap-1 justify-end shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditingMember(member)}
-                                        className="p-2 rounded-xl text-neutral-gray hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
-                                        title="Edit"
-                                    >
-                                        <PencilSimpleIcon size={16} weight="bold" />
-                                    </button>
-                                    {member.status === 'active' ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => setDeactivatingMember(member)}
-                                            className="p-2 rounded-xl text-neutral-gray hover:text-error hover:bg-error/10 transition-colors cursor-pointer"
-                                            title="Deactivate"
-                                        >
-                                            <LockKeyIcon size={16} weight="bold" />
-                                        </button>
-                                    ) : (
-                                        <>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleReactivate(member.id)}
-                                                className="p-2 rounded-xl text-neutral-gray hover:text-secondary hover:bg-secondary/10 transition-colors cursor-pointer"
-                                                title="Reactivate"
-                                            >
-                                                <CheckCircleIcon size={16} weight="bold" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setArchivingMember(member)}
-                                                className="p-2 rounded-xl text-neutral-gray hover:text-warning hover:bg-warning/10 transition-colors cursor-pointer"
-                                                title="Archive"
-                                            >
-                                                <ArchiveIcon size={16} weight="bold" />
-                                            </button>
-                                        </>
-                                    )}
+                                <div className="flex items-center justify-end shrink-0">
+                                    <ActionMenu items={[
+                                        { icon: PencilSimpleIcon, label: 'Edit', onClick: () => setEditingMember(member), color: 'text-primary' },
+                                        ...(member.status === 'active'
+                                            ? [{ icon: LockKeyIcon, label: 'Deactivate', onClick: () => setDeactivatingMember(member), color: 'text-error' }]
+                                            : [
+                                                { icon: CheckCircleIcon, label: 'Reactivate', onClick: () => handleReactivate(member.id), color: 'text-secondary' },
+                                                { icon: ArchiveIcon, label: 'Archive', onClick: () => setArchivingMember(member), color: 'text-warning' },
+                                            ]
+                                        ),
+                                    ]} />
                                 </div>
                             </div>
                         ))}
@@ -577,23 +551,11 @@ export default function ManagerStaffPage() {
                                                 <span className="text-neutral-gray/60 text-[10px] font-body">Since {member.joinedAt}</span>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRestoreFromArchive(member.id)}
-                                                className="p-2 rounded-xl text-neutral-gray hover:text-secondary hover:bg-secondary/10 transition-colors cursor-pointer"
-                                                title="Restore"
-                                            >
-                                                <ArrowCounterClockwiseIcon size={16} weight="bold" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handlePermanentDelete(member.id)}
-                                                className="p-2 rounded-xl text-neutral-gray hover:text-error hover:bg-error/10 transition-colors cursor-pointer"
-                                                title="Delete permanently"
-                                            >
-                                                <TrashIcon size={16} weight="bold" />
-                                            </button>
+                                        <div className="flex items-center shrink-0">
+                                            <ActionMenu items={[
+                                                { icon: ArrowCounterClockwiseIcon, label: 'Restore', onClick: () => handleRestoreFromArchive(member.id), color: 'text-secondary' },
+                                                { icon: TrashIcon, label: 'Delete permanently', onClick: () => handlePermanentDelete(member.id), color: 'text-error' },
+                                            ]} />
                                         </div>
                                     </div>
                                 ))}

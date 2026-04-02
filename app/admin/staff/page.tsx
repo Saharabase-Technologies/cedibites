@@ -20,6 +20,8 @@ import {
     ToggleRightIcon,
     IdentificationCardIcon,
 } from '@phosphor-icons/react';
+import ActionMenu from '@/app/components/ui/ActionMenu';
+import type { ActionMenuItem } from '@/app/components/ui/ActionMenu';
 import {
     type StaffMember,
     type StaffRole,
@@ -1010,27 +1012,32 @@ export default function AdminStaffPage() {
                                 </div>
 
                                 {/* Actions */}
-                                <div className="flex items-center gap-1 justify-end flex-wrap shrink-0">
-                                    {member.status !== 'archived' && (
-                                        <>
-                                            <ActionBtn icon={PencilSimpleIcon} label="Edit" onClick={() => setEditStaff(member)} color="text-primary" />
-                                            <ActionBtn icon={LockSimpleIcon} label="Reset PW" onClick={() => requirePasswordReset(member)} color="text-neutral-gray" />
-                                            <ActionBtn icon={SignOutIcon} label="Force Logout" onClick={() => forceLogout(member)} color="text-neutral-gray" />
-                                            {member.systemAccess === 'enabled'
-                                                ? <ActionBtn icon={ArchiveIcon} label="Suspend" onClick={() => suspend(member)} color="text-warning" />
-                                                : <ActionBtn icon={ArrowCounterClockwiseIcon} label="Reinstate" onClick={() => reinstate(member)} color="text-secondary" />
+                                <div className="flex items-center justify-end shrink-0">
+                                    <ActionMenu items={(() => {
+                                        const actions: ActionMenuItem[] = [];
+                                        if (member.status !== 'archived') {
+                                            actions.push(
+                                                { icon: PencilSimpleIcon, label: 'Edit', onClick: () => setEditStaff(member), color: 'text-primary' },
+                                                { icon: LockSimpleIcon, label: 'Reset PW', onClick: () => requirePasswordReset(member), color: 'text-neutral-gray' },
+                                                { icon: SignOutIcon, label: 'Force Logout', onClick: () => forceLogout(member), color: 'text-neutral-gray' },
+                                            );
+                                            if (member.systemAccess === 'enabled') {
+                                                actions.push({ icon: ArchiveIcon, label: 'Suspend', onClick: () => suspend(member), color: 'text-warning' });
+                                            } else {
+                                                actions.push({ icon: ArrowCounterClockwiseIcon, label: 'Reinstate', onClick: () => reinstate(member), color: 'text-secondary' });
                                             }
-                                            {member.systemAccess === 'disabled' && (
-                                                <ActionBtn icon={ArchiveIcon} label="Archive" onClick={() => archive(member)} color="text-neutral-gray" />
-                                            )}
-                                        </>
-                                    )}
-                                    {member.status === 'archived' && (
-                                        <>
-                                            <ActionBtn icon={ArrowCounterClockwiseIcon} label="Restore" onClick={() => reinstate(member)} color="text-secondary" />
-                                            <ActionBtn icon={TrashIcon} label="Delete" onClick={() => setDeleteStaff(member)} color="text-error" />
-                                        </>
-                                    )}
+                                            if (member.systemAccess === 'disabled') {
+                                                actions.push({ icon: ArchiveIcon, label: 'Archive', onClick: () => archive(member), color: 'text-neutral-gray' });
+                                            }
+                                        } else {
+                                            actions.push(
+                                                { icon: ArrowCounterClockwiseIcon, label: 'Restore', onClick: () => reinstate(member), color: 'text-secondary' },
+                                                { icon: TrashIcon, label: 'Delete', onClick: () => setDeleteStaff(member), color: 'text-error' },
+                                            );
+                                        }
+                                        return actions;
+                                    })()}
+                                    />
                                 </div>
                             </div>
                         ))}
@@ -1049,12 +1056,3 @@ export default function AdminStaffPage() {
     );
 }
 
-function ActionBtn({ icon: Icon, label, onClick, color }: { icon: React.ElementType; label: string; onClick: () => void; color: string }) {
-    return (
-        <button type="button" onClick={onClick} title={label}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-neutral-light hover:bg-[#f0e8d8] text-xs font-medium font-body transition-colors cursor-pointer ${color}`}>
-            <Icon size={12} weight="bold" />
-            <span className="hidden sm:inline">{label}</span>
-        </button>
-    );
-}
