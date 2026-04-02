@@ -14,6 +14,7 @@ import {
   NoteIcon,
   PhoneIcon,
   FlaskIcon,
+  ClockIcon,
 } from '@phosphor-icons/react';
 import { usePOS } from '../context';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
@@ -44,6 +45,8 @@ export default function POSOrdersPage() {
     session,
     isSessionValid,
     isSessionLoaded,
+    isManualEntry,
+    setIsManualEntry,
   } = usePOS();
   const { logout } = useStaffAuth();
   const { branches } = useBranch();
@@ -138,8 +141,20 @@ export default function POSOrdersPage() {
 
       {/* Page title */}
       <div className="shrink-0 px-4 pt-4 pb-3 bg-white border-b border-neutral-gray/15">
-        <h1 className="text-xl font-bold text-text-dark">Today's Orders</h1>
-        <p className="text-xs text-neutral-gray mt-0.5">Today · {session.staffName}</p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-text-dark">Today&apos;s Orders</h1>
+            <p className="text-xs text-neutral-gray mt-0.5">Today · {session.staffName}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setIsManualEntry(true); router.push('/pos/terminal'); }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-neutral-gray hover:text-amber-700 hover:bg-amber-50 border border-neutral-gray/20 hover:border-amber-300 transition-colors"
+          >
+            <ClockIcon className="w-3.5 h-3.5" />
+            Record Past Order
+          </button>
+        </div>
       </div>
 
       <SignOutDialog

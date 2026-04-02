@@ -24,7 +24,6 @@ import {
   ClipboardTextIcon,
   PrinterIcon,
   TagIcon,
-  ClockIcon,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { usePOS } from '../context';
@@ -133,7 +132,6 @@ export default function POSTerminalPage() {
     closePayment,
     processPayment,
     isManualEntry,
-    setIsManualEntry,
     todayOrders,
   } = usePOS();
   const { logout } = useStaffAuth();
@@ -653,22 +651,12 @@ export default function POSTerminalPage() {
             </span>
           </div>
 
-          {/* Manual entry toggle */}
-          <button
-            type="button"
-            onClick={() => setIsManualEntry(!isManualEntry)}
-            className={`
-              w-full py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2
-              transition-all duration-150 mb-2
-              ${isManualEntry
-                ? 'bg-amber-50 text-amber-700 border border-amber-300'
-                : 'bg-neutral-gray/5 text-neutral-gray hover:bg-neutral-gray/10 border border-transparent'
-              }
-            `}
-          >
-            <ClockIcon className="w-4 h-4" />
-            {isManualEntry ? 'Recording Past Order' : 'Record Past Order'}
-          </button>
+          {isManualEntry && (
+            <div className="flex items-center justify-center gap-2 py-2 mb-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              Recording Past Order
+            </div>
+          )}
 
           <button
             onClick={openPayment}
