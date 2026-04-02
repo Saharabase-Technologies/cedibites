@@ -15,7 +15,6 @@ import {
     TagIcon,
     CaretDownIcon,
     CaretRightIcon,
-    GearSixIcon,
     ArrowCounterClockwiseIcon,
     ArchiveIcon,
     ImageIcon,
@@ -23,10 +22,42 @@ import {
     EyeSlashIcon,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
 
 interface OptionTemplate { id: string; name: string; options: { label: string; price: string }[]; }
+
+const MENU_SUB_TABS = [
+    { href: '/staff/manager/menu',           label: 'Items'     },
+    { href: '/staff/manager/menu/tags',      label: 'Tags'      },
+    { href: '/staff/manager/menu/configure', label: 'Configure'  },
+];
+
+function MenuSubTabs() {
+    const pathname = usePathname();
+    const isActive = (href: string) => {
+        if (href === '/staff/manager/menu') return pathname === '/staff/manager/menu';
+        return pathname === href || pathname.startsWith(href + '/');
+    };
+    return (
+        <div className="flex gap-6 border-b border-[#f0e8d8] mb-5">
+            {MENU_SUB_TABS.map(tab => (
+                <Link
+                    key={tab.href}
+                    href={tab.href}
+                    className={`pb-2.5 text-sm font-medium font-body transition-colors border-b-2 -mb-px ${
+                        isActive(tab.href)
+                            ? 'text-primary border-primary'
+                            : 'text-neutral-gray border-transparent hover:text-text-dark'
+                    }`}
+                >
+                    {tab.label}
+                </Link>
+            ))}
+        </div>
+    );
+}
 
 const DEFAULT_CATEGORIES = ['Basic Meals', 'Budget Bowls', 'Combos', 'Top Ups', 'Drinks'];
 
@@ -601,14 +632,6 @@ export default function ManagerMenuPage() {
                         </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                        <Link
-                            href="/staff/manager/settings"
-                            className="flex items-center gap-1.5 border border-brown-light/20 text-neutral-gray hover:text-text-dark hover:border-brown-light/40 font-medium font-body text-sm px-3 py-2.5 rounded-xl transition-colors"
-                            title="Manage categories &amp; templates"
-                        >
-                            <GearSixIcon size={16} weight="bold" />
-                            <span className="hidden sm:inline">Configure</span>
-                        </Link>
                         <button
                             type="button"
                             onClick={() => setEditingItem('new')}
@@ -619,6 +642,8 @@ export default function ManagerMenuPage() {
                         </button>
                     </div>
                 </div>
+
+                <MenuSubTabs />
 
                 {/* ── Filters ─────────────────────────────────────────────────── */}
                 <div className="flex flex-col sm:flex-row gap-3 mb-6">

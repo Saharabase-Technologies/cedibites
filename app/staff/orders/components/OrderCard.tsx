@@ -1,6 +1,6 @@
 'use client';
 
-import { CaretRightIcon, CheckCircleIcon } from '@phosphor-icons/react';
+import { CheckCircleIcon } from '@phosphor-icons/react';
 import type { Order, OrderStatus, UserRole } from '@/types/order';
 import { KANBAN_COLUMNS, SOURCE_ICON, STATUS_CONFIG } from '@/lib/constants/order.constants';
 import { timeAgo, formatGHS, getNextStatuses, isDoneStatus, canAdvanceOrder } from '../utils';
@@ -116,24 +116,7 @@ export default function OrderCard({
                 <span className="text-text-light text-xs font-semibold font-body">{formatGHS(order.total)}</span>
             </div>
 
-            {/* Advance button — only if not terminal and this role can perform the transition */}
-            {canDoAdvance && onAdvance && (
-                <button
-                    type="button"
-                    onClick={e => { e.stopPropagation(); onAdvance(order.id, simpleNext[0].status); }}
-                    className="
-            mt-3 w-full flex items-center justify-center gap-1.5
-            bg-transparent cursor-pointer hover:bg-primary/10
-            border border-brown-light/20 hover:border-primary/40
-            text-neutral-gray hover:text-primary
-            text-[11px] font-semibold font-body
-            py-2 rounded-xl transition-all duration-150
-          "
-                >
-                    {simpleNext[0].label}
-                    <CaretRightIcon size={11} weight="bold" />
-                </button>
-            )}
+
         </div>
     );
 }

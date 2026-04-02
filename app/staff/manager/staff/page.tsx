@@ -439,50 +439,65 @@ export default function ManagerStaffPage() {
                         <p className="text-neutral-gray text-sm font-body">No staff in this filter.</p>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-3">
-                        {filtered.map(member => (
+                    <div className="bg-neutral-card border border-brown-light/15 rounded-2xl overflow-hidden">
+                        {/* Table header */}
+                        <div className="hidden sm:grid grid-cols-[minmax(0,1.5fr)_90px_minmax(0,1fr)_80px_90px_100px] gap-3 px-5 py-2.5 border-b border-[#f0e8d8] text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">
+                            <span>Name</span>
+                            <span>Role</span>
+                            <span>Contact</span>
+                            <span>Joined</span>
+                            <span className="text-center">Today</span>
+                            <span className="text-right">Actions</span>
+                        </div>
+                        {filtered.map((member, i) => (
                             <div
                                 key={member.id}
-                                className={`bg-neutral-card border border-brown-light/15 rounded-2xl px-4 py-4 flex items-center gap-4 ${member.status === 'inactive' ? 'opacity-60' : ''}`}
+                                className={`px-5 py-3.5 flex flex-col sm:grid sm:grid-cols-[minmax(0,1.5fr)_90px_minmax(0,1fr)_80px_90px_100px] gap-2 sm:gap-3 sm:items-center ${
+                                    i < filtered.length - 1 ? 'border-b border-[#f0e8d8]' : ''
+                                } ${member.status === 'inactive' ? 'opacity-60' : ''} hover:bg-neutral-light/40 transition-colors`}
                             >
-                                {/* Avatar */}
-                                <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
-                                    <span className="text-primary font-bold font-body text-sm">
-                                        {member.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                                    </span>
-                                </div>
-
-                                {/* Info */}
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="text-text-dark text-sm font-semibold font-body">{member.name}</p>
-                                        <span className={`text-[10px] font-bold font-body border rounded-full px-2 py-0.5 ${getRoleColor(member.role)}`}>
-                                            {ROLE_LABELS[member.role] ?? member.role}
+                                {/* Name + avatar + status */}
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                                        <span className="text-primary font-bold font-body text-xs">
+                                            {member.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                                         </span>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-text-dark text-sm font-semibold font-body truncate">{member.name}</p>
                                         {member.status === 'inactive' && (
                                             <span className="text-[10px] font-bold font-body border border-neutral-gray/30 text-neutral-gray rounded-full px-2 py-0.5">
                                                 Inactive
                                             </span>
                                         )}
                                     </div>
-                                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                                        <span className="text-neutral-gray text-xs font-body">{member.phone}</span>
-                                        <span className="text-brown-light/40 text-xs">&middot;</span>
-                                        <span className="text-neutral-gray text-xs font-body truncate">{member.email}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                                        <span className="text-neutral-gray/60 text-[10px] font-body">Since {member.joinedAt}</span>
-                                        {member.status === 'active' && member.ordersToday > 0 && (
-                                            <>
-                                                <span className="text-brown-light/30 text-xs">&middot;</span>
-                                                <span className="text-neutral-gray/60 text-[10px] font-body">{member.ordersToday} orders today</span>
-                                            </>
-                                        )}
-                                    </div>
                                 </div>
 
+                                {/* Role */}
+                                <div>
+                                    <span className={`text-[10px] font-bold font-body border rounded-full px-2 py-0.5 ${getRoleColor(member.role)}`}>
+                                        {ROLE_LABELS[member.role] ?? member.role}
+                                    </span>
+                                </div>
+
+                                {/* Contact */}
+                                <div className="min-w-0">
+                                    <p className="text-text-dark text-xs font-body truncate">{member.phone}</p>
+                                    <p className="text-neutral-gray text-[10px] font-body truncate">{member.email}</p>
+                                </div>
+
+                                {/* Joined */}
+                                <p className="text-neutral-gray text-[10px] font-body">{member.joinedAt}</p>
+
+                                {/* Orders today */}
+                                <p className="text-center text-xs font-body text-neutral-gray">
+                                    {member.status === 'active' && member.ordersToday > 0 ? (
+                                        <span className="text-text-dark font-semibold">{member.ordersToday}</span>
+                                    ) : '—'}
+                                </p>
+
                                 {/* Actions */}
-                                <div className="flex items-center gap-1 shrink-0">
+                                <div className="flex items-center gap-1 justify-end shrink-0">
                                     <button
                                         type="button"
                                         onClick={() => setEditingMember(member)}
@@ -540,25 +555,27 @@ export default function ManagerStaffPage() {
                         </button>
 
                         {archiveOpen && (
-                            <div className="flex flex-col gap-2">
-                                {archivedStaff.map(member => (
+                            <div className="bg-neutral-card border border-brown-light/15 rounded-2xl overflow-hidden opacity-60">
+                                {archivedStaff.map((member, i) => (
                                     <div
                                         key={member.id}
-                                        className="bg-neutral-gray/5 border border-brown-light/10 rounded-2xl px-4 py-3 flex items-center gap-4 opacity-60"
+                                        className={`px-5 py-3 flex items-center gap-3 ${
+                                            i < archivedStaff.length - 1 ? 'border-b border-[#f0e8d8]' : ''
+                                        }`}
                                     >
-                                        <div className="w-9 h-9 rounded-full bg-neutral-gray/10 flex items-center justify-center shrink-0">
-                                            <span className="text-neutral-gray font-bold font-body text-sm">
+                                        <div className="w-8 h-8 rounded-full bg-neutral-gray/10 flex items-center justify-center shrink-0">
+                                            <span className="text-neutral-gray font-bold font-body text-xs">
                                                 {member.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                                             </span>
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <p className="text-neutral-gray text-sm font-semibold font-body">{member.name}</p>
+                                            <p className="text-neutral-gray text-sm font-semibold font-body truncate">{member.name}</p>
+                                            <div className="flex items-center gap-2 mt-0.5">
                                                 <span className={`text-[10px] font-bold font-body border rounded-full px-2 py-0.5 ${getRoleColor(member.role)}`}>
                                                     {ROLE_LABELS[member.role] ?? member.role}
                                                 </span>
+                                                <span className="text-neutral-gray/60 text-[10px] font-body">Since {member.joinedAt}</span>
                                             </div>
-                                            <span className="text-neutral-gray/60 text-xs font-body">Since {member.joinedAt}</span>
                                         </div>
                                         <div className="flex items-center gap-1 shrink-0">
                                             <button

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import {
     GearSixIcon,
     TagIcon,
-    ListBulletsIcon,
     PlusIcon,
     PencilSimpleIcon,
     TrashIcon,
@@ -43,12 +42,6 @@ export interface BranchSettings {
     hours: Record<DayKey, DayHours>;
 }
 
-export interface OptionTemplate {
-    id: string;
-    name: string;
-    options: { label: string; price: string }[];
-}
-
 const DEFAULT_HOURS: Record<DayKey, DayHours> = {
     mon: { open: '09:00', close: '22:00', closed: false },
     tue: { open: '09:00', close: '22:00', closed: false },
@@ -65,13 +58,6 @@ const DEFAULT_BRANCH: BranchSettings = {
     paymentMethods: { momo: true, cashDelivery: true, cashPickup: true },
     hours: DEFAULT_HOURS,
 };
-
-const DEFAULT_TEMPLATES: OptionTemplate[] = [
-    { id: 'tpl-sm-lg', name: 'Small / Large', options: [{ label: 'Small', price: '' }, { label: 'Large', price: '' }] },
-    { id: 'tpl-plain-assorted', name: 'Plain / Assorted', options: [{ label: 'Plain', price: '' }, { label: 'Assorted', price: '' }] },
-    { id: 'tpl-full-half-quarter', name: 'Full / Half / Quarter', options: [{ label: 'Full', price: '' }, { label: 'Half', price: '' }, { label: 'Quarter', price: '' }] },
-    { id: 'tpl-350ml-500ml', name: '350ml / 500ml', options: [{ label: '350ml', price: '' }, { label: '500ml', price: '' }] },
-];
 
 const DEFAULT_CATEGORIES = ['Basic Meals', 'Budget Bowls', 'Combos', 'Top Ups', 'Drinks'];
 
@@ -136,88 +122,6 @@ function InlineEdit({ value, placeholder, onSave, onCancel }: {
     );
 }
 
-// ─── Template editor modal ────────────────────────────────────────────────────
-
-interface OptionRow { label: string; price: string; }
-
-function TemplateEditor({ template, onSave, onClose }: {
-    template: OptionTemplate | null; onSave: (t: OptionTemplate) => void; onClose: () => void;
-}) {
-    const [name,    setName]    = useState(template?.name ?? '');
-    const [options, setOptions] = useState<OptionRow[]>(
-        template?.options.length
-            ? template.options.map(o => ({ label: o.label, price: o.price }))
-            : [{ label: '', price: '' }, { label: '', price: '' }]
-    );
-    const [errors, setErrors] = useState<Record<string, string>>({});
-
-    function handleSave() {
-        const e: Record<string, string> = {};
-        if (!name.trim()) e.name = 'Required';
-        if (options.filter(o => o.label.trim()).length < 2) e.options = 'Add at least two options';
-        setErrors(e);
-        if (Object.keys(e).length > 0) return;
-        onSave({
-            id: template?.id ?? `tpl-${Date.now()}`,
-            name: name.trim(),
-            options: options.filter(o => o.label.trim()).map(o => ({ label: o.label.trim(), price: o.price })),
-        });
-    }
-
-    function updateOpt(i: number, field: keyof OptionRow, v: string) {
-        setOptions(prev => prev.map((o, idx) => idx === i ? { ...o, [field]: v } : o));
-    }
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-brand-darker/60 backdrop-blur-sm">
-            <div className="bg-neutral-card border border-brown-light/20 rounded-3xl p-6 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
-                <h2 className="text-text-dark text-lg font-bold font-body mb-5">
-                    {template ? 'Edit Template' : 'New Pricing Template'}
-                </h2>
-                <div className="flex flex-col gap-4">
-                    <div>
-                        <label className="block text-xs font-medium font-body text-neutral-gray mb-1.5">Template Name <span className="text-primary">*</span></label>
-                        <input type="text" value={name} onChange={e => setName(e.target.value)}
-                            placeholder="e.g. Small / Large" className={inputCls} />
-                        {errors.name && <p className="text-error text-xs font-body mt-1">{errors.name}</p>}
-                    </div>
-                    <div>
-                        <div className="grid grid-cols-[1fr_90px_24px] gap-2 mb-2">
-                            <span className="text-xs font-medium font-body text-neutral-gray">Label</span>
-                            <span className="text-xs font-medium font-body text-neutral-gray">Default price</span>
-                            <span />
-                        </div>
-                        <div className="flex flex-col gap-2">
-                            {options.map((opt, i) => (
-                                <div key={i} className="grid grid-cols-[1fr_90px_24px] gap-2 items-center">
-                                    <input type="text" value={opt.label} onChange={e => updateOpt(i, 'label', e.target.value)} placeholder="e.g. Small" className={inputCls} />
-                                    <input type="number" min="0" step="1" value={opt.price} onChange={e => updateOpt(i, 'price', e.target.value)} placeholder="optional" className={inputCls} />
-                                    <button type="button" onClick={() => options.length > 1 && setOptions(p => p.filter((_, idx) => idx !== i))}
-                                        className={`flex items-center justify-center transition-colors ${options.length > 1 ? 'text-neutral-gray/40 hover:text-error cursor-pointer' : 'opacity-20 cursor-not-allowed'}`}>
-                                        <XIcon size={16} weight="bold" />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                        <button type="button" onClick={() => setOptions(p => [...p, { label: '', price: '' }])}
-                            className="flex items-center gap-1.5 text-xs font-medium font-body text-primary hover:text-primary-hover transition-colors cursor-pointer w-fit mt-2">
-                            <PlusIcon size={12} weight="bold" /> Add option
-                        </button>
-                        {errors.options && <p className="text-error text-xs font-body mt-1">{errors.options}</p>}
-                    </div>
-                    <p className="text-neutral-gray/70 text-xs font-body">Default prices are optional — you can always adjust them on individual items.</p>
-                </div>
-                <div className="flex gap-3 mt-6">
-                    <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-brown-light/20 text-sm font-medium font-body text-neutral-gray hover:text-text-dark transition-colors cursor-pointer">Cancel</button>
-                    <button type="button" onClick={handleSave} className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary-hover text-brand-darker text-sm font-bold font-body transition-colors cursor-pointer">
-                        {template ? 'Save' : 'Create'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 // ─── Delete confirm ───────────────────────────────────────────────────────────
 
 function DeleteConfirm({ label, onConfirm, onClose }: { label: string; onConfirm: () => void; onClose: () => void }) {
@@ -258,14 +162,11 @@ export default function MenuSettingsPage() {
     // Local working copies
     const [branch,     setBranch]     = useState<BranchSettings>(DEFAULT_BRANCH);
     const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
-    const [templates,  setTemplates]  = useState<OptionTemplate[]>(DEFAULT_TEMPLATES);
     const [dirty, setDirty] = useState(false);
 
     const [editingCatIdx,   setEditingCatIdx]   = useState<number | null>(null);
     const [addingCat,       setAddingCat]       = useState(false);
-    const [editingTemplate, setEditingTemplate] = useState<OptionTemplate | null | 'new'>(null);
     const [deletingCat,     setDeletingCat]     = useState<string | null>(null);
-    const [deletingTpl,     setDeletingTpl]     = useState<OptionTemplate | null>(null);
     
     // Update branch settings when API data loads
     useEffect(() => {
@@ -365,29 +266,6 @@ export default function MenuSettingsPage() {
         const arr = [...categories];
         [arr[idx], arr[next]] = [arr[next], arr[idx]];
         setCategories(arr); mark();
-    }
-
-    // ── Templates ────────────────────────────────────────────────────────────
-
-    function saveTemplate(t: OptionTemplate) {
-        setTemplates(prev => {
-            const exists = prev.some(x => x.id === t.id);
-            return exists ? prev.map(x => x.id === t.id ? t : x) : [...prev, t];
-        });
-        setEditingTemplate(null); mark();
-    }
-
-    function deleteTemplate(id: string) {
-        setTemplates(prev => prev.filter(t => t.id !== id));
-        setDeletingTpl(null); mark();
-    }
-
-    function moveTemplate(idx: number, dir: -1 | 1) {
-        const next = idx + dir;
-        if (next < 0 || next >= templates.length) return;
-        const arr = [...templates];
-        [arr[idx], arr[next]] = [arr[next], arr[idx]];
-        setTemplates(arr); mark();
     }
 
     // ── Commit ───────────────────────────────────────────────────────────────
@@ -628,55 +506,6 @@ export default function MenuSettingsPage() {
                     )}
                 </section>
 
-                {/* ═══════════════════════════════════════════════════════════════
-                    SECTION 6 — PRICING TEMPLATES
-                ════════════════════════════════════════════════════════════════ */}
-                <section className="mb-10">
-                    <SectionHeader icon={ListBulletsIcon} color="bg-secondary" title="Pricing Templates" sub="Reusable option sets — load one when adding a menu item" />
-
-                    <div className="flex flex-col gap-3 mb-3">
-                        {templates.map((tpl, i) => (
-                            <div key={tpl.id} className="bg-neutral-card border border-brown-light/15 rounded-2xl px-4 py-4 flex items-start gap-3">
-                                <div className="flex flex-col gap-0.5 shrink-0 mt-0.5">
-                                    <button type="button" onClick={() => moveTemplate(i, -1)} disabled={i === 0}
-                                        className="p-0.5 text-neutral-gray/40 hover:text-neutral-gray disabled:opacity-20 transition-colors cursor-pointer disabled:cursor-not-allowed">
-                                        <ArrowUpIcon size={12} weight="bold" />
-                                    </button>
-                                    <button type="button" onClick={() => moveTemplate(i, 1)} disabled={i === templates.length - 1}
-                                        className="p-0.5 text-neutral-gray/40 hover:text-neutral-gray disabled:opacity-20 transition-colors cursor-pointer disabled:cursor-not-allowed">
-                                        <ArrowDownIcon size={12} weight="bold" />
-                                    </button>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-text-dark text-sm font-bold font-body mb-2">{tpl.name}</p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {tpl.options.map((opt, j) => (
-                                            <span key={j} className="flex items-center gap-1 bg-brown-light/10 border border-brown-light/15 rounded-full px-2.5 py-1 text-xs font-body text-text-dark">
-                                                {opt.label}
-                                                {opt.price && <span className="text-neutral-gray">· ₵{opt.price}</span>}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0">
-                                    <button type="button" onClick={() => setEditingTemplate(tpl)}
-                                        className="p-1.5 rounded-lg text-neutral-gray hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer">
-                                        <PencilSimpleIcon size={15} weight="bold" />
-                                    </button>
-                                    <button type="button" onClick={() => setDeletingTpl(tpl)}
-                                        className="p-1.5 rounded-lg text-neutral-gray hover:text-error hover:bg-error/10 transition-colors cursor-pointer">
-                                        <TrashIcon size={15} weight="bold" />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <button type="button" onClick={() => setEditingTemplate('new')}
-                        className="flex items-center gap-2 text-sm font-medium font-body text-primary hover:text-primary-hover transition-colors cursor-pointer w-fit">
-                        <PlusIcon size={15} weight="bold" /> Add template
-                    </button>
-                </section>
-
                 {/* ── Sticky save bar ─────────────────────────────────────────── */}
                 {dirty && (
                     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 bg-neutral-card border border-brown-light/20 shadow-2xl rounded-2xl px-5 py-3.5">
@@ -691,14 +520,8 @@ export default function MenuSettingsPage() {
             </div>
 
             {/* ── Modals ──────────────────────────────────────────────────────── */}
-            {editingTemplate !== null && (
-                <TemplateEditor template={editingTemplate === 'new' ? null : editingTemplate} onSave={saveTemplate} onClose={() => setEditingTemplate(null)} />
-            )}
             {deletingCat && (
                 <DeleteConfirm label={deletingCat} onConfirm={() => deleteCategory(deletingCat)} onClose={() => setDeletingCat(null)} />
-            )}
-            {deletingTpl && (
-                <DeleteConfirm label={deletingTpl.name} onConfirm={() => deleteTemplate(deletingTpl.id)} onClose={() => setDeletingTpl(null)} />
             )}
         </>
     );

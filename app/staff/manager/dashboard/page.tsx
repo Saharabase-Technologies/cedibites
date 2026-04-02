@@ -11,7 +11,6 @@ import {
     CurrencyCircleDollarIcon,
     ReceiptIcon,
     XCircleIcon,
-    CaretRightIcon,
     ArrowUpRightIcon,
 } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
@@ -182,7 +181,7 @@ export default function ManagerDashboardPage() {
             <div className="grid md:grid-cols-2 gap-6 mb-8">
 
                 {/* ── Active orders ─────────────────────────────────────────────── */}
-                <div>
+                <div className="md:col-span-2">
                     <div className="flex items-center justify-between mb-3">
                         <h2 className="text-text-dark font-bold text-base font-body">Active Orders</h2>
                         <Link
@@ -194,30 +193,41 @@ export default function ManagerDashboardPage() {
                         </Link>
                     </div>
 
-                    <div className="flex flex-col gap-2">
-                        {orders.slice(0, 5).map(order => (
-                            <Link
-                                key={order.id}
-                                href={`/staff/manager/orders?select=${order.id}`}
-                                className="
-                                    bg-neutral-card border border-brown-light/30
-                                    rounded-2xl px-4 py-3 flex items-center justify-between gap-3
-                                    hover:border-brown-light/60 hover:bg-brown-light/5 transition-colors group
-                                "
-                            >
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2 mb-0.5">
-                                        <span className="text-text-dark text-sm font-bold font-body">{order.customer}</span>
-                                        <span className="text-neutral-gray text-xs font-body">{order.source}</span>
+                    <div className="bg-neutral-card border border-brown-light/15 rounded-2xl overflow-hidden">
+                        {/* Table header */}
+                        <div className="grid grid-cols-[minmax(0,1fr)_100px_90px_minmax(0,1fr)_80px] gap-3 px-4 py-2.5 border-b border-[#f0e8d8] text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">
+                            <span>Customer</span>
+                            <span>Order</span>
+                            <span>Status</span>
+                            <span>Staff</span>
+                            <span className="text-right">Time</span>
+                        </div>
+                        {orders.length > 0 ? orders.slice(0, 5).map((order, i) => {
+                            const raw = rawOrders.find(r => String(r.id) === String(order.dbId));
+                            const staffName = raw?.staff_name ?? raw?.assigned_employee?.name ?? '—';
+                            return (
+                                <Link
+                                    key={order.id}
+                                    href={`/staff/manager/orders?select=${order.id}`}
+                                    className={`grid grid-cols-[minmax(0,1fr)_100px_90px_minmax(0,1fr)_80px] gap-3 px-4 py-3 items-center hover:bg-brown-light/5 transition-colors ${
+                                        i < Math.min(orders.length, 5) - 1 ? 'border-b border-brown-light/10' : ''
+                                    }`}
+                                >
+                                    <div className="min-w-0">
+                                        <p className="text-text-dark text-sm font-semibold font-body truncate">{order.customer}</p>
+                                        <p className="text-neutral-gray text-[10px] font-body">{order.source}</p>
                                     </div>
-                                    <span className="text-neutral-gray text-xs font-body">#{order.id} &middot; {order.timeAgo ?? order.placedAt}</span>
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0">
+                                    <span className="text-neutral-gray text-xs font-body font-medium">#{order.id}</span>
                                     <StatusBadge status={order.status} />
-                                    <CaretRightIcon size={12} weight="bold" className="text-neutral-gray/40 group-hover:text-neutral-gray transition-colors" />
-                                </div>
-                            </Link>
-                        ))}
+                                    <p className="text-text-dark text-xs font-body truncate">{staffName}</p>
+                                    <span className="text-neutral-gray text-xs font-body text-right">{order.timeAgo ?? order.placedAt}</span>
+                                </Link>
+                            );
+                        }) : (
+                            <div className="px-4 py-8 text-center">
+                                <p className="text-neutral-gray text-sm font-body">No active orders right now</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
