@@ -19,6 +19,7 @@ import {
     CashRegisterIcon,
     MonitorIcon,
     ClipboardTextIcon,
+    CurrencyCircleDollarIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { StaffAuthProvider, useStaffAuth, type StaffRole } from '@/app/components/providers/StaffAuthProvider';
@@ -36,6 +37,7 @@ const MANAGER_NAV_TOOLS = [
     { href: '/staff/manager/analytics', label: 'Analytics', icon: ChartBarIcon,   permission: 'view_analytics' },
     { href: '/staff/manager/menu',      label: 'Menu',       icon: ForkKnifeIcon,  permission: 'manage_menu' },
     { href: '/staff/manager/staff',     label: 'Staff',      icon: UsersThreeIcon, permission: 'manage_employees' },
+    { href: '/staff/manager/staff-sales', label: 'Staff Sales', icon: CurrencyCircleDollarIcon, permission: 'view_orders' },
     { href: '/staff/manager/shifts',    label: 'Shifts',     icon: ClockIcon,      permission: 'manage_shifts' },
     { href: '/staff/manager/my-shifts', label: 'My Shifts',  icon: ReceiptIcon,    permission: 'view_my_shifts' },
     { href: '/staff/manager/settings',  label: 'Configure',  icon: GearSixIcon,    permission: 'manage_settings' },
