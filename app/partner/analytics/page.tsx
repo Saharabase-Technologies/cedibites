@@ -377,7 +377,7 @@ function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
     const delDash = (deliveryPct / 100) * circumference;
 
     const paymentData = paymentMethods || [];
-    const paymentColors = ['#e49925', '#c8a87a', '#8b7f70'];
+    const paymentColors = ['#e49925', '#c8a87a', '#6c833f', '#1976d2', '#8b7f70'];
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
