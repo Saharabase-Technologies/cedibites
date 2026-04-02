@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     ListIcon,
     MagnifyingGlassIcon,
@@ -153,6 +153,8 @@ export default function PartnerOrdersPage() {
 
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [page, setPage] = useState(0);
+    const PAGE_SIZE = 15;
 
     const filtered = useMemo(() => {
         let list = branchOrders.filter(o => matchesFilter(o.status as OrderStatus, statusFilter));
@@ -165,6 +167,12 @@ export default function PartnerOrdersPage() {
         }
         return list;
     }, [branchOrders, statusFilter, search]);
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+    // Reset page when filters change
+    useEffect(() => { setPage(0); }, [statusFilter, search]);
 
     const activeCount = branchOrders.filter(o => ACTIVE_STATUSES.includes(o.status as OrderStatus)).length;
 
@@ -237,9 +245,37 @@ export default function PartnerOrdersPage() {
                             <span key={i} className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-wider">{h}</span>
                         ))}
                     </div>
-                    {filtered.map((order, i) => (
-                        <OrderRow key={order.id} order={order} isLast={i === filtered.length - 1} />
+                    {paged.map((order, i) => (
+                        <OrderRow key={order.id} order={order} isLast={i === paged.length - 1} />
                     ))}
+                </div>
+            )}
+
+            {/* Pagination */}
+            {filtered.length > PAGE_SIZE && (
+                <div className="flex items-center justify-between mt-4 px-1">
+                    <span className="text-neutral-gray text-xs font-body">
+                        Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+                    </span>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            disabled={page === 0}
+                            onClick={() => setPage(p => p - 1)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold font-body border border-[#f0e8d8] bg-neutral-card text-neutral-gray hover:text-text-dark disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                            Previous
+                        </button>
+                        <span className="text-xs font-body text-neutral-gray">{page + 1} / {totalPages}</span>
+                        <button
+                            type="button"
+                            disabled={page >= totalPages - 1}
+                            onClick={() => setPage(p => p + 1)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold font-body border border-[#f0e8d8] bg-neutral-card text-neutral-gray hover:text-text-dark disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                            Next
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

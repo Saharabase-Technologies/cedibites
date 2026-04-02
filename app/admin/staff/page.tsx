@@ -1026,9 +1026,10 @@ export default function AdminStaffPage() {
                                             } else {
                                                 actions.push({ icon: ArrowCounterClockwiseIcon, label: 'Reinstate', onClick: () => reinstate(member), color: 'text-secondary' });
                                             }
-                                            if (member.systemAccess === 'disabled') {
-                                                actions.push({ icon: ArchiveIcon, label: 'Archive', onClick: () => archive(member), color: 'text-neutral-gray' });
-                                            }
+                                            actions.push(
+                                                { icon: ArchiveIcon, label: 'Archive', onClick: () => archive(member), color: 'text-neutral-gray' },
+                                                { icon: TrashIcon, label: 'Delete', onClick: () => setDeleteStaff(member), color: 'text-error' },
+                                            );
                                         } else {
                                             actions.push(
                                                 { icon: ArrowCounterClockwiseIcon, label: 'Restore', onClick: () => reinstate(member), color: 'text-secondary' },

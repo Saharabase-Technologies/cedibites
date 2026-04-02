@@ -26,7 +26,7 @@ import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Period = 'today' | 'week' | 'month' | '30d' | '90d' | 'custom';
+type Period = 'today' | 'yesterday' | 'week' | 'month' | '30d' | '90d' | 'custom';
 
 interface AnalyticsOrder {
     id: string;
@@ -623,18 +623,25 @@ function StatusDot({ status }: { status: string }) {
 
 type PeriodTab = { key: Period; label: string };
 const PERIODS: PeriodTab[] = [
-    { key: 'today',  label: 'Today'      },
-    { key: 'week',   label: 'This Week'  },
-    { key: 'month',  label: 'This Month' },
-    { key: '30d',    label: 'Last 30d'   },
-    { key: '90d',    label: 'Last 90d'   },
-    { key: 'custom', label: 'All Time'   },
+    { key: 'today',     label: 'Today'      },
+    { key: 'yesterday', label: 'Yesterday'  },
+    { key: 'week',      label: 'This Week'  },
+    { key: 'month',     label: 'This Month' },
+    { key: '30d',       label: 'Last 30d'   },
+    { key: '90d',       label: 'Last 90d'   },
+    { key: 'custom',    label: 'All Time'   },
 ];
 
 function getDateRangeForPeriod(period: Period): { date_from: string; date_to: string } {
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
     if (period === 'today') return { date_from: today, date_to: today };
+    if (period === 'yesterday') {
+        const y = new Date(now);
+        y.setDate(y.getDate() - 1);
+        const yd = y.toISOString().slice(0, 10);
+        return { date_from: yd, date_to: yd };
+    }
     if (period === 'week') {
         const ws = new Date(now);
         ws.setDate(ws.getDate() - 6);
@@ -794,7 +801,7 @@ export default function ManagerAnalyticsPage() {
         setIsGenerating(true);
         try {
             const range = getDateRangeForPeriod(period);
-            const PERIOD_LABELS: Record<Period, string> = { today: 'Today', week: 'This Week', month: 'This Month', '30d': 'Last 30 Days', '90d': 'Last 90 Days', custom: 'All Time' };
+            const PERIOD_LABELS: Record<Period, string> = { today: 'Today', yesterday: 'Yesterday', week: 'This Week', month: 'This Month', '30d': 'Last 30 Days', '90d': 'Last 90 Days', custom: 'All Time' };
             const periodLabel = PERIOD_LABELS[period];
             const dateRange = `${range.date_from} – ${range.date_to}`;
             const generatedAt = new Date().toLocaleString('en-GH', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });

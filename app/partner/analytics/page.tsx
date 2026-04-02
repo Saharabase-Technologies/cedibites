@@ -29,7 +29,7 @@ import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Period = Exclude<AnalyticsPeriod, 'yesterday' | 'custom'>;
+type Period = Exclude<AnalyticsPeriod, 'custom'>;
 
 const DAYS  = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -482,11 +482,12 @@ function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
 // ─── Period config ────────────────────────────────────────────────────────────
 
 const PERIODS: { key: Period; label: string }[] = [
-    { key: 'today',  label: 'Today'        },
-    { key: 'week',   label: 'This Week'    },
-    { key: 'month',  label: 'This Month'   },
-    { key: '30d',    label: 'Last 30 Days' },
-    { key: '90d',    label: 'Last 90 Days' },
+    { key: 'today',     label: 'Today'        },
+    { key: 'yesterday', label: 'Yesterday'    },
+    { key: 'week',      label: 'This Week'    },
+    { key: 'month',     label: 'This Month'   },
+    { key: '30d',       label: 'Last 30 Days' },
+    { key: '90d',       label: 'Last 90 Days' },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -496,7 +497,7 @@ export default function PartnerAnalyticsPage() {
     const branchName = staffUser?.branches[0]?.name ?? '';
     const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
 
-    const [period, setPeriod] = useState<Period>('week');
+    const [period, setPeriod] = useState<Period>('today');
 
     const { sales, orders, customers, isLoading } = useAnalytics(period, branchId);
     const { data: orderSources } = useOrderSourceAnalytics(period, branchId);
