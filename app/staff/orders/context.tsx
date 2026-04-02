@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Order, OrderStatus, UserRole, OrderNotification } from '@/types/order';
-import { canAdvanceOrder } from '@/types/order';
+import { canAdvanceOrder, TERMINAL_STATUSES } from '@/types/order';
 import type { DateRange } from './components/DateFilter';
 import { KANBAN_COLUMNS } from '@/lib/constants/order.constants';
 import { useBranch } from '@/app/components/providers/BranchProvider';
@@ -53,6 +53,9 @@ interface OrdersContextValue {
     handleAdvance: (id: string, status: OrderStatus) => void;
     handleDrop: (e: React.DragEvent, targetStatus: OrderStatus) => void;
     simulateNewOrder: () => void;
+
+    // Done-order auto-clear
+    getDoneAge: (orderId: string) => number | null;
 }
 
 const OrdersContext = createContext<OrdersContextValue | null>(null);
@@ -158,9 +161,46 @@ export function OrdersProvider({ children, role = 'call_center' }: { children: R
     const receivedCount  = useMemo(() => storeOrders.filter(o => o.status === 'received').length, [storeOrders]);
     const preparingCount = useMemo(() => storeOrders.filter(o => o.status === 'preparing').length, [storeOrders]);
 
+    // ── Auto-clear done orders after 10 seconds ──
+    const DONE_TTL = 10_000;
+    const doneTimestamps = useRef<Map<string, number>>(new Map());
+    const [, setTick] = useState(0);
+
+    // Track when orders first enter a terminal status
+    useEffect(() => {
+        const now = Date.now();
+        const currentDone = new Set<string>();
+        for (const o of storeOrders) {
+            if (TERMINAL_STATUSES.includes(o.status) && o.status !== 'cancelled') {
+                currentDone.add(o.id);
+                if (!doneTimestamps.current.has(o.id)) {
+                    doneTimestamps.current.set(o.id, now);
+                }
+            }
+        }
+        // Clean up timestamps for orders no longer in the store
+        for (const id of doneTimestamps.current.keys()) {
+            if (!currentDone.has(id)) doneTimestamps.current.delete(id);
+        }
+    }, [storeOrders]);
+
+    // Tick every second to expire done orders
+    useEffect(() => {
+        const interval = setInterval(() => setTick(t => t + 1), 1000);
+        return () => clearInterval(interval);
+    }, []);
+
     const filteredOrders = useMemo(() => {
+        const now = Date.now();
         let list = storeOrders;
         if (!showCancelled) list = list.filter(o => o.status !== 'cancelled');
+        // Auto-clear done orders after TTL
+        list = list.filter(o => {
+            if (!TERMINAL_STATUSES.includes(o.status) || o.status === 'cancelled') return true;
+            const enteredAt = doneTimestamps.current.get(o.id);
+            if (!enteredAt) return true;
+            return now - enteredAt < DONE_TTL;
+        });
         if (branchFilter !== 'All') list = list.filter(o => o.branch.name === branchFilter);
         if (dateRange) {
             list = list.filter(o => {
@@ -332,6 +372,12 @@ export function OrdersProvider({ children, role = 'call_center' }: { children: R
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // ── getDoneAge: returns ms since entering done status, or null ──
+    const getDoneAge = useCallback((orderId: string): number | null => {
+        const ts = doneTimestamps.current.get(orderId);
+        return ts != null ? Date.now() - ts : null;
+    }, []);
+
     return (
         <OrdersContext.Provider value={{
             orders: storeOrders, filteredOrders,
@@ -347,6 +393,7 @@ export function OrdersProvider({ children, role = 'call_center' }: { children: R
             notifications, dismissNotification,
             handleAdvance, handleDrop,
             simulateNewOrder,
+            getDoneAge,
         }}>
             {children}
         </OrdersContext.Provider>

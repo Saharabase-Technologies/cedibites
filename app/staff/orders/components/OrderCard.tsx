@@ -1,9 +1,10 @@
 'use client';
 
-import { CaretRightIcon } from '@phosphor-icons/react';
+import { CaretRightIcon, CheckCircleIcon } from '@phosphor-icons/react';
 import type { Order, OrderStatus, UserRole } from '@/types/order';
 import { KANBAN_COLUMNS, SOURCE_ICON, STATUS_CONFIG } from '@/lib/constants/order.constants';
 import { timeAgo, formatGHS, getNextStatuses, isDoneStatus, canAdvanceOrder } from '../utils';
+import { useOrders } from '../context';
 
 // ─── Order card ───────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ export default function OrderCard({
     onDragStart,
     onDragEnd,
 }: OrderCardProps) {
+    const { getDoneAge } = useOrders();
     const col = KANBAN_COLUMNS.find(c => c.statuses.includes(order.status))!;
     const time = timeAgo(order.placedAt);
     const SourceIcon = SOURCE_ICON[order.source];
@@ -34,19 +36,39 @@ export default function OrderCard({
     const done = isDoneStatus(order.status);
     const canDoAdvance = !done && simpleNext.length > 0 && canAdvanceOrder(userRole, order, simpleNext[0].status);
 
+    // Done-order fade-out
+    const doneAge = getDoneAge(order.id);
+    const isDying = doneAge != null;
+    const DONE_TTL = 10_000;
+    const FADE_START = 8_000; // start fading at 8s
+    const fadeOpacity = isDying && doneAge > FADE_START
+        ? Math.max(0, 1 - (doneAge - FADE_START) / (DONE_TTL - FADE_START))
+        : 1;
+
     return (
         <div
             draggable={canDoAdvance}
             onDragStart={e => canDoAdvance && onDragStart(e, order.id)}
             onDragEnd={onDragEnd}
             onClick={() => onClick(order)}
+            style={isDying ? { opacity: fadeOpacity, transition: 'opacity 1s ease-out' } : undefined}
             className={`
-         dark:bg-brand-dark w-full mb-2 bg-neutral-card/50 border border-brown/25  rounded-2xl p-3.5 cursor-pointer select-none
+         dark:bg-brand-dark w-full mb-2 border rounded-2xl p-3.5 cursor-pointer select-none
         transition-all duration-150 group
-        ${isDragging ? 'opacity-40 scale-95' : 'hover:border-brown-light/40'}
-
+        ${isDying
+                ? 'bg-secondary/10 border-secondary/30'
+                : 'bg-neutral-card/50 border-brown/25 hover:border-brown-light/40'
+            }
+        ${isDragging ? 'opacity-40 scale-95' : ''}
       `}
         >
+            {/* Done overlay */}
+            {isDying && (
+                <div className="flex items-center gap-1.5 mb-2 text-secondary">
+                    <CheckCircleIcon size={14} weight="fill" />
+                    <span className="text-[10px] font-bold font-body uppercase tracking-wide">Completed</span>
+                </div>
+            )}
             {/* Top row */}
             <div className="flex items-start  justify-between gap-2 mb-2.5">
                 <div className="flex items-center gap-1.5 min-w-0">

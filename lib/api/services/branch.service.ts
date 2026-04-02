@@ -117,4 +117,9 @@ export const branchService = {
     const response = await apiClient.get(`/manager/branches/${id}/revenue-chart`, { params });
     return extractData<any[]>(response);
   },
+
+  getBranchStaffSales: async (id: number, date: string): Promise<any[]> => {
+    const response = await apiClient.get(`/manager/branches/${id}/staff-sales`, { params: { date } });
+    return extractData<any[]>(response);
+  },
 };

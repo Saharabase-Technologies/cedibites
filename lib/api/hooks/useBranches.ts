@@ -84,3 +84,18 @@ export const useBranchRevenueChart = (branchId: number | null, params?: { period
   });
   return { chartData: data || [], isLoading, error, refetch };
 };
+
+export const useBranchStaffSales = (branchId: number | null, date: string) => {
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['branch-staff-sales', branchId, date],
+    queryFn: () => branchService.getBranchStaffSales(branchId!, date),
+    enabled: !!branchId && !!date,
+    staleTime: 2 * 60 * 1000,
+  });
+  return { staffSales: data || [], isLoading, error, refetch };
+};
