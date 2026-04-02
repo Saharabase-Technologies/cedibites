@@ -11,10 +11,12 @@ import {
     CaretDownIcon,
     CaretUpIcon,
     FunnelIcon,
+    SpinnerIcon,
 } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
-import { formatPrice, type OrderStatus } from '@/types/order';
+import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
+import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
+import { formatPrice, type OrderStatus, type Order } from '@/types/order';
 import { STATUS_CONFIG } from '@/lib/constants/order.constants';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 
@@ -64,7 +66,7 @@ function StatusDot({ status }: { status: string }) {
 
 // ─── Order row (expandable) ───────────────────────────────────────────────────
 
-function OrderRow({ order, isLast }: { order: ReturnType<typeof useOrderStore>['orders'][number]; isLast: boolean }) {
+function OrderRow({ order, isLast }: { order: Order; isLast: boolean }) {
     const [open, setOpen] = useState(false);
 
     return (
@@ -141,17 +143,16 @@ function OrderRow({ order, isLast }: { order: ReturnType<typeof useOrderStore>['
 
 export default function PartnerOrdersPage() {
     const { staffUser } = useStaffAuth();
-    const { orders } = useOrderStore();
-    const branchName = staffUser?.branches[0]?.name ?? '';
+    const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
+
+    const { orders: apiOrders, isLoading } = useEmployeeOrders({ branch_id: branchId, per_page: 100 });
+
+    const branchOrders = useMemo(() =>
+        apiOrders.map(mapApiOrderToOrder).sort((a, b) => b.placedAt - a.placedAt),
+    [apiOrders]);
 
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
-
-    const branchOrders = useMemo(() =>
-        orders
-            .filter(o => o.branch.name === branchName)
-            .sort((a, b) => b.placedAt - a.placedAt),
-    [orders, branchName]);
 
     const filtered = useMemo(() => {
         let list = branchOrders.filter(o => matchesFilter(o.status as OrderStatus, statusFilter));
@@ -166,6 +167,14 @@ export default function PartnerOrdersPage() {
     }, [branchOrders, statusFilter, search]);
 
     const activeCount = branchOrders.filter(o => ACTIVE_STATUSES.includes(o.status as OrderStatus)).length;
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[50vh]">
+                <SpinnerIcon size={32} className="text-primary animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">

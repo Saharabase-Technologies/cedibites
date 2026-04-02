@@ -7,16 +7,17 @@ import {
     ShoppingCartIcon,
     CheckCircleIcon,
     UsersThreeIcon,
-    ArrowUpIcon,
-    ArrowDownIcon,
     ArrowUpRightIcon,
     BuildingsIcon,
     ListIcon,
     ChartBarIcon,
     ClockIcon,
+    SpinnerIcon,
 } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
+import { useAnalytics } from '@/lib/api/hooks/useAnalytics';
+import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
+import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
 import { useEmployees } from '@/lib/api/hooks/useEmployees';
 import { formatPrice } from '@/types/order';
 import { STATUS_CONFIG } from '@/lib/constants/order.constants';
@@ -32,15 +33,13 @@ function greeting() {
 
 // ─── KPI card ─────────────────────────────────────────────────────────────────
 
-function KpiCard({ icon: Icon, label, value, trend, sub, accent = false }: {
+function KpiCard({ icon: Icon, label, value, sub, accent = false }: {
     icon: React.ElementType;
     label: string;
     value: string;
-    trend: number;
     sub?: string;
     accent?: boolean;
 }) {
-    const up = trend >= 0;
     return (
         <div className={`rounded-2xl px-5 py-4 flex flex-col gap-2 ${accent ? 'bg-primary' : 'bg-neutral-card border border-[#f0e8d8]'}`}>
             <div className="flex items-center gap-2">
@@ -49,15 +48,6 @@ function KpiCard({ icon: Icon, label, value, trend, sub, accent = false }: {
             </div>
             <p className={`text-2xl font-bold font-body leading-none ${accent ? 'text-white' : 'text-text-dark'}`}>{value}</p>
             {sub && <p className={`text-xs font-body ${accent ? 'text-white/70' : 'text-neutral-gray'}`}>{sub}</p>}
-            <div className="flex items-center gap-1">
-                {up
-                    ? <ArrowUpIcon size={11} weight="bold" className={accent ? 'text-white/70' : 'text-secondary'} />
-                    : <ArrowDownIcon size={11} weight="bold" className={accent ? 'text-white/70' : 'text-error'} />
-                }
-                <span className={`text-xs font-semibold font-body ${accent ? 'text-white/80' : up ? 'text-secondary' : 'text-error'}`}>
-                    {Math.abs(trend)}% vs last week
-                </span>
-            </div>
         </div>
     );
 }
@@ -100,33 +90,37 @@ function StatusDot({ status }: { status: string }) {
 
 export default function PartnerDashboardPage() {
     const { staffUser } = useStaffAuth();
-    const { orders } = useOrderStore();
     const branchName = staffUser?.branches[0]?.name ?? '';
+    const branchIdNum = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
 
-    const startOfDay = useMemo(() => {
-        const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime();
-    }, []);
+    const { sales, orders: orderAnalytics, isLoading: analyticsLoading } = useAnalytics('today', branchIdNum);
 
-    const branchOrders = useMemo(() =>
-        orders.filter(o => o.branch.name === branchName),
-    [orders, branchName]);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const { orders: apiOrders, isLoading: ordersLoading } = useEmployeeOrders({
+        branch_id: branchIdNum,
+        date_from: todayStr,
+        date_to: todayStr,
+        per_page: 50,
+    });
 
     const todayOrders = useMemo(() =>
-        branchOrders.filter(o => o.placedAt >= startOfDay).sort((a, b) => b.placedAt - a.placedAt),
-    [branchOrders, startOfDay]);
+        apiOrders.map(mapApiOrderToOrder).sort((a, b) => b.placedAt - a.placedAt),
+    [apiOrders]);
 
-    const todayRevenue = useMemo(() =>
-        todayOrders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.total, 0),
-    [todayOrders]);
+    const todayRevenue = sales?.total_sales ?? 0;
+    const activeOrders = useMemo(() => {
+        if (!orderAnalytics?.orders_by_status) return 0;
+        const s = orderAnalytics.orders_by_status;
+        return (s['received'] ?? 0) + (s['accepted'] ?? 0) + (s['preparing'] ?? 0) + (s['ready'] ?? 0) + (s['out_for_delivery'] ?? 0) + (s['ready_for_pickup'] ?? 0);
+    }, [orderAnalytics]);
 
-    const activeOrders = useMemo(() =>
-        branchOrders.filter(o => !['delivered', 'completed', 'cancelled'].includes(o.status)).length,
-    [branchOrders]);
+    const completedToday = useMemo(() => {
+        if (!orderAnalytics?.orders_by_status) return 0;
+        return (orderAnalytics.orders_by_status['delivered'] ?? 0) + (orderAnalytics.orders_by_status['completed'] ?? 0);
+    }, [orderAnalytics]);
 
-    const completedToday  = todayOrders.filter(o => ['delivered', 'completed'].includes(o.status)).length;
-    const cancelledToday  = todayOrders.filter(o => o.status === 'cancelled').length;
+    const cancelledToday = orderAnalytics?.orders_by_status?.['cancelled'] ?? 0;
 
-    const branchIdNum = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
     const { employees: branchStaff } = useEmployees({ branch_id: branchIdNum });
     const nonArchived = branchStaff.filter(s => s.status !== 'archived');
     const activeStaff = nonArchived.filter(s => s.systemAccess === 'enabled').length;
@@ -134,6 +128,16 @@ export default function PartnerDashboardPage() {
     const dateStr = new Date().toLocaleDateString('en-GH', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     });
+
+    const isLoading = analyticsLoading || ordersLoading;
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[50vh]">
+                <SpinnerIcon size={32} className="text-primary animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
@@ -159,30 +163,26 @@ export default function PartnerDashboardPage() {
                 <KpiCard
                     icon={CurrencyCircleDollarIcon}
                     label="Revenue Today"
-                    value={todayRevenue > 0 ? formatPrice(todayRevenue) : '₵3,210.00'}
-                    trend={+14}
+                    value={formatPrice(todayRevenue)}
                     accent
                 />
                 <KpiCard
                     icon={ShoppingCartIcon}
                     label="Active Orders"
-                    value={String(activeOrders > 0 ? activeOrders : 7)}
+                    value={String(activeOrders)}
                     sub="In progress right now"
-                    trend={+5}
                 />
                 <KpiCard
                     icon={CheckCircleIcon}
                     label="Completed Today"
-                    value={String(completedToday > 0 ? completedToday : 31)}
+                    value={String(completedToday)}
                     sub={`${cancelledToday} cancelled`}
-                    trend={+9}
                 />
                 <KpiCard
                     icon={UsersThreeIcon}
                     label="Staff On Duty"
-                    value={String(activeStaff > 0 ? activeStaff : 5)}
-                    sub={`${branchStaff.length || 6} total staff`}
-                    trend={0}
+                    value={String(activeStaff)}
+                    sub={`${branchStaff.length} total staff`}
                 />
             </div>
 
