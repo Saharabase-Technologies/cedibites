@@ -140,7 +140,7 @@ export default function StaffSalesPage() {
                 <div className="grid grid-cols-3 gap-3 mb-6">
                     <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3 text-center">
                         <p className="text-text-dark text-xl font-bold font-body">{rows.length}</p>
-                        <p className="text-neutral-gray text-xs font-body mt-0.5">Staff Members</p>
+                        <p className="text-neutral-gray text-xs font-body mt-0.5">Staff Memberss</p>
                     </div>
                     <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3 text-center">
                         <p className="text-text-dark text-xl font-bold font-body">{totals.orders}</p>
