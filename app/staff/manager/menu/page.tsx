@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
     ForkKnifeIcon,
     PlusIcon,
@@ -23,8 +23,12 @@ import {
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
-import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
+import { useMenu } from '@/lib/api/hooks/useMenu';
+import { menuService, type CreateMenuItemData } from '@/lib/api/services/menu.service';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { useMenuCategories } from '@/lib/api/hooks/useMenuCategories';
+import { toast } from '@/lib/utils/toast';
+import { apiMenuItemToDisplayItem, type DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
 
 interface OptionTemplate { id: string; name: string; options: { label: string; price: string }[]; }
 
@@ -538,21 +542,35 @@ function ArchiveConfirm({ name, onConfirm, onClose }: { name: string; onConfirm:
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ManagerMenuPage() {
-    const { items: menuItems, isLoading: menuLoading } = useMenuItems();
-    const [items, setItems] = useState<ManagedMenuItem[]>([]);
-    const hasInitialized = useRef(false);
+    const { staffUser } = useStaffAuth();
+    const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
+    const branchName = staffUser?.branches[0]?.name ?? 'Branch';
+    const { items: rawApiItems, isLoading: menuLoading, refetch } = useMenu(branchId ? { branch_id: branchId } : undefined);
+    const { data: apiCategories } = useMenuCategories({ is_active: true, branch_id: branchId });
 
-    useEffect(() => {
-        if (!hasInitialized.current && menuItems.length > 0) {
-            hasInitialized.current = true;
-            setItems(menuItems.map(item => ({ ...item, available: true } as ManagedMenuItem)));
-        }
-    }, [menuItems]);
+    // Map raw API items to display format while preserving is_available
+    const items: ManagedMenuItem[] = useMemo(
+        () => rawApiItems.map(apiItem => ({
+            ...apiMenuItemToDisplayItem(apiItem),
+            available: apiItem.is_available !== false,
+        } as ManagedMenuItem)),
+        [rawApiItems]
+    );
+    const menuItems = useMemo(() => rawApiItems.map(apiMenuItemToDisplayItem), [rawApiItems]);
+
     const [search, setSearch] = useState('');
     const [categoryFilter, setFilter] = useState<string>('All');
     const [editingItem, setEditingItem] = useState<ManagedMenuItem | null | 'new'>(null);
     const [deletingItem, setDeletingItem] = useState<ManagedMenuItem | null>(null);
     const [showArchive, setShowArchive] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Build category name → id map from API categories
+    const categoryMap = useMemo(() => {
+        const m = new Map<string, number>();
+        (apiCategories ?? []).forEach(c => m.set(c.name, c.id));
+        return m;
+    }, [apiCategories]);
 
     // Derive actual categories from menu items (includes both config categories and any custom ones)
     const actualCategories = useMemo(() => {
@@ -581,32 +599,86 @@ export default function ManagerMenuPage() {
         return map;
     }, [filtered, actualCategories]);
 
-    function toggleAvailability(id: string) {
-        setItems(prev => prev.map(item => item.id === id ? { ...item, available: !item.available } : item));
+    async function toggleAvailability(id: string) {
+        const item = items.find(i => i.id === id);
+        if (!item?.numericId) return;
+        try {
+            await menuService.updateItem(item.numericId, { is_available: !item.available });
+            refetch();
+        } catch {
+            toast.error('Failed to update availability.');
+        }
     }
 
-    function handleSave(updated: ManagedMenuItem) {
-        setItems(prev => {
-            const exists = prev.some(item => item.id === updated.id);
-            return exists
-                ? prev.map(item => item.id === updated.id ? updated : item)
-                : [...prev, updated];
-        });
-        setEditingItem(null);
+    async function handleSave(updated: ManagedMenuItem) {
+        if (!branchId) return;
+        setIsSaving(true);
+        try {
+            const isNew = !updated.numericId || updated.id.startsWith('custom-');
+            const categoryId = categoryMap.get(updated.category) || undefined;
+            const slug = updated.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now();
+            const isSinglePrice = updated.price != null && !updated.sizes?.length;
+
+            const apiData: CreateMenuItemData = {
+                branch_id: branchId,
+                category_id: categoryId,
+                name: updated.name,
+                slug,
+                description: updated.description || undefined,
+                is_available: updated.available,
+                ...(isSinglePrice ? { pricing_type: 'simple', price: updated.price } : {}),
+            };
+
+            if (isNew) {
+                await menuService.createItem(apiData);
+                toast.success(`${updated.name} has been added to the menu`);
+            } else {
+                await menuService.updateItem(updated.numericId, apiData);
+                toast.success(`${updated.name} has been updated`);
+            }
+            refetch();
+            setEditingItem(null);
+        } catch {
+            toast.error('Failed to save menu item. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
     }
 
-    function handleArchive() {
-        if (!deletingItem) return;
-        setItems(prev => prev.map(item => item.id === deletingItem.id ? { ...item, archived: true, available: false } : item));
+    async function handleArchive() {
+        if (!deletingItem?.numericId) { setDeletingItem(null); return; }
+        try {
+            await menuService.updateItem(deletingItem.numericId, { is_available: false });
+            refetch();
+            toast.success(`${deletingItem.name} has been archived`);
+        } catch {
+            toast.error('Failed to archive item.');
+        }
         setDeletingItem(null);
     }
 
-    function handleRestore(id: string) {
-        setItems(prev => prev.map(item => item.id === id ? { ...item, archived: false, available: true } : item));
+    async function handleRestore(id: string) {
+        const item = items.find(i => i.id === id);
+        if (!item?.numericId) return;
+        try {
+            await menuService.updateItem(item.numericId, { is_available: true });
+            refetch();
+            toast.success(`${item.name} has been restored`);
+        } catch {
+            toast.error('Failed to restore item.');
+        }
     }
 
-    function handlePermanentDelete(id: string) {
-        setItems(prev => prev.filter(item => item.id !== id));
+    async function handlePermanentDelete(id: string) {
+        const item = items.find(i => i.id === id);
+        if (!item?.numericId) return;
+        try {
+            await menuService.deleteItem(item.numericId);
+            refetch();
+            toast.success(`${item.name} has been permanently deleted`);
+        } catch {
+            toast.error('Failed to delete item.');
+        }
     }
 
     const allCategoryOptions = ['All', ...actualCategories];
@@ -624,7 +696,7 @@ export default function ManagerMenuPage() {
                         <h1 className="text-text-dark text-xl font-bold font-body">Menu Management</h1>
                         <p className="text-neutral-gray text-sm font-body mt-0.5 flex items-center gap-1.5">
                             <ForkKnifeIcon size={13} weight="fill" />
-                            East Legon &middot; {activeItems.length} items &middot;{' '}
+                            {branchName} &middot; {activeItems.length} items &middot;{' '}
                             <span className="text-secondary font-medium">{availableCount} available</span>
                             {unavailableCount > 0 && (
                                 <>, <span className="text-warning font-medium">{unavailableCount} hidden</span></>
@@ -765,7 +837,7 @@ export default function ManagerMenuPage() {
                 )}
 
                 <p className="text-neutral-gray/40 text-xs font-body text-center mt-4">
-                    Hiding an item removes it from the customer menu &middot; East Legon branch only
+                    Hiding an item removes it from the customer menu &middot; {branchName} branch only
                 </p>
 
                 {/* ── Archived items ──────────────────────────────────────────── */}

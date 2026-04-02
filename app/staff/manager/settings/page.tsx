@@ -17,9 +17,7 @@ import {
     ClockIcon,
     TruckIcon,
     CreditCardIcon,
-    PlusCircleIcon,
 } from '@phosphor-icons/react';
-import Link from 'next/link';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useBranch } from '@/lib/api/hooks/useBranches';
 import { branchService } from '@/lib/api/services/branch.service';
@@ -438,23 +436,7 @@ export default function MenuSettingsPage() {
                 </section>
 
                 {/* ═══════════════════════════════════════════════════════════════
-                    SECTION 4 — ADD-ONS
-                ════════════════════════════════════════════════════════════════ */}
-                <section className="mb-10">
-                    <SectionHeader icon={PlusCircleIcon} color="bg-warning" title="Add-ons" sub="Extras customers can add to any item" />
-                    <div className="bg-neutral-card border border-brown-light/15 rounded-2xl px-5 py-4 flex items-center justify-between gap-4">
-                        <p className="text-neutral-gray text-sm font-body">
-                            Add-ons are managed in the Admin Console.
-                        </p>
-                        <Link href="/admin/menu-add-ons"
-                            className="shrink-0 flex items-center gap-1.5 text-sm font-medium font-body text-primary hover:text-primary-hover transition-colors">
-                            <PlusCircleIcon size={15} weight="bold" /> Manage Add-ons
-                        </Link>
-                    </div>
-                </section>
-
-                {/* ═══════════════════════════════════════════════════════════════
-                    SECTION 5 — CATEGORIES
+                    SECTION 4 — CATEGORIES
                 ════════════════════════════════════════════════════════════════ */}
                 <section className="mb-10">
                     <SectionHeader icon={TagIcon} color="bg-primary" title="Menu Categories" sub="How items are grouped on the customer menu" />

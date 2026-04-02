@@ -157,12 +157,12 @@ export default function ManagerDashboardPage() {
                     <p className="text-text-dark text-sm font-semibold font-body">Revenue this week</p>
                     <p className="text-primary text-sm font-bold font-body">{formatGHS(monthRevenue)}</p>
                 </div>
-                <div className="flex items-end gap-2 h-16">
+                <div className="flex items-end gap-2 h-32">
                     {chartData.length > 0 ? chartData.map((bar, i) => (
                         <div key={i} className="flex-1 flex flex-col items-center gap-1">
                             <div
                                 className={`w-full rounded-md transition-all ${bar.percentage === Math.max(...chartData.map(d => d.percentage)) ? 'bg-primary' : 'bg-neutral-gray/50'}`}
-                                style={{ height: `${Math.max((bar.percentage / 100) * 56, 2)}px` }}
+                                style={{ height: `${Math.max((bar.percentage / 100) * 112, 2)}px` }}
                             />
                             <span className="text-[10px] text-neutral-gray font-body">{bar.day}</span>
                         </div>

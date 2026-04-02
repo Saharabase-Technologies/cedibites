@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import {
     UsersThreeIcon,
     PlusIcon,
@@ -23,9 +23,10 @@ import {
     defaultPermissions,
 } from '@/types/staff';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import { employeeService } from '@/lib/api/services/employee.service';
-import { useQuery } from '@tanstack/react-query';
+import { employeeService, staffRoleToBackendRole } from '@/lib/api/services/employee.service';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
+import { toast } from '@/lib/utils/toast';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -297,6 +298,7 @@ export default function ManagerStaffPage() {
     const { staffUser } = useStaffAuth();
     const currentBranch = staffUser?.branches[0]?.name ?? '';
     const branchId = staffUser?.branches[0]?.id;
+    const queryClient = useQueryClient();
     
     const { data: apiStaff = [], isLoading } = useQuery({
         queryKey: ['branch-employees', branchId],
@@ -305,20 +307,10 @@ export default function ManagerStaffPage() {
         staleTime: 5 * 60 * 1000, // 5 minutes
     });
 
-    const branchStaff = useMemo(
+    const staff = useMemo(
         () => apiStaff.filter(s => BRANCH_ROLES.includes(s.role) && inBranch(s, currentBranch)),
         [apiStaff, currentBranch]
     );
-
-    const [staff, setStaff] = useState<StaffMember[]>([]);
-    const hasInitialized = useRef(false);
-
-    useEffect(() => {
-        if (!hasInitialized.current && branchStaff.length > 0) {
-            hasInitialized.current = true;
-            setStaff(branchStaff);
-        }
-    }, [branchStaff]);
 
     const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
     const [editingMember, setEditingMember] = useState<StaffMember | null | 'new'>(null);
@@ -336,55 +328,87 @@ export default function ManagerStaffPage() {
         return [...activeStaff, ...inactiveStaff];
     }, [filter, activeStaff, inactiveStaff]);
 
-    function handleSave(data: Partial<StaffMember> & { id?: string }) {
-        if (data.id) {
-            setStaff(prev => prev.map(s => s.id === data.id ? { ...s, ...data } : s));
-        } else {
-            const newRole = data.role ?? 'call_center';
-            const newMember: StaffMember = {
-                id:               `u${Date.now()}`,
-                name:             data.name ?? '',
-                role:             newRole,
-                phone:            data.phone ?? '',
-                email:            data.email ?? '',
-                branch:           currentBranch,
-                branchIds:        [],
-                status:           'active',
-                employmentStatus: 'active',
-                systemAccess:     'enabled',
-                permissions:      defaultPermissions(newRole),
-                password:         'temp123',
-                joinedAt:         new Date().toLocaleDateString('en-GH', { month: 'short', year: 'numeric' }),
-                lastLogin:        'Never',
-                ordersToday:      0,
-            };
-            setStaff(prev => [...prev, newMember]);
+    async function handleSave(data: Partial<StaffMember> & { id?: string }) {
+        try {
+            if (data.id) {
+                await employeeService.updateEmployee(data.id, {
+                    name: data.name,
+                    phone: data.phone,
+                    email: data.email || null,
+                    role: staffRoleToBackendRole(data.role ?? 'call_center'),
+                });
+                toast.success(`${data.name} has been updated`);
+            } else {
+                if (!branchId) return;
+                await employeeService.createEmployee({
+                    name: data.name ?? '',
+                    phone: data.phone ?? '',
+                    email: data.email || null,
+                    branch_ids: [Number(branchId)],
+                    role: staffRoleToBackendRole(data.role ?? 'call_center'),
+                });
+                toast.success(`${data.name} has been added`);
+            }
+            await queryClient.invalidateQueries({ queryKey: ['branch-employees', branchId] });
+            setEditingMember(null);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Failed to save. Please try again.';
+            toast.error(msg);
         }
-        setEditingMember(null);
     }
 
-    function handleDeactivate() {
+    async function handleDeactivate() {
         if (!deactivatingMember) return;
-        setStaff(prev => prev.map(s => s.id === deactivatingMember.id ? { ...s, status: 'inactive' } : s));
+        try {
+            await employeeService.updateEmployee(deactivatingMember.id, { status: 'suspended' });
+            await queryClient.invalidateQueries({ queryKey: ['branch-employees', branchId] });
+            toast.success(`${deactivatingMember.name} has been deactivated`);
+        } catch {
+            toast.error('Failed to deactivate. Please try again.');
+        }
         setDeactivatingMember(null);
     }
 
-    function handleReactivate(id: string) {
-        setStaff(prev => prev.map(s => s.id === id ? { ...s, status: 'active' } : s));
+    async function handleReactivate(id: string) {
+        try {
+            await employeeService.updateEmployee(id, { status: 'active' });
+            await queryClient.invalidateQueries({ queryKey: ['branch-employees', branchId] });
+            toast.success('Staff member has been reactivated');
+        } catch {
+            toast.error('Failed to reactivate. Please try again.');
+        }
     }
 
-    function handleArchive() {
+    async function handleArchive() {
         if (!archivingMember) return;
-        setStaff(prev => prev.map(s => s.id === archivingMember.id ? { ...s, status: 'archived' } : s));
+        try {
+            await employeeService.updateEmployee(archivingMember.id, { status: 'archived' });
+            await queryClient.invalidateQueries({ queryKey: ['branch-employees', branchId] });
+            toast.success(`${archivingMember.name} has been archived`);
+        } catch {
+            toast.error('Failed to archive. Please try again.');
+        }
         setArchivingMember(null);
     }
 
-    function handleRestoreFromArchive(id: string) {
-        setStaff(prev => prev.map(s => s.id === id ? { ...s, status: 'inactive' } : s));
+    async function handleRestoreFromArchive(id: string) {
+        try {
+            await employeeService.updateEmployee(id, { status: 'active' });
+            await queryClient.invalidateQueries({ queryKey: ['branch-employees', branchId] });
+            toast.success('Staff member has been restored');
+        } catch {
+            toast.error('Failed to restore. Please try again.');
+        }
     }
 
-    function handlePermanentDelete(id: string) {
-        setStaff(prev => prev.filter(s => s.id !== id));
+    async function handlePermanentDelete(id: string) {
+        try {
+            await employeeService.deleteEmployee(id);
+            await queryClient.invalidateQueries({ queryKey: ['branch-employees', branchId] });
+            toast.success('Staff member has been permanently deleted');
+        } catch {
+            toast.error('Failed to delete. Please try again.');
+        }
     }
 
     return (
