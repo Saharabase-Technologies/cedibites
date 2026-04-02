@@ -1,18 +1,19 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     ClockIcon,
     ShoppingBagIcon,
     CurrencyCircleDollarIcon,
     SpinnerGapIcon,
     ArrowRightIcon,
-    CalendarBlankIcon,
     TimerIcon,
-    TrendUpIcon,
+    SignInIcon,
+    SignOutIcon,
 } from '@phosphor-icons/react';
 import { getShiftService, type StaffShift } from '@/lib/services/shifts/shift.service';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import ShiftsCalendar, { type DayShiftSummary } from '@/app/staff/manager/shifts/ShiftsCalendar';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -21,15 +22,10 @@ function formatTime(ts: number): string {
 }
 
 function formatDuration(loginAt: number, logoutAt?: number): string {
-    if (!loginAt || loginAt <= 0) {
-        return '—';
-    }
-    const hasValidEnd = logoutAt != null && logoutAt > 0;
-    const end = hasValidEnd ? logoutAt : Date.now();
+    if (!loginAt || loginAt <= 0) return '—';
+    const end = logoutAt != null && logoutAt > 0 ? logoutAt : Date.now();
     const mins = Math.floor((end - loginAt) / 60000);
-    if (!Number.isFinite(mins) || mins < 0) {
-        return '—';
-    }
+    if (!Number.isFinite(mins) || mins < 0) return '—';
     if (mins < 60) return `${mins}m`;
     const h = Math.floor(mins / 60);
     const m = mins % 60;
@@ -40,214 +36,76 @@ function formatGHS(n: number): string {
     return `₵${n.toFixed(2)}`;
 }
 
-// Returns 0–100 representing position within the 24h day
-function timeToPercent(ts: number): number {
-    const d = new Date(ts);
-    return ((d.getHours() * 60 + d.getMinutes()) / 1440) * 100;
+function toISO(d: Date): string {
+    return d.toISOString().slice(0, 10);
 }
 
-// Group shifts by calendar date (YYYY-MM-DD)
-function groupByDay(shifts: StaffShift[]): { date: string; shifts: StaffShift[] }[] {
-    const map = new Map<string, StaffShift[]>();
-    for (const s of shifts) {
-        const key = new Date(s.loginAt).toISOString().slice(0, 10);
-        if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push(s);
-    }
-    return Array.from(map.entries())
-        .sort(([a], [b]) => b.localeCompare(a))
-        .map(([date, shifts]) => ({ date, shifts }));
-}
-
-function formatDayLabel(dateStr: string): string {
-    const d = new Date(dateStr + 'T12:00:00');
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-
-    if (d.toDateString() === today.toDateString()) return 'Today';
-    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-    return d.toLocaleDateString('en-GH', { weekday: 'long', day: 'numeric', month: 'short' });
-}
-
-// ─── Timeline bar ──────────────────────────────────────────────────────────────
-
-function DayTimeline({ shifts }: { shifts: StaffShift[] }) {
-    return (
-        <div className="relative h-2 bg-neutral-gray/10 rounded-full overflow-hidden">
-            {shifts.map(shift => {
-                const start = timeToPercent(shift.loginAt);
-                const end = shift.logoutAt ? timeToPercent(shift.logoutAt) : timeToPercent(Date.now());
-                const width = Math.max(end - start, 1.5);
-                const active = !shift.logoutAt;
-                return (
-                    <div
-                        key={shift.id}
-                        className={`absolute top-0 h-full rounded-full ${active ? 'bg-secondary' : 'bg-primary/60'}`}
-                        style={{ left: `${start}%`, width: `${width}%` }}
-                    />
-                );
-            })}
-            {/* Hour ticks at 6h, 12h, 18h */}
-            {[25, 50, 75].map(pct => (
-                <div key={pct} className="absolute top-0 h-full w-px bg-neutral-gray/20" style={{ left: `${pct}%` }} />
-            ))}
-        </div>
-    );
-}
-
-// ─── Shift card ────────────────────────────────────────────────────────────────
-
-function ShiftCard({ shift }: { shift: StaffShift }) {
-    const active = !shift.logoutAt;
-
-    return (
-        <div className={`rounded-2xl border px-5 py-4 flex flex-col gap-3 ${
-            active
-                ? 'bg-secondary/5 border-secondary/25'
-                : 'bg-neutral-card border-[#f0e8d8]'
-        }`}>
-
-            {/* Time window row */}
-            <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-text-dark font-bold text-xl font-body tabular-nums leading-none">
-                        {formatTime(shift.loginAt)}
-                    </span>
-                    <ArrowRightIcon size={14} weight="bold" className="text-neutral-gray shrink-0" />
-                    {shift.logoutAt ? (
-                        <span className="text-text-dark font-bold text-xl font-body tabular-nums leading-none">
-                            {formatTime(shift.logoutAt)}
-                        </span>
-                    ) : (
-                        <span className="flex items-center gap-1.5 text-secondary font-bold text-base font-body">
-                            <span className="w-2 h-2 rounded-full bg-secondary animate-pulse shrink-0" />
-                            Now
-                        </span>
-                    )}
-                </div>
-
-                {/* Duration pill */}
-                <span className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold font-body ${
-                    active ? 'bg-secondary/15 text-secondary' : 'bg-neutral-gray/10 text-neutral-gray'
-                }`}>
-                    <TimerIcon size={11} weight="fill" />
-                    {formatDuration(shift.loginAt, shift.logoutAt)}
-                </span>
-            </div>
-
-            {/* Branch */}
-            <p className="text-neutral-gray text-xs font-body -mt-1">{shift.branchName}</p>
-
-            {/* Stats row */}
-            <div className="flex items-center gap-4 pt-1 border-t border-[#f0e8d8]">
-                <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        <ShoppingBagIcon size={14} weight="fill" className="text-primary" />
-                    </div>
-                    <div>
-                        <p className="text-text-dark text-base font-bold font-body leading-none">{shift.orderCount}</p>
-                        <p className="text-neutral-gray text-[10px] font-body">order{shift.orderCount !== 1 ? 's' : ''}</p>
-                    </div>
-                </div>
-
-                <div className="w-px h-8 bg-[#f0e8d8]" />
-
-                <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center shrink-0">
-                        <CurrencyCircleDollarIcon size={14} weight="fill" className="text-secondary" />
-                    </div>
-                    <div>
-                        <p className="text-primary text-base font-bold font-body leading-none">{formatGHS(shift.totalSales)}</p>
-                        <p className="text-neutral-gray text-[10px] font-body">in sales</p>
-                    </div>
-                </div>
-
-                {shift.orderCount > 0 && (
-                    <>
-                        <div className="w-px h-8 bg-[#f0e8d8]" />
-                        <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-neutral-gray/10 flex items-center justify-center shrink-0">
-                                <TrendUpIcon size={14} weight="fill" className="text-neutral-gray" />
-                            </div>
-                            <div>
-                                <p className="text-text-dark text-base font-bold font-body leading-none">
-                                    {formatGHS(shift.totalSales / shift.orderCount)}
-                                </p>
-                                <p className="text-neutral-gray text-[10px] font-body">avg / order</p>
-                            </div>
-                        </div>
-                    </>
-                )}
-            </div>
-        </div>
-    );
-}
-
-// ─── Day group ─────────────────────────────────────────────────────────────────
-
-function DayGroup({ date, shifts }: { date: string; shifts: StaffShift[] }) {
-    const daySales = shifts.reduce((s, sh) => s + sh.totalSales, 0);
-    const dayOrders = shifts.reduce((s, sh) => s + sh.orderCount, 0);
-
-    return (
-        <div className="flex flex-col gap-3">
-            {/* Day header */}
-            <div className="flex items-end justify-between gap-2">
-                <div className="flex items-center gap-2">
-                    <CalendarBlankIcon size={13} weight="fill" className="text-neutral-gray" />
-                    <span className="text-text-dark text-sm font-semibold font-body">{formatDayLabel(date)}</span>
-                    {shifts.length > 1 && (
-                        <span className="text-neutral-gray text-xs font-body">· {shifts.length} sessions</span>
-                    )}
-                </div>
-                <div className="text-right">
-                    <span className="text-primary text-sm font-bold font-body">{formatGHS(daySales)}</span>
-                    <span className="text-neutral-gray text-xs font-body ml-1.5">· {dayOrders} orders</span>
-                </div>
-            </div>
-
-            {/* Timeline bar for the day */}
-            <DayTimeline shifts={shifts} />
-
-            {/* Shift cards */}
-            <div className="flex flex-col gap-2">
-                {shifts.map(shift => (
-                    <ShiftCard key={shift.id} shift={shift} />
-                ))}
-            </div>
-        </div>
-    );
+function dateLabel(iso: string): string {
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    if (iso === today) return 'Today';
+    if (iso === yesterday) return 'Yesterday';
+    return new Date(iso).toLocaleDateString('en-GH', { weekday: 'long', day: 'numeric', month: 'short' });
 }
 
 // ─── View ──────────────────────────────────────────────────────────────────────
 
 export default function MyShiftsView() {
     const { staffUser } = useStaffAuth();
-    const [shifts, setShifts] = useState<StaffShift[]>([]);
+    const [allShifts, setAllShifts] = useState<StaffShift[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const today = toISO(new Date());
+    const [selectedDate, setSelectedDate] = useState(today);
+    const [viewMonth, setViewMonth] = useState(() => {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), 1);
+    });
+
+    // Load all shifts for this staff member
     const load = useCallback(async () => {
         if (!staffUser) return;
         const data = await getShiftService().getByStaff(staffUser.id);
-        data.sort((a, b) => {
-            if (!a.logoutAt && b.logoutAt) return -1;
-            if (a.logoutAt && !b.logoutAt) return 1;
-            return b.loginAt - a.loginAt;
-        });
-        setShifts(data);
+        data.sort((a, b) => b.loginAt - a.loginAt);
+        setAllShifts(data);
         setLoading(false);
     }, [staffUser]);
 
     useEffect(() => { load(); }, [load]);
 
-    const groups = groupByDay(shifts);
-    const totalOrders = shifts.reduce((s, sh) => s + sh.orderCount, 0);
-    const totalSales = shifts.reduce((s, sh) => s + sh.totalSales, 0);
-    const activeShift = shifts.find(s => !s.logoutAt);
+    // Build month data for calendar cells from all shifts
+    const monthData = useMemo(() => {
+        const map = new Map<string, DayShiftSummary>();
+        for (const s of allShifts) {
+            const key = new Date(s.loginAt).toISOString().slice(0, 10);
+            const existing = map.get(key) ?? { count: 0, orders: 0, sales: 0, hasActive: false };
+            map.set(key, {
+                count: existing.count + 1,
+                orders: existing.orders + s.orderCount,
+                sales: existing.sales + s.totalSales,
+                hasActive: existing.hasActive || !s.logoutAt,
+            });
+        }
+        return map;
+    }, [allShifts]);
+
+    // Filter shifts for selected day
+    const dayShifts = useMemo(() => {
+        return allShifts
+            .filter(s => new Date(s.loginAt).toISOString().slice(0, 10) === selectedDate)
+            .sort((a, b) => {
+                if (!a.logoutAt && b.logoutAt) return -1;
+                if (a.logoutAt && !b.logoutAt) return 1;
+                return b.loginAt - a.loginAt;
+            });
+    }, [allShifts, selectedDate]);
+
+    const totalOrders = allShifts.reduce((s, sh) => s + sh.orderCount, 0);
+    const totalSales = allShifts.reduce((s, sh) => s + sh.totalSales, 0);
+    const activeShift = allShifts.find(s => !s.logoutAt);
 
     return (
-        <div className="px-4 md:px-8 py-6 max-w-2xl mx-auto">
+        <div className="px-4 md:px-8 py-6 max-w-4xl mx-auto">
 
             {/* Header */}
             <div className="mb-6">
@@ -262,7 +120,7 @@ export default function MyShiftsView() {
                     <SpinnerGapIcon size={18} className="animate-spin" />
                     Loading...
                 </div>
-            ) : shifts.length === 0 ? (
+            ) : allShifts.length === 0 ? (
                 <div className="py-16 text-center">
                     <ClockIcon size={32} weight="thin" className="text-neutral-gray/30 mx-auto mb-3" />
                     <p className="text-text-dark text-sm font-semibold font-body">No sessions yet</p>
@@ -271,24 +129,7 @@ export default function MyShiftsView() {
                     </p>
                 </div>
             ) : (
-                <div className="flex flex-col gap-8">
-
-                    {/* Summary banner */}
-                    {!activeShift && (
-                        <div className="grid grid-cols-3 gap-3">
-                            {[
-                                { label: 'Sessions', value: shifts.length.toString(), icon: ClockIcon },
-                                { label: 'Orders', value: totalOrders.toString(), icon: ShoppingBagIcon },
-                                { label: 'Total Sales', value: formatGHS(totalSales), icon: CurrencyCircleDollarIcon },
-                            ].map(({ label, value, icon: Icon }) => (
-                                <div key={label} className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3 text-center">
-                                    <Icon size={16} weight="fill" className="text-primary mx-auto mb-1" />
-                                    <p className="text-text-dark text-sm font-bold font-body">{value}</p>
-                                    <p className="text-neutral-gray text-[10px] font-body">{label}</p>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                <div className="flex flex-col gap-6">
 
                     {/* Active shift banner */}
                     {activeShift && (
@@ -306,10 +147,120 @@ export default function MyShiftsView() {
                         </div>
                     )}
 
-                    {/* Day groups */}
-                    {groups.map(({ date, shifts }) => (
-                        <DayGroup key={date} date={date} shifts={shifts} />
-                    ))}
+                    {/* Summary cards */}
+                    <div className="grid grid-cols-3 gap-3">
+                        {[
+                            { label: 'Sessions', value: allShifts.length.toString(), icon: ClockIcon },
+                            { label: 'Orders', value: totalOrders.toString(), icon: ShoppingBagIcon },
+                            { label: 'Total Sales', value: formatGHS(totalSales), icon: CurrencyCircleDollarIcon },
+                        ].map(({ label, value, icon: Icon }) => (
+                            <div key={label} className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3 text-center">
+                                <Icon size={16} weight="fill" className="text-primary mx-auto mb-1" />
+                                <p className="text-text-dark text-sm font-bold font-body">{value}</p>
+                                <p className="text-neutral-gray text-[10px] font-body">{label}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Calendar */}
+                    <ShiftsCalendar
+                        selectedDate={selectedDate}
+                        onSelectDate={setSelectedDate}
+                        viewMonth={viewMonth}
+                        onChangeMonth={setViewMonth}
+                        monthData={monthData}
+                        loadingDays={new Set()}
+                    />
+
+                    {/* Selected day header */}
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-text-dark text-lg font-bold font-body">{dateLabel(selectedDate)}</h2>
+                        {dayShifts.length > 0 && (
+                            <div className="flex items-center gap-4 text-xs font-body">
+                                <span className="text-text-dark">
+                                    <span className="font-bold">{dayShifts.length}</span> session{dayShifts.length !== 1 ? 's' : ''}
+                                </span>
+                                <span className="text-text-dark">
+                                    <span className="font-bold">{dayShifts.reduce((s, sh) => s + sh.orderCount, 0)}</span> orders
+                                </span>
+                                <span className="text-primary font-bold">{formatGHS(dayShifts.reduce((s, sh) => s + sh.totalSales, 0))}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Shift list for selected day */}
+                    {dayShifts.length === 0 ? (
+                        <div className="py-8 text-center">
+                            <ClockIcon size={28} weight="thin" className="text-neutral-gray/30 mx-auto mb-2" />
+                            <p className="text-neutral-gray text-sm font-body">No sessions on this day</p>
+                        </div>
+                    ) : (
+                        <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden">
+                            {dayShifts.map((shift, i) => {
+                                const active = !shift.logoutAt;
+                                return (
+                                    <div
+                                        key={shift.id}
+                                        className={`px-5 py-4 ${i < dayShifts.length - 1 ? 'border-b border-[#f0e8d8]' : ''}`}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            {/* Time column */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <div className="flex items-center gap-3 text-xs font-body text-neutral-gray">
+                                                        <span className="flex items-center gap-1">
+                                                            <SignInIcon size={11} weight="bold" className="text-secondary" />
+                                                            <span className="text-text-dark font-bold text-base font-body tabular-nums">{formatTime(shift.loginAt)}</span>
+                                                        </span>
+                                                        <ArrowRightIcon size={12} weight="bold" className="text-neutral-gray/40" />
+                                                        {shift.logoutAt ? (
+                                                            <span className="flex items-center gap-1">
+                                                                <SignOutIcon size={11} weight="bold" className="text-error/70" />
+                                                                <span className="text-text-dark font-bold text-base font-body tabular-nums">{formatTime(shift.logoutAt)}</span>
+                                                            </span>
+                                                        ) : (
+                                                            <span className="flex items-center gap-1.5 text-secondary font-bold text-base font-body">
+                                                                <span className="w-2 h-2 rounded-full bg-secondary animate-pulse shrink-0" />
+                                                                Now
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {active && (
+                                                        <span className="text-[10px] font-bold font-body px-2 py-0.5 rounded-full bg-secondary/10 text-secondary">Active</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-3 mt-1.5 text-xs font-body text-neutral-gray">
+                                                    <span className="flex items-center gap-1">
+                                                        <TimerIcon size={11} weight="fill" />
+                                                        {formatDuration(shift.loginAt, shift.logoutAt)}
+                                                    </span>
+                                                    <span>{shift.branchName}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Stats */}
+                                            <div className="flex items-center gap-4 shrink-0">
+                                                <div className="text-center">
+                                                    <div className="flex items-center gap-1 justify-center">
+                                                        <ShoppingBagIcon size={12} weight="fill" className="text-neutral-gray" />
+                                                        <p className="text-text-dark text-sm font-bold font-body">{shift.orderCount}</p>
+                                                    </div>
+                                                    <p className="text-neutral-gray text-[10px] font-body">orders</p>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="flex items-center gap-1 justify-center">
+                                                        <CurrencyCircleDollarIcon size={12} weight="fill" className="text-primary" />
+                                                        <p className="text-primary text-sm font-bold font-body">{formatGHS(shift.totalSales)}</p>
+                                                    </div>
+                                                    <p className="text-neutral-gray text-[10px] font-body">sales</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             )}
         </div>

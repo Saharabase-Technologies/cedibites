@@ -792,13 +792,18 @@ function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId:
 // ─── Menu sub-tabs ────────────────────────────────────────────────────────────
 
 const MENU_SUB_TABS = [
-    { href: '/admin/menu',         label: 'Items'   },
-    { href: '/admin/menu-add-ons', label: 'Add-ons' },
-    { href: '/admin/menu-tags',    label: 'Tags'    },
+    { href: '/admin/menu',           label: 'Items'     },
+    { href: '/admin/menu-add-ons',   label: 'Add-ons'   },
+    { href: '/admin/menu-tags',      label: 'Tags'      },
+    { href: '/admin/menu/configure', label: 'Configure'  },
 ];
 
 function MenuSubTabs() {
     const pathname = usePathname();
+    const isActive = (href: string) => {
+        if (href === '/admin/menu') return pathname === '/admin/menu';
+        return pathname === href || pathname.startsWith(href + '/');
+    };
     return (
         <div className="flex gap-6 border-b border-[#f0e8d8] mb-5">
             {MENU_SUB_TABS.map(tab => (
@@ -806,7 +811,7 @@ function MenuSubTabs() {
                     key={tab.href}
                     href={tab.href}
                     className={`pb-2.5 text-sm font-medium font-body transition-colors border-b-2 -mb-px ${
-                        pathname === tab.href
+                        isActive(tab.href)
                             ? 'text-primary border-primary'
                             : 'text-neutral-gray border-transparent hover:text-text-dark'
                     }`}

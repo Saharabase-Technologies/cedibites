@@ -950,70 +950,91 @@ export default function AdminStaffPage() {
                         <p className="text-neutral-gray text-sm font-body">No staff found.</p>
                     </div>
                 ) : (
-                    filtered.map((member, i) => (
-                        <div key={member.id}
-                            className={`px-4 py-4 flex flex-col sm:flex-row sm:items-center gap-3 ${i < filtered.length - 1 ? 'border-b border-[#f0e8d8]' : ''} hover:bg-neutral-light/40 transition-colors`}>
+                    <>
+                        {/* Table header */}
+                        <div className="hidden sm:grid grid-cols-[minmax(0,1.5fr)_100px_minmax(0,1fr)_minmax(0,1fr)_100px_140px] gap-3 px-5 py-2.5 border-b border-[#f0e8d8] text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">
+                            <span>Name</span>
+                            <span>Role</span>
+                            <span>Contact</span>
+                            <span>Branch</span>
+                            <span>Last Login</span>
+                            <span className="text-right">Actions</span>
+                        </div>
+                        {filtered.map((member, i) => (
+                            <div key={member.id}
+                                className={`px-5 py-3.5 flex flex-col sm:grid sm:grid-cols-[minmax(0,1.5fr)_100px_minmax(0,1fr)_minmax(0,1fr)_100px_140px] gap-2 sm:gap-3 sm:items-center ${i < filtered.length - 1 ? 'border-b border-[#f0e8d8]' : ''} hover:bg-neutral-light/40 transition-colors`}>
 
-                            {/* Avatar + info */}
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                                <AvatarCircle name={member.name} />
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="text-text-dark text-sm font-semibold font-body">{member.name}</p>
-                                        <RoleBadge role={member.role} />
-                                        {member.systemAccess === 'disabled' && member.status !== 'archived' && (
-                                            <span className="text-[10px] font-body bg-error/10 text-error px-2 py-0.5 rounded-full">No Access</span>
-                                        )}
-                                        {member.employmentStatus === 'on_leave' && (
-                                            <span className="text-[10px] font-body bg-warning/10 text-warning px-2 py-0.5 rounded-full">On Leave</span>
-                                        )}
-                                        {member.employmentStatus === 'resigned' && member.status !== 'archived' && (
-                                            <span className="text-[10px] font-body bg-error/10 text-error px-2 py-0.5 rounded-full">Resigned</span>
-                                        )}
-                                        {member.status === 'archived' && (
-                                            <span className="text-[10px] font-body bg-neutral-light text-neutral-gray px-2 py-0.5 rounded-full">Archived</span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                                        <span className="text-neutral-gray text-[10px] font-body">{member.phone}</span>
-                                        <span className="text-neutral-gray text-[10px] font-body">{member.email}</span>
-                                        <span className="text-neutral-gray text-[10px] font-body flex items-center gap-1">
-                                            <BuildingsIcon size={10} weight="fill" />
-                                            {branchDisplay(member.branch)}
-                                        </span>
-                                        <span className="text-neutral-gray text-[10px] font-body flex items-center gap-1">
-                                            <ClockIcon size={10} weight="fill" />
-                                            {member.lastLogin}
-                                        </span>
+                                {/* Name + avatar + status */}
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <AvatarCircle name={member.name} />
+                                    <div className="min-w-0">
+                                        <p className="text-text-dark text-sm font-semibold font-body truncate">{member.name}</p>
+                                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                            {member.systemAccess === 'disabled' && member.status !== 'archived' && (
+                                                <span className="text-[10px] font-body bg-error/10 text-error px-2 py-0.5 rounded-full">No Access</span>
+                                            )}
+                                            {member.employmentStatus === 'on_leave' && (
+                                                <span className="text-[10px] font-body bg-warning/10 text-warning px-2 py-0.5 rounded-full">On Leave</span>
+                                            )}
+                                            {member.employmentStatus === 'resigned' && member.status !== 'archived' && (
+                                                <span className="text-[10px] font-body bg-error/10 text-error px-2 py-0.5 rounded-full">Resigned</span>
+                                            )}
+                                            {member.status === 'archived' && (
+                                                <span className="text-[10px] font-body bg-neutral-light text-neutral-gray px-2 py-0.5 rounded-full">Archived</span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Actions */}
-                            <div className="flex items-center gap-1.5 flex-wrap shrink-0">
-                                {member.status !== 'archived' && (
-                                    <>
-                                        <ActionBtn icon={PencilSimpleIcon} label="Edit" onClick={() => setEditStaff(member)} color="text-primary" />
-                                        <ActionBtn icon={LockSimpleIcon} label="Reset PW" onClick={() => requirePasswordReset(member)} color="text-neutral-gray" />
-                                        <ActionBtn icon={SignOutIcon} label="Force Logout" onClick={() => forceLogout(member)} color="text-neutral-gray" />
-                                        {member.systemAccess === 'enabled'
-                                            ? <ActionBtn icon={ArchiveIcon} label="Suspend" onClick={() => suspend(member)} color="text-warning" />
-                                            : <ActionBtn icon={ArrowCounterClockwiseIcon} label="Reinstate" onClick={() => reinstate(member)} color="text-secondary" />
-                                        }
-                                        {member.systemAccess === 'disabled' && (
-                                            <ActionBtn icon={ArchiveIcon} label="Archive" onClick={() => archive(member)} color="text-neutral-gray" />
-                                        )}
-                                    </>
-                                )}
-                                {member.status === 'archived' && (
-                                    <>
-                                        <ActionBtn icon={ArrowCounterClockwiseIcon} label="Restore" onClick={() => reinstate(member)} color="text-secondary" />
-                                        <ActionBtn icon={TrashIcon} label="Delete" onClick={() => setDeleteStaff(member)} color="text-error" />
-                                    </>
-                                )}
+                                {/* Role */}
+                                <div>
+                                    <RoleBadge role={member.role} />
+                                </div>
+
+                                {/* Contact */}
+                                <div className="min-w-0">
+                                    <p className="text-text-dark text-xs font-body truncate">{member.phone}</p>
+                                    <p className="text-neutral-gray text-[10px] font-body truncate">{member.email}</p>
+                                </div>
+
+                                {/* Branch */}
+                                <div className="min-w-0 flex items-center gap-1">
+                                    <BuildingsIcon size={11} weight="fill" className="text-neutral-gray shrink-0" />
+                                    <p className="text-neutral-gray text-xs font-body truncate">{branchDisplay(member.branch)}</p>
+                                </div>
+
+                                {/* Last Login */}
+                                <div className="flex items-center gap-1">
+                                    <ClockIcon size={11} weight="fill" className="text-neutral-gray shrink-0" />
+                                    <p className="text-neutral-gray text-[10px] font-body">{member.lastLogin}</p>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-1 justify-end flex-wrap shrink-0">
+                                    {member.status !== 'archived' && (
+                                        <>
+                                            <ActionBtn icon={PencilSimpleIcon} label="Edit" onClick={() => setEditStaff(member)} color="text-primary" />
+                                            <ActionBtn icon={LockSimpleIcon} label="Reset PW" onClick={() => requirePasswordReset(member)} color="text-neutral-gray" />
+                                            <ActionBtn icon={SignOutIcon} label="Force Logout" onClick={() => forceLogout(member)} color="text-neutral-gray" />
+                                            {member.systemAccess === 'enabled'
+                                                ? <ActionBtn icon={ArchiveIcon} label="Suspend" onClick={() => suspend(member)} color="text-warning" />
+                                                : <ActionBtn icon={ArrowCounterClockwiseIcon} label="Reinstate" onClick={() => reinstate(member)} color="text-secondary" />
+                                            }
+                                            {member.systemAccess === 'disabled' && (
+                                                <ActionBtn icon={ArchiveIcon} label="Archive" onClick={() => archive(member)} color="text-neutral-gray" />
+                                            )}
+                                        </>
+                                    )}
+                                    {member.status === 'archived' && (
+                                        <>
+                                            <ActionBtn icon={ArrowCounterClockwiseIcon} label="Restore" onClick={() => reinstate(member)} color="text-secondary" />
+                                            <ActionBtn icon={TrashIcon} label="Delete" onClick={() => setDeleteStaff(member)} color="text-error" />
+                                        </>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        ))}
+                    </>
                 )}
             </div>
 

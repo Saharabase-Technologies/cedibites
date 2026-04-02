@@ -150,55 +150,11 @@ function FilterGroup<T extends string>({
     );
 }
 
-// ─── Confirm modal ────────────────────────────────────────────────────────────
-
-function ConfirmModal({ title, desc, onConfirm, onCancel }: {
-    title: string; desc: string; onConfirm: () => void; onCancel: () => void;
-}) {
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
-            <div className="bg-neutral-card rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden">
-                <div className="h-1.5 bg-error" />
-                <div className="p-6">
-                    <div className="flex items-center gap-2 mb-2">
-                        <WarningCircleIcon size={18} weight="fill" className="text-error" />
-                        <h3 className="text-text-dark text-base font-bold font-body">{title}</h3>
-                    </div>
-                    <p className="text-neutral-gray text-sm font-body mb-5">{desc}</p>
-                    <div className="flex gap-3">
-                        <button type="button" onClick={onCancel} className="flex-1 px-4 py-2.5 bg-neutral-light text-text-dark rounded-xl text-sm font-medium font-body cursor-pointer hover:bg-[#f0e8d8] transition-colors">Cancel</button>
-                        <button type="button" onClick={onConfirm} className="flex-1 px-4 py-2.5 bg-error text-white rounded-xl text-sm font-medium font-body cursor-pointer hover:bg-error/90 transition-colors">Refund</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 // ─── Detail panel ─────────────────────────────────────────────────────────────
 
-function TransactionDetailPanel({ payment, onClose, onRefunded }: {
-    payment: Payment; onClose: () => void; onRefunded: (updated: Payment) => void;
+function TransactionDetailPanel({ payment, onClose }: {
+    payment: Payment; onClose: () => void;
 }) {
-    const [showConfirm, setShowConfirm] = useState(false);
-    const [isRefunding, setIsRefunding] = useState(false);
-    const [refundError, setRefundError] = useState<string | null>(null);
-
-    const canRefund = payment.payment_status === 'completed';
-
-    async function handleRefund() {
-        setIsRefunding(true);
-        setRefundError(null);
-        try {
-            const updated = await paymentService.refund(payment.id);
-            onRefunded(updated);
-            setShowConfirm(false);
-        } catch {
-            setRefundError('Refund failed. Please try again.');
-        } finally {
-            setIsRefunding(false);
-        }
-    }
 
     return (
         <>
@@ -257,32 +213,8 @@ function TransactionDetailPanel({ payment, onClose, onRefunded }: {
                         </div>
                     </div>
 
-                    {refundError && <p className="text-error text-xs text-center font-body">{refundError}</p>}
                 </div>
-
-                {canRefund && (
-                    <div className="px-5 py-4 border-t border-[#f0e8d8]">
-                        <button
-                            type="button"
-                            onClick={() => setShowConfirm(true)}
-                            disabled={isRefunding}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-error/10 text-error text-sm font-medium font-body hover:bg-error/20 transition-colors cursor-pointer disabled:opacity-50"
-                        >
-                            <ArrowCounterClockwiseIcon size={16} weight="bold" />
-                            Issue Refund
-                        </button>
-                    </div>
-                )}
             </aside>
-
-            {showConfirm && (
-                <ConfirmModal
-                    title="Issue Refund"
-                    desc={`Refund ${formatGHS(payment.amount)} for order ${payment.order?.order_number ?? `#${payment.id}`}? This cannot be undone.`}
-                    onConfirm={handleRefund}
-                    onCancel={() => setShowConfirm(false)}
-                />
-            )}
         </>
     );
 }
@@ -356,11 +288,6 @@ export default function AdminTransactionsPage() {
     function toggleMethod(m: PaymentMethod) {
         setSelectedMethods(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
         setPage(1);
-    }
-
-    function handleRefunded(updated: Payment) {
-        setSelectedPayment(prev => prev?.id === updated.id ? { ...prev, ...updated } : prev);
-        refetch();
     }
 
     const handleExportCsv = useCallback(async () => {
@@ -609,7 +536,6 @@ export default function AdminTransactionsPage() {
                 <TransactionDetailPanel
                     payment={selectedPayment}
                     onClose={() => setSelectedPayment(null)}
-                    onRefunded={handleRefunded}
                 />
             )}
         </div>

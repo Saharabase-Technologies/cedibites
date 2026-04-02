@@ -148,7 +148,10 @@ export default function StaffSalesPage() {
                     </div>
                     <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3 text-center">
                         <p className="text-primary text-xl font-bold font-body">{formatGHS(totals.revenue)}</p>
-                        <p className="text-neutral-gray text-xs font-body mt-0.5">Total Revenue</p>
+                        <p className="text-neutral-gray text-xs font-body mt-0.5">Revenue</p>
+                        {totals.noCharge > 0 && (
+                            <p className="text-teal-600 text-[10px] font-body mt-0.5">+ {formatGHS(totals.noCharge)} no-charge</p>
+                        )}
                     </div>
                 </div>
             )}
@@ -225,7 +228,7 @@ export default function StaffSalesPage() {
                     {/* Grand total footer */}
                     <div className="bg-brown/5 border border-brown/15 rounded-2xl px-5 py-4">
                         <div className="flex items-center justify-between mb-3">
-                            <p className="text-text-dark text-sm font-bold font-body">Grand Total</p>
+                            <p className="text-text-dark text-sm font-bold font-body">Revenue</p>
                             <p className="text-primary text-lg font-bold font-body">{formatGHS(totals.revenue)}</p>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-body">
@@ -238,14 +241,19 @@ export default function StaffSalesPage() {
                                 <span className="text-text-dark">Cash: {formatGHS(totals.cash)}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
-                                <ProhibitIcon size={12} weight="fill" className="text-teal-600" />
-                                <span className="text-text-dark">No Charge: {formatGHS(totals.noCharge)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
                                 <CreditCardIcon size={12} weight="fill" className="text-blue-600" />
                                 <span className="text-text-dark">Card: {formatGHS(totals.card)}</span>
                             </div>
                         </div>
+                        {totals.noCharge > 0 && (
+                            <div className="mt-3 pt-3 border-t border-brown/10 flex items-center justify-between">
+                                <div className="flex items-center gap-1.5 text-xs font-body">
+                                    <ProhibitIcon size={12} weight="fill" className="text-teal-600" />
+                                    <span className="text-teal-600 font-medium">No Charge (Loss)</span>
+                                </div>
+                                <span className="text-teal-600 text-sm font-bold font-body">{formatGHS(totals.noCharge)}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

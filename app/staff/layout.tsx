@@ -186,7 +186,7 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                             href={item.href}
                             label={item.label}
                             icon={item.icon}
-                            active={pathname.startsWith(item.href)}
+                            active={pathname === item.href || pathname.startsWith(item.href + '/')}
                         />
                     ))}
 
@@ -202,7 +202,7 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                                     href={item.href}
                                     label={item.label}
                                     icon={item.icon}
-                                    active={pathname.startsWith(item.href)}
+                                    active={pathname === item.href || pathname.startsWith(item.href + '/')}
                                 />
                             ))}
                         </>
@@ -299,7 +299,7 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                         href={item.href}
                         label={item.label}
                         icon={item.icon}
-                        active={pathname.startsWith(item.href)}
+                        active={pathname === item.href || pathname.startsWith(item.href + '/')}
                     />
                 ))}
                 <button

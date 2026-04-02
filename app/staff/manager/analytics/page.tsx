@@ -26,7 +26,7 @@ import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Period = 'today' | 'week' | 'month' | 'custom';
+type Period = 'today' | 'week' | 'month' | '30d' | '90d' | 'custom';
 
 interface AnalyticsOrder {
     id: string;
@@ -626,6 +626,8 @@ const PERIODS: PeriodTab[] = [
     { key: 'today',  label: 'Today'      },
     { key: 'week',   label: 'This Week'  },
     { key: 'month',  label: 'This Month' },
+    { key: '30d',    label: 'Last 30d'   },
+    { key: '90d',    label: 'Last 90d'   },
     { key: 'custom', label: 'All Time'   },
 ];
 
@@ -642,6 +644,17 @@ function getDateRangeForPeriod(period: Period): { date_from: string; date_to: st
         const ms = new Date(now.getFullYear(), now.getMonth(), 1);
         return { date_from: ms.toISOString().slice(0, 10), date_to: today };
     }
+    if (period === '30d') {
+        const d30 = new Date(now);
+        d30.setDate(d30.getDate() - 30);
+        return { date_from: d30.toISOString().slice(0, 10), date_to: today };
+    }
+    if (period === '90d') {
+        const d90 = new Date(now);
+        d90.setDate(d90.getDate() - 90);
+        return { date_from: d90.toISOString().slice(0, 10), date_to: today };
+    }
+    // custom / all time
     const d90 = new Date(now);
     d90.setDate(d90.getDate() - 90);
     return { date_from: d90.toISOString().slice(0, 10), date_to: today };
