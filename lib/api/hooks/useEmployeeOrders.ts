@@ -43,6 +43,7 @@ export const useEmployeeOrders = (params?: EmployeeOrdersParams) => {
     queryKey: ['employee-orders', params],
     queryFn: () => orderService.getEmployeeOrders(params),
     enabled: typeof window !== 'undefined' && !!localStorage.getItem('cedibites_staff_token'),
+    refetchInterval: 1000,
   });
 
   const rawData = response?.data;
