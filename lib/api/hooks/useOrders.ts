@@ -151,3 +151,23 @@ export const useCancelOrder = () => {
     error: cancelOrderMutation.error,
   };
 };
+
+export const useRequestCancel = () => {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      orderService.requestCancel(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['order'] });
+      queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+    },
+  });
+
+  return {
+    requestCancel: mutation.mutateAsync,
+    isLoading: mutation.isPending,
+    error: mutation.error,
+  };
+};

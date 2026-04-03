@@ -35,7 +35,7 @@ import apiClient from '@/lib/api/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type OrderStatus = 'received' | 'preparing' | 'ready' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'completed' | 'cancelled';
+type OrderStatus = 'received' | 'preparing' | 'ready' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'completed' | 'cancelled' | 'cancel_requested';
 type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone';
 type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash at Pickup' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
 type PaymentStatus = 'Paid' | 'Pending' | 'Failed' | 'Refunded' | 'No Charge';
@@ -51,6 +51,7 @@ const STATUS_STYLES: Record<string, { dot: string; label: string; pulse?: boolea
     delivered:        { dot: 'bg-secondary',    label: 'Delivered' },
     completed:        { dot: 'bg-secondary',    label: 'Completed' },
     cancelled:        { dot: 'bg-error',        label: 'Cancelled' },
+    cancel_requested: { dot: 'bg-orange-500',   label: 'Cancel Requested', pulse: true },
 };
 
 const SOURCE_STYLES: Record<OrderSource, string> = {
@@ -62,7 +63,7 @@ const SOURCE_STYLES: Record<OrderSource, string> = {
     POS: 'bg-secondary/10 text-secondary',
 };
 
-const ALL_STATUSES: OrderStatus[] = ['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'completed', 'cancelled'];
+const ALL_STATUSES: OrderStatus[] = ['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'completed', 'cancel_requested', 'cancelled'];
 const ALL_SOURCES: OrderSource[] = ['Online', 'POS', 'WhatsApp', 'Instagram', 'Facebook', 'Phone'];
 const ALL_PAYMENTS: PaymentMethod[] = ['Mobile Money', 'Cash', 'Card', 'Wallet', 'GhQR', 'No Charge'];
 const ALL_PAYMENT_STATUSES: PaymentStatus[] = ['Paid', 'Pending', 'Failed', 'Refunded', 'No Charge'];
@@ -373,6 +374,54 @@ function OrderDetailPanel({
                             <button type="button" onClick={() => setShowStatusPicker(false)} className="text-xs text-neutral-gray font-body hover:text-text-dark transition-colors text-left cursor-pointer">
                                 Cancel
                             </button>
+                        </div>
+                    )}
+
+                    {/* Cancel request banner */}
+                    {order.status === 'cancel_requested' && (
+                        <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl space-y-2">
+                            <p className="text-xs font-bold text-orange-700 font-body">Cancel Requested</p>
+                            {order.cancelRequestedBy && (
+                                <p className="text-xs text-orange-600 font-body">By: {order.cancelRequestedBy}</p>
+                            )}
+                            {order.cancelRequestReason && (
+                                <p className="text-xs text-text-dark font-body">&ldquo;{order.cancelRequestReason}&rdquo;</p>
+                            )}
+                            {order.cancelRequestedAt && (
+                                <p className="text-xs text-neutral-gray font-body">
+                                    {new Date(order.cancelRequestedAt).toLocaleString('en-GH', { timeZone: 'Africa/Accra' })}
+                                </p>
+                            )}
+                            <div className="flex gap-2 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            await apiClient.post(`/admin/orders/${order.dbId}/approve-cancel`);
+                                            queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+                                            toast.success('Cancellation approved');
+                                            onClose();
+                                        } catch { toast.error('Failed to approve cancellation'); }
+                                    }}
+                                    className="flex-1 px-3 py-2 rounded-xl bg-error text-white text-xs font-medium font-body hover:bg-error/90 transition-colors cursor-pointer"
+                                >
+                                    Approve Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            await apiClient.post(`/admin/orders/${order.dbId}/reject-cancel`);
+                                            queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+                                            toast.success('Cancel request rejected');
+                                            onClose();
+                                        } catch { toast.error('Failed to reject cancellation'); }
+                                    }}
+                                    className="flex-1 px-3 py-2 rounded-xl bg-neutral-light text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer"
+                                >
+                                    Reject — Keep Order
+                                </button>
+                            </div>
                         </div>
                     )}
 

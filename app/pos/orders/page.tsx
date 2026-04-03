@@ -28,7 +28,7 @@ import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
 import { formatOrderLineItemSummary } from '@/lib/utils/orderItemDisplay';
 import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
-import { useCancelOrder } from '@/lib/api/hooks/useOrders';
+import { useRequestCancel } from '@/lib/api/hooks/useOrders';
 import { toast } from '@/lib/utils/toast';
 
 function formatOrderTime(placedAt: number): string {
@@ -53,7 +53,7 @@ export default function POSOrdersPage() {
 
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
-  const { cancelOrder } = useCancelOrder();
+  const { requestCancel } = useRequestCancel();
 
   useEffect(() => {
     if (isSessionLoaded && !isSessionValid) {
@@ -169,7 +169,7 @@ export default function POSOrdersPage() {
           theme="light"
           onCancel={() => setCancelTarget(null)}
           onConfirm={async (reason) => {
-            await cancelOrder({ id: Number(cancelTarget.id), reason });
+            await requestCancel({ id: Number(cancelTarget.id), reason: reason || 'Requested by POS staff' });
           }}
         />
       )}
@@ -238,16 +238,21 @@ function OrderCard({ order, branchName, staffName, onCancelRequested }: OrderCar
           {formatOrderTime(order.placedAt)}
         </span>
         {/* Cancel row — separated to avoid accidental taps */}
-        {order.status !== 'cancelled' && (
+        {order.status !== 'cancelled' && order.status !== 'completed' && order.status !== 'cancel_requested' && (
           <div className="">
             <button
               onClick={() => onCancelRequested(order)}
-              className="w-ful px-3 py-2 rounded-lg text-xs font-medium text-error/70 hover:text-error hover:bg-error/5 transition-colors border border-dashed border-error/20 hover:border-error/40"
-              title="Cancel Order"
+              className="w-ful px-3 py-2 rounded-lg text-xs font-medium text-amber-600/70 hover:text-amber-700 hover:bg-amber-50 transition-colors border border-dashed border-amber-300/40 hover:border-amber-400"
+              title="Request Cancel"
             >
-              Cancel order
+              Request Cancel
             </button>
           </div>
+        )}
+        {order.status === 'cancel_requested' && (
+          <span className="text-[11px] font-medium text-amber-600 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200">
+            Cancel pending approval
+          </span>
         )}
       </div>
 

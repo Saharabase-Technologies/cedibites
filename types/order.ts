@@ -100,6 +100,7 @@ export interface Order {
     discount: number;
     promoCode?: string;
     tax: number;
+    serviceCharge?: number;
     total: number;
 
     // People
@@ -132,6 +133,9 @@ export interface Order {
 
     // Customer-facing timeline (computed on read, not stored)
     timeline?: OrderTimelineEvent[];
+
+    // Checkout session token (for polling pending payments)
+    _sessionToken?: string;
 }
 
 // ─── Notification (used by kanban + kitchen) ─────────────────────────────────

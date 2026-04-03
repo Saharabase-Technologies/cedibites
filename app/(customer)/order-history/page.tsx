@@ -5,10 +5,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useModal } from '../../components/providers/ModalProvider';
 import { useAuth } from '../../components/providers/AuthProvider';
-import { useOrders, useCancelOrder } from '@/lib/api/hooks/useOrders';
+import { useOrders } from '@/lib/api/hooks/useOrders';
 import { useCart } from '@/lib/api/hooks/useCart';
 import { toast } from '@/lib/utils/toast';
-import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
 import {
     MagnifyingGlassIcon,
     XIcon,
@@ -35,6 +34,7 @@ const STATUS_CONFIG: Record<ApiOrderStatus, {
     out_for_delivery: { label: 'On the way', color: 'text-primary', bg: 'bg-primary/8' },
     delivered: { label: 'Delivered', color: 'text-secondary', bg: 'bg-secondary/8' },
     completed: { label: 'Completed', color: 'text-secondary', bg: 'bg-secondary/8' },
+    cancel_requested: { label: 'Cancel Requested', color: 'text-warning', bg: 'bg-warning/8' },
     cancelled: { label: 'Cancelled', color: 'text-error', bg: 'bg-error/8' },
 };
 
@@ -62,12 +62,10 @@ export default function OrderHistoryPage() {
     const { isLoggedIn } = useAuth();
     const { addItem } = useCart();
     const [reordering, setReordering] = useState<number | null>(null);
-    const [cancelTarget, setCancelTarget] = useState<ApiOrder | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<ApiOrderStatus | undefined>(undefined);
     const [page, setPage] = useState(1);
     const [mounted, setMounted] = useState(false);
-    const { cancelOrder } = useCancelOrder();
 
     useEffect(() => {
         setMounted(true);
@@ -220,7 +218,6 @@ export default function OrderHistoryPage() {
                                 {filteredOrders.map((order) => {
                                     const statusConfig = STATUS_CONFIG[order.status];
                                     const isCompleted = ['delivered', 'completed'].includes(order.status);
-                                    const isCancellable = !['cancelled', 'delivered', 'completed'].includes(order.status);
 
                                     return (
                                         <button
@@ -301,14 +298,6 @@ export default function OrderHistoryPage() {
                                                 </div>
 
                                                 <div className="flex items-center gap-2">
-                                                    {isCancellable && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); setCancelTarget(order); }}
-                                                            className="flex items-center gap-2 px-4 py-2.5 border border-error/30 text-error rounded-full text-sm font-semibold hover:bg-error/5 transition-all"
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                    )}
                                                     {isCompleted && (
                                                         <button
                                                             onClick={(e) => handleReorder(e, order)}
@@ -330,16 +319,6 @@ export default function OrderHistoryPage() {
                 )}
             </main>
 
-            {cancelTarget && (
-                <CancelOrderModal
-                    orderNumber={cancelTarget.order_number}
-                    theme="light"
-                    onCancel={() => setCancelTarget(null)}
-                    onConfirm={async (reason) => {
-                        await cancelOrder({ id: cancelTarget.id, reason });
-                    }}
-                />
-            )}
         </div>
     );
 }

@@ -24,6 +24,7 @@ import {
   ClipboardTextIcon,
   PrinterIcon,
   TagIcon,
+  HourglassIcon,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { usePOS } from '../context';
@@ -41,6 +42,8 @@ import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
+import PendingPaymentsDrawer from './PendingPaymentsDrawer';
+import { usePosCheckoutSessions } from '@/lib/api/hooks/useCheckoutSession';
 
 interface ItemOption {
   key: string;
@@ -149,6 +152,13 @@ export default function POSTerminalPage() {
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
   const [optionPickerItem, setOptionPickerItem] = useState<DisplayMenuItem | null>(null);
+  const [isPendingDrawerOpen, setIsPendingDrawerOpen] = useState(false);
+
+  // Pending checkout sessions count for badge
+  const { data: pendingSessionsData } = usePosCheckoutSessions(
+    session?.branchId ? { branch_id: Number(session.branchId), status: 'pending,payment_initiated' } : undefined
+  );
+  const pendingCount = pendingSessionsData?.data?.length ?? 0;
 
   // Redirect if no session (but not if we just need branch selection)
   useEffect(() => {
@@ -349,6 +359,20 @@ export default function POSTerminalPage() {
                 <p className="text-lg font-medium text-primary">{formatGHS(todayStats.revenue)}</p>
               </div>
             </div>
+
+            {/* Pending payments button */}
+            <button
+              onClick={() => setIsPendingDrawerOpen(true)}
+              className="relative w-10 h-10 rounded-xl bg-neutral-gray/10 flex items-center justify-center text-neutral-gray hover:text-primary hover:bg-primary/10 transition-colors"
+              title="Pending Payments"
+            >
+              <HourglassIcon className="w-5 h-5" />
+              {pendingCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-0.5 rounded-full bg-error text-white text-[10px] font-bold flex items-center justify-center">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
 
             {/* Orders link with active badge */}
             <Link
@@ -747,6 +771,30 @@ export default function POSTerminalPage() {
         />
       )}
 
+      {/* Pending Payments Drawer */}
+      {session?.branchId && (
+        <PendingPaymentsDrawer
+          branchId={Number(session.branchId)}
+          isOpen={isPendingDrawerOpen}
+          onClose={() => setIsPendingDrawerOpen(false)}
+          onSessionConfirmed={(cs) => {
+            if (cs.order) {
+              setCompletedOrder({
+                id: cs.order.id,
+                orderCode: cs.order.order_number ?? '',
+                orderNumber: cs.order.order_number ?? '',
+                status: 'received',
+                paymentStatus: 'completed',
+                isPaid: true,
+                total: cs.total_amount,
+                items: cs.items.map(i => ({ name: i.name, quantity: i.quantity, price: i.unit_price })),
+                contact: { name: cs.customer_name, phone: cs.customer_phone },
+              } as unknown as Order);
+            }
+          }}
+        />
+      )}
+
       {optionPickerItem && (
         <POSItemOptionModal
           item={optionPickerItem}
@@ -822,6 +870,8 @@ interface PaymentModalProps {
 }
 
 function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModalProps) {
+  const { staffUser } = useStaffAuth();
+  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'super_admin';
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [cashAmount, setCashAmount] = useState('');
   const [momoNumber, setMomoNumber] = useState('');
@@ -831,7 +881,20 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
   const [momoVerifyError, setMomoVerifyError] = useState<string | null>(null);
   // Manual entry fields
   const [recordedAt, setRecordedAt] = useState('');
+  const [recordedTime, setRecordedTime] = useState('');
   const [momoReference, setMomoReference] = useState('');
+  const [dateEnabled, setDateEnabled] = useState<boolean | null>(null);
+
+  // Fetch manual_entry_date_enabled setting
+  useEffect(() => {
+    if (!isManualEntry) return;
+    apiClient.get('/settings/manual_entry_date_enabled')
+      .then((res: unknown) => {
+        const val = (res as { data?: { value?: string } })?.data?.value;
+        setDateEnabled(val === 'true' || val === '1');
+      })
+      .catch(() => setDateEnabled(false));
+  }, [isManualEntry]);
 
   const cashChange = useMemo(() => {
     const paid = parseFloat(cashAmount) || 0;
@@ -874,15 +937,25 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
   const handleConfirm = async () => {
     if (!selectedMethod) return;
 
-    // Manual entry requires a date
-    if (isManualEntry && !recordedAt) {
-      alert('Please enter the date & time the order was taken');
-      return;
+    // Manual entry requires a date/time
+    if (isManualEntry) {
+      if (dateEnabled && !recordedAt) {
+        alert('Please enter the date & time the order was taken');
+        return;
+      }
+      if (!dateEnabled && !recordedTime) {
+        alert('Please enter the time the order was taken');
+        return;
+      }
     }
 
     setIsProcessing(true);
 
-    const manualOpts = isManualEntry ? { recordedAt, momoReference: momoReference || undefined } : undefined;
+    // Compose recordedAt: if time-only mode, combine today's date + entered time
+    const effectiveRecordedAt = isManualEntry
+      ? (dateEnabled ? recordedAt : `${new Date().toISOString().slice(0, 10)}T${recordedTime}`)
+      : undefined;
+    const manualOpts = isManualEntry ? { recordedAt: effectiveRecordedAt!, momoReference: momoReference || undefined } : undefined;
 
     if (selectedMethod === 'cash') {
       const paid = parseFloat(cashAmount) || total;
@@ -931,21 +1004,37 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
 
           {/* Manual entry: date/time picker */}
-          {isManualEntry && (
+          {isManualEntry && dateEnabled !== null && (
             <div className="space-y-2">
-              <p className="text-neutral-gray text-sm">When was this order?</p>
-              <input
-                type="datetime-local"
-                value={recordedAt}
-                max={new Date().toISOString().slice(0, 16)}
-                onChange={e => setRecordedAt(e.target.value)}
-                className="
-                  w-full h-12 px-4 rounded-xl text-sm
-                  bg-neutral-light text-text-dark
-                  border border-neutral-gray/20 focus:border-primary/50
-                  outline-none transition-colors
-                "
-              />
+              <p className="text-neutral-gray text-sm">
+                {dateEnabled ? 'When was this order?' : 'What time was this order?'}
+              </p>
+              {dateEnabled ? (
+                <input
+                  type="datetime-local"
+                  value={recordedAt}
+                  max={new Date().toISOString().slice(0, 16)}
+                  onChange={e => setRecordedAt(e.target.value)}
+                  className="
+                    w-full h-12 px-4 rounded-xl text-sm
+                    bg-neutral-light text-text-dark
+                    border border-neutral-gray/20 focus:border-primary/50
+                    outline-none transition-colors
+                  "
+                />
+              ) : (
+                <input
+                  type="time"
+                  value={recordedTime}
+                  onChange={e => setRecordedTime(e.target.value)}
+                  className="
+                    w-full h-12 px-4 rounded-xl text-sm
+                    bg-neutral-light text-text-dark
+                    border border-neutral-gray/20 focus:border-primary/50
+                    outline-none transition-colors
+                  "
+                />
+              )}
             </div>
           )}
 
@@ -959,7 +1048,10 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
                 : [{ id: 'mobile_money' as PaymentMethod, label: 'MoMo', icon: DeviceMobileIcon }]
               ),
               { id: 'card' as PaymentMethod, label: 'Card', icon: CreditCardIcon },
-              { id: 'no_charge' as PaymentMethod, label: 'No Charge', icon: ProhibitIcon },
+              ...(isAdmin
+                ? [{ id: 'no_charge' as PaymentMethod, label: 'No Charge', icon: ProhibitIcon }]
+                : []
+              ),
             ]).map(method => (
               <button
                 key={method.id}
@@ -1262,6 +1354,7 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
   useEffect(() => {
     const startTime = Date.now();
     let timedOut = false;
+    const sessionToken = order._sessionToken;
 
     // Countdown timer
     const countdown = setInterval(() => {
@@ -1270,9 +1363,9 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
       setSecondsRemaining(remaining);
     }, 1000);
 
-    // Payment status polling
+    // Payment status polling via checkout session or legacy payment verify
     const poll = setInterval(async () => {
-      if (timedOut || !order.paymentId) return;
+      if (timedOut) return;
 
       const elapsed = Date.now() - startTime;
       if (elapsed >= MOMO_TIMEOUT_MS) {
@@ -1284,19 +1377,38 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
       }
 
       try {
-        const response = await apiClient.get(`/payments/${order.paymentId}/verify`);
-        const data = response as unknown as { data?: { payment_status?: string } };
-        const status = data?.data?.payment_status;
+        if (sessionToken) {
+          // New flow: poll checkout session status
+          const { checkoutSessionService } = await import('@/lib/api/services/checkout-session.service');
+          const response = await checkoutSessionService.posGetStatus(sessionToken);
+          const session = response.data;
 
-        if (status === 'completed') {
-          clearInterval(poll);
-          clearInterval(countdown);
-          onConfirmed({ ...order, paymentStatus: 'completed', isPaid: true });
-        } else if (status === 'failed') {
-          clearInterval(poll);
-          clearInterval(countdown);
-          toast.error('Payment was declined. Please ask the customer to try again.');
-          onCancel();
+          if (session.status === 'confirmed') {
+            clearInterval(poll);
+            clearInterval(countdown);
+            onConfirmed({ ...order, paymentStatus: 'completed', isPaid: true, orderNumber: session.order?.order_number ?? order.orderNumber });
+          } else if (session.status === 'failed' || session.status === 'expired') {
+            clearInterval(poll);
+            clearInterval(countdown);
+            toast.error('Payment was declined. Please ask the customer to try again.');
+            onCancel();
+          }
+        } else if (order.paymentId) {
+          // Legacy flow: poll payment verify endpoint
+          const response = await apiClient.get(`/payments/${order.paymentId}/verify`);
+          const data = response as unknown as { data?: { payment_status?: string } };
+          const status = data?.data?.payment_status;
+
+          if (status === 'completed') {
+            clearInterval(poll);
+            clearInterval(countdown);
+            onConfirmed({ ...order, paymentStatus: 'completed', isPaid: true });
+          } else if (status === 'failed') {
+            clearInterval(poll);
+            clearInterval(countdown);
+            toast.error('Payment was declined. Please ask the customer to try again.');
+            onCancel();
+          }
         }
       } catch {
         // ignore poll errors — keep trying

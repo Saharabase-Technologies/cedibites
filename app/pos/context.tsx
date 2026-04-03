@@ -15,6 +15,8 @@ import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { getShiftService } from '@/lib/services/shifts/shift.service';
+import { checkoutSessionService } from '@/lib/api/services/checkout-session.service';
+import { normalizeGhanaPhone } from '@/app/lib/phone';
 
 // Generate unique IDs for cart items
 const generateId = () => `pos-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -237,56 +239,138 @@ export function POSProvider({ children }: POSProviderProps) {
     discount?: number,
     manualOpts?: { recordedAt: string; momoReference?: string }
   ): Promise<Order> => {
-    // Simulate payment processing delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-
     const branch = branches.find(b => b.id === session?.branchId);
 
-    const input: CreateOrderInput = {
+    // Build API request for checkout session
+    const sessionData = {
+      branch_id: Number(session?.branchId),
+      items: cart.map(item => ({
+        menu_item_id: Number(item.menuItemId),
+        menu_item_option_id: item.sizeId ? Number(item.sizeId) : undefined,
+        quantity: item.quantity,
+        special_instructions: undefined as string | undefined,
+      })),
+      order_type: 'pickup' as const,
+      customer_name: customerName || 'Walk-in',
+      customer_phone: customerPhone ? normalizeGhanaPhone(customerPhone) : undefined,
+      payment_method: method,
+      momo_number: momoNumber ? normalizeGhanaPhone(momoNumber) : undefined,
+      is_manual_entry: isManualEntry || undefined,
+      recorded_at: manualOpts?.recordedAt,
+      special_instructions: orderNotes || undefined,
+    };
+
+    // 1. Create checkout session via API
+    const response = await checkoutSessionService.posCreate(sessionData);
+    let csSession = response.data;
+
+    // 2. Handle by payment method
+    if (csSession.status === 'confirmed' && csSession.order) {
+      // Instant methods (manual_momo, no_charge, wallet, ghqr) — already confirmed
+    } else if (method === 'cash') {
+      // Cash: confirm immediately (staff already verified cash received)
+      const confirmed = await checkoutSessionService.confirmCash(csSession.session_token);
+      csSession = confirmed.data;
+    } else if (method === 'card') {
+      // Card: confirm immediately (staff already swiped card)
+      const confirmed = await checkoutSessionService.confirmCard(csSession.session_token);
+      csSession = confirmed.data;
+    } else if (method === 'mobile_money') {
+      // MoMo: Hubtel RMP already initiated by backend, return pending order for polling
+      // The caller (handlePaymentComplete) handles the pending state
+    }
+
+    // 3. Map checkout session result to local Order type
+    const apiOrder = csSession.order;
+    const order: Order = {
+      id: apiOrder ? String(apiOrder.id) : csSession.session_token,
+      orderNumber: apiOrder?.order_number ?? csSession.session_token,
+      status: apiOrder ? (apiOrder.status as Order['status']) : 'received',
       source: isManualEntry ? 'manual_entry' : 'pos',
       fulfillmentType: orderType,
       paymentMethod: method,
+      paymentStatus: csSession.status === 'confirmed' ? 'completed' : 'pending',
+      isPaid: csSession.status === 'confirmed',
       items: cart.map(item => ({
+        id: item.id,
         menuItemId: item.menuItemId,
         name: item.name,
         quantity: item.quantity,
         unitPrice: item.price,
         image: item.image,
-        sizeId: item.sizeId,
-        variantKey: item.variantKey,
+        sizeLabel: item.variantKey,
       })),
+      subtotal: csSession.subtotal,
+      deliveryFee: 0,
+      discount: discount ?? 0,
+      tax: 0,
+      serviceCharge: csSession.service_charge ?? 0,
+      total: csSession.total_amount,
       contact: {
         name: customerName || 'Walk-in',
         phone: customerPhone || '',
         notes: orderNotes || undefined,
       },
-      branchId: session?.branchId ?? '',
-      branchName: branch?.name ?? '',
-      branchAddress: branch?.address,
-      branchPhone: branch?.phone,
-      branchCoordinates: branch?.coordinates,
+      branch: {
+        id: session?.branchId ?? '',
+        name: branch?.name ?? '',
+        address: branch?.address ?? '',
+        phone: branch?.phone ?? '',
+        coordinates: branch?.coordinates ?? { latitude: 0, longitude: 0 },
+      },
       staffId: session?.staffId,
       staffName: session?.staffName,
-      discount: discount && discount > 0 ? discount : undefined,
-      amountPaid,
-      momoNumber,
-      // Manual entry
-      isManualEntry: isManualEntry || undefined,
-      recordedAt: manualOpts?.recordedAt,
-      momoReference: manualOpts?.momoReference,
+      placedAt: Date.now(),
+      estimatedMinutes: 15,
+      timeline: [],
+      // Store session token for polling pending MoMo payments
+      _sessionToken: csSession.session_token,
     };
 
-    const order = await createOrder(input);
+    // Add to local order store for today's tracking
+    if (csSession.status === 'confirmed') {
+      const input: CreateOrderInput = {
+        source: isManualEntry ? 'manual_entry' : 'pos',
+        fulfillmentType: orderType,
+        paymentMethod: method,
+        items: cart.map(item => ({
+          menuItemId: item.menuItemId,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.price,
+          image: item.image,
+          sizeId: item.sizeId,
+          variantKey: item.variantKey,
+        })),
+        contact: {
+          name: customerName || 'Walk-in',
+          phone: customerPhone || '',
+          notes: orderNotes || undefined,
+        },
+        branchId: session?.branchId ?? '',
+        branchName: branch?.name ?? '',
+        branchAddress: branch?.address,
+        branchPhone: branch?.phone,
+        branchCoordinates: branch?.coordinates,
+        staffId: session?.staffId,
+        staffName: session?.staffName,
+        discount: discount && discount > 0 ? discount : undefined,
+        amountPaid,
+      };
 
-    if (staffUser && staffUser.role !== 'kitchen' && staffUser.role !== 'rider') {
-      getShiftService()
-        .getActive(String(staffUser.id))
-        .then((shift) => {
-          if (shift) {
-            getShiftService().addOrder(shift.id, order.orderNumber, order.total).catch(() => {});
-          }
-        })
-        .catch(() => {});
+      createOrder(input);
+
+      // Track shift order
+      if (staffUser && staffUser.role !== 'kitchen' && staffUser.role !== 'rider') {
+        getShiftService()
+          .getActive(String(staffUser.id))
+          .then((shift) => {
+            if (shift) {
+              getShiftService().addOrder(shift.id, order.orderNumber, order.total).catch(() => {});
+            }
+          })
+          .catch(() => {});
+      }
     }
 
     // Clear cart and reset manual entry mode
