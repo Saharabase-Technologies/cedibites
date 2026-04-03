@@ -25,7 +25,7 @@ const CATEGORY_ICONS: Record<string, string> = {
     'All': '',
     'Main Dishes': '',
     'Combos': '',
-    'Starters & Sides': '',
+    'Starters & sides': '',
     'Appetizers': '',
     'Drinks': '',
     'Desserts': '',
