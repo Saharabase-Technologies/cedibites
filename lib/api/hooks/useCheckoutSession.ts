@@ -15,7 +15,7 @@ export const useCheckoutSessionStatus = (token: string | null) => {
     queryFn: () => checkoutSessionService.getStatus(token!),
     enabled: !!token,
     refetchInterval: (query) => {
-      const status = query.state.data?.data?.status;
+      const status = query.state.data?.status;
       if (!status) return 3000;
       // Stop polling on terminal states
       if (['confirmed', 'failed', 'expired', 'abandoned'].includes(status)) return false;
@@ -24,7 +24,7 @@ export const useCheckoutSessionStatus = (token: string | null) => {
   });
 
   return {
-    session: query.data?.data ?? null,
+    session: query.data ?? null,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

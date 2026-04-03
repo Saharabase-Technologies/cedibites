@@ -792,7 +792,7 @@ export default function CheckoutPage() {
         if (!effectiveBranch) return;
         setPlacing(true);
         try {
-            const response = await createSession.mutateAsync({
+            const session = await createSession.mutateAsync({
                 branch_id: Number(effectiveBranch.id),
                 order_type: orderType,
                 customer_name: contact.name,
@@ -803,8 +803,6 @@ export default function CheckoutPage() {
                 special_instructions: contact.note || undefined,
                 payment_method: paymentMethod,
             });
-
-            const session = response.data;
 
             if (paymentMethod === 'mobile_money') {
                 // Redirect to Hubtel checkout if we have a URL

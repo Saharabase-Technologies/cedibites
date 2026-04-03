@@ -30,11 +30,11 @@ export interface ChangePaymentMethodRequest {
 export const checkoutSessionService = {
   // --- Online (customer) ---
 
-  create: (data: CreateCheckoutSessionRequest): Promise<{ data: CheckoutSession }> => {
+  create: (data: CreateCheckoutSessionRequest): Promise<CheckoutSession> => {
     return apiClient.post('/checkout-sessions', data);
   },
 
-  getStatus: (token: string): Promise<{ data: CheckoutSession }> => {
+  getStatus: (token: string): Promise<CheckoutSession> => {
     return apiClient.get(`/checkout-sessions/${token}`);
   },
 
@@ -42,11 +42,11 @@ export const checkoutSessionService = {
     return apiClient.delete(`/checkout-sessions/${token}`);
   },
 
-  retryPayment: (token: string, data?: RetryPaymentRequest): Promise<{ data: CheckoutSession }> => {
+  retryPayment: (token: string, data?: RetryPaymentRequest): Promise<CheckoutSession> => {
     return apiClient.post(`/checkout-sessions/${token}/retry-payment`, data ?? {});
   },
 
-  changePaymentMethod: (token: string, data: ChangePaymentMethodRequest): Promise<{ data: CheckoutSession }> => {
+  changePaymentMethod: (token: string, data: ChangePaymentMethodRequest): Promise<CheckoutSession> => {
     return apiClient.post(`/checkout-sessions/${token}/change-payment`, data);
   },
 
@@ -70,7 +70,7 @@ export const checkoutSessionService = {
     recorded_at?: string;
     customer_notes?: string;
     discount?: number;
-  }): Promise<{ data: CheckoutSession }> => {
+  }): Promise<CheckoutSession> => {
     return apiClient.post('/pos/checkout-sessions', data);
   },
 
@@ -81,23 +81,23 @@ export const checkoutSessionService = {
     return apiClient.get('/pos/checkout-sessions', { params });
   },
 
-  posGetStatus: (token: string): Promise<{ data: CheckoutSession }> => {
+  posGetStatus: (token: string): Promise<CheckoutSession> => {
     return apiClient.get(`/pos/checkout-sessions/${token}`);
   },
 
-  confirmCash: (token: string, amountPaid: number): Promise<{ data: CheckoutSession }> => {
+  confirmCash: (token: string, amountPaid: number): Promise<CheckoutSession> => {
     return apiClient.post(`/pos/checkout-sessions/${token}/confirm-cash`, { amount_paid: amountPaid });
   },
 
-  confirmCard: (token: string, amountPaid: number): Promise<{ data: CheckoutSession }> => {
+  confirmCard: (token: string, amountPaid: number): Promise<CheckoutSession> => {
     return apiClient.post(`/pos/checkout-sessions/${token}/confirm-card`, { amount_paid: amountPaid });
   },
 
-  posRetryPayment: (token: string, data?: RetryPaymentRequest): Promise<{ data: CheckoutSession }> => {
+  posRetryPayment: (token: string, data?: RetryPaymentRequest): Promise<CheckoutSession> => {
     return apiClient.post(`/pos/checkout-sessions/${token}/retry-payment`, data ?? {});
   },
 
-  posChangePayment: (token: string, data: ChangePaymentMethodRequest): Promise<{ data: CheckoutSession }> => {
+  posChangePayment: (token: string, data: ChangePaymentMethodRequest): Promise<CheckoutSession> => {
     return apiClient.post(`/pos/checkout-sessions/${token}/change-payment`, data);
   },
 

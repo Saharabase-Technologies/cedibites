@@ -263,20 +263,17 @@ export function POSProvider({ children }: POSProviderProps) {
     };
 
     // 1. Create checkout session via API
-    const response = await checkoutSessionService.posCreate(sessionData);
-    let csSession = response.data;
+    let csSession = await checkoutSessionService.posCreate(sessionData);
 
     // 2. Handle by payment method
     if (csSession.status === 'confirmed' && csSession.order) {
       // Instant methods (manual_momo, no_charge, wallet, ghqr) — already confirmed
     } else if (method === 'cash') {
       // Cash: confirm immediately (staff already verified cash received)
-      const confirmed = await checkoutSessionService.confirmCash(csSession.session_token, amountPaid ?? csSession.total_amount);
-      csSession = confirmed.data;
+      csSession = await checkoutSessionService.confirmCash(csSession.session_token, amountPaid ?? csSession.total_amount);
     } else if (method === 'card') {
       // Card: confirm immediately (staff already swiped card)
-      const confirmed = await checkoutSessionService.confirmCard(csSession.session_token, amountPaid ?? csSession.total_amount);
-      csSession = confirmed.data;
+      csSession = await checkoutSessionService.confirmCard(csSession.session_token, amountPaid ?? csSession.total_amount);
     } else if (method === 'mobile_money') {
       // MoMo: Hubtel RMP already initiated by backend, return pending order for polling
       // The caller (handlePaymentComplete) handles the pending state
