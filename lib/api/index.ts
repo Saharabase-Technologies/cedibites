@@ -9,6 +9,7 @@ export * from './services/dashboard.service';
 export * from './services/notification.service';
 export * from './services/staff.service';
 export * from './services/activityLog.service';
+export * from './services/checkout-session.service';
 
 // Export all hooks
 export * from './hooks/useAuth';
@@ -22,6 +23,7 @@ export * from './hooks/useAdminDashboard';
 export * from './hooks/useNotifications';
 export * from './hooks/useActivityLogs';
 export * from './hooks/useCustomers';
+export * from './hooks/useCheckoutSession';
 
 // Export client and types
 export { default as apiClient, ApiError } from './client';

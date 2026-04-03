@@ -39,6 +39,9 @@ export interface AdminOrder {
   createdAt: string;
   timeAgo?: string;
   timeline: TimelineEvent[];
+  cancelRequestedBy?: string | null;
+  cancelRequestReason?: string | null;
+  cancelRequestedAt?: string | null;
 }
 
 const SOURCE_MAP: Record<string, OrderSource> = {
@@ -224,6 +227,9 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
     placedAtFull: formatPlacedAtFull(api.created_at),
     timeAgo: formatTimeAgo(api.created_at),
     timeline,
+    cancelRequestedBy: api.cancel_requested_by_user?.name ?? (api.cancel_requested_by ? `Staff #${api.cancel_requested_by}` : null),
+    cancelRequestReason: api.cancel_request_reason ?? null,
+    cancelRequestedAt: api.cancel_requested_at ?? null,
   };
 }
 

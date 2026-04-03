@@ -29,6 +29,7 @@ import type { Order, OrderStatus, FulfillmentType } from '@/types/order';
 import { STATUS_CONFIG } from '@/lib/constants/order.constants';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { toast } from '@/lib/utils/toast';
+import apiClient from '@/lib/api/client';
 
 function formatTimeAgo(timestamp: number): string {
   const minutes = Math.floor((Date.now() - timestamp) / 60000);
@@ -186,13 +187,21 @@ export default function OrderManagerPage() {
     handleStatusUpdate(orderId, 'completed', { completedAt: Date.now() });
   }, [handleStatusUpdate]);
 
-  const approveCancel = useCallback((orderId: string) => {
-    handleStatusUpdate(orderId, 'cancelled', { completedAt: Date.now() });
+  const approveCancel = useCallback(async (orderId: string) => {
+    try {
+      await apiClient.post(`/admin/orders/${orderId}/approve-cancel`);
+      // Refresh local state
+      handleStatusUpdate(orderId, 'cancelled', { completedAt: Date.now() });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to approve cancellation';
+      toast.error(message);
+    }
   }, [handleStatusUpdate]);
 
   const rejectCancel = useCallback(async (order: Order) => {
-    const restoreStatus = (order.cancelPreviousStatus ?? 'received') as OrderStatus;
     try {
+      await apiClient.post(`/admin/orders/${order.id}/reject-cancel`);
+      const restoreStatus = (order.cancelPreviousStatus ?? 'received') as OrderStatus;
       await updateOrder(order.id, {
         status: restoreStatus,
         cancelRequestedBy: undefined,

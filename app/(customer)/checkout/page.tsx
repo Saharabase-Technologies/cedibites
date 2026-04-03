@@ -16,7 +16,7 @@ import { useCart, CartItem } from '@/app/components/providers/CartProvider';
 import { useBranch, Branch, BranchWithDistance } from '@/app/components/providers/BranchProvider';
 import { useLocation } from '@/app/components/providers/LocationProvider';
 import { useAuth } from '@/app/components/providers/AuthProvider';
-import { useCreateOrder } from '@/lib/api/hooks/useOrders';
+import { useCreateCheckoutSession, useCheckoutSessionStatus, useAbandonCheckoutSession, useRetryPayment, useChangePaymentMethod } from '@/lib/api/hooks/useCheckoutSession';
 import type { PaymentMethod as UnifiedPaymentMethod, FulfillmentType } from '@/types/order';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import apiClient, { ApiError } from '@/lib/api/client';
@@ -25,7 +25,7 @@ import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
 type OrderType = 'delivery' | 'pickup';
 type PaymentMethod = 'mobile_money' | 'cash';
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
 type BranchSheetView = 'list' | 'conflict';
 
 interface ContactDetails { name: string; phone: string; address: string; note: string; }
@@ -333,7 +333,7 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
 // ─── Step Indicator ───────────────────────────────────────────────────────────
 function StepIndicator({ current }: { current: Step }) {
-    const steps = [{ n: 1, label: 'Details' }, { n: 2, label: 'Payment' }, { n: 3, label: 'Done' }];
+    const steps = [{ n: 1, label: 'Details' }, { n: 2, label: 'Payment' }, { n: 3, label: 'Processing' }, { n: 4, label: 'Done' }];
     return (
         <div className="flex items-center">
             {steps.map((s, i) => {
@@ -359,7 +359,8 @@ function OrderSummary({ orderType }: { orderType: OrderType }) {
     const { displayItems: items, subtotal } = useCart();
     const { selectedBranch } = useBranch();
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
-    const total = subtotal + delivery;
+    const serviceCharge = Math.round(subtotal * 0.01 * 100) / 100; // 1% service charge
+    const total = subtotal + delivery + serviceCharge;
     return (
         <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
             <div className="flex items-center justify-between">
@@ -384,6 +385,7 @@ function OrderSummary({ orderType }: { orderType: OrderType }) {
             <div className="flex flex-col gap-2 text-sm">
                 <div className="flex justify-between"><span className="text-neutral-gray">Subtotal</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(subtotal)}</span></div>
                 <div className="flex justify-between"><span className="text-neutral-gray">Delivery Fee</span><span className="font-semibold text-text-dark dark:text-text-light">{orderType === 'delivery' ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-gray">Service Charge (1%)</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(serviceCharge)}</span></div>
             </div>
             <div className="h-px bg-neutral-gray/10" />
             <div className="flex justify-between items-center">
@@ -497,7 +499,8 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
     const { selectedBranch } = useBranch();
     const [branchSheetOpen, setBranchSheetOpen] = useState(false);
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
-    const total = subtotal + delivery;
+    const serviceCharge = Math.round(subtotal * 0.01 * 100) / 100;
+    const total = subtotal + delivery + serviceCharge;
 
     const methods = [
         { id: 'mobile_money' as const, icon: <DeviceMobileIcon weight="fill" size={20} />, label: 'Mobile Money', sub: 'MTN MoMo · Telecel · AirtelTigo', color: 'text-warning' },
@@ -572,7 +575,59 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
     );
 }
 
-// ─── Step 3 ───────────────────────────────────────────────────────────────────
+// ─── Step 3: Payment Processing (polls checkout session) ──────────────────────
+function StepProcessing({ sessionToken, onSuccess, onFail, onAbandon }: {
+    sessionToken: string;
+    onSuccess: (orderNumber: string) => void;
+    onFail: (message: string) => void;
+    onAbandon: () => void;
+}) {
+    const { session } = useCheckoutSessionStatus(sessionToken);
+    const abandon = useAbandonCheckoutSession();
+
+    useEffect(() => {
+        if (!session) return;
+        if (session.status === 'confirmed' && session.order?.order_number) {
+            onSuccess(session.order.order_number);
+        } else if (session.status === 'failed') {
+            onFail('Payment failed. Please try again.');
+        } else if (session.status === 'expired') {
+            onFail('Payment session expired. Please start a new checkout.');
+        }
+    }, [session, onSuccess, onFail]);
+
+    const handleAbandon = async () => {
+        try {
+            await abandon.mutateAsync(sessionToken);
+        } catch { /* ignore */ }
+        onAbandon();
+    };
+
+    return (
+        <div className="flex flex-col items-center gap-6 py-12 text-center">
+            <div className="w-20 h-20 rounded-full bg-primary/15 flex items-center justify-center">
+                <SpinnerGapIcon size={40} className="text-primary animate-spin" />
+            </div>
+            <div>
+                <h2 className="text-xl font-bold text-text-dark dark:text-text-light">Awaiting Payment</h2>
+                <p className="text-sm text-neutral-gray mt-2">
+                    Complete the payment on the Hubtel page.<br />
+                    This page will update automatically once confirmed.
+                </p>
+            </div>
+            <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 w-full max-w-sm text-sm text-text-dark dark:text-text-light text-left flex items-start gap-3">
+                <DeviceMobileIcon weight="fill" size={18} className="text-primary shrink-0 mt-0.5" />
+                <span>If prompted on your phone, approve the Mobile Money payment to continue.</span>
+            </div>
+            <button onClick={handleAbandon} disabled={abandon.isPending}
+                className="text-sm font-semibold text-neutral-gray hover:text-error transition-colors cursor-pointer mt-2">
+                {abandon.isPending ? 'Cancelling...' : 'Cancel & go back'}
+            </button>
+        </div>
+    );
+}
+
+// ─── Step 4 ───────────────────────────────────────────────────────────────────
 function StepDone({ orderNumber, orderType, contact }: {
     orderNumber: string; orderType: OrderType; contact: ContactDetails;
 }) {
@@ -722,12 +777,13 @@ export default function CheckoutPage() {
     const { displayItems: items, clearCart, subtotal } = useCart();
     const { selectedBranch, branches } = useBranch();
     const { coordinates } = useLocation();
-    const { createOrder } = useCreateOrder();
+    const createSession = useCreateCheckoutSession();
     const [step, setStep] = useState<Step>(1);
     const [orderType, setOrderType] = useState<OrderType>('delivery');
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mobile_money');
     const [placing, setPlacing] = useState(false);
     const [orderNumber, setOrderNumber] = useState('');
+    const [sessionToken, setSessionToken] = useState<string | null>(null);
     const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });
 
     const effectiveBranch = selectedBranch ?? branches.find(b => b.isOpen) ?? branches[0] ?? null;
@@ -736,12 +792,11 @@ export default function CheckoutPage() {
         if (!effectiveBranch) return;
         setPlacing(true);
         try {
-            // Create order via API
-            const response = await createOrder({
+            const response = await createSession.mutateAsync({
                 branch_id: Number(effectiveBranch.id),
                 order_type: orderType,
                 customer_name: contact.name,
-                customer_phone: contact.phone,
+                customer_phone: normalizeGhanaPhone(contact.phone),
                 delivery_address: orderType === 'delivery' ? contact.address : undefined,
                 delivery_latitude: orderType === 'delivery' && coordinates ? coordinates.latitude : undefined,
                 delivery_longitude: orderType === 'delivery' && coordinates ? coordinates.longitude : undefined,
@@ -749,59 +804,75 @@ export default function CheckoutPage() {
                 payment_method: paymentMethod,
             });
 
-            const order = response.data;
+            const session = response.data;
 
             if (paymentMethod === 'mobile_money') {
-                // Format phone to 233XXXXXXXXX for Hubtel
-                const formattedPhone = contact.phone.replace(/\s+/g, '').replace(/^\+/, '').replace(/^0/, '233');
-
-                // Initiate Hubtel checkout — returns a checkoutUrl to redirect the customer
-                const paymentResponse = await apiClient.post(
-                    `/orders/${order.id}/payments/hubtel/initiate`,
-                    {
-                        description: `Order ${order.order_number} - ${effectiveBranch.name}`,
-                        customer_name: contact.name,
-                        customer_phone: formattedPhone,
-                    }
-                ) as { data?: { checkout_url?: string } };
-
-                const checkoutUrl = paymentResponse?.data?.checkout_url;
-                if (checkoutUrl) {
+                // Redirect to Hubtel checkout if we have a URL
+                if (session.checkout_url) {
                     clearCart();
-                    window.location.href = checkoutUrl;
+                    window.location.href = session.checkout_url;
                     return;
                 }
-                // Fallback: Hubtel not configured — treat as placed
-                toast.info('Payment will be collected on delivery/pickup.');
+                // Otherwise poll for status (e.g. if redirect didn't happen)
+                setSessionToken(session.session_token);
+                setStep(3);
+            } else {
+                // Cash: backend creates order immediately
+                if (session.status === 'confirmed' && session.order?.order_number) {
+                    clearCart();
+                    setOrderNumber(session.order.order_number);
+                    setStep(4);
+                } else {
+                    // Session still pending — poll for status
+                    setSessionToken(session.session_token);
+                    setStep(3);
+                }
             }
-
-            clearCart();
-            setOrderNumber(order.order_number);
-            setStep(3);
         } catch (err: unknown) {
             const msg = err instanceof ApiError ? err.message : 'Failed to place order. Please try again.';
             toast.error(msg);
         } finally {
             setPlacing(false);
         }
-    }, [effectiveBranch, paymentMethod, orderType, contact, coordinates, createOrder, clearCart]);
+    }, [effectiveBranch, paymentMethod, orderType, contact, coordinates, createSession, clearCart]);
 
-    if (items.length === 0 && step !== 3) return <EmptyCartGuard />;
+    const handleProcessingSuccess = useCallback((num: string) => {
+        clearCart();
+        setOrderNumber(num);
+        setStep(4);
+    }, [clearCart]);
+
+    const handleProcessingFail = useCallback((message: string) => {
+        toast.error(message);
+        setStep(2);
+        setSessionToken(null);
+    }, []);
+
+    const handleProcessingAbandon = useCallback(() => {
+        setStep(2);
+        setSessionToken(null);
+    }, []);
+
+    if (items.length === 0 && step !== 3 && step !== 4) return <EmptyCartGuard />;
 
     return (
         <div className="min-h-screen bg-neutral-light dark:bg-brand-darker pt-20 pb-12">
             <div className="w-[95%] md:w-[85%] xl:w-[75%] max-w-5xl mx-auto">
                 <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-text-dark dark:text-text-light">{step === 3 ? 'Order Confirmed' : 'Checkout'}</h1>
-                        {step !== 3 && <p className="text-sm text-neutral-gray mt-1">Complete your order details below</p>}
+                        <h1 className="text-2xl md:text-3xl font-bold text-text-dark dark:text-text-light">{step === 4 ? 'Order Confirmed' : step === 3 ? 'Processing Payment' : 'Checkout'}</h1>
+                        {step <= 2 && <p className="text-sm text-neutral-gray mt-1">Complete your order details below</p>}
                     </div>
-                    {step !== 3 && <StepIndicator current={step} />}
+                    {step <= 3 && <StepIndicator current={step} />}
                 </div>
 
-                {step === 3 ? (
+                {step === 4 ? (
                     <div className="max-w-md mx-auto">
                         <StepDone orderNumber={orderNumber} orderType={orderType} contact={contact} />
+                    </div>
+                ) : step === 3 && sessionToken ? (
+                    <div className="max-w-md mx-auto">
+                        <StepProcessing sessionToken={sessionToken} onSuccess={handleProcessingSuccess} onFail={handleProcessingFail} onAbandon={handleProcessingAbandon} />
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">

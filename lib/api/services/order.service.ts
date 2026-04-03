@@ -75,6 +75,13 @@ export const orderService = {
   },
 
   /**
+   * Request cancel (staff) — requires admin approval
+   */
+  requestCancel: (id: number, reason: string): Promise<{ data: Order }> => {
+    return apiClient.post(`/employee/orders/${id}/request-cancel`, { reason });
+  },
+
+  /**
    * Get employee/admin orders (paginated). Uses staff token.
    */
   getEmployeeOrders: (params?: EmployeeOrdersParams): Promise<PaginatedResponse<Order>> => {

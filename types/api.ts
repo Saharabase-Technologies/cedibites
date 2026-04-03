@@ -198,13 +198,60 @@ export type OrderStatus =
   | 'out_for_delivery'
   | 'delivered'
   | 'completed'
+  | 'cancel_requested'
   | 'cancelled';
 
 export type OrderType = 'delivery' | 'pickup';
 
-export type PaymentMethod = 'mobile_money' | 'cash';
+export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'manual_momo' | 'no_charge' | 'wallet' | 'ghqr';
 
 export type PaymentStatus = 'pending' | 'paid' | 'completed' | 'failed' | 'refunded' | 'no_charge';
+
+export type CheckoutSessionStatus =
+  | 'pending'
+  | 'payment_initiated'
+  | 'confirmed'
+  | 'failed'
+  | 'expired'
+  | 'abandoned';
+
+export interface CheckoutSession {
+  id: number;
+  session_token: string;
+  branch_id: number;
+  branch?: Branch;
+  session_type: 'online' | 'pos';
+  status: CheckoutSessionStatus;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  order_type?: OrderType;
+  delivery_address?: string;
+  special_instructions?: string;
+  items: CheckoutSessionItem[];
+  subtotal: number;
+  delivery_fee: number;
+  service_charge: number;
+  total_amount: number;
+  payment_method?: PaymentMethod;
+  momo_number?: string;
+  checkout_url?: string | null;
+  order_id?: number | null;
+  order?: Order | null;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CheckoutSessionItem {
+  menu_item_id: number;
+  menu_item_option_id?: number | null;
+  name: string;
+  option_label?: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+}
 
 export interface OrderItem {
   id: number;
@@ -269,6 +316,7 @@ export interface Order {
   payments?: Payment[];
   subtotal: number;
   delivery_fee: number;
+  service_charge?: number;
   tax?: number;
   tax_amount?: number;
   total?: number;
@@ -287,6 +335,10 @@ export interface Order {
   amount_paid?: number;
   discount?: number;
   staff_name?: string;
+  cancel_requested_by?: number | null;
+  cancel_request_reason?: string | null;
+  cancel_requested_at?: string | null;
+  cancel_requested_by_user?: { id: number; name?: string | null } | null;
   created_at: string;
   updated_at: string;
 }
