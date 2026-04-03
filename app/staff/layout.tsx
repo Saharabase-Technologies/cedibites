@@ -150,8 +150,8 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
     const isManagerPortal = can('access_manager_portal');
 
     const mainNav = isManagerPortal
-        ? MANAGER_NAV_MAIN.filter(i => !i.permission || can(i.permission))
-        : SALES_NAV.filter(i => (!i.permission || can(i.permission)) && (!('roles' in i) || !i.roles || i.roles.includes(staffUser.role)));
+        ? MANAGER_NAV_MAIN.filter(i => !('permission' in i) || can((i as { permission: string }).permission))
+        : SALES_NAV.filter(i => (!('permission' in i) || can((i as { permission: string }).permission)) && (!('roles' in i) || !(i as { roles?: string[] }).roles || (i as { roles?: string[] }).roles!.includes(staffUser.role)));
 
     const toolsNav = isManagerPortal
         ? MANAGER_NAV_TOOLS.filter(i => can(i.permission))
