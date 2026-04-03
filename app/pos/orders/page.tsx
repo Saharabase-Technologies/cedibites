@@ -30,6 +30,8 @@ import { formatOrderLineItemSummary } from '@/lib/utils/orderItemDisplay';
 import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
 import { useRequestCancel } from '@/lib/api/hooks/useOrders';
 import { toast } from '@/lib/utils/toast';
+import { useQueryClient } from '@tanstack/react-query';
+import { getEcho } from '@/lib/echo';
 
 function formatOrderTime(placedAt: number): string {
   if (!placedAt) {
@@ -54,6 +56,7 @@ export default function POSOrdersPage() {
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
   const { requestCancel } = useRequestCancel();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (isSessionLoaded && !isSessionValid) {
@@ -76,6 +79,27 @@ export default function POSOrdersPage() {
     date_to: today,
     per_page: 100,
   });
+
+  // ─── Real-time order updates via Reverb ───────────────────────────────
+  useEffect(() => {
+    const branchId = session?.branchId;
+    if (!branchId) return;
+
+    const echo = getEcho();
+    if (!echo) return;
+
+    const channel = echo.private(`orders.branch.${branchId}`);
+
+    const handler = () => {
+      queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+    };
+
+    channel.listen('.order.updated', handler);
+
+    return () => {
+      channel.stopListening('.order.updated', handler);
+    };
+  }, [session?.branchId, queryClient]);
 
   const todayOrders = useMemo(
     () => rawOrders.map(mapApiOrderToOrder).sort((a, b) => b.placedAt - a.placedAt),
