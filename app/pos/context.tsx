@@ -248,16 +248,18 @@ export function POSProvider({ children }: POSProviderProps) {
         menu_item_id: Number(item.menuItemId),
         menu_item_option_id: item.sizeId ? Number(item.sizeId) : undefined,
         quantity: item.quantity,
+        unit_price: item.price,
         special_instructions: undefined as string | undefined,
       })),
-      order_type: 'pickup' as const,
-      customer_name: customerName || 'Walk-in',
-      customer_phone: customerPhone ? normalizeGhanaPhone(customerPhone) : undefined,
+      fulfillment_type: orderType as string,
+      contact_name: customerName || 'Walk-in',
+      contact_phone: customerPhone ? normalizeGhanaPhone(customerPhone) : '0000000000',
       payment_method: method,
       momo_number: momoNumber ? normalizeGhanaPhone(momoNumber) : undefined,
       is_manual_entry: isManualEntry || undefined,
       recorded_at: manualOpts?.recordedAt,
-      special_instructions: orderNotes || undefined,
+      customer_notes: orderNotes || undefined,
+      discount: discount && discount > 0 ? discount : undefined,
     };
 
     // 1. Create checkout session via API

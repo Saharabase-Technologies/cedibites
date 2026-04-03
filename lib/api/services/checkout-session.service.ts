@@ -58,17 +58,18 @@ export const checkoutSessionService = {
       menu_item_id: number;
       menu_item_option_id?: number;
       quantity: number;
+      unit_price: number;
       special_instructions?: string;
     }>;
-    order_type: OrderType;
-    customer_name?: string;
-    customer_phone?: string;
+    fulfillment_type: string;
+    contact_name: string;
+    contact_phone: string;
     payment_method: PaymentMethod;
     momo_number?: string;
-    momo_network?: string;
     is_manual_entry?: boolean;
     recorded_at?: string;
-    special_instructions?: string;
+    customer_notes?: string;
+    discount?: number;
   }): Promise<{ data: CheckoutSession }> => {
     return apiClient.post('/pos/checkout-sessions', data);
   },
