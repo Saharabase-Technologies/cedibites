@@ -110,7 +110,7 @@ export const useConfirmCash = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (token: string) => checkoutSessionService.confirmCash(token),
+    mutationFn: ({ token, amountPaid }: { token: string; amountPaid: number }) => checkoutSessionService.confirmCash(token, amountPaid),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pos-checkout-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -123,7 +123,7 @@ export const useConfirmCard = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (token: string) => checkoutSessionService.confirmCard(token),
+    mutationFn: ({ token, amountPaid }: { token: string; amountPaid: number }) => checkoutSessionService.confirmCard(token, amountPaid),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pos-checkout-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });

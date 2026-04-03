@@ -68,7 +68,7 @@ function SessionCard({
 }: {
   session: CheckoutSession;
   onResend: (token: string, phone?: string) => Promise<void>;
-  onPayCash: (token: string) => Promise<void>;
+  onPayCash: (token: string, totalAmount: number) => Promise<void>;
   onDelete: (token: string) => Promise<void>;
 }) {
   const [isActing, setIsActing] = useState(false);
@@ -209,7 +209,7 @@ function SessionCard({
 
             {/* Pay with cash */}
             <button
-              onClick={() => handleAction(() => onPayCash(session.session_token))}
+              onClick={() => handleAction(() => onPayCash(session.session_token, session.total_amount))}
               className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-green-50 text-green-700 text-xs font-medium hover:bg-green-100 transition-colors"
               title="Switch to cash payment"
             >
@@ -272,8 +272,8 @@ export default function PendingPaymentsDrawer({
     refetch();
   };
 
-  const handlePayCash = async (token: string) => {
-    const response = await checkoutSessionService.confirmCash(token);
+  const handlePayCash = async (token: string, totalAmount: number) => {
+    const response = await checkoutSessionService.confirmCash(token, totalAmount);
     toast.success('Cash payment confirmed');
     onSessionConfirmed?.(response.data);
     refetch();

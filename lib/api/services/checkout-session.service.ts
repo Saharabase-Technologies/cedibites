@@ -85,12 +85,12 @@ export const checkoutSessionService = {
     return apiClient.get(`/pos/checkout-sessions/${token}`);
   },
 
-  confirmCash: (token: string): Promise<{ data: CheckoutSession }> => {
-    return apiClient.post(`/pos/checkout-sessions/${token}/confirm-cash`);
+  confirmCash: (token: string, amountPaid: number): Promise<{ data: CheckoutSession }> => {
+    return apiClient.post(`/pos/checkout-sessions/${token}/confirm-cash`, { amount_paid: amountPaid });
   },
 
-  confirmCard: (token: string): Promise<{ data: CheckoutSession }> => {
-    return apiClient.post(`/pos/checkout-sessions/${token}/confirm-card`);
+  confirmCard: (token: string, amountPaid: number): Promise<{ data: CheckoutSession }> => {
+    return apiClient.post(`/pos/checkout-sessions/${token}/confirm-card`, { amount_paid: amountPaid });
   },
 
   posRetryPayment: (token: string, data?: RetryPaymentRequest): Promise<{ data: CheckoutSession }> => {

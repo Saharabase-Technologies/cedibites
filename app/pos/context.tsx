@@ -271,11 +271,11 @@ export function POSProvider({ children }: POSProviderProps) {
       // Instant methods (manual_momo, no_charge, wallet, ghqr) — already confirmed
     } else if (method === 'cash') {
       // Cash: confirm immediately (staff already verified cash received)
-      const confirmed = await checkoutSessionService.confirmCash(csSession.session_token);
+      const confirmed = await checkoutSessionService.confirmCash(csSession.session_token, amountPaid ?? csSession.total_amount);
       csSession = confirmed.data;
     } else if (method === 'card') {
       // Card: confirm immediately (staff already swiped card)
-      const confirmed = await checkoutSessionService.confirmCard(csSession.session_token);
+      const confirmed = await checkoutSessionService.confirmCard(csSession.session_token, amountPaid ?? csSession.total_amount);
       csSession = confirmed.data;
     } else if (method === 'mobile_money') {
       // MoMo: Hubtel RMP already initiated by backend, return pending order for polling
