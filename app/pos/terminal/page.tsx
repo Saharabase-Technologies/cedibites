@@ -269,8 +269,13 @@ export default function POSTerminalPage() {
       } else {
         setCompletedOrder(order);
       }
-    } catch {
-      toast.error('Failed to create order. Please try again.');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> }; status?: number } };
+      const apiMsg = axiosErr?.response?.data?.message;
+      const apiErrors = axiosErr?.response?.data?.errors;
+      const status = axiosErr?.response?.status;
+      console.error('[POS] Order creation failed:', { status, apiMsg, apiErrors, err });
+      toast.error(apiMsg || 'Failed to create order. Please try again.');
     }
   };
 
