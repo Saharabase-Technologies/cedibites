@@ -273,9 +273,9 @@ export default function PendingPaymentsDrawer({
   };
 
   const handlePayCash = async (token: string, totalAmount: number) => {
-    const response = await checkoutSessionService.confirmCash(token, totalAmount);
+    const result = await checkoutSessionService.confirmCash(token, totalAmount);
     toast.success('Cash payment confirmed');
-    onSessionConfirmed?.(response.data);
+    onSessionConfirmed?.(result);
     refetch();
   };
 

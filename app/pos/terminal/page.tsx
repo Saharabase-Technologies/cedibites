@@ -1385,8 +1385,7 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
         if (sessionToken) {
           // New flow: poll checkout session status
           const { checkoutSessionService } = await import('@/lib/api/services/checkout-session.service');
-          const response = await checkoutSessionService.posGetStatus(sessionToken);
-          const session = response.data;
+          const session = await checkoutSessionService.posGetStatus(sessionToken);
 
           if (session.status === 'confirmed') {
             clearInterval(poll);
