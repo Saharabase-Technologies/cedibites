@@ -107,6 +107,7 @@ export function POSProvider({ children }: POSProviderProps) {
   // OrderStore
   const {
     orders: allOrders,
+    addLocalOrder,
     createOrder,
     updateOrderStatus: storeUpdateStatus,
   } = useOrderStore();
@@ -319,45 +320,16 @@ export function POSProvider({ children }: POSProviderProps) {
       },
       staffId: session?.staffId,
       staffName: session?.staffName,
-      placedAt: Date.now(),
+      placedAt: manualOpts?.recordedAt ? new Date(manualOpts.recordedAt).getTime() : Date.now(),
       estimatedMinutes: 15,
       timeline: [],
       // Store session token for polling pending MoMo payments
       _sessionToken: csSession.session_token,
     };
 
-    // Add to local order store for today's tracking
+    // Add to local order store for today's tracking (no API call - order already created via checkout session)
     if (csSession.status === 'confirmed') {
-      const input: CreateOrderInput = {
-        source: isManualEntry ? 'manual_entry' : 'pos',
-        fulfillmentType: orderType,
-        paymentMethod: method,
-        items: cart.map(item => ({
-          menuItemId: item.menuItemId,
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.price,
-          image: item.image,
-          sizeId: item.sizeId,
-          variantKey: item.variantKey,
-        })),
-        contact: {
-          name: customerName || 'Walk-in',
-          phone: customerPhone || '',
-          notes: orderNotes || undefined,
-        },
-        branchId: session?.branchId ?? '',
-        branchName: branch?.name ?? '',
-        branchAddress: branch?.address,
-        branchPhone: branch?.phone,
-        branchCoordinates: branch?.coordinates,
-        staffId: session?.staffId,
-        staffName: session?.staffName,
-        discount: discount && discount > 0 ? discount : undefined,
-        amountPaid,
-      };
-
-      createOrder(input);
+      addLocalOrder(order);
 
       // Track shift order
       if (staffUser && staffUser.role !== 'kitchen' && staffUser.role !== 'rider') {
@@ -378,7 +350,7 @@ export function POSProvider({ children }: POSProviderProps) {
     if (isManualEntry) setIsManualEntry(false);
 
     return order;
-  }, [cart, customerName, customerPhone, orderNotes, orderType, session, branches, createOrder, clearCart, staffUser, isManualEntry]);
+  }, [cart, customerName, customerPhone, orderNotes, orderType, session, branches, addLocalOrder, clearCart, staffUser, isManualEntry]);
 
   const updateOrderStatus = useCallback((orderId: string, status: Order['status']) => {
     const timestamps: Partial<Pick<Order, 'acceptedAt' | 'startedAt' | 'readyAt' | 'completedAt'>> = {};

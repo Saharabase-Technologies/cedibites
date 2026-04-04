@@ -18,6 +18,9 @@ interface OrderStoreContextType {
     /** Get filtered orders */
     getOrdersByFilter: (filter: OrderFilter) => Order[];
 
+    /** Add an order to local state without API call (used after checkout session creates it server-side) */
+    addLocalOrder: (order: Order) => void;
+
     /** Create a new order */
     createOrder: (input: CreateOrderInput) => Promise<Order>;
     /** Update order status */
@@ -116,6 +119,13 @@ export function OrderStoreProvider({ children }: { children: ReactNode }) {
 
     // ── Write ────────────────────────────────────────────────────────────
 
+    const addLocalOrder = useCallback((order: Order) => {
+        setOrders(prev => {
+            if (prev.some(o => o.id === order.id)) return prev;
+            return [order, ...prev];
+        });
+    }, []);
+
     const createOrder = useCallback(async (input: CreateOrderInput): Promise<Order> => {
         const service = getOrderService();
         const order = await service.create(input);
@@ -163,12 +173,13 @@ export function OrderStoreProvider({ children }: { children: ReactNode }) {
         isLoading,
         getOrderById,
         getOrdersByFilter,
+        addLocalOrder,
         createOrder,
         updateOrderStatus,
         updateOrder,
         deleteOrder,
         refresh,
-    }), [orders, isLoading, getOrderById, getOrdersByFilter, createOrder, updateOrderStatus, updateOrder, deleteOrder, refresh]);
+    }), [orders, isLoading, getOrderById, getOrdersByFilter, addLocalOrder, createOrder, updateOrderStatus, updateOrder, deleteOrder, refresh]);
 
     return (
         <OrderStoreContext.Provider value={value}>
