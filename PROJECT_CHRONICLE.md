@@ -81,39 +81,45 @@ Items still needing attention.
 
 ---
 
-
 ## [2026-04-04] Session: Restore Missing DB Enum CHECK Constraints (Production)
 
 ### Intent
+
 Production database inspection revealed that the `order_source` column on the `orders` table has **no CHECK constraint** — meaning any arbitrary string could be inserted. Investigation traced this to earlier migrations that dropped constraints and failed to consistently re-create them due to differing `LIKE` patterns. The same issue likely affects `order_type`, `status` on orders and `payment_method`, `payment_status` on payments.
 
 ### Root Cause
+
 Two migrations modify enum constraints on the `orders` table using different constraint-finding patterns:
+
 - `2026_04_02_145534` uses `LIKE '%{column}%'` (no parens) — broad match
 - `2026_04_03_100005` uses `LIKE '%({column})%'` (with parens) — strict match
 
 When the constraint format created by one migration doesn't match the lookup pattern of a later migration, constraints get dropped but not re-created. Result: production DB has `varchar(255)` columns with **no validation**.
 
 ### Changes Made
-| File | Change | Reason |
-|------|--------|--------|
-| (No frontend changes) | — | This is a backend-only DB integrity fix |
+
+| File                  | Change | Reason                                  |
+| --------------------- | ------ | --------------------------------------- |
+| (No frontend changes) | —      | This is a backend-only DB integrity fix |
 
 ### Cross-Repo Impact (API repo)
-| File | Change | Reason |
-|------|--------|--------|
+
+| File                                                                       | Change                                                                                              | Reason                                                                        |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `database/migrations/2026_04_04_080726_restore_enum_check_constraints.php` | **NEW** — Idempotently restores CHECK constraints on 5 enum columns across orders + payments tables | Production DB missing constraints = no DB-level validation on critical fields |
 
 ### Constraints Restored
-| Table | Column | Allowed Values |
-|-------|--------|---------------|
-| `orders` | `order_source` | online, phone, whatsapp, instagram, facebook, pos, manual_entry |
-| `orders` | `order_type` | delivery, pickup, dine_in, takeaway |
-| `orders` | `status` | received, accepted, preparing, ready, out_for_delivery, delivered, ready_for_pickup, completed, cancelled, cancel_requested |
-| `payments` | `payment_method` | mobile_money, card, wallet, ghqr, cash, no_charge, manual_momo |
-| `payments` | `payment_status` | pending, completed, failed, refunded, cancelled, expired, no_charge |
+
+| Table      | Column           | Allowed Values                                                                                                              |
+| ---------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `orders`   | `order_source`   | online, phone, whatsapp, instagram, facebook, pos, manual_entry                                                             |
+| `orders`   | `order_type`     | delivery, pickup, dine_in, takeaway                                                                                         |
+| `orders`   | `status`         | received, accepted, preparing, ready, out_for_delivery, delivered, ready_for_pickup, completed, cancelled, cancel_requested |
+| `payments` | `payment_method` | mobile_money, card, wallet, ghqr, cash, no_charge, manual_momo                                                              |
+| `payments` | `payment_status` | pending, completed, failed, refunded, cancelled, expired, no_charge                                                         |
 
 ### Decisions
+
 - **Decision**: Idempotent migration that drops+recreates all constraints regardless of current state
   - **Rationale**: Safest approach — works whether constraints exist, partially exist, or are completely missing
 - **Decision**: Canonical constraint naming: `{table}_{column}_check`
@@ -124,11 +130,13 @@ When the constraint format created by one migration doesn't match the lookup pat
   - **Rationale**: Migration `2026_04_02` also widened `payment_method` on payments — same risk applies
 
 ### Current State
+
 - **Migration ready** to run on production — will restore all 5 CHECK constraints
 - **No data cleanup needed** — existing data should already be valid (app logic enforces valid values)
 - **Branch**: `payment-order-bug-fixes`
 
 ### Pending / Follow-up
+
 - Run migration on production: `php artisan migrate`
 - After running, verify constraints exist in DB viewer (`check` column should show constraint definition)
 - Consider standardizing all future enum-widening migrations to use the same `ensureEnumConstraint()` pattern
@@ -138,34 +146,41 @@ When the constraint format created by one migration doesn't match the lookup pat
 ## [2026-04-04] Session: Fix Date Picker Not Showing in Record Past Order Modal
 
 ### Intent
+
 The "Record Past Order" payment modal in the POS terminal only showed a time picker, even when the `manual_entry_date_enabled` setting was turned on in admin. The engineer expected a full date+time picker when the setting is enabled, and time-only (for today) when disabled.
 
 ### Changes Made
-| File | Change | Reason |
-|------|--------|--------|
+
+| File                                                  | Change                                                                                      | Reason                                                                                                                                                                                             |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `app/pos/terminal/page.tsx` (PaymentModal, ~line 965) | Changed type of `val` from `string` to `unknown`; added `val === true` to the boolean check | API's `SystemSettingService::get()` casts boolean settings to actual JS `true`/`false`, not strings â€” the old `val === 'true' \|\| val === '1'` strict comparison never matched a boolean `true` |
 
 ### Root Cause
+
 The API `SystemSettingService::castValue()` for `type: 'boolean'` returns a real boolean via `filter_var(FILTER_VALIDATE_BOOLEAN)`. The settings GET route (`routes/employee.php`) uses `$service->get($key)` which returns this cast boolean. The JSON response sends `{ "data": { "value": true } }`. The frontend was comparing with `=== 'true'` (string), which never matches boolean `true`.
 
 ### Cross-Repo Impact
-| Area | Detail |
-|------|--------|
-| `cedibites_api/app/Services/SystemSettingService.php` | No change needed â€” the API behavior (returning typed booleans) is correct |
-| `cedibites_api/routes/employee.php` GET `/settings/{key}` | Returns cast values via `$service->get()` â€” boolean settings come as real booleans |
+
+| Area                                                             | Detail                                                                                                                                                                                            |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cedibites_api/app/Services/SystemSettingService.php`            | No change needed â€” the API behavior (returning typed booleans) is correct                                                                                                                       |
+| `cedibites_api/routes/employee.php` GET `/settings/{key}`        | Returns cast values via `$service->get()` â€” boolean settings come as real booleans                                                                                                              |
 | Related: Admin settings toggle persistence fix (earlier session) | The admin `index()` endpoint was changed to return raw strings to fix toggle persistence â€” but the **individual** GET endpoint still returns cast values. This is a discrepancy to be aware of. |
 
 ### Decisions
+
 - **Decision**: Fix on the frontend by accepting both boolean and string values
   - **Alternatives**: Could have changed the API to always return strings for consistency
   - **Rationale**: The API cast behavior is correct and used elsewhere; safest to make the frontend robust to both types
 
 ### Current State
+
 - **POS Record Past Order modal**: Shows `datetime-local` picker when `manual_entry_date_enabled` is `true`; shows `time` picker when `false` â€” working correctly now
 - **Build**: Passes clean
 - **Branch**: `payment-order-bug-fixes`
 
 ### Pending / Follow-up
+
 - The individual GET `/settings/{key}` returns cast values (booleans) while the admin `index()` returns raw strings â€” this inconsistency could cause similar bugs elsewhere. Consider standardizing.
 
 ---
@@ -178,8 +193,8 @@ Create a dedicated agent to own and audit the entire menu system holistically ac
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
+| File                                   | Change                                                                        | Reason                                                                  |
+| -------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | `.github/agents/menu-auditor.agent.md` | **NEW** â€” Full-stack Menu Management Auditor and Architect agent definition | Dedicated cross-cutting authority for the menu domain across both repos |
 
 ### Decisions
@@ -205,11 +220,11 @@ Create a dedicated agent to own and audit the entire menu system holistically ac
 
 ### Cross-Repo Impact
 
-| Area | Impact |
-|------|--------|
+| Area                                                       | Impact                                                                      |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `cedibites_api/` (all menu models, controllers, resources) | Menu Auditor agent now has formal ownership of auditing backend menu domain |
-| `types/api.ts` â†” Laravel API Resources | Agent responsible for validating frontend-backend contract alignment |
-| Menu services, hooks, adapters in `lib/api/` | Agent covers TanStack Query cache patterns and data transformation layer |
+| `types/api.ts` â†” Laravel API Resources                   | Agent responsible for validating frontend-backend contract alignment        |
+| Menu services, hooks, adapters in `lib/api/`               | Agent covers TanStack Query cache patterns and data transformation layer    |
 
 ### Current State
 
@@ -235,7 +250,7 @@ Fix a bug where admin settings toggles reset on page refresh despite being saved
 | File                               | Change                                                                                                                         | Reason                                                                             |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | `app/admin/settings/page.tsx`      | Added "Enable Delivery Fee" toggle in Order Settings tab                                                                       | Admin control for delivery fee visibility in checkout                              |
-| `app/admin/settings/page.tsx`      | Connected General tab operating hours inputs to API (load from settings on mount, save on submit)                              | Previously these inputs had no backend connection â€” values were lost on refresh    |
+| `app/admin/settings/page.tsx`      | Connected General tab operating hours inputs to API (load from settings on mount, save on submit)                              | Previously these inputs had no backend connection â€” values were lost on refresh  |
 | `app/(customer)/checkout/page.tsx` | `OrderSummary` component now accepts `deliveryFeeEnabled` prop; delivery fee row conditionally rendered only when toggle is on | Checkout was showing "Delivery Fee: Free" even when delivery fees weren't intended |
 | `app/components/layout/Footer.tsx` | Fetches `global_operating_hours_open` and `global_operating_hours_close` from `/checkout-config` endpoint                      | Previously used hardcoded "7:00 AM - 10:00 PM" values                              |
 | `app/components/layout/Footer.tsx` | Added `formatTime12h()` helper for converting "HH:MM" to "H:MM AM/PM" display format                                           | Hours stored as 24h strings in DB, need 12h format for display                     |
@@ -255,12 +270,12 @@ Fix a bug where admin settings toggles reset on page refresh despite being saved
 
 ### Cross-Repo Impact
 
-| File (API repo)                                                                           | Change                                                                                      | Impact on Frontend                                                                                                                                                      |
-| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File (API repo)                                                                           | Change                                                                                      | Impact on Frontend                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `app/Http/Controllers/Api/Admin/SystemSettingController.php`                              | `index()` now returns raw string values instead of cast values                              | **Fixes toggle persistence bug** â€” frontend `s.value === 'true'` comparisons now work correctly because API returns `"true"`/`"false"` strings instead of JSON booleans |
-| `database/migrations/2026_04_04_072214_add_delivery_fee_and_operating_hours_settings.php` | Seeds `delivery_fee_enabled`, `global_operating_hours_open`, `global_operating_hours_close` | New settings available for frontend to read/write                                                                                                                       |
-| `routes/public.php`                                                                       | `/checkout-config` expanded with delivery fee and operating hours data                      | Frontend checkout and footer fetch from this endpoint                                                                                                                   |
-| `routes/employee.php`                                                                     | Settings allowlist expanded                                                                 | Admin settings page can read/write the new settings                                                                                                                     |
+| `database/migrations/2026_04_04_072214_add_delivery_fee_and_operating_hours_settings.php` | Seeds `delivery_fee_enabled`, `global_operating_hours_open`, `global_operating_hours_close` | New settings available for frontend to read/write                                                                                                                         |
+| `routes/public.php`                                                                       | `/checkout-config` expanded with delivery fee and operating hours data                      | Frontend checkout and footer fetch from this endpoint                                                                                                                     |
+| `routes/employee.php`                                                                     | Settings allowlist expanded                                                                 | Admin settings page can read/write the new settings                                                                                                                       |
 
 ### Current State
 
@@ -292,7 +307,7 @@ A comprehensive audit of the order/payment/checkout pipeline was performed acros
 | `app/(customer)/checkout/page.tsx` | Added `ServiceChargeConfig` interface, `DEFAULT_SC_CONFIG` constant, and `calcServiceCharge(subtotal, config)` helper         | Replace hardcoded 1% service charge with dynamic config from API                      |
 | `app/(customer)/checkout/page.tsx` | Added `scConfig` state + `useEffect` fetching from `/checkout-config` public endpoint                                         | Frontend needs real service charge config (enabled, percent, cap) before checkout     |
 | `app/(customer)/checkout/page.tsx` | Updated `OrderSummary` and `StepPayment` components to accept and use `scConfig` prop                                         | Both components need access to service charge config for accurate display/calculation |
-| `app/(customer)/checkout/page.tsx` | Service charge label now shows dynamic percentage: "Service Charge (1%)"                                                      | UX clarity â€” user sees the actual percentage being applied                            |
+| `app/(customer)/checkout/page.tsx` | Service charge label now shows dynamic percentage: "Service Charge (1%)"                                                      | UX clarity â€” user sees the actual percentage being applied                          |
 | `app/admin/settings/page.tsx`      | Added `serviceChargeEnabled` (boolean toggle) and `serviceChargeCap` (text input) state variables                             | Admin needs controls for the two new system settings                                  |
 | `app/admin/settings/page.tsx`      | Added loading of `service_charge_enabled` and `service_charge_cap` from admin settings API                                    | Populate UI with current values on page load                                          |
 | `app/admin/settings/page.tsx`      | Added saving of both new settings alongside existing `manual_entry_date_enabled` and `service_charge_percent`                 | Persist changes when admin saves settings                                             |
@@ -314,8 +329,8 @@ A comprehensive audit of the order/payment/checkout pipeline was performed acros
 | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `routes/public.php`                                      | New `GET /checkout-config` endpoint                                                                                        | Frontend `useEffect` in checkout page fetches this                    |
 | `app/Http/Controllers/Api/CheckoutSessionController.php` | Service charge now uses `service_charge_enabled`, `service_charge_percent`, `service_charge_cap` from SystemSettingService | Frontend calculation must match: `min(subtotal * percent / 100, cap)` |
-| `app/Http/Requests/UpdateOrderStatusRequest.php`         | Removed `pending`, `confirmed`, `cancelled` from allowed statuses                                                          | No frontend impact â€” frontend already uses correct status values      |
-| `app/Http/Controllers/Api/CheckoutSessionController.php` | Added branch authorization to `confirmCash()`/`confirmCard()`                                                              | No frontend impact â€” requests already scoped to correct branch        |
+| `app/Http/Requests/UpdateOrderStatusRequest.php`         | Removed `pending`, `confirmed`, `cancelled` from allowed statuses                                                          | No frontend impact â€” frontend already uses correct status values    |
+| `app/Http/Controllers/Api/CheckoutSessionController.php` | Added branch authorization to `confirmCash()`/`confirmCard()`                                                              | No frontend impact â€” requests already scoped to correct branch      |
 
 ### Current State
 
@@ -341,21 +356,21 @@ Every page in the app should have a unique, descriptive browser tab title. Previ
 
 **8 `'use client'` layouts split into server + client pairs:**
 
-| Original File (now `layout-client.tsx`) | New Server `layout.tsx`        | Metadata                                                                     |
-| --------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------- |
+| Original File (now `layout-client.tsx`) | New Server `layout.tsx`        | Metadata                                                                       |
+| --------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------ |
 | `app/admin/layout.tsx`                  | `app/admin/layout.tsx`         | Template: `%s â€” Admin \| CediBites`, default: "Admin", robots noindex        |
 | `app/kitchen/layout.tsx`                | `app/kitchen/layout.tsx`       | Template: `%s â€” Kitchen \| CediBites`, default: "Kitchen", robots noindex    |
 | `app/partner/layout.tsx`                | `app/partner/layout.tsx`       | Template: `%s â€” Partner \| CediBites`, default: "Partner", robots noindex    |
 | `app/pos/layout.tsx`                    | `app/pos/layout.tsx`           | Template: `%s â€” POS \| CediBites`, default: "POS", robots noindex            |
-| `app/pos/terminal/layout.tsx`           | `app/pos/terminal/layout.tsx`  | Title: "Terminal"                                                            |
+| `app/pos/terminal/layout.tsx`           | `app/pos/terminal/layout.tsx`  | Title: "Terminal"                                                              |
 | `app/staff/layout.tsx`                  | `app/staff/layout.tsx`         | Template: `%s â€” Staff \| CediBites`, default: "Staff Portal", robots noindex |
 | `app/staff/partner/layout.tsx`          | `app/staff/partner/layout.tsx` | Template: `%s â€” Partner \| CediBites`, default: "Partner"                    |
-| `app/order-manager/layout.tsx`          | `app/order-manager/layout.tsx` | Title: "Order Manager", robots noindex                                       |
+| `app/order-manager/layout.tsx`          | `app/order-manager/layout.tsx` | Title: "Order Manager", robots noindex                                         |
 
 **1 existing server layout updated:**
 
-| File                          | Change                                                 | Reason                                               |
-| ----------------------------- | ------------------------------------------------------ | ---------------------------------------------------- |
+| File                          | Change                                                   | Reason                                               |
+| ----------------------------- | -------------------------------------------------------- | ---------------------------------------------------- |
 | `app/(staff-auth)/layout.tsx` | Added metadata export â€” title: "Staff", robots noindex | Was a server component already, just needed metadata |
 
 **55+ new sub-page `layout.tsx` files created**, each exporting specific `Metadata` titles:
