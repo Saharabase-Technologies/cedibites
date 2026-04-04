@@ -176,6 +176,14 @@ function formToGlobalItem(form: ItemFormState, existing?: GlobalMenuItem): Globa
         base.price = Number(form.simplePrice);
     } else {
         const validOptions = form.options.filter(o => o.label.trim() && o.price);
+        console.log('[formToGlobalItem] validOptions:', validOptions.map((o, i) => ({
+            index: i,
+            label: o.label,
+            hasImage: !!o.image,
+            hasImageFile: !!o.imageFile,
+            imageFileName: o.imageFile?.name,
+            imageFileSize: o.imageFile?.size,
+        })));
         base.sizes = validOptions.map((o, index) => ({
             id: index + 1,
             key: o.label.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, ''),
@@ -185,6 +193,7 @@ function formToGlobalItem(form: ItemFormState, existing?: GlobalMenuItem): Globa
             image: o.image,
         }));
         base.optionImageFiles = validOptions.map(o => o.imageFile);
+        console.log('[formToGlobalItem] optionImageFiles:', base.optionImageFiles?.map((f, i) => f ? `[${i}] ${f.name} (${f.size}b)` : `[${i}] UNDEFINED`));
     }
 
     return base;
@@ -1013,151 +1022,184 @@ export default function AdminMenuPage() {
             ? menuService.createItem(apiData)
             : menuService.updateItem(item.numericId, apiData);
 
+        console.log('[MenuSave] ====== SAVE START ======');
+        console.log('[MenuSave] Step 0: Item data', {
+            id: item.id,
+            numericId: item.numericId,
+            name: item.name,
+            isSinglePrice,
+            hasSizes: !!item.sizes?.length,
+            sizesCount: item.sizes?.length ?? 0,
+            sizeKeys: item.sizes?.map(s => s.key),
+            hasImageFile: !!item.imageFile,
+            imageFileName: item.imageFile?.name,
+            imageFileSize: item.imageFile?.size,
+            optionImageFiles: item.optionImageFiles?.map((f, i) => f ? `[${i}] ${f.name} (${f.size} bytes)` : `[${i}] null`),
+            image: item.image,
+        });
+
         savePromise
-            .then(response => {
+            .then(async (response) => {
                 const savedId = response.data.id;
+                console.log('[MenuSave] Step 1: Item saved to server, savedId =', savedId);
 
                 const desiredOptions = item.sizes?.length
                     ? item.sizes
                     : [{ id: 0, key: 'standard', label: 'Standard', price: item.price ?? 0, image: item.image }];
+                console.log('[MenuSave] Step 2: desiredOptions =', desiredOptions.map(o => ({ key: o.key, label: o.label })));
 
-                const uploadSimpleImage = async () => {
+                // ── uploadSimpleImage ──
+                try {
                     if (!isSinglePrice || !item.imageFile) {
-                        return;
+                        console.log('[MenuSave] Step 3: uploadSimpleImage SKIPPED (isSinglePrice=' + isSinglePrice + ', hasImageFile=' + !!item.imageFile + ')');
+                    } else {
+                        console.log('[MenuSave] Step 3: uploadSimpleImage RUNNING...');
+                        const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
+                        const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
+                        const standardOpt = existing.find(o => o.option_key === 'standard');
+                        console.log('[MenuSave] Step 3a: Found standard option?', !!standardOpt, standardOpt?.id);
+                        if (standardOpt) {
+                            await menuService.uploadOptionImage(savedId, standardOpt.id, item.imageFile);
+                            console.log('[MenuSave] Step 3b: Simple image uploaded OK');
+                        }
                     }
-                    // For simple-priced items the backend creates a 'standard' option.
-                    // Fetch it and upload the image to that option.
-                    const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
-                    const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
-                    const standardOpt = existing.find(o => o.option_key === 'standard');
-                    if (standardOpt) {
-                        await menuService.uploadOptionImage(savedId, standardOpt.id, item.imageFile);
-                    }
-                };
+                } catch (err) {
+                    console.error('[MenuSave] Step 3 FAILED:', err);
+                    throw err;
+                }
 
-                const syncOptions = async () => {
+                // ── syncOptions ──
+                try {
                     if (!desiredOptions.length || isSinglePrice) {
-                        return;
-                    }
+                        console.log('[MenuSave] Step 4: syncOptions SKIPPED (desiredOptions=' + desiredOptions.length + ', isSinglePrice=' + isSinglePrice + ')');
+                    } else {
+                        console.log('[MenuSave] Step 4: syncOptions RUNNING...');
+                        const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
+                        const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
+                        console.log('[MenuSave] Step 4a: Existing options from API:', existing.map(o => ({ id: o.id, key: o.option_key })));
 
-                    const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
-                    const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
-                    const existingByKey = Object.fromEntries(existing.map(o => [o.option_key, o]));
-                    const desiredKeys = new Set(desiredOptions.map(o => o.key));
+                        const existingByKey = Object.fromEntries(existing.map(o => [o.option_key, o]));
+                        const desiredKeys = new Set(desiredOptions.map(o => o.key));
 
-                    // Upsert desired options FIRST (update if key exists, create if new)
-                    // Must happen before deletes so the item always has >=1 option.
-                    const upsertedOptions: Array<{ id: number }> = [];
-                    for (let i = 0; i < desiredOptions.length; i += 1) {
-                        const opt = desiredOptions[i];
-                        const existingOpt = existingByKey[opt.key];
-                        if (existingOpt) {
-                            await apiClient.patch(`/admin/menu-items/${savedId}/options/${existingOpt.id}`, {
-                                option_label: opt.label,
-                                display_name: opt.displayName || null,
-                                price: opt.price,
-                                display_order: i,
-                                is_available: true,
-                            });
-                            upsertedOptions.push({ id: existingOpt.id });
-                        } else {
-                            const created = await apiClient.post(`/admin/menu-items/${savedId}/options`, {
-                                option_key: opt.key,
-                                option_label: opt.label,
-                                display_name: opt.displayName || null,
-                                price: opt.price,
-                                display_order: i,
-                                is_available: true,
-                            }) as unknown as { data?: { id: number } };
-                            if (created.data?.id) {
-                                upsertedOptions.push({ id: created.data.id });
+                        const upsertedOptions: Array<{ id: number }> = [];
+                        for (let i = 0; i < desiredOptions.length; i += 1) {
+                            const opt = desiredOptions[i];
+                            const existingOpt = existingByKey[opt.key];
+                            if (existingOpt) {
+                                console.log(`[MenuSave] Step 4b: PATCH option "${opt.key}" (id=${existingOpt.id})`);
+                                await apiClient.patch(`/admin/menu-items/${savedId}/options/${existingOpt.id}`, {
+                                    option_label: opt.label,
+                                    display_name: opt.displayName || null,
+                                    price: opt.price,
+                                    display_order: i,
+                                    is_available: true,
+                                });
+                                upsertedOptions.push({ id: existingOpt.id });
+                            } else {
+                                console.log(`[MenuSave] Step 4b: CREATE option "${opt.key}"`);
+                                const created = await apiClient.post(`/admin/menu-items/${savedId}/options`, {
+                                    option_key: opt.key,
+                                    option_label: opt.label,
+                                    display_name: opt.displayName || null,
+                                    price: opt.price,
+                                    display_order: i,
+                                    is_available: true,
+                                }) as unknown as { data?: { id: number } };
+                                console.log(`[MenuSave] Step 4b: Created option response:`, created);
+                                if (created.data?.id) {
+                                    upsertedOptions.push({ id: created.data.id });
+                                }
                             }
                         }
-                    }
+                        console.log('[MenuSave] Step 4c: upsertedOptions =', upsertedOptions);
 
-                    // Delete options that are no longer desired (safe now - new options exist)
-                    for (const existingOpt of existing) {
-                        if (!desiredKeys.has(existingOpt.option_key)) {
-                            await apiClient.delete(`/admin/menu-items/${savedId}/options/${existingOpt.id}`);
+                        for (const existingOpt of existing) {
+                            if (!desiredKeys.has(existingOpt.option_key)) {
+                                console.log(`[MenuSave] Step 4d: DELETE stale option "${existingOpt.option_key}" (id=${existingOpt.id})`);
+                                await apiClient.delete(`/admin/menu-items/${savedId}/options/${existingOpt.id}`);
+                            }
                         }
-                    }
 
-                    // Upload per-option images
-                    for (let i = 0; i < upsertedOptions.length; i += 1) {
-                        const imageFile = item.optionImageFiles?.[i];
-                        if (imageFile) {
-                            await menuService.uploadOptionImage(savedId, upsertedOptions[i].id, imageFile);
+                        // Upload per-option images
+                        console.log('[MenuSave] Step 5: Image upload loop — upsertedOptions.length=' + upsertedOptions.length + ', optionImageFiles.length=' + (item.optionImageFiles?.length ?? 0));
+                        for (let i = 0; i < upsertedOptions.length; i += 1) {
+                            const imageFile = item.optionImageFiles?.[i];
+                            console.log(`[MenuSave] Step 5a: Option[${i}] id=${upsertedOptions[i].id}, hasFile=${!!imageFile}, fileName=${imageFile?.name ?? 'N/A'}, fileSize=${imageFile?.size ?? 0}`);
+                            if (imageFile) {
+                                console.log(`[MenuSave] Step 5b: Uploading image for option ${upsertedOptions[i].id}...`);
+                                const uploadResult = await menuService.uploadOptionImage(savedId, upsertedOptions[i].id, imageFile);
+                                console.log(`[MenuSave] Step 5c: Upload response:`, uploadResult);
+                            }
                         }
+                        console.log('[MenuSave] Step 5 DONE: Image uploads complete');
                     }
-                };
+                } catch (err) {
+                    console.error('[MenuSave] Step 4-5 FAILED:', err);
+                    throw err;
+                }
 
-                const syncBranchOverrides = async () => {
+                // ── syncBranchOverrides ──
+                try {
                     if (!desiredOptions.length) {
-                        return;
-                    }
-                    const branchesPayload: Record<string, { options: Array<{ option_key: string; price: number | null; is_available: boolean }> }> = {};
+                        console.log('[MenuSave] Step 6: syncBranchOverrides SKIPPED (no options)');
+                    } else {
+                        console.log('[MenuSave] Step 6: syncBranchOverrides RUNNING, branchAvailability keys:', Object.keys(item.branchAvailability));
+                        const branchesPayload: Record<string, { options: Array<{ option_key: string; price: number | null; is_available: boolean }> }> = {};
 
-                    Object.entries(item.branchAvailability).forEach(([branchName, override]) => {
-                        const branchId = branches.find(branch => branch.name === branchName)?.id;
-                        if (!branchId) {
-                            return;
-                        }
-
-                        branchesPayload[String(branchId)] = {
-                            options: desiredOptions.map((option) => {
-                                const overridePrice = override.optionPrices?.[option.key];
-                                return {
-                                    option_key: option.key,
-                                    price: overridePrice ? Number(overridePrice) : null,
-                                    is_available: override.available,
-                                };
-                            }),
-                        };
-                    });
-
-                    if (Object.keys(branchesPayload).length > 0) {
-                        await apiClient.put(`/admin/menu-items/${savedId}/branch-options`, {
-                            branches: branchesPayload,
+                        Object.entries(item.branchAvailability).forEach(([branchName, override]) => {
+                            const branchId = branches.find(branch => branch.name === branchName)?.id;
+                            if (!branchId) return;
+                            branchesPayload[String(branchId)] = {
+                                options: desiredOptions.map((option) => {
+                                    const overridePrice = override.optionPrices?.[option.key];
+                                    return {
+                                        option_key: option.key,
+                                        price: overridePrice ? Number(overridePrice) : null,
+                                        is_available: override.available,
+                                    };
+                                }),
+                            };
                         });
-                    }
-                };
 
-                const afterSave = () => {
-                    // Update local state with the response from server
-                    setItems(prev => {
-                        if (isNew) {
-                            const idx = prev.findIndex(x => x.id === item.id);
-                            if (idx >= 0) {
-                                const n = [...prev];
-                                n[idx] = { ...item, numericId: savedId };
-                                return n;
-                            }
-                            return [...prev, { ...item, numericId: savedId }];
+                        if (Object.keys(branchesPayload).length > 0) {
+                            console.log('[MenuSave] Step 6a: Sending branch overrides:', branchesPayload);
+                            await apiClient.put(`/admin/menu-items/${savedId}/branch-options`, { branches: branchesPayload });
+                            console.log('[MenuSave] Step 6b: Branch overrides synced OK');
                         } else {
-                            return prev.map(x => x.id === item.id ? item : x);
+                            console.log('[MenuSave] Step 6a: No branch overrides to sync');
                         }
-                    });
+                    }
+                } catch (err) {
+                    console.error('[MenuSave] Step 6 FAILED:', err);
+                    throw err;
+                }
 
-                    refetchMenuItems();
-                    toast.success(`Menu item ${isNew ? 'created' : 'updated'} successfully!`);
-                    setEditItem(null);
-                    setSavingItem(false);
-                };
+                // ── afterSave ──
+                console.log('[MenuSave] Step 7: afterSave — updating local state');
+                setItems(prev => {
+                    if (isNew) {
+                        const idx = prev.findIndex(x => x.id === item.id);
+                        if (idx >= 0) {
+                            const n = [...prev];
+                            n[idx] = { ...item, numericId: savedId };
+                            return n;
+                        }
+                        return [...prev, { ...item, numericId: savedId }];
+                    } else {
+                        return prev.map(x => x.id === item.id ? item : x);
+                    }
+                });
 
-                uploadSimpleImage()
-                    .then(syncOptions)
-                    .then(syncBranchOverrides)
-                    .then(afterSave)
-                    .catch((err) => {
-                        console.error('[MenuSave] Post-save sync failed:', err);
-                        toast.error('Item saved but option or branch override sync failed. Please re-open and retry.');
-                        afterSave();
-                    });
+                refetchMenuItems();
+                toast.success(`Menu item ${isNew ? 'created' : 'updated'} successfully!`);
+                setEditItem(null);
+                setSavingItem(false);
+                console.log('[MenuSave] ====== SAVE COMPLETE ======');
             })
             .catch(error => {
+                console.error('[MenuSave] ====== SAVE FAILED ======', error);
                 setSavingItem(false);
                 if (error.errors) {
-                    // Show validation errors
                     const errorMessages = Object.entries(error.errors as Record<string, string[]>)
                         .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
                         .join(', ');

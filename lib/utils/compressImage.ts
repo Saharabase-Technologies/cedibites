@@ -6,13 +6,17 @@ export async function compressImage(
     file: File,
     { maxWidth = 1200, maxHeight = 1200, quality = 0.8 }: { maxWidth?: number; maxHeight?: number; quality?: number } = {},
 ): Promise<File> {
+    console.log(`[compressImage] Input: ${file.name}, ${file.size} bytes, type=${file.type}`);
+
     // Only compress image types
     if (!file.type.startsWith('image/')) {
+        console.log('[compressImage] Not an image, skipping');
         return file;
     }
 
     // If already small enough (under 500KB), skip compression
     if (file.size <= 500 * 1024) {
+        console.log('[compressImage] Already under 500KB, skipping');
         return file;
     }
 
@@ -53,6 +57,7 @@ export async function compressImage(
 
                     // If compression made it bigger, use original
                     if (blob.size >= file.size) {
+                        console.log(`[compressImage] Compressed is bigger (${blob.size} >= ${file.size}), using original`);
                         resolve(file);
                         return;
                     }
@@ -62,6 +67,7 @@ export async function compressImage(
                         lastModified: Date.now(),
                     });
 
+                    console.log(`[compressImage] Compressed: ${file.size} -> ${compressed.size} bytes (${Math.round(compressed.size / file.size * 100)}%)`);
                     resolve(compressed);
                 },
                 'image/jpeg',
