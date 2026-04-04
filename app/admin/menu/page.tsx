@@ -1037,10 +1037,8 @@ export default function AdminMenuPage() {
 
                 const syncOptions = async () => {
                     if (!desiredOptions.length || isSinglePrice) {
-                        console.log('[MenuSave] syncOptions skipped: desiredOptions.length=', desiredOptions.length, 'isSinglePrice=', isSinglePrice);
                         return;
                     }
-                    console.log('[MenuSave] syncOptions started, desiredOptions:', desiredOptions.map(o => o.key), 'optionImageFiles:', item.optionImageFiles?.map(f => f?.name));
 
                     const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
                     const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
@@ -1087,10 +1085,8 @@ export default function AdminMenuPage() {
                     // Upload per-option images
                     for (let i = 0; i < upsertedOptions.length; i += 1) {
                         const imageFile = item.optionImageFiles?.[i];
-                        console.log(`[MenuSave] Option ${i}: id=${upsertedOptions[i].id}, hasFile=${!!imageFile}, fileName=${imageFile?.name}`);
                         if (imageFile) {
                             await menuService.uploadOptionImage(savedId, upsertedOptions[i].id, imageFile);
-                            console.log(`[MenuSave] Image uploaded for option ${upsertedOptions[i].id}`);
                         }
                     }
                 };
@@ -1099,8 +1095,6 @@ export default function AdminMenuPage() {
                     if (!desiredOptions.length) {
                         return;
                     }
-                    console.log('[MenuSave] syncBranchOverrides started, branchAvailability:', item.branchAvailability);
-
                     const branchesPayload: Record<string, { options: Array<{ option_key: string; price: number | null; is_available: boolean }> }> = {};
 
                     Object.entries(item.branchAvailability).forEach(([branchName, override]) => {

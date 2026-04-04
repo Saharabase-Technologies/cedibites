@@ -1,5 +1,6 @@
 import apiClient from '../client';
 import { MenuItem } from '@/types/api';
+import { compressImage } from '@/lib/utils/compressImage';
 
 export interface MenuItemsParams {
   category_id?: number;
@@ -118,9 +119,10 @@ export const menuService = {
   /**
    * Upload image for menu item
    */
-  uploadImage: (id: number, imageFile: File): Promise<{ data: MenuItem }> => {
+  uploadImage: async (id: number, imageFile: File): Promise<{ data: MenuItem }> => {
+    const compressed = await compressImage(imageFile);
     const formData = new FormData();
-    formData.append('image', imageFile);
+    formData.append('image', compressed);
 
     return apiClient.post(`/admin/menu-items/${id}/image`, formData, {
       headers: {
@@ -129,9 +131,10 @@ export const menuService = {
     });
   },
 
-  uploadOptionImage: (menuItemId: number, optionId: number, imageFile: File): Promise<{ data: MenuItem }> => {
+  uploadOptionImage: async (menuItemId: number, optionId: number, imageFile: File): Promise<{ data: MenuItem }> => {
+    const compressed = await compressImage(imageFile);
     const formData = new FormData();
-    formData.append('image', imageFile);
+    formData.append('image', compressed);
 
     return apiClient.post(`/admin/menu-items/${menuItemId}/options/${optionId}/image`, formData, {
       headers: {
