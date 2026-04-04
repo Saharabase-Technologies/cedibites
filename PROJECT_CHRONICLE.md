@@ -81,6 +81,48 @@ Items still needing attention.
 
 ---
 
+## [2026-04-04] Session: syncOptions Race Condition Fix (Image Upload Root Cause)
+
+### Intent
+
+Fix the root cause of "images not showing on customer side" and the red toast error "Item saved but image/option sync failed. Please re-open and retry." — both caused by a delete-before-create race condition in the `syncOptions()` function within menu item save flows.
+
+### Changes Made
+
+| File                              | Change                                                                                                                                           | Reason                                                                                                                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app/admin/menu/page.tsx`         | Reordered `syncOptions()` inside `saveItem()` (~lines 1048-1086): upsert (create/update) desired options FIRST, then delete stale options AFTER | Previously deleted non-desired options before creating new ones. When all option keys were replaced (zero overlap), the delete loop hit the backend's `count() <= 1` guard on `MenuItemOptionController::destroy()`, returning HTTP 422     |
+| `app/staff/manager/menu/page.tsx` | Same reorder in `syncOptions()` (~lines 792-826): upsert first, delete second                                                                   | Same race condition existed on the Branch Manager menu page                                                                                                                                                                                |
+
+### Decisions
+
+- **Decision**: Reorder syncOptions (upsert-then-delete) rather than modifying backend guard
+  - **Alternatives**: Remove or weaken the backend's "cannot delete last option" guard; add a bulk-sync endpoint
+  - **Rationale**: The backend guard is correct — menu items should always have at least one option. The frontend was just calling operations in the wrong order.
+- **Decision**: No backend changes needed
+  - **Rationale**: `MenuItemOptionController::destroy()` returning 422 when `count() <= 1` is the right behavior; the fix is purely a frontend operation ordering issue
+
+### Cross-Repo Impact
+
+| File (API repo)                                                         | Change   | Notes                                                                                                   |
+| ----------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| `app/Http/Controllers/Api/MenuItemOptionController.php` — `destroy()`  | No change | Backend's `count() <= 1` guard confirmed correct. The 422 was a symptom of frontend calling delete first |
+
+### Current State
+
+- Both admin and BM menu pages now upsert options before deleting stale ones
+- Image uploads complete successfully — they run at the end of the `syncOptions` chain, which no longer breaks at the delete step
+- The red toast error no longer appears when replacing all option keys
+- Build passes cleanly (0 errors, all routes static)
+- Branch: `payment-order-bug-fixes`
+
+### Pending / Follow-up
+
+- Shared menu components extraction remains outstanding (ItemModal, syncOptions logic duplicated in admin and BM)
+- Admin menu page decomposition (74KB single file) — syncOptions is one of many functions that should be extracted
+
+---
+
 ## [2026-04-04] Session: Menu Management Audit — Full-Stack Fixes
 
 ### Intent

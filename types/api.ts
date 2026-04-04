@@ -92,6 +92,7 @@ export interface MenuCategory {
   description?: string;
   display_order: number;
   is_active: boolean;
+  items_count?: number;
 }
 
 export interface MenuItemOptionBranchPrice {
