@@ -27,7 +27,7 @@ export interface EmployeeOrdersParams {
   staff_id?: string | number;
   status?: string | string[];
   order_type?: string;
-  order_source?: string;
+  order_source?: string | string[];
   payment_status?: string[];
   payment_method?: string;
   search?: string;

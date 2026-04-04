@@ -36,7 +36,7 @@ import apiClient from '@/lib/api/client';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type OrderStatus = 'received' | 'preparing' | 'ready' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'completed' | 'cancelled' | 'cancel_requested';
-type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone';
+type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone' | 'Past Order';
 type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash at Pickup' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
 type PaymentStatus = 'Paid' | 'Pending' | 'Failed' | 'Refunded' | 'No Charge';
 
@@ -61,10 +61,11 @@ const SOURCE_STYLES: Record<OrderSource, string> = {
     Phone: 'bg-neutral-light text-neutral-gray',
     Online: 'bg-primary/10 text-primary',
     POS: 'bg-secondary/10 text-secondary',
+    'Past Order': 'bg-neutral-gray/10 text-neutral-gray',
 };
 
 const ALL_STATUSES: OrderStatus[] = ['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'completed', 'cancel_requested', 'cancelled'];
-const ALL_SOURCES: OrderSource[] = ['Online', 'POS', 'WhatsApp', 'Instagram', 'Facebook', 'Phone'];
+const ALL_SOURCES: OrderSource[] = ['Online', 'POS', 'WhatsApp', 'Instagram', 'Facebook', 'Phone', 'Past Order'];
 const ALL_PAYMENTS: PaymentMethod[] = ['Mobile Money', 'Cash', 'Card', 'Wallet', 'GhQR', 'No Charge'];
 const ALL_PAYMENT_STATUSES: PaymentStatus[] = ['Paid', 'Pending', 'Failed', 'Refunded', 'No Charge'];
 
@@ -75,6 +76,7 @@ const SOURCE_TO_API: Record<OrderSource, string> = {
     Instagram: 'instagram',
     Facebook: 'facebook',
     Phone: 'phone',
+    'Past Order': 'manual_entry',
 };
 
 const PAYMENT_STATUS_TO_API: Record<PaymentStatus, string> = {
