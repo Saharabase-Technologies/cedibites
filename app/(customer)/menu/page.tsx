@@ -246,6 +246,7 @@ export default function MenuPage() {
     const {
         allItems,
         filteredItems,
+        categories: providerCategories,
         selectedCategory,
         setSelectedCategory,
         searchQuery,
@@ -255,12 +256,11 @@ export default function MenuPage() {
         retryFetch,
     } = useMenuDiscovery();
 
-    // Derive unique categories from all items
+    // Use provider categories (sorted by display_order) — extract label strings
+    // "Most Popular" is included conditionally by the provider (only when popular-tagged items exist)
     const categories = React.useMemo(() => {
-        const seen = new Set<string>();
-        allItems.forEach(item => { if (item.category) seen.add(item.category); });
-        return Array.from(seen);
-    }, [allItems]);
+        return providerCategories.map(c => c.label);
+    }, [providerCategories]);
 
     const [sort, setSort] = useState<SortKey>('default');
     const [viewMode, setViewMode] = useState<ViewMode>('grid');

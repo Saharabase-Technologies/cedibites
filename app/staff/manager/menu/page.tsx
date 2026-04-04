@@ -33,7 +33,7 @@ import type { MenuTag } from '@/types/api';
 import { toast } from '@/lib/utils/toast';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ManagerMenuItem extends Omit<DisplayMenuItem, 'tags'> {
     tags: string[];
@@ -64,7 +64,7 @@ interface ItemFormState {
     available: boolean;
 }
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function hasPricingOptions(item: Omit<DisplayMenuItem, 'tags'>): boolean {
     if (!item.sizes?.length && !(item.hasVariants && item.variants)) return false;
@@ -89,25 +89,25 @@ function PriceDisplay({ item }: { item: Omit<DisplayMenuItem, 'tags'> }) {
     if (hasPricingOptions(item)) {
         const rows = getOptionRows(item);
         const prices = rows.map(r => Number(r.price)).filter(Boolean);
-        if (!prices.length) return <span className="text-neutral-gray text-xs font-body">â€”</span>;
+        if (!prices.length) return <span className="text-neutral-gray text-xs font-body">—</span>;
         const min = Math.min(...prices), max = Math.max(...prices);
-        if (min === max) return <span className="text-text-dark text-xs font-bold font-body">â‚µ{min}</span>;
+        if (min === max) return <span className="text-text-dark text-xs font-bold font-body">₵{min}</span>;
         if (rows.length <= 4) {
             return (
                 <div className="flex flex-wrap gap-1">
                     {rows.map(r => (
                         <span key={r.label} className="inline-flex items-center gap-1 bg-neutral-gray/10 border border-neutral-gray/20 rounded-full px-2 py-0.5 text-[10px] font-body font-medium text-text-dark whitespace-nowrap">
                             {r.label}
-                            <span className="text-primary font-bold">â‚µ{r.price}</span>
+                            <span className="text-primary font-bold">₵{r.price}</span>
                         </span>
                     ))}
                 </div>
             );
         }
-        return <span className="text-text-dark text-xs font-bold font-body">â‚µ{min} â€“ {max}</span>;
+        return <span className="text-text-dark text-xs font-bold font-body">₵{min} – {max}</span>;
     }
-    if (item.price != null) return <span className="text-text-dark text-xs font-bold font-body">â‚µ{item.price}</span>;
-    return <span className="text-neutral-gray text-xs font-body">â€”</span>;
+    if (item.price != null) return <span className="text-text-dark text-xs font-bold font-body">₵{item.price}</span>;
+    return <span className="text-neutral-gray text-xs font-body">—</span>;
 }
 
 function itemToForm(item: ManagerMenuItem): ItemFormState {
@@ -166,7 +166,7 @@ function formToItem(form: ItemFormState, branchId: number, existing?: ManagerMen
         const validOptions = form.options.filter(o => o.label.trim() && o.price);
         base.sizes = validOptions.map((o, index) => ({
             id: index + 1,
-            key: o.label.trim().toLowerCase().replace(/\s+/g, '-'),
+            key: o.label.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, ''),
             label: o.label.trim(),
             displayName: o.displayName?.trim() || undefined,
             price: Number(o.price),
@@ -178,7 +178,7 @@ function formToItem(form: ItemFormState, branchId: number, existing?: ManagerMen
     return base;
 }
 
-// â”€â”€â”€ Tag badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Tag badge ────────────────────────────────────────────────────────────────
 
 const TAG_STYLES: Record<string, string> = {
     popular:    'bg-primary/10 text-primary',
@@ -234,7 +234,7 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
     );
 }
 
-// â”€â”€â”€ Confirm delete modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Confirm delete modal ─────────────────────────────────────────────────────
 
 function ConfirmModal({ title, desc, onConfirm, onCancel }: { title: string; desc: string; onConfirm: () => void; onCancel: () => void }) {
     return (
@@ -257,7 +257,7 @@ function ConfirmModal({ title, desc, onConfirm, onCancel }: { title: string; des
     );
 }
 
-// â”€â”€â”€ Image picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Image picker ─────────────────────────────────────────────────────────────
 
 function ImagePicker({ value, onChange, size = 'md' }: { value?: string; onChange: (url: string, file: File) => void; size?: 'sm' | 'md' }) {
     const ref = useRef<HTMLInputElement>(null);
@@ -277,7 +277,7 @@ function ImagePicker({ value, onChange, size = 'md' }: { value?: string; onChang
     );
 }
 
-// â”€â”€â”€ Item edit modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Item edit modal ──────────────────────────────────────────────────────────
 
 function ItemModal({
     item, optionTemplates, addOns, menuTags, categoryOptions, onClose, onSave, isSaving = false,
@@ -353,7 +353,7 @@ function ItemModal({
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/30 backdrop-blur-sm overflow-y-auto">
             <div className="bg-neutral-card rounded-2xl shadow-2xl w-full max-w-xl my-8">
                 <div className="flex items-center justify-between px-6 py-5 border-b border-[#f0e8d8]">
-                    <h2 className="text-text-dark text-lg font-bold font-body">{isNew ? 'Add Menu Item' : `Edit â€” ${item?.name}`}</h2>
+                    <h2 className="text-text-dark text-lg font-bold font-body">{isNew ? 'Add Menu Item' : `Edit — ${item?.name}`}</h2>
                     <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-neutral-light cursor-pointer">
                         <XIcon size={16} className="text-neutral-gray" />
                     </button>
@@ -361,7 +361,7 @@ function ItemModal({
 
                 <div className="p-6 flex flex-col gap-5">
 
-                    {/* â”€â”€ Basic info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+                    {/* ── Basic info ──────────────────────────────────────────── */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="sm:col-span-2">
                             <label className="block text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1.5">Item Name</label>
@@ -392,7 +392,7 @@ function ItemModal({
                         </div>
                     </div>
 
-                    {/* â”€â”€ Pricing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+                    {/* ── Pricing ─────────────────────────────────────────────── */}
                     <div>
                         <div className="flex items-center justify-between mb-2">
                             <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Pricing</p>
@@ -408,7 +408,7 @@ function ItemModal({
                                                 <button key={tpl.id} type="button" onClick={() => loadTemplate(tpl)}
                                                     className="w-full text-left px-4 py-3 hover:bg-neutral-light transition-colors cursor-pointer border-b border-[#f0e8d8] last:border-b-0">
                                                     <p className="text-text-dark text-sm font-medium font-body">{tpl.name}</p>
-                                                    <p className="text-neutral-gray text-xs font-body mt-0.5">{tpl.options.map(o => o.label).join(' Â· ')}</p>
+                                                    <p className="text-neutral-gray text-xs font-body mt-0.5">{tpl.options.map(o => o.label).join(' · ')}</p>
                                                 </button>
                                             ))}
                                         </div>
@@ -487,7 +487,7 @@ function ItemModal({
                         )}
                     </div>
 
-                    {/* â”€â”€ Add-ons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+                    {/* ── Add-ons ─────────────────────────────────────────────── */}
                     {addOns.length > 0 && (
                         <div>
                             <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Available Add-ons</p>
@@ -504,7 +504,7 @@ function ItemModal({
                                         </div>
                                         <span className="text-sm font-body text-text-dark">
                                             {addon.name}
-                                            <span className="text-neutral-gray ml-1.5 text-xs">â‚µ{addon.price}{addon.perPiece ? '/pc' : ''}</span>
+                                            <span className="text-neutral-gray ml-1.5 text-xs">₵{addon.price}{addon.perPiece ? '/pc' : ''}</span>
                                         </span>
                                     </button>
                                 ))}
@@ -512,7 +512,7 @@ function ItemModal({
                         </div>
                     )}
 
-                    {/* â”€â”€ Tags â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+                    {/* ── Tags ────────────────────────────────────────────────── */}
                     <div>
                         <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Tags</p>
                         <div className="flex gap-2 flex-wrap">
@@ -543,7 +543,7 @@ function ItemModal({
     );
 }
 
-// â”€â”€â”€ Bulk import modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Bulk import modal ────────────────────────────────────────────────────────
 
 function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId: number }) {
     const router = useRouter();
@@ -601,7 +601,7 @@ function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId:
                         </div>
                     ) : (
                         <>
-                            <p className="text-neutral-gray text-sm font-body mb-4">{previewData?.total_rows} rows parsed â€” {previewData?.valid_rows} valid, {previewData?.invalid_rows} with errors.</p>
+                            <p className="text-neutral-gray text-sm font-body mb-4">{previewData?.total_rows} rows parsed — {previewData?.valid_rows} valid, {previewData?.invalid_rows} with errors.</p>
                             <div className="bg-neutral-light rounded-xl overflow-hidden mb-4 max-h-60 overflow-y-auto">
                                 {previewData?.preview?.slice(0, 10).map((row: any, i: number) => (
                                     <div key={i} className={`flex items-center gap-3 px-4 py-3 ${i < Math.min(previewData.preview.length, 10) - 1 ? 'border-b border-[#f0e8d8]' : ''}`}>
@@ -612,7 +612,7 @@ function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId:
                                         <div className="flex-1 min-w-0">
                                             <p className="text-text-dark text-xs font-semibold font-body">{row.name}</p>
                                             <p className="text-neutral-gray text-[10px] font-body">
-                                                {row.category} Â· {row.price ? `â‚µ${row.price}` : <span className="text-error">No price</span>}
+                                                {row.category} · {row.price ? `₵${row.price}` : <span className="text-error">No price</span>}
                                                 {row.errors?.length > 0 && <span className="text-error ml-2">({row.errors.join(', ')})</span>}
                                             </p>
                                         </div>
@@ -634,12 +634,11 @@ function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId:
     );
 }
 
-// â”€â”€â”€ Menu sub-tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Menu sub-tabs ────────────────────────────────────────────────────────────
 
 const MENU_SUB_TABS = [
     { href: '/staff/manager/menu',           label: 'Items'     },
     { href: '/staff/manager/menu/tags',      label: 'Tags'      },
-    { href: '/staff/manager/menu/configure', label: 'Configure'  },
 ];
 
 function MenuSubTabs() {
@@ -662,7 +661,7 @@ function MenuSubTabs() {
     );
 }
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ManagerMenuPage() {
     const { staffUser } = useStaffAuth();
@@ -790,10 +789,7 @@ export default function ManagerMenuPage() {
                     const existingByKey = Object.fromEntries(existing.map(o => [o.option_key, o]));
                     const desiredKeys = new Set(desiredOptions.map(o => o.key));
 
-                    for (const existingOpt of existing) {
-                        if (!desiredKeys.has(existingOpt.option_key)) await apiClient.delete(`/admin/menu-items/${savedId}/options/${existingOpt.id}`);
-                    }
-
+                    // Upsert desired options FIRST - must happen before deletes so the item always has >=1 option.
                     const upsertedOptions: Array<{ id: number }> = [];
                     for (let i = 0; i < desiredOptions.length; i += 1) {
                         const opt = desiredOptions[i];
@@ -818,6 +814,11 @@ export default function ManagerMenuPage() {
                             }) as unknown as { data?: { id: number } };
                             if (created.data?.id) upsertedOptions.push({ id: created.data.id });
                         }
+                    }
+
+                    // Delete options that are no longer desired (safe now - new options exist)
+                    for (const existingOpt of existing) {
+                        if (!desiredKeys.has(existingOpt.option_key)) await apiClient.delete(`/admin/menu-items/${savedId}/options/${existingOpt.id}`);
                     }
 
                     for (let i = 0; i < upsertedOptions.length; i += 1) {
@@ -895,7 +896,7 @@ export default function ManagerMenuPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <div>
                     <h1 className="text-text-dark text-2xl font-bold font-body">Menu Management</h1>
-                    <p className="text-neutral-gray text-sm font-body mt-0.5">{branchName} Â· {active.length} item{active.length !== 1 ? 's' : ''}</p>
+                    <p className="text-neutral-gray text-sm font-body mt-0.5">{branchName} · {active.length} item{active.length !== 1 ? 's' : ''}</p>
                 </div>
                 <div className="flex gap-2">
                     <button type="button" onClick={() => setShowImport(true)}
@@ -927,7 +928,7 @@ export default function ManagerMenuPage() {
                 </div>
                 <div className="relative flex-1 min-w-50">
                     <MagnifyingGlassIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray" />
-                    <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search itemsâ€¦"
+                    <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search items…"
                         className="w-full pl-9 pr-3 py-2.5 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40" />
                 </div>
             </div>
@@ -941,7 +942,7 @@ export default function ManagerMenuPage() {
                 </div>
 
                 {menuLoading && items.length === 0 ? (
-                    <div className="px-4 py-16 text-center"><p className="text-neutral-gray text-sm font-body">Loading menuâ€¦</p></div>
+                    <div className="px-4 py-16 text-center"><p className="text-neutral-gray text-sm font-body">Loading menu…</p></div>
                 ) : active.length === 0 ? (
                     <div className="px-4 py-16 text-center">
                         <ForkKnifeIcon size={32} weight="thin" className="text-neutral-gray/40 mx-auto mb-3" />

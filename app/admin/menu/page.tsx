@@ -178,7 +178,7 @@ function formToGlobalItem(form: ItemFormState, existing?: GlobalMenuItem): Globa
         const validOptions = form.options.filter(o => o.label.trim() && o.price);
         base.sizes = validOptions.map((o, index) => ({
             id: index + 1,
-            key: o.label.trim().toLowerCase().replace(/\s+/g, '-'),
+            key: o.label.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, ''),
             label: o.label.trim(),
             displayName: o.displayName?.trim() || undefined,
             price: Number(o.price),
@@ -1045,14 +1045,8 @@ export default function AdminMenuPage() {
                     const existingByKey = Object.fromEntries(existing.map(o => [o.option_key, o]));
                     const desiredKeys = new Set(desiredOptions.map(o => o.key));
 
-                    // Delete options that are no longer desired
-                    for (const existingOpt of existing) {
-                        if (!desiredKeys.has(existingOpt.option_key)) {
-                            await apiClient.delete(`/admin/menu-items/${savedId}/options/${existingOpt.id}`);
-                        }
-                    }
-
-                    // Upsert desired options (update if key exists, create if new)
+                    // Upsert desired options FIRST (update if key exists, create if new)
+                    // Must happen before deletes so the item always has >=1 option.
                     const upsertedOptions: Array<{ id: number }> = [];
                     for (let i = 0; i < desiredOptions.length; i += 1) {
                         const opt = desiredOptions[i];
@@ -1078,6 +1072,13 @@ export default function AdminMenuPage() {
                             if (created.data?.id) {
                                 upsertedOptions.push({ id: created.data.id });
                             }
+                        }
+                    }
+
+                    // Delete options that are no longer desired (safe now - new options exist)
+                    for (const existingOpt of existing) {
+                        if (!desiredKeys.has(existingOpt.option_key)) {
+                            await apiClient.delete(`/admin/menu-items/${savedId}/options/${existingOpt.id}`);
                         }
                     }
 

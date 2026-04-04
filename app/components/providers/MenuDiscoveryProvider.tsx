@@ -113,11 +113,26 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
     // Use only transformed API items (no fallback to sample data)
     const menuItems = transformedApiItems;
 
-    // Derive categories from API items, prepend "Most Popular" as a special filter
+    // Derive categories from raw API items, sorted by display_order
     const categories = useMemo(() => {
-        const apiCategories = deriveCategories(menuItems as any).map(c => ({ id: c.name, label: c.name }));
-        return [{ id: 'Most Popular', label: 'Most Popular' }, ...apiCategories];
-    }, [menuItems]);
+        const seen = new Map<string, number>();
+        for (const item of apiItems) {
+            const name = item.category?.name;
+            if (name && !seen.has(name)) {
+                seen.set(name, item.category?.display_order ?? 999);
+            }
+        }
+        const sorted = [...seen.entries()]
+            .sort((a, b) => a[1] - b[1])
+            .map(([name]) => ({ id: name, label: name }));
+
+        // Only prepend "Most Popular" if items with the "popular" tag exist
+        const hasPopular = menuItems.some(item => item.tags?.some(t => t.slug === 'popular'));
+        if (hasPopular) {
+            sorted.unshift({ id: 'Most Popular', label: 'Most Popular' });
+        }
+        return sorted;
+    }, [apiItems, menuItems]);
 
     // Load recent searches from localStorage on mount
     useEffect(() => {

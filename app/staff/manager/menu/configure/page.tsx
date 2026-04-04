@@ -30,7 +30,6 @@ import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 const MENU_SUB_TABS = [
     { href: '/staff/manager/menu',           label: 'Items'     },
     { href: '/staff/manager/menu/tags',      label: 'Tags'      },
-    { href: '/staff/manager/menu/configure', label: 'Configure'  },
 ];
 
 function MenuSubTabs() {
@@ -261,7 +260,7 @@ export default function ManagerMenuConfigurePage() {
 
                                 {/* Items count */}
                                 <p className="text-center text-sm font-body text-neutral-gray">
-                                    {cat.menu_items_count ?? 0}
+                                    {cat.items_count ?? 0}
                                 </p>
 
                                 {/* Active toggle */}
@@ -282,9 +281,9 @@ export default function ManagerMenuConfigurePage() {
                                         <PencilSimpleIcon size={14} weight="bold" />
                                     </button>
                                     <button type="button" onClick={() => setDeleteTarget(cat)}
-                                        disabled={(cat.menu_items_count ?? 0) > 0}
+                                        disabled={(cat.items_count ?? 0) > 0}
                                         className="p-1.5 rounded-lg text-neutral-gray hover:text-error hover:bg-error/10 transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
-                                        title={(cat.menu_items_count ?? 0) > 0 ? `Has ${cat.menu_items_count} items — move them first` : 'Delete category'}>
+                                        title={(cat.items_count ?? 0) > 0 ? `Has ${cat.items_count} items — move them first` : 'Delete category'}>
                                         <TrashIcon size={14} weight="bold" />
                                     </button>
                                 </div>
