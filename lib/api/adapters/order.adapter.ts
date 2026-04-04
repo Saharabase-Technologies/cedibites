@@ -1,6 +1,6 @@
 import type { Order, OrderItem, Payment } from '@/types/api';
 
-export type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone';
+export type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone' | 'Past Order';
 export type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash at Pickup' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
 
 export interface AdminOrderItem {
@@ -37,6 +37,7 @@ export interface AdminOrder {
   placedAt: string;
   placedAtFull: string;
   createdAt: string;
+  recordedAt?: string;
   timeAgo?: string;
   timeline: TimelineEvent[];
   cancelRequestedBy?: string | null;
@@ -51,7 +52,7 @@ const SOURCE_MAP: Record<string, string> = {
   instagram: 'Instagram',
   facebook: 'Facebook',
   phone: 'Phone',
-  manual_entry: 'manual_entry',
+  manual_entry: 'Past Order',
 };
 
 const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
@@ -210,6 +211,7 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
     id: api.order_number ?? String(api.id),
     dbId: Number(api.id),
     createdAt: api.created_at ?? '',
+    recordedAt: api.recorded_at ?? undefined,
     customer: api.contact_name ?? api.customer_name ?? api.customer?.name ?? '—',
     phone: api.contact_phone ?? api.customer_phone ?? api.customer?.phone ?? '—',
     email: api.customer?.email,
@@ -308,5 +310,6 @@ export function mapApiOrderToOrder(api: any): import('@/types/order').Order {
     startedAt: api.started_at ? new Date(api.started_at).getTime() : undefined,
     readyAt: api.ready_at ? new Date(api.ready_at).getTime() : undefined,
     completedAt: api.completed_at ? new Date(api.completed_at).getTime() : undefined,
+    recordedAt: api.recorded_at ? new Date(api.recorded_at).getTime() : undefined,
   };
 }

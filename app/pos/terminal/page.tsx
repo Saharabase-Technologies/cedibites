@@ -955,6 +955,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
   const [recordedAt, setRecordedAt] = useState('');
   const [recordedTime, setRecordedTime] = useState('');
   const [momoReference, setMomoReference] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [dateEnabled, setDateEnabled] = useState<boolean | null>(null);
 
   // Fetch manual_entry_date_enabled setting
@@ -1008,15 +1009,16 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
 
   const handleConfirm = async () => {
     if (!selectedMethod) return;
+    setValidationError(null);
 
     // Manual entry requires a date/time
     if (isManualEntry) {
       if (dateEnabled && !recordedAt) {
-        alert('Please enter the date & time the order was taken');
+        setValidationError('Please enter the date & time the order was taken.');
         return;
       }
       if (!dateEnabled && !recordedTime) {
-        alert('Please enter the time the order was taken');
+        setValidationError('Please enter the time the order was taken.');
         return;
       }
     }
@@ -1032,7 +1034,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
     if (selectedMethod === 'cash') {
       const paid = parseFloat(cashAmount) || total;
       if (paid < total) {
-        alert('Amount paid is less than total');
+        setValidationError('Amount paid is less than total.');
         setIsProcessing(false);
         return;
       }
@@ -1053,24 +1055,24 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-      <div className={`w-full max-w-md rounded-3xl overflow-hidden shadow-2xl ${isManualEntry ? 'bg-gray-900' : 'bg-white'}`}>
+      <div className="w-full max-w-md rounded-3xl overflow-hidden shadow-2xl bg-white">
         {/* Header */}
-        <div className={`px-6 py-4 border-b flex items-center justify-between ${isManualEntry ? 'border-gray-700' : 'border-neutral-gray/20'}`}>
-          <h2 className={`text-xl font-semibold ${isManualEntry ? 'text-amber-400' : 'text-text-dark'}`}>
+        <div className="px-6 py-4 border-b border-neutral-gray/20 flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-text-dark">
             {isManualEntry ? '⏱ Record Past Order' : 'Payment'}
           </h2>
           <button
             onClick={onClose}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isManualEntry ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-neutral-gray hover:text-text-dark hover:bg-neutral-gray/10'}`}
+            className="w-10 h-10 rounded-xl flex items-center justify-center transition-all text-neutral-gray hover:text-text-dark hover:bg-neutral-gray/10"
           >
             <XIcon className="w-5 h-5" />
           </button>
         </div>
 
         {/* Total */}
-        <div className={`px-6 py-6 border-b text-center ${isManualEntry ? 'border-gray-700' : 'border-neutral-gray/15'}`}>
-          <p className={`text-sm mb-1 ${isManualEntry ? 'text-gray-400' : 'text-neutral-gray'}`}>Amount Due</p>
-          <p className={`text-4xl font-bold ${isManualEntry ? 'text-amber-400' : 'text-primary'}`}>{formatGHS(total)}</p>
+        <div className="px-6 py-6 border-b border-neutral-gray/15 text-center">
+          <p className="text-sm mb-1 text-neutral-gray">Amount Due</p>
+          <p className="text-4xl font-bold text-primary">{formatGHS(total)}</p>
         </div>
 
         {/* Scrollable content */}
@@ -1079,7 +1081,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
           {/* Manual entry: date/time picker */}
           {isManualEntry && dateEnabled !== null && (
             <div className="space-y-2">
-              <p className={`text-sm ${isManualEntry ? 'text-gray-400' : 'text-neutral-gray'}`}>
+              <p className="text-sm text-neutral-gray">
                 {dateEnabled ? 'When was this order?' : 'What time was this order?'}
               </p>
               {dateEnabled ? (
@@ -1093,13 +1095,10 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
                       w-full h-12 px-4 rounded-xl text-sm
                       border focus:border-primary/50
                       outline-none transition-colors
-                      ${isManualEntry
-                        ? 'bg-gray-800 text-white border-gray-600'
-                        : 'bg-neutral-light text-text-dark border-neutral-gray/20'
-                      }
+                      bg-neutral-light text-text-dark border-neutral-gray/20
                     `}
                   />
-                  <p className="text-xs text-amber-500/70">Only past dates &amp; times allowed — you cannot log a future order.</p>
+                  <p className="text-xs text-neutral-gray/70">Only past dates &amp; times allowed — you cannot log a future order.</p>
                 </>
               ) : (
                 <>
@@ -1111,19 +1110,16 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
                       w-full h-12 px-4 rounded-xl text-sm
                       border focus:border-primary/50
                       outline-none transition-colors
-                      ${isManualEntry
-                        ? 'bg-gray-800 text-white border-gray-600'
-                        : 'bg-neutral-light text-text-dark border-neutral-gray/20'
-                      }
+                      bg-neutral-light text-text-dark border-neutral-gray/20
                     `}
                   />
-                  <p className="text-xs text-amber-500/70">Only past times allowed — you cannot log a future order.</p>
+                  <p className="text-xs text-neutral-gray/70">Only past times allowed — you cannot log a future order.</p>
                 </>
               )}
             </div>
           )}
 
-          <p className={`text-sm ${isManualEntry ? 'text-gray-400' : 'text-neutral-gray'}`}>Select payment method</p>
+          <p className="text-sm text-neutral-gray">Select payment method</p>
 
           <div className="grid grid-cols-2 gap-3">
             {([
@@ -1145,13 +1141,8 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
                   py-4 rounded-2xl flex flex-col items-center gap-2
                   transition-all duration-150
                   ${selectedMethod === method.id
-                    ? isManualEntry
-                      ? 'bg-amber-500 text-gray-900 ring-2 ring-amber-500 ring-offset-2 ring-offset-gray-900'
-                      : 'bg-primary text-brown ring-2 ring-primary ring-offset-2 ring-offset-white'
-                    : isManualEntry
-                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                      : 'bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20'
-                  }
+? 'bg-primary text-brown ring-2 ring-primary ring-offset-2 ring-offset-white'
+                    : 'bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20'}
                 `}
               >
                 <method.icon className="w-7 h-7" />
@@ -1281,10 +1272,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
                   placeholder:text-neutral-gray/60
                   border focus:border-primary/50
                   outline-none transition-colors
-                  ${isManualEntry
-                    ? 'bg-gray-800 text-white border-gray-600'
-                    : 'bg-neutral-light text-text-dark border-neutral-gray/20'
-                  }
+                  bg-neutral-light text-text-dark border-neutral-gray/20
                 `}
               />
               <input
@@ -1297,10 +1285,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
                   placeholder:text-neutral-gray/60
                   border focus:border-primary/50
                   outline-none transition-colors
-                  ${isManualEntry
-                    ? 'bg-gray-800 text-white border-gray-600'
-                    : 'bg-neutral-light text-text-dark border-neutral-gray/20'
-                  }
+                  bg-neutral-light text-text-dark border-neutral-gray/20
                 `}
               />
             </div>
@@ -1313,6 +1298,10 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
             </div>
           )}
         </div>
+
+        {validationError && (
+          <p className="text-sm text-error text-center mb-2">{validationError}</p>
+        )}
 
         {/* Confirm Button */}
         <div className="p-6 pt-0">

@@ -115,6 +115,7 @@ export interface Order {
     startedAt?: number;             // kitchen started preparing
     readyAt?: number;               // kitchen marked ready
     completedAt?: number;           // order completed/delivered
+    recordedAt?: number;            // manual entry: when the order actually happened
     estimatedMinutes?: number;
 
     // Tracking

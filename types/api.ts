@@ -353,6 +353,7 @@ export interface Order {
   cancel_request_reason?: string | null;
   cancel_requested_at?: string | null;
   cancel_requested_by_user?: { id: number; name?: string | null } | null;
+  recorded_at?: string;
   created_at: string;
   updated_at: string;
 }

@@ -76,7 +76,7 @@ export default function POSOrdersPage() {
   const { orders: rawOrders, isLoading } = useEmployeeOrders({
     branch_id: session?.branchId ? Number(session.branchId) : undefined,
     staff_id: session?.staffId,
-    order_source: 'pos',
+    order_source: ['pos', 'manual_entry'],
     date_from: today,
     date_to: today,
     per_page: 100,
@@ -266,12 +266,17 @@ function OrderCard({ order, branchName, staffName, isAdmin, onCancelRequested }:
               </span>
             );
           })()}
+          {order.source === 'manual_entry' && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-neutral-gray/10 text-neutral-gray">
+              Past Order
+            </span>
+          )}
         </div>
         <span className="text-xs text-neutral-gray whitespace-nowrap shrink-0 mt-0.5">
           {formatOrderTime(order.placedAt)}
         </span>
         {/* Cancel row — separated to avoid accidental taps */}
-        {order.status !== 'cancelled' && order.status !== 'completed' && order.status !== 'cancel_requested' && (
+        {order.source !== 'manual_entry' && order.status !== 'cancelled' && order.status !== 'completed' && order.status !== 'cancel_requested' && (
           <div className="">
             <button
               onClick={() => onCancelRequested(order)}
