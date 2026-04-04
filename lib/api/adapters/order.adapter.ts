@@ -44,13 +44,14 @@ export interface AdminOrder {
   cancelRequestedAt?: string | null;
 }
 
-const SOURCE_MAP: Record<string, OrderSource> = {
+const SOURCE_MAP: Record<string, string> = {
   online: 'Online',
   pos: 'POS',
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
   facebook: 'Facebook',
   phone: 'Phone',
+  manual_entry: 'manual_entry',
 };
 
 const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
@@ -198,7 +199,7 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
   const amount = Number(api.total_amount ?? api.subtotal ?? 0);
   const amountPaid = Number(primaryPayment?.amount ?? 0);
   const orderSource = (api.order_source ?? 'online').toLowerCase().replace(/\s+/g, '_');
-  const source = SOURCE_MAP[orderSource] ?? 'Online';
+  const source = (SOURCE_MAP[orderSource] ?? 'Online') as OrderSource;
   const paymentMethod = (primaryPayment?.payment_method ?? 'momo').toLowerCase().replace(/\s+/g, '_');
   const payment = PAYMENT_METHOD_MAP[paymentMethod] ?? paymentMethod.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 

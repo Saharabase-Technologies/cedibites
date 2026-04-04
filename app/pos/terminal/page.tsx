@@ -135,6 +135,7 @@ export default function POSTerminalPage() {
     closePayment,
     processPayment,
     isManualEntry,
+    setIsManualEntry,
     todayOrders,
   } = usePOS();
   const { logout } = useStaffAuth();
@@ -716,9 +717,17 @@ export default function POSTerminalPage() {
           </div>
 
           {isManualEntry && (
-            <div className="flex items-center justify-center gap-2 py-2 mb-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-              Recording Past Order
+            <div className="flex items-center justify-between py-2 px-3 mb-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
+              <span className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                Recording Past Order
+              </span>
+              <button
+                onClick={() => { clearCart(); setIsManualEntry(false); }}
+                className="px-2 py-0.5 rounded-md bg-amber-200 hover:bg-amber-300 text-amber-800 text-xs font-semibold transition-colors"
+              >
+                Exit
+              </button>
             </div>
           )}
 
@@ -1074,36 +1083,42 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
                 {dateEnabled ? 'When was this order?' : 'What time was this order?'}
               </p>
               {dateEnabled ? (
-                <input
-                  type="datetime-local"
-                  value={recordedAt}
-                  max={new Date().toISOString().slice(0, 16)}
-                  onChange={e => setRecordedAt(e.target.value)}
-                  className={`
-                    w-full h-12 px-4 rounded-xl text-sm
-                    border focus:border-primary/50
-                    outline-none transition-colors
-                    ${isManualEntry
-                      ? 'bg-gray-800 text-white border-gray-600'
-                      : 'bg-neutral-light text-text-dark border-neutral-gray/20'
-                    }
-                  `}
-                />
+                <>
+                  <input
+                    type="datetime-local"
+                    value={recordedAt}
+                    max={new Date().toISOString().slice(0, 16)}
+                    onChange={e => setRecordedAt(e.target.value)}
+                    className={`
+                      w-full h-12 px-4 rounded-xl text-sm
+                      border focus:border-primary/50
+                      outline-none transition-colors
+                      ${isManualEntry
+                        ? 'bg-gray-800 text-white border-gray-600'
+                        : 'bg-neutral-light text-text-dark border-neutral-gray/20'
+                      }
+                    `}
+                  />
+                  <p className="text-xs text-amber-500/70">Only past dates &amp; times allowed — you cannot log a future order.</p>
+                </>
               ) : (
-                <input
-                  type="time"
-                  value={recordedTime}
-                  onChange={e => setRecordedTime(e.target.value)}
-                  className={`
-                    w-full h-12 px-4 rounded-xl text-sm
-                    border focus:border-primary/50
-                    outline-none transition-colors
-                    ${isManualEntry
-                      ? 'bg-gray-800 text-white border-gray-600'
-                      : 'bg-neutral-light text-text-dark border-neutral-gray/20'
-                    }
-                  `}
-                />
+                <>
+                  <input
+                    type="time"
+                    value={recordedTime}
+                    onChange={e => setRecordedTime(e.target.value)}
+                    className={`
+                      w-full h-12 px-4 rounded-xl text-sm
+                      border focus:border-primary/50
+                      outline-none transition-colors
+                      ${isManualEntry
+                        ? 'bg-gray-800 text-white border-gray-600'
+                        : 'bg-neutral-light text-text-dark border-neutral-gray/20'
+                      }
+                    `}
+                  />
+                  <p className="text-xs text-amber-500/70">Only past times allowed — you cannot log a future order.</p>
+                </>
               )}
             </div>
           )}
