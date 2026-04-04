@@ -963,8 +963,8 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
     if (!isManualEntry) return;
     apiClient.get('/settings/manual_entry_date_enabled')
       .then((res: unknown) => {
-        const val = (res as { data?: { value?: string } })?.data?.value;
-        setDateEnabled(val === 'true' || val === '1');
+        const val = (res as { data?: { value?: unknown } })?.data?.value;
+        setDateEnabled(val === true || val === 'true' || val === '1');
       })
       .catch(() => setDateEnabled(false));
   }, [isManualEntry]);
