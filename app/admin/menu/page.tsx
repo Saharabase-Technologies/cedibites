@@ -20,6 +20,7 @@ import {
     WarningCircleIcon,
     CaretDownIcon,
     ImageIcon,
+    DotsThreeVerticalIcon,
 } from '@phosphor-icons/react';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import { useMenuCategories } from '@/lib/api/hooks/useMenuCategories';
@@ -205,6 +206,46 @@ function TagBadge({ tag }: { tag: string }) {
         </span>
     );
 }
+
+﻿// ─── Action dropdown menu ─────────────────────────────────────────────────────
+
+function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+    const [open, setOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        function close(e: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+        }
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [open]);
+
+    return (
+        <div ref={menuRef} className="relative">
+            <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-neutral-light transition-colors cursor-pointer">
+                <DotsThreeVerticalIcon size={16} weight="bold" className="text-neutral-gray" />
+            </button>
+            {open ? (
+                <div className="absolute right-0 top-full mt-1 z-20 bg-neutral-card border border-[#f0e8d8] rounded-xl shadow-lg overflow-hidden min-w-36">
+                    <button type="button" onClick={() => { setOpen(false); onEdit(); }}
+                        className="w-full text-left px-4 py-2.5 flex items-center gap-2.5 hover:bg-neutral-light transition-colors cursor-pointer text-text-dark text-sm font-body">
+                        <PencilSimpleIcon size={14} weight="bold" className="text-primary" />
+                        Edit
+                    </button>
+                    <button type="button" onClick={() => { setOpen(false); onDelete(); }}
+                        className="w-full text-left px-4 py-2.5 flex items-center gap-2.5 hover:bg-error/5 transition-colors cursor-pointer text-error text-sm font-body">
+                        <TrashIcon size={14} weight="bold" />
+                        Delete
+                    </button>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
 
 // ─── Confirm delete modal ─────────────────────────────────────────────────────
 
@@ -980,6 +1021,20 @@ export default function AdminMenuPage() {
                     ? item.sizes
                     : [{ id: 0, key: 'standard', label: 'Standard', price: item.price ?? 0, image: item.image }];
 
+                const uploadSimpleImage = async () => {
+                    if (!isSinglePrice || !item.imageFile) {
+                        return;
+                    }
+                    // For simple-priced items the backend creates a 'standard' option.
+                    // Fetch it and upload the image to that option.
+                    const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
+                    const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
+                    const standardOpt = existing.find(o => o.option_key === 'standard');
+                    if (standardOpt) {
+                        await menuService.uploadOptionImage(savedId, standardOpt.id, item.imageFile);
+                    }
+                };
+
                 const syncOptions = async () => {
                     if (!desiredOptions.length || isSinglePrice) {
                         return;
@@ -1089,7 +1144,8 @@ export default function AdminMenuPage() {
                     setSavingItem(false);
                 };
 
-                syncOptions()
+                uploadSimpleImage()
+                    .then(syncOptions)
                     .then(syncBranchOverrides)
                     .then(afterSave)
                     .catch(() => {
@@ -1168,7 +1224,20 @@ export default function AdminMenuPage() {
     }
 
     function toggleGlobal(item: GlobalMenuItem) {
-        setItems(prev => prev.map(x => x.id === item.id ? { ...x, globallyAvailable: !x.globallyAvailable } : x));
+        const newAvailability = !item.globallyAvailable;
+        setItems(prev => prev.map(x => x.id === item.id ? { ...x, globallyAvailable: newAvailability } : x));
+
+        if (item.numericId && !item.id.startsWith('item-')) {
+            menuService.updateItem(item.numericId, { is_available: newAvailability })
+                .then(() => {
+                    toast.success(`${item.name} ${newAvailability ? 'enabled' : 'disabled'}`);
+                })
+                .catch(() => {
+                    // Revert on failure
+                    setItems(prev => prev.map(x => x.id === item.id ? { ...x, globallyAvailable: !newAvailability } : x));
+                    toast.error('Failed to update availability');
+                });
+        }
     }
 
     return (
@@ -1293,16 +1362,7 @@ export default function AdminMenuPage() {
                                 }
                             </button>
 
-                            <div className="flex items-center gap-1.5">
-                                <button type="button" onClick={() => openItemEditor(item)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-neutral-light transition-colors cursor-pointer">
-                                    <PencilSimpleIcon size={14} weight="bold" className="text-primary" />
-                                </button>
-                                <button type="button" onClick={() => setDeleteItem(item)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-error/10 transition-colors cursor-pointer">
-                                    <TrashIcon size={14} weight="bold" className="text-error" />
-                                </button>
-                            </div>
+                            <ActionMenu onEdit={() => openItemEditor(item)} onDelete={() => setDeleteItem(item)} />
                         </div>
                     ))
                 )}

@@ -86,7 +86,9 @@ export interface Branch {
 // Menu types
 export interface MenuCategory {
   id: number;
+  branch_id?: number;
   name: string;
+  slug?: string;
   description?: string;
   display_order: number;
   is_active: boolean;

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
@@ -20,6 +20,7 @@ import {
     WarningCircleIcon,
     CaretDownIcon,
     ImageIcon,
+    DotsThreeVerticalIcon,
 } from '@phosphor-icons/react';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import { useMenuCategories } from '@/lib/api/hooks/useMenuCategories';
@@ -32,7 +33,7 @@ import type { MenuTag } from '@/types/api';
 import { toast } from '@/lib/utils/toast';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ManagerMenuItem extends Omit<DisplayMenuItem, 'tags'> {
     tags: string[];
@@ -63,7 +64,7 @@ interface ItemFormState {
     available: boolean;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function hasPricingOptions(item: Omit<DisplayMenuItem, 'tags'>): boolean {
     if (!item.sizes?.length && !(item.hasVariants && item.variants)) return false;
@@ -88,25 +89,25 @@ function PriceDisplay({ item }: { item: Omit<DisplayMenuItem, 'tags'> }) {
     if (hasPricingOptions(item)) {
         const rows = getOptionRows(item);
         const prices = rows.map(r => Number(r.price)).filter(Boolean);
-        if (!prices.length) return <span className="text-neutral-gray text-xs font-body">—</span>;
+        if (!prices.length) return <span className="text-neutral-gray text-xs font-body">â€”</span>;
         const min = Math.min(...prices), max = Math.max(...prices);
-        if (min === max) return <span className="text-text-dark text-xs font-bold font-body">₵{min}</span>;
+        if (min === max) return <span className="text-text-dark text-xs font-bold font-body">â‚µ{min}</span>;
         if (rows.length <= 4) {
             return (
                 <div className="flex flex-wrap gap-1">
                     {rows.map(r => (
                         <span key={r.label} className="inline-flex items-center gap-1 bg-neutral-gray/10 border border-neutral-gray/20 rounded-full px-2 py-0.5 text-[10px] font-body font-medium text-text-dark whitespace-nowrap">
                             {r.label}
-                            <span className="text-primary font-bold">₵{r.price}</span>
+                            <span className="text-primary font-bold">â‚µ{r.price}</span>
                         </span>
                     ))}
                 </div>
             );
         }
-        return <span className="text-text-dark text-xs font-bold font-body">₵{min} – {max}</span>;
+        return <span className="text-text-dark text-xs font-bold font-body">â‚µ{min} â€“ {max}</span>;
     }
-    if (item.price != null) return <span className="text-text-dark text-xs font-bold font-body">₵{item.price}</span>;
-    return <span className="text-neutral-gray text-xs font-body">—</span>;
+    if (item.price != null) return <span className="text-text-dark text-xs font-bold font-body">â‚µ{item.price}</span>;
+    return <span className="text-neutral-gray text-xs font-body">â€”</span>;
 }
 
 function itemToForm(item: ManagerMenuItem): ItemFormState {
@@ -177,7 +178,7 @@ function formToItem(form: ItemFormState, branchId: number, existing?: ManagerMen
     return base;
 }
 
-// ─── Tag badge ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Tag badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TAG_STYLES: Record<string, string> = {
     popular:    'bg-primary/10 text-primary',
@@ -194,7 +195,46 @@ function TagBadge({ tag }: { tag: string }) {
     );
 }
 
-// ─── Confirm delete modal ─────────────────────────────────────────────────────
+// ─── Action menu (3-dot) ────────────────────────────────────────────────────────
+
+function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+    const [open, setOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        function close(e: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+        }
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [open]);
+
+    return (
+        <div ref={menuRef} className="relative">
+            <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-neutral-light transition-colors cursor-pointer">
+                <DotsThreeVerticalIcon size={16} weight="bold" className="text-neutral-gray" />
+            </button>
+            {open ? (
+                <div className="absolute right-0 top-full mt-1 z-20 bg-neutral-card border border-[#f0e8d8] rounded-xl shadow-lg overflow-hidden min-w-36">
+                    <button type="button" onClick={() => { setOpen(false); onEdit(); }}
+                        className="w-full text-left px-4 py-2.5 flex items-center gap-2.5 hover:bg-neutral-light transition-colors cursor-pointer text-text-dark text-sm font-body">
+                        <PencilSimpleIcon size={14} weight="bold" className="text-primary" />
+                        Edit
+                    </button>
+                    <button type="button" onClick={() => { setOpen(false); onDelete(); }}
+                        className="w-full text-left px-4 py-2.5 flex items-center gap-2.5 hover:bg-error/5 transition-colors cursor-pointer text-error text-sm font-body">
+                        <TrashIcon size={14} weight="bold" />
+                        Delete
+                    </button>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+// â”€â”€â”€ Confirm delete modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ConfirmModal({ title, desc, onConfirm, onCancel }: { title: string; desc: string; onConfirm: () => void; onCancel: () => void }) {
     return (
@@ -217,7 +257,7 @@ function ConfirmModal({ title, desc, onConfirm, onCancel }: { title: string; des
     );
 }
 
-// ─── Image picker ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Image picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ImagePicker({ value, onChange, size = 'md' }: { value?: string; onChange: (url: string, file: File) => void; size?: 'sm' | 'md' }) {
     const ref = useRef<HTMLInputElement>(null);
@@ -237,7 +277,7 @@ function ImagePicker({ value, onChange, size = 'md' }: { value?: string; onChang
     );
 }
 
-// ─── Item edit modal ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Item edit modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ItemModal({
     item, optionTemplates, addOns, menuTags, categoryOptions, onClose, onSave, isSaving = false,
@@ -313,7 +353,7 @@ function ItemModal({
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/30 backdrop-blur-sm overflow-y-auto">
             <div className="bg-neutral-card rounded-2xl shadow-2xl w-full max-w-xl my-8">
                 <div className="flex items-center justify-between px-6 py-5 border-b border-[#f0e8d8]">
-                    <h2 className="text-text-dark text-lg font-bold font-body">{isNew ? 'Add Menu Item' : `Edit — ${item?.name}`}</h2>
+                    <h2 className="text-text-dark text-lg font-bold font-body">{isNew ? 'Add Menu Item' : `Edit â€” ${item?.name}`}</h2>
                     <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-neutral-light cursor-pointer">
                         <XIcon size={16} className="text-neutral-gray" />
                     </button>
@@ -321,7 +361,7 @@ function ItemModal({
 
                 <div className="p-6 flex flex-col gap-5">
 
-                    {/* ── Basic info ──────────────────────────────────────────── */}
+                    {/* â”€â”€ Basic info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="sm:col-span-2">
                             <label className="block text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1.5">Item Name</label>
@@ -352,7 +392,7 @@ function ItemModal({
                         </div>
                     </div>
 
-                    {/* ── Pricing ─────────────────────────────────────────────── */}
+                    {/* â”€â”€ Pricing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
                     <div>
                         <div className="flex items-center justify-between mb-2">
                             <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Pricing</p>
@@ -368,7 +408,7 @@ function ItemModal({
                                                 <button key={tpl.id} type="button" onClick={() => loadTemplate(tpl)}
                                                     className="w-full text-left px-4 py-3 hover:bg-neutral-light transition-colors cursor-pointer border-b border-[#f0e8d8] last:border-b-0">
                                                     <p className="text-text-dark text-sm font-medium font-body">{tpl.name}</p>
-                                                    <p className="text-neutral-gray text-xs font-body mt-0.5">{tpl.options.map(o => o.label).join(' · ')}</p>
+                                                    <p className="text-neutral-gray text-xs font-body mt-0.5">{tpl.options.map(o => o.label).join(' Â· ')}</p>
                                                 </button>
                                             ))}
                                         </div>
@@ -447,7 +487,7 @@ function ItemModal({
                         )}
                     </div>
 
-                    {/* ── Add-ons ─────────────────────────────────────────────── */}
+                    {/* â”€â”€ Add-ons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
                     {addOns.length > 0 && (
                         <div>
                             <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Available Add-ons</p>
@@ -464,7 +504,7 @@ function ItemModal({
                                         </div>
                                         <span className="text-sm font-body text-text-dark">
                                             {addon.name}
-                                            <span className="text-neutral-gray ml-1.5 text-xs">₵{addon.price}{addon.perPiece ? '/pc' : ''}</span>
+                                            <span className="text-neutral-gray ml-1.5 text-xs">â‚µ{addon.price}{addon.perPiece ? '/pc' : ''}</span>
                                         </span>
                                     </button>
                                 ))}
@@ -472,7 +512,7 @@ function ItemModal({
                         </div>
                     )}
 
-                    {/* ── Tags ────────────────────────────────────────────────── */}
+                    {/* â”€â”€ Tags â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
                     <div>
                         <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Tags</p>
                         <div className="flex gap-2 flex-wrap">
@@ -503,7 +543,7 @@ function ItemModal({
     );
 }
 
-// ─── Bulk import modal ────────────────────────────────────────────────────────
+// â”€â”€â”€ Bulk import modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId: number }) {
     const router = useRouter();
@@ -561,7 +601,7 @@ function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId:
                         </div>
                     ) : (
                         <>
-                            <p className="text-neutral-gray text-sm font-body mb-4">{previewData?.total_rows} rows parsed — {previewData?.valid_rows} valid, {previewData?.invalid_rows} with errors.</p>
+                            <p className="text-neutral-gray text-sm font-body mb-4">{previewData?.total_rows} rows parsed â€” {previewData?.valid_rows} valid, {previewData?.invalid_rows} with errors.</p>
                             <div className="bg-neutral-light rounded-xl overflow-hidden mb-4 max-h-60 overflow-y-auto">
                                 {previewData?.preview?.slice(0, 10).map((row: any, i: number) => (
                                     <div key={i} className={`flex items-center gap-3 px-4 py-3 ${i < Math.min(previewData.preview.length, 10) - 1 ? 'border-b border-[#f0e8d8]' : ''}`}>
@@ -572,7 +612,7 @@ function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId:
                                         <div className="flex-1 min-w-0">
                                             <p className="text-text-dark text-xs font-semibold font-body">{row.name}</p>
                                             <p className="text-neutral-gray text-[10px] font-body">
-                                                {row.category} · {row.price ? `₵${row.price}` : <span className="text-error">No price</span>}
+                                                {row.category} Â· {row.price ? `â‚µ${row.price}` : <span className="text-error">No price</span>}
                                                 {row.errors?.length > 0 && <span className="text-error ml-2">({row.errors.join(', ')})</span>}
                                             </p>
                                         </div>
@@ -594,11 +634,12 @@ function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId:
     );
 }
 
-// ─── Menu sub-tabs ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Menu sub-tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const MENU_SUB_TABS = [
-    { href: '/staff/manager/menu',      label: 'Items' },
-    { href: '/staff/manager/menu/tags', label: 'Tags'  },
+    { href: '/staff/manager/menu',           label: 'Items'     },
+    { href: '/staff/manager/menu/tags',      label: 'Tags'      },
+    { href: '/staff/manager/menu/configure', label: 'Configure'  },
 ];
 
 function MenuSubTabs() {
@@ -621,7 +662,7 @@ function MenuSubTabs() {
     );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function ManagerMenuPage() {
     const { staffUser } = useStaffAuth();
@@ -631,7 +672,7 @@ export default function ManagerMenuPage() {
     const { items: menuItems, isLoading: menuLoading, refetch: refetchMenuItems } = useMenuItems(
         branchId ? { branch_id: branchId } : undefined
     );
-    const { data: menuCategories = [], isLoading: categoriesLoading } = useMenuCategories({ is_active: true });
+    const { data: menuCategories = [], isLoading: categoriesLoading } = useMenuCategories({ is_active: true, branch_id: branchId });
     const [items, setItems] = useState<ManagerMenuItem[]>([]);
     const hasInitialized = useRef(false);
 
@@ -731,6 +772,16 @@ export default function ManagerMenuPage() {
                     ? item.sizes
                     : (isSinglePrice ? [] : [{ id: 0, key: 'standard', label: 'Standard', price: item.price ?? 0 }]);
 
+                const uploadSimpleImage = async () => {
+                    if (!isSinglePrice || !item.imageFile) return;
+                    const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
+                    const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
+                    const standardOpt = existing.find(o => o.option_key === 'standard');
+                    if (standardOpt) {
+                        await menuService.uploadOptionImage(savedId, standardOpt.id, item.imageFile);
+                    }
+                };
+
                 const syncOptions = async () => {
                     if (!desiredOptions.length || isSinglePrice) return;
 
@@ -790,8 +841,8 @@ export default function ManagerMenuPage() {
                     setSavingItem(false);
                 };
 
-                syncOptions().then(afterSave).catch(() => {
-                    toast.error('Item saved but option sync failed. Please re-open and retry.');
+                uploadSimpleImage().then(syncOptions).then(afterSave).catch(() => {
+                    toast.error('Item saved but image/option sync failed. Please re-open and retry.');
                     afterSave();
                 });
             })
@@ -844,7 +895,7 @@ export default function ManagerMenuPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <div>
                     <h1 className="text-text-dark text-2xl font-bold font-body">Menu Management</h1>
-                    <p className="text-neutral-gray text-sm font-body mt-0.5">{branchName} · {active.length} item{active.length !== 1 ? 's' : ''}</p>
+                    <p className="text-neutral-gray text-sm font-body mt-0.5">{branchName} Â· {active.length} item{active.length !== 1 ? 's' : ''}</p>
                 </div>
                 <div className="flex gap-2">
                     <button type="button" onClick={() => setShowImport(true)}
@@ -876,21 +927,21 @@ export default function ManagerMenuPage() {
                 </div>
                 <div className="relative flex-1 min-w-50">
                     <MagnifyingGlassIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray" />
-                    <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search items…"
+                    <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search itemsâ€¦"
                         className="w-full pl-9 pr-3 py-2.5 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40" />
                 </div>
             </div>
 
             {/* Items table */}
             <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden mb-6">
-                <div className="hidden md:grid grid-cols-[40px_1fr_110px_160px_80px_100px] gap-4 px-4 py-3 border-b border-[#f0e8d8] bg-[#faf6f0]">
-                    {['', 'Item', 'Category', 'Price', 'Status', 'Actions'].map(h => (
+                <div className="hidden md:grid grid-cols-[40px_1fr_110px_160px_80px_40px] gap-4 px-4 py-3 border-b border-[#f0e8d8] bg-[#faf6f0]">
+                    {['', 'Item', 'Category', 'Price', 'Status', ''].map(h => (
                         <span key={h} className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-wider">{h}</span>
                     ))}
                 </div>
 
                 {menuLoading && items.length === 0 ? (
-                    <div className="px-4 py-16 text-center"><p className="text-neutral-gray text-sm font-body">Loading menu…</p></div>
+                    <div className="px-4 py-16 text-center"><p className="text-neutral-gray text-sm font-body">Loading menuâ€¦</p></div>
                 ) : active.length === 0 ? (
                     <div className="px-4 py-16 text-center">
                         <ForkKnifeIcon size={32} weight="thin" className="text-neutral-gray/40 mx-auto mb-3" />
@@ -899,7 +950,7 @@ export default function ManagerMenuPage() {
                 ) : (
                     active.map((item, i) => (
                         <div key={item.id}
-                            className={`px-4 py-3.5 flex flex-col md:grid md:grid-cols-[40px_1fr_110px_160px_80px_100px] gap-2 md:gap-4 md:items-center ${i < active.length - 1 ? 'border-b border-[#f0e8d8]' : ''} hover:bg-neutral-light/50 transition-colors`}>
+                            className={`px-4 py-3.5 flex flex-col md:grid md:grid-cols-[40px_1fr_110px_160px_80px_40px] gap-2 md:gap-4 md:items-center ${i < active.length - 1 ? 'border-b border-[#f0e8d8]' : ''} hover:bg-neutral-light/50 transition-colors`}>
 
                             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
                                 {item.image
@@ -928,16 +979,7 @@ export default function ManagerMenuPage() {
                                 }
                             </button>
 
-                            <div className="flex items-center gap-1.5">
-                                <button type="button" onClick={() => setEditItem(item)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-neutral-light transition-colors cursor-pointer">
-                                    <PencilSimpleIcon size={14} weight="bold" className="text-primary" />
-                                </button>
-                                <button type="button" onClick={() => setDeleteItem(item)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-error/10 transition-colors cursor-pointer">
-                                    <TrashIcon size={14} weight="bold" className="text-error" />
-                                </button>
-                            </div>
+                            <ActionMenu onEdit={() => setEditItem(item)} onDelete={() => setDeleteItem(item)} />
                         </div>
                     ))
                 )}

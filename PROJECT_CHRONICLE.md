@@ -81,6 +81,63 @@ Items still needing attention.
 
 ---
 
+## [2026-04-04] Session: Menu Management Audit — Full-Stack Fixes
+
+### Intent
+
+Comprehensive audit and fix of the entire menu system across admin and branch manager portals. Fix critical bugs in image upload, category CRUD, availability toggle persistence, and cross-portal UX inconsistencies.
+
+### Changes Made
+
+| File                                        | Change                                                                                                                        | Reason                                                                                                                           |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `app/admin/menu/page.tsx`                   | Added `uploadSimpleImage()` function for simple-priced items; chained before `syncOptions()` in save flow                     | Images for simple-priced items were silently lost — backend creates a 'standard' option but the frontend skipped uploading to it |
+| `app/admin/menu/page.tsx`                   | Fixed `toggleGlobal()` to persist via API with optimistic update + rollback                                                   | Toggle only updated local React state; refreshing the page reverted availability                                                 |
+| `app/admin/menu/page.tsx`                   | Added `ActionMenu` component (3-dot dropdown with Edit/Delete); replaced inline buttons                                       | User requested hiding delete button inside a contextual menu                                                                     |
+| `app/admin/menu/page.tsx`                   | Adjusted grid columns (Actions column 100px → 40px)                                                                           | ActionMenu is more compact than two separate buttons                                                                             |
+| `app/admin/menu-add-ons/page.tsx`           | Completely rewritten — simplified to Name + Price only form; auto-generates slug; defaults is_per_piece=false, is_active=true | User wanted "just name and price, simple straightforward, no options to complicate things"                                       |
+| `app/staff/manager/menu/page.tsx`           | Added `uploadSimpleImage()` function (ported from admin)                                                                      | Same image upload bug existed on BM page                                                                                         |
+| `app/staff/manager/menu/page.tsx`           | Fixed `useMenuCategories` call to pass `branch_id: branchId`                                                                  | BM was loading ALL branches' categories — could assign items to wrong branch                                                     |
+| `app/staff/manager/menu/page.tsx`           | Added `ActionMenu` component; replaced inline edit/delete buttons                                                             | UX consistency with admin page                                                                                                   |
+| `app/staff/manager/menu/page.tsx`           | Fixed `MENU_SUB_TABS` — added Configure tab                                                                                   | Items page only showed [Items, Tags] — Configure page was unreachable                                                            |
+| `app/staff/manager/menu/configure/page.tsx` | Fixed `MENU_SUB_TABS` — added Configure tab                                                                                   | Only showed [Items, Tags] — page couldn't navigate back to itself                                                                |
+| `app/staff/manager/menu/tags/page.tsx`      | Standardized `MENU_SUB_TABS` to [Items, Tags, Configure]                                                                      | Consistency across all 3 BM menu sub-pages                                                                                       |
+| `types/api.ts`                              | Added `branch_id?: number` and `slug?: string` to `MenuCategory` interface                                                    | Backend now serializes these fields; frontend type contract needed alignment                                                     |
+
+### Decisions
+
+- **Decision**: Sub-tabs for BM are [Items, Tags, Configure] (no Add-ons tab yet)
+  - **Rationale**: BM doesn't have an add-ons management page yet; will be added as a follow-up
+- **Decision**: Slug auto-generated from name for add-ons
+  - **Rationale**: Slug is an implementation detail; exposing it to users adds complexity with no benefit
+- **Decision**: ActionMenu (3-dot) pattern standardized across admin and BM
+  - **Rationale**: Consistent UX; delete action is destructive and should be behind a click
+
+### Cross-Repo Impact
+
+| File (API repo)                 | Change                                                         | Impact on Frontend                                                       |
+| ------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `CreateMenuCategoryRequest.php` | Added `branch_id` validation; scoped name uniqueness to branch | Fixes category creation failing when same name exists in another branch  |
+| `UpdateMenuCategoryRequest.php` | Added branch-scoped uniqueness                                 | Same fix for updates                                                     |
+| `MenuCategoryResource.php`      | Added `branch_id` to serialized output                         | Frontend can now read branch_id from category responses                  |
+| `MenuCategoryController.php`    | Removed broken groupBy name deduplication from index()         | Categories were being collapsed into one per unique name across branches |
+
+### Current State
+
+- Admin menu page: CRUD works, images upload for both simple and multi-option items, toggle persists, 3-dot action menu
+- Admin add-ons page: Simplified to name + price, auto-slug
+- BM menu page: Matches admin behavior — image upload, branch-scoped categories, 3-dot menu, all 3 sub-tabs navigable
+- Build: Passes clean (71 static pages)
+
+### Pending / Follow-up
+
+- BM add-ons management page (currently no equivalent of `/admin/menu-add-ons`)
+- Tags page simplification (both admin and BM expose slug/display_order to users)
+- Shared menu components extraction (ItemModal, PriceDisplay, TagBadge, ConfirmModal duplicated in admin and BM)
+- Admin menu page decomposition (74KB single file)
+
+---
+
 ## [2026-04-04] Session: Settings Toggle Persistence, Delivery Fee Toggle & Global Operating Hours
 
 ### Intent
@@ -89,13 +146,13 @@ Fix a bug where admin settings toggles reset on page refresh despite being saved
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
-| `app/admin/settings/page.tsx` | Added "Enable Delivery Fee" toggle in Order Settings tab | Admin control for delivery fee visibility in checkout |
-| `app/admin/settings/page.tsx` | Connected General tab operating hours inputs to API (load from settings on mount, save on submit) | Previously these inputs had no backend connection — values were lost on refresh |
+| File                               | Change                                                                                                                         | Reason                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `app/admin/settings/page.tsx`      | Added "Enable Delivery Fee" toggle in Order Settings tab                                                                       | Admin control for delivery fee visibility in checkout                              |
+| `app/admin/settings/page.tsx`      | Connected General tab operating hours inputs to API (load from settings on mount, save on submit)                              | Previously these inputs had no backend connection — values were lost on refresh    |
 | `app/(customer)/checkout/page.tsx` | `OrderSummary` component now accepts `deliveryFeeEnabled` prop; delivery fee row conditionally rendered only when toggle is on | Checkout was showing "Delivery Fee: Free" even when delivery fees weren't intended |
-| `app/components/layout/Footer.tsx` | Fetches `global_operating_hours_open` and `global_operating_hours_close` from `/checkout-config` endpoint | Previously used hardcoded "7:00 AM - 10:00 PM" values |
-| `app/components/layout/Footer.tsx` | Added `formatTime12h()` helper for converting "HH:MM" to "H:MM AM/PM" display format | Hours stored as 24h strings in DB, need 12h format for display |
+| `app/components/layout/Footer.tsx` | Fetches `global_operating_hours_open` and `global_operating_hours_close` from `/checkout-config` endpoint                      | Previously used hardcoded "7:00 AM - 10:00 PM" values                              |
+| `app/components/layout/Footer.tsx` | Added `formatTime12h()` helper for converting "HH:MM" to "H:MM AM/PM" display format                                           | Hours stored as 24h strings in DB, need 12h format for display                     |
 
 ### Decisions
 
@@ -112,12 +169,12 @@ Fix a bug where admin settings toggles reset on page refresh despite being saved
 
 ### Cross-Repo Impact
 
-| File (API repo) | Change | Impact on Frontend |
-|-----------------|--------|--------------------|
-| `app/Http/Controllers/Api/Admin/SystemSettingController.php` | `index()` now returns raw string values instead of cast values | **Fixes toggle persistence bug** — frontend `s.value === 'true'` comparisons now work correctly because API returns `"true"`/`"false"` strings instead of JSON booleans |
-| `database/migrations/2026_04_04_072214_add_delivery_fee_and_operating_hours_settings.php` | Seeds `delivery_fee_enabled`, `global_operating_hours_open`, `global_operating_hours_close` | New settings available for frontend to read/write |
-| `routes/public.php` | `/checkout-config` expanded with delivery fee and operating hours data | Frontend checkout and footer fetch from this endpoint |
-| `routes/employee.php` | Settings allowlist expanded | Admin settings page can read/write the new settings |
+| File (API repo)                                                                           | Change                                                                                      | Impact on Frontend                                                                                                                                                      |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/Http/Controllers/Api/Admin/SystemSettingController.php`                              | `index()` now returns raw string values instead of cast values                              | **Fixes toggle persistence bug** — frontend `s.value === 'true'` comparisons now work correctly because API returns `"true"`/`"false"` strings instead of JSON booleans |
+| `database/migrations/2026_04_04_072214_add_delivery_fee_and_operating_hours_settings.php` | Seeds `delivery_fee_enabled`, `global_operating_hours_open`, `global_operating_hours_close` | New settings available for frontend to read/write                                                                                                                       |
+| `routes/public.php`                                                                       | `/checkout-config` expanded with delivery fee and operating hours data                      | Frontend checkout and footer fetch from this endpoint                                                                                                                   |
+| `routes/employee.php`                                                                     | Settings allowlist expanded                                                                 | Admin settings page can read/write the new settings                                                                                                                     |
 
 ### Current State
 
@@ -144,16 +201,16 @@ A comprehensive audit of the order/payment/checkout pipeline was performed acros
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
-| `app/(customer)/checkout/page.tsx` | Added `ServiceChargeConfig` interface, `DEFAULT_SC_CONFIG` constant, and `calcServiceCharge(subtotal, config)` helper | Replace hardcoded 1% service charge with dynamic config from API |
-| `app/(customer)/checkout/page.tsx` | Added `scConfig` state + `useEffect` fetching from `/checkout-config` public endpoint | Frontend needs real service charge config (enabled, percent, cap) before checkout |
-| `app/(customer)/checkout/page.tsx` | Updated `OrderSummary` and `StepPayment` components to accept and use `scConfig` prop | Both components need access to service charge config for accurate display/calculation |
-| `app/(customer)/checkout/page.tsx` | Service charge label now shows dynamic percentage: "Service Charge (1%)" | UX clarity — user sees the actual percentage being applied |
-| `app/admin/settings/page.tsx` | Added `serviceChargeEnabled` (boolean toggle) and `serviceChargeCap` (text input) state variables | Admin needs controls for the two new system settings |
-| `app/admin/settings/page.tsx` | Added loading of `service_charge_enabled` and `service_charge_cap` from admin settings API | Populate UI with current values on page load |
-| `app/admin/settings/page.tsx` | Added saving of both new settings alongside existing `manual_entry_date_enabled` and `service_charge_percent` | Persist changes when admin saves settings |
-| `app/admin/settings/page.tsx` | Replaced static Service Charge card with: enable/disable toggle, percentage input, cap (GHS) input with conditional rendering | Full admin control over service charge behavior |
+| File                               | Change                                                                                                                        | Reason                                                                                |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `app/(customer)/checkout/page.tsx` | Added `ServiceChargeConfig` interface, `DEFAULT_SC_CONFIG` constant, and `calcServiceCharge(subtotal, config)` helper         | Replace hardcoded 1% service charge with dynamic config from API                      |
+| `app/(customer)/checkout/page.tsx` | Added `scConfig` state + `useEffect` fetching from `/checkout-config` public endpoint                                         | Frontend needs real service charge config (enabled, percent, cap) before checkout     |
+| `app/(customer)/checkout/page.tsx` | Updated `OrderSummary` and `StepPayment` components to accept and use `scConfig` prop                                         | Both components need access to service charge config for accurate display/calculation |
+| `app/(customer)/checkout/page.tsx` | Service charge label now shows dynamic percentage: "Service Charge (1%)"                                                      | UX clarity — user sees the actual percentage being applied                            |
+| `app/admin/settings/page.tsx`      | Added `serviceChargeEnabled` (boolean toggle) and `serviceChargeCap` (text input) state variables                             | Admin needs controls for the two new system settings                                  |
+| `app/admin/settings/page.tsx`      | Added loading of `service_charge_enabled` and `service_charge_cap` from admin settings API                                    | Populate UI with current values on page load                                          |
+| `app/admin/settings/page.tsx`      | Added saving of both new settings alongside existing `manual_entry_date_enabled` and `service_charge_percent`                 | Persist changes when admin saves settings                                             |
+| `app/admin/settings/page.tsx`      | Replaced static Service Charge card with: enable/disable toggle, percentage input, cap (GHS) input with conditional rendering | Full admin control over service charge behavior                                       |
 
 ### Decisions
 
@@ -167,12 +224,12 @@ A comprehensive audit of the order/payment/checkout pipeline was performed acros
 
 ### Cross-Repo Impact
 
-| File (API repo) | Change | Impact on Frontend |
-|-----------------|--------|--------------------|
-| `routes/public.php` | New `GET /checkout-config` endpoint | Frontend `useEffect` in checkout page fetches this |
+| File (API repo)                                          | Change                                                                                                                     | Impact on Frontend                                                    |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `routes/public.php`                                      | New `GET /checkout-config` endpoint                                                                                        | Frontend `useEffect` in checkout page fetches this                    |
 | `app/Http/Controllers/Api/CheckoutSessionController.php` | Service charge now uses `service_charge_enabled`, `service_charge_percent`, `service_charge_cap` from SystemSettingService | Frontend calculation must match: `min(subtotal * percent / 100, cap)` |
-| `app/Http/Requests/UpdateOrderStatusRequest.php` | Removed `pending`, `confirmed`, `cancelled` from allowed statuses | No frontend impact — frontend already uses correct status values |
-| `app/Http/Controllers/Api/CheckoutSessionController.php` | Added branch authorization to `confirmCash()`/`confirmCard()` | No frontend impact — requests already scoped to correct branch |
+| `app/Http/Requests/UpdateOrderStatusRequest.php`         | Removed `pending`, `confirmed`, `cancelled` from allowed statuses                                                          | No frontend impact — frontend already uses correct status values      |
+| `app/Http/Controllers/Api/CheckoutSessionController.php` | Added branch authorization to `confirmCash()`/`confirmCard()`                                                              | No frontend impact — requests already scoped to correct branch        |
 
 ### Current State
 
