@@ -10,6 +10,7 @@ After making any code changes (edits, new files, deletions, refactors, bug fixes
 > **Would you like me to update the Project Chronicle with these changes?**
 
 If the user agrees, delegate to the **Project Chronicle** agent or update `PROJECT_CHRONICLE.md` directly with:
+
 - What was changed and in which files
 - Why the change was made (the intent)
 - Any decisions that were made during the process
