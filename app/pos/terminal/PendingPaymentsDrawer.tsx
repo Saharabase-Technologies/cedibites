@@ -10,6 +10,7 @@ import {
   TrashIcon,
   HourglassIcon,
   CheckCircleIcon,
+  CheckIcon,
   WarningCircleIcon,
 } from '@phosphor-icons/react';
 import { formatGHS } from '@/lib/utils/currency';
@@ -76,7 +77,14 @@ function SessionCard({
   const [isActing, setIsActing] = useState(false);
   const [showChangeNumber, setShowChangeNumber] = useState(false);
   const [newPhone, setNewPhone] = useState('');
-  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendCooldown, setResendCooldown] = useState(() => {
+    // Initialize cooldown from backend last_momo_sent_at so it persists across drawer re-opens
+    const lastSent = (session as any).last_momo_sent_at;
+    if (!lastSent) return 0;
+    const elapsed = Math.floor((Date.now() - new Date(lastSent).getTime()) / 1000);
+    const remaining = 300 - elapsed; // 5 min cooldown
+    return remaining > 0 ? remaining : 0;
+  });
   const [confirmingAction, setConfirmingAction] = useState<'cash' | 'card' | null>(null);
 
   const itemsSummary = session.items
@@ -96,8 +104,9 @@ function SessionCard({
     setIsActing(true);
     try {
       await action();
-    } catch {
-      toast.error('Action failed. Please try again.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Action failed. Please try again.';
+      toast.error(message);
     } finally {
       setIsActing(false);
     }
@@ -224,12 +233,12 @@ function SessionCard({
                 disabled={resendCooldown > 0}
                 className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl text-xs font-medium transition-colors ${
                   resendCooldown > 0
-                    ? 'bg-neutral-gray/10 text-neutral-gray cursor-not-allowed'
+                    ? 'bg-neutral-gray/5 text-neutral-gray/40 cursor-not-allowed opacity-50'
                     : 'bg-primary/10 text-primary hover:bg-primary/20'
                 }`}
-                title={resendCooldown > 0 ? `Wait ${Math.ceil(resendCooldown / 60)}m` : 'Re-send MoMo prompt'}
+                title={resendCooldown > 0 ? `Wait ${Math.ceil(resendCooldown / 60)}m before re-sending` : 'Re-send MoMo prompt'}
               >
-                <ArrowClockwiseIcon className="w-3.5 h-3.5" />
+                <ArrowClockwiseIcon className={`w-3.5 h-3.5 ${resendCooldown > 0 ? 'opacity-40' : ''}`} />
                 {resendCooldown > 0
                   ? `${Math.floor(resendCooldown / 60)}:${(resendCooldown % 60).toString().padStart(2, '0')}`
                   : 'Re-send'}
@@ -256,13 +265,14 @@ function SessionCard({
                     handleAction(() => onPayCash(session.session_token, session.total_amount));
                     setConfirmingAction(null);
                   }}
-                  className="flex-1 flex items-center justify-center h-9 rounded-xl bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
+                  className="flex-1 flex items-center justify-center w-10 h-10 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-colors"
+                  title="Confirm cash payment"
                 >
-                  Confirm
+                  <CheckIcon className="w-5 h-5" weight="bold" />
                 </button>
                 <button
                   onClick={() => setConfirmingAction(null)}
-                  className="h-9 px-2 rounded-xl bg-neutral-gray/10 text-neutral-gray text-xs hover:bg-neutral-gray/20 transition-colors"
+                  className="h-10 px-2 rounded-xl bg-neutral-gray/10 text-neutral-gray text-xs hover:bg-neutral-gray/20 transition-colors"
                 >
                   ✕
                 </button>
@@ -286,13 +296,14 @@ function SessionCard({
                     handleAction(() => onPayCard(session.session_token, session.total_amount));
                     setConfirmingAction(null);
                   }}
-                  className="flex-1 flex items-center justify-center h-9 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors"
+                  className="flex-1 flex items-center justify-center w-10 h-10 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                  title="Confirm card payment"
                 >
-                  Confirm
+                  <CheckIcon className="w-5 h-5" weight="bold" />
                 </button>
                 <button
                   onClick={() => setConfirmingAction(null)}
-                  className="h-9 px-2 rounded-xl bg-neutral-gray/10 text-neutral-gray text-xs hover:bg-neutral-gray/20 transition-colors"
+                  className="h-10 px-2 rounded-xl bg-neutral-gray/10 text-neutral-gray text-xs hover:bg-neutral-gray/20 transition-colors"
                 >
                   ✕
                 </button>

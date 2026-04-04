@@ -102,6 +102,6 @@ export const checkoutSessionService = {
   },
 
   posAbandon: (token: string): Promise<void> => {
-    return apiClient.delete(`/pos/checkout-sessions/${token}`);
+    return apiClient.post(`/pos/checkout-sessions/${token}/cancel`);
   },
 };
