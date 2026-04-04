@@ -34,7 +34,9 @@ interface ContactDetails { name: string; phone: string; address: string; note: s
 const DELIVERY_FEE = 0; // Delivery fees temporarily disabled
 
 interface ServiceChargeConfig { enabled: boolean; percent: number; cap: number; }
+interface CheckoutConfig { serviceCharge: ServiceChargeConfig; deliveryFeeEnabled: boolean; }
 const DEFAULT_SC_CONFIG: ServiceChargeConfig = { enabled: true, percent: 1, cap: 5 };
+const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = { serviceCharge: DEFAULT_SC_CONFIG, deliveryFeeEnabled: false };
 function calcServiceCharge(subtotal: number, cfg: ServiceChargeConfig): number {
     if (!cfg.enabled || cfg.percent <= 0) return 0;
     const raw = Math.round(subtotal * (cfg.percent / 100) * 100) / 100;
@@ -364,10 +366,11 @@ function StepIndicator({ current }: { current: Step }) {
 }
 
 // ─── Order Summary ────────────────────────────────────────────────────────────
-function OrderSummary({ orderType, scConfig }: { orderType: OrderType; scConfig: ServiceChargeConfig }) {
+function OrderSummary({ orderType, scConfig, deliveryFeeEnabled }: { orderType: OrderType; scConfig: ServiceChargeConfig; deliveryFeeEnabled: boolean }) {
     const { displayItems: items, subtotal } = useCart();
     const { selectedBranch } = useBranch();
-    const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
+    const showDelivery = deliveryFeeEnabled && orderType === 'delivery';
+    const delivery = showDelivery ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
     const serviceCharge = calcServiceCharge(subtotal, scConfig);
     const total = subtotal + delivery + serviceCharge;
     return (
@@ -393,7 +396,9 @@ function OrderSummary({ orderType, scConfig }: { orderType: OrderType; scConfig:
             <div className="h-px bg-neutral-gray/10" />
             <div className="flex flex-col gap-2 text-sm">
                 <div className="flex justify-between"><span className="text-neutral-gray">Subtotal</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(subtotal)}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-gray">Delivery Fee</span><span className="font-semibold text-text-dark dark:text-text-light">{orderType === 'delivery' ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span></div>
+                {deliveryFeeEnabled && (
+                    <div className="flex justify-between"><span className="text-neutral-gray">Delivery Fee</span><span className="font-semibold text-text-dark dark:text-text-light">{showDelivery ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span></div>
+                )}
                 <div className="flex justify-between"><span className="text-neutral-gray">Service Charge{scConfig.enabled ? ` (${scConfig.percent}%)` : ''}</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(serviceCharge)}</span></div>
             </div>
             <div className="h-px bg-neutral-gray/10" />
@@ -822,11 +827,15 @@ export default function CheckoutPage() {
     const [sessionToken, setSessionToken] = useState<string | null>(null);
     const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });
     const [scConfig, setScConfig] = useState<ServiceChargeConfig>(DEFAULT_SC_CONFIG);
+    const [deliveryFeeEnabled, setDeliveryFeeEnabled] = useState(false);
 
     useEffect(() => {
         apiClient.get('/checkout-config').then((res: unknown) => {
-            const d = (res as { data?: { service_charge_enabled?: boolean; service_charge_percent?: number; service_charge_cap?: number } })?.data;
-            if (d) setScConfig({ enabled: d.service_charge_enabled ?? true, percent: d.service_charge_percent ?? 1, cap: d.service_charge_cap ?? 5 });
+            const d = (res as { data?: { service_charge_enabled?: boolean; service_charge_percent?: number; service_charge_cap?: number; delivery_fee_enabled?: boolean } })?.data;
+            if (d) {
+                setScConfig({ enabled: d.service_charge_enabled ?? true, percent: d.service_charge_percent ?? 1, cap: d.service_charge_cap ?? 5 });
+                setDeliveryFeeEnabled(d.delivery_fee_enabled ?? false);
+            }
         }).catch(() => { /* fall back to defaults */ });
     }, []);
 
@@ -923,7 +932,7 @@ export default function CheckoutPage() {
                             {step === 1 && <StepDetails orderType={orderType} setOrderType={setOrderType} contact={contact} setContact={setContact} onNext={() => { setContact(c => ({ ...c, phone: normalizeGhanaPhone(c.phone) })); setStep(2); }} />}
                             {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} scConfig={scConfig} />}
                         </div>
-                        <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} scConfig={scConfig} /></div>
+                        <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} scConfig={scConfig} deliveryFeeEnabled={deliveryFeeEnabled} /></div>
                     </div>
                 )}
             </div>

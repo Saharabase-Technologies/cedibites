@@ -84,8 +84,44 @@ function GeneralTab() {
         defaultOrderType: 'Delivery',
         minOrderValue: '45',
         globalHoursFrom: '08:00',
-        globalHoursTo: '21:00',
+        globalHoursTo: '22:00',
     });
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        apiClient.get('/admin/settings')
+            .then((res: unknown) => {
+                const settings = (res as { data?: Array<{ key: string; value: string }> })?.data ?? [];
+                for (const s of settings) {
+                    if (s.key === 'global_operating_hours_open') {
+                        setForm(f => ({ ...f, globalHoursFrom: s.value }));
+                    }
+                    if (s.key === 'global_operating_hours_close') {
+                        setForm(f => ({ ...f, globalHoursTo: s.value }));
+                    }
+                }
+            })
+            .catch(() => toast.error('Failed to load settings'))
+            .finally(() => setIsLoading(false));
+    }, []);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await apiClient.put('/admin/settings/global_operating_hours_open', {
+                value: form.globalHoursFrom,
+            });
+            await apiClient.put('/admin/settings/global_operating_hours_close', {
+                value: form.globalHoursTo,
+            });
+            toast.success('General settings saved');
+        } catch {
+            toast.error('Failed to save settings');
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     return (
         <div className="flex flex-col gap-5">
@@ -139,7 +175,20 @@ function GeneralTab() {
                 </div>
             </Card>
 
-            <div className="flex justify-end"><SaveButton /></div>
+            <div className="flex justify-end">
+                <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isSaving || isLoading}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium font-body hover:bg-primary-hover transition-colors cursor-pointer disabled:opacity-60"
+                >
+                    {isSaving
+                        ? <SpinnerIcon size={15} className="animate-spin" />
+                        : <FloppyDiskIcon size={15} weight="bold" />
+                    }
+                    Save Changes
+                </button>
+            </div>
         </div>
     );
 }
@@ -151,6 +200,7 @@ function OrderSettingsTab() {
     const [serviceChargeEnabled, setServiceChargeEnabled] = useState(true);
     const [serviceChargePercent, setServiceChargePercent] = useState('1');
     const [serviceChargeCap, setServiceChargeCap] = useState('5');
+    const [deliveryFeeEnabled, setDeliveryFeeEnabled] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -159,17 +209,21 @@ function OrderSettingsTab() {
             .then((res: unknown) => {
                 const settings = (res as { data?: Array<{ key: string; value: string }> })?.data ?? [];
                 for (const s of settings) {
+                    const boolVal = s.value === 'true' || s.value === '1';
                     if (s.key === 'manual_entry_date_enabled') {
-                        setManualEntryDateEnabled(s.value === 'true' || s.value === '1');
+                        setManualEntryDateEnabled(boolVal);
                     }
                     if (s.key === 'service_charge_enabled') {
-                        setServiceChargeEnabled(s.value === 'true' || s.value === '1');
+                        setServiceChargeEnabled(boolVal);
                     }
                     if (s.key === 'service_charge_percent') {
                         setServiceChargePercent(s.value);
                     }
                     if (s.key === 'service_charge_cap') {
                         setServiceChargeCap(s.value);
+                    }
+                    if (s.key === 'delivery_fee_enabled') {
+                        setDeliveryFeeEnabled(boolVal);
                     }
                 }
             })
@@ -191,6 +245,9 @@ function OrderSettingsTab() {
             });
             await apiClient.put('/admin/settings/service_charge_cap', {
                 value: serviceChargeCap,
+            });
+            await apiClient.put('/admin/settings/delivery_fee_enabled', {
+                value: deliveryFeeEnabled ? 'true' : 'false',
             });
             toast.success('Order settings saved');
         } catch {
@@ -251,6 +308,19 @@ function OrderSettingsTab() {
                         </div>
                     </div>
                 )}
+            </Card>
+
+            <Card>
+                <SectionHeader title="Delivery Fee" sub="Standard delivery fee charged on delivery orders" />
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <p className="text-text-dark text-sm font-medium font-body">Enable Delivery Fee</p>
+                        <p className="text-neutral-gray text-xs font-body mt-0.5">
+                            When off, no delivery fee is shown or charged on customer orders.
+                        </p>
+                    </div>
+                    <Toggle checked={deliveryFeeEnabled} onChange={setDeliveryFeeEnabled} />
+                </div>
             </Card>
 
             <Card>

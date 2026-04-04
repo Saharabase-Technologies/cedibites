@@ -81,6 +81,113 @@ Items still needing attention.
 
 ---
 
+## [2026-04-04] Session: Settings Toggle Persistence, Delivery Fee Toggle & Global Operating Hours
+
+### Intent
+
+Fix a bug where admin settings toggles reset on page refresh despite being saved correctly. Add a delivery fee toggle so admins can control whether the checkout shows delivery fees. Add global operating hours editable from admin settings and displayed dynamically in the customer-facing footer.
+
+### Changes Made
+
+| File | Change | Reason |
+|------|--------|--------|
+| `app/admin/settings/page.tsx` | Added "Enable Delivery Fee" toggle in Order Settings tab | Admin control for delivery fee visibility in checkout |
+| `app/admin/settings/page.tsx` | Connected General tab operating hours inputs to API (load from settings on mount, save on submit) | Previously these inputs had no backend connection — values were lost on refresh |
+| `app/(customer)/checkout/page.tsx` | `OrderSummary` component now accepts `deliveryFeeEnabled` prop; delivery fee row conditionally rendered only when toggle is on | Checkout was showing "Delivery Fee: Free" even when delivery fees weren't intended |
+| `app/components/layout/Footer.tsx` | Fetches `global_operating_hours_open` and `global_operating_hours_close` from `/checkout-config` endpoint | Previously used hardcoded "7:00 AM - 10:00 PM" values |
+| `app/components/layout/Footer.tsx` | Added `formatTime12h()` helper for converting "HH:MM" to "H:MM AM/PM" display format | Hours stored as 24h strings in DB, need 12h format for display |
+
+### Decisions
+
+- **Decision**: Delivery fee toggle defaults to off
+  - **Rationale**: Delivery fees were already "temporarily disabled" in the codebase; defaulting to off maintains current behavior
+- **Decision**: Operating hours displayed as single "Daily" entry in footer
+  - **Alternatives**: Could show per-day schedules
+  - **Rationale**: Backend stores global hours (not per-day), so a single "Daily" row is accurate
+- **Decision**: Footer fetches from public `/checkout-config` endpoint
+  - **Alternatives**: Could use a dedicated `/operating-hours` endpoint
+  - **Rationale**: `/checkout-config` already existed and now includes hours data; avoids an extra endpoint
+- **Decision**: Service charge math confirmed correct (1% of ₵0.10 = ₵0.001 → rounds to ₵0.00)
+  - **Rationale**: Mathematically correct, not a financial or code bug
+
+### Cross-Repo Impact
+
+| File (API repo) | Change | Impact on Frontend |
+|-----------------|--------|--------------------|
+| `app/Http/Controllers/Api/Admin/SystemSettingController.php` | `index()` now returns raw string values instead of cast values | **Fixes toggle persistence bug** — frontend `s.value === 'true'` comparisons now work correctly because API returns `"true"`/`"false"` strings instead of JSON booleans |
+| `database/migrations/2026_04_04_072214_add_delivery_fee_and_operating_hours_settings.php` | Seeds `delivery_fee_enabled`, `global_operating_hours_open`, `global_operating_hours_close` | New settings available for frontend to read/write |
+| `routes/public.php` | `/checkout-config` expanded with delivery fee and operating hours data | Frontend checkout and footer fetch from this endpoint |
+| `routes/employee.php` | Settings allowlist expanded | Admin settings page can read/write the new settings |
+
+### Current State
+
+- **Admin Settings > Order Settings**: Service charge toggle + percentage + cap, manual entry date toggle, **new** delivery fee toggle — all persist correctly on refresh
+- **Admin Settings > General**: Operating hours inputs now load from and save to the API
+- **Checkout page**: Delivery fee row appears only when `delivery_fee_enabled` is `true`; service charge remains dynamic
+- **Footer**: Operating hours displayed dynamically from API instead of hardcoded
+- **Build**: Passes clean
+- **Branch**: `payment-order-bug-fixes`
+
+### Pending / Follow-up
+
+- POS checkout flow may also need delivery fee toggle integration
+- Per-branch operating hours UI if the feature is needed later
+- Delivery fee amount/calculation logic when delivery fees are actually enabled
+
+---
+
+## [2026-04-04] Session: Order Audit & Security Bug Fixes
+
+### Intent
+
+A comprehensive audit of the order/payment/checkout pipeline was performed across both repos, identifying 7 bugs. All were fixed in this session on the `payment-order-bug-fixes` branch. Frontend changes focused on making the service charge calculation dynamic (fetched from API) and adding admin controls for the new service charge settings.
+
+### Changes Made
+
+| File | Change | Reason |
+|------|--------|--------|
+| `app/(customer)/checkout/page.tsx` | Added `ServiceChargeConfig` interface, `DEFAULT_SC_CONFIG` constant, and `calcServiceCharge(subtotal, config)` helper | Replace hardcoded 1% service charge with dynamic config from API |
+| `app/(customer)/checkout/page.tsx` | Added `scConfig` state + `useEffect` fetching from `/checkout-config` public endpoint | Frontend needs real service charge config (enabled, percent, cap) before checkout |
+| `app/(customer)/checkout/page.tsx` | Updated `OrderSummary` and `StepPayment` components to accept and use `scConfig` prop | Both components need access to service charge config for accurate display/calculation |
+| `app/(customer)/checkout/page.tsx` | Service charge label now shows dynamic percentage: "Service Charge (1%)" | UX clarity — user sees the actual percentage being applied |
+| `app/admin/settings/page.tsx` | Added `serviceChargeEnabled` (boolean toggle) and `serviceChargeCap` (text input) state variables | Admin needs controls for the two new system settings |
+| `app/admin/settings/page.tsx` | Added loading of `service_charge_enabled` and `service_charge_cap` from admin settings API | Populate UI with current values on page load |
+| `app/admin/settings/page.tsx` | Added saving of both new settings alongside existing `manual_entry_date_enabled` and `service_charge_percent` | Persist changes when admin saves settings |
+| `app/admin/settings/page.tsx` | Replaced static Service Charge card with: enable/disable toggle, percentage input, cap (GHS) input with conditional rendering | Full admin control over service charge behavior |
+
+### Decisions
+
+- **Decision**: Fetch service charge config from a public `/checkout-config` endpoint
+  - **Alternatives**: Could embed config in checkout session response or use authenticated endpoint
+  - **Rationale**: Frontend needs service charge info before user is authenticated at checkout; public endpoint is simplest
+- **Decision**: `calcServiceCharge()` helper applies percentage with cap logic client-side
+  - **Rationale**: Matches the server-side calculation in `CheckoutSessionController::store()` — both use same percent + cap formula
+- **Decision**: Conditional rendering for percentage/cap fields (only shown when service charge enabled)
+  - **Rationale**: Reduces visual clutter when service charge is disabled
+
+### Cross-Repo Impact
+
+| File (API repo) | Change | Impact on Frontend |
+|-----------------|--------|--------------------|
+| `routes/public.php` | New `GET /checkout-config` endpoint | Frontend `useEffect` in checkout page fetches this |
+| `app/Http/Controllers/Api/CheckoutSessionController.php` | Service charge now uses `service_charge_enabled`, `service_charge_percent`, `service_charge_cap` from SystemSettingService | Frontend calculation must match: `min(subtotal * percent / 100, cap)` |
+| `app/Http/Requests/UpdateOrderStatusRequest.php` | Removed `pending`, `confirmed`, `cancelled` from allowed statuses | No frontend impact — frontend already uses correct status values |
+| `app/Http/Controllers/Api/CheckoutSessionController.php` | Added branch authorization to `confirmCash()`/`confirmCard()` | No frontend impact — requests already scoped to correct branch |
+
+### Current State
+
+- **Checkout page**: Service charge is fully dynamic — fetches config from API, applies percentage with cap, displays accurate label
+- **Admin settings**: Full service charge management — toggle on/off, set percentage, set cap (GHS)
+- **Build**: Passes clean
+- **Branch**: `payment-order-bug-fixes`
+
+### Pending / Follow-up
+
+- POS checkout flow may also need service charge config integration (currently separate flow)
+- Consider caching `/checkout-config` response client-side to avoid re-fetching on every checkout visit
+
+---
+
 ## [2026-04-04] Session: Metadata Page Titles Across All Pages
 
 ### Intent
