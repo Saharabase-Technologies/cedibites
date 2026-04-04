@@ -1,12 +1,11 @@
-'use client';
+import type { Metadata } from 'next';
+import OrderManagerLayoutClient from './layout-client';
 
-import { ReactNode } from 'react';
-import { StaffAuthProvider } from '@/app/components/providers/StaffAuthProvider';
+export const metadata: Metadata = {
+  title: 'Order Manager',
+  robots: { index: false, follow: false },
+};
 
-export default function OrderManagerLayout({ children }: { children: ReactNode }) {
-  return (
-    <StaffAuthProvider>
-      {children}
-    </StaffAuthProvider>
-  );
+export default function OrderManagerLayout({ children }: { children: React.ReactNode }) {
+  return <OrderManagerLayoutClient>{children}</OrderManagerLayoutClient>;
 }

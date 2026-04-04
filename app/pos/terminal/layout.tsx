@@ -1,7 +1,10 @@
-'use client';
+import type { Metadata } from 'next';
+import TerminalLayoutClient from './layout-client';
 
-import { ReactNode } from 'react';
+export const metadata: Metadata = {
+  title: 'Terminal',
+};
 
-export default function TerminalLayout({ children }: { children: ReactNode }) {
-  return <>{children}</>;
+export default function TerminalLayout({ children }: { children: React.ReactNode }) {
+  return <TerminalLayoutClient>{children}</TerminalLayoutClient>;
 }

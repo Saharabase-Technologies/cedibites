@@ -1,22 +1,14 @@
-'use client';
+import type { Metadata } from 'next';
+import POSLayoutClient from './layout-client';
 
-import { ReactNode } from 'react';
-import { POSProvider } from './context';
-import { StaffAuthProvider } from '@/app/components/providers/StaffAuthProvider';
-import './pos-animations.css';
+export const metadata: Metadata = {
+  title: {
+    template: '%s — POS | CediBites',
+    default: 'POS',
+  },
+  robots: { index: false, follow: false },
+};
 
-interface POSLayoutProps {
-  children: ReactNode;
-}
-
-export default function POSLayout({ children }: POSLayoutProps) {
-  return (
-    <StaffAuthProvider>
-      <POSProvider>
-        <div className="min-h-dvh bg-neutral-card text-text-dark overflow-hidden select-none">
-          {children}
-        </div>
-      </POSProvider>
-    </StaffAuthProvider>
-  );
+export default function POSLayout({ children }: { children: React.ReactNode }) {
+  return <POSLayoutClient>{children}</POSLayoutClient>;
 }

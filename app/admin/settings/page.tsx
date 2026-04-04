@@ -148,7 +148,9 @@ function GeneralTab() {
 
 function OrderSettingsTab() {
     const [manualEntryDateEnabled, setManualEntryDateEnabled] = useState(false);
+    const [serviceChargeEnabled, setServiceChargeEnabled] = useState(true);
     const [serviceChargePercent, setServiceChargePercent] = useState('1');
+    const [serviceChargeCap, setServiceChargeCap] = useState('5');
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -160,8 +162,14 @@ function OrderSettingsTab() {
                     if (s.key === 'manual_entry_date_enabled') {
                         setManualEntryDateEnabled(s.value === 'true' || s.value === '1');
                     }
+                    if (s.key === 'service_charge_enabled') {
+                        setServiceChargeEnabled(s.value === 'true' || s.value === '1');
+                    }
                     if (s.key === 'service_charge_percent') {
                         setServiceChargePercent(s.value);
+                    }
+                    if (s.key === 'service_charge_cap') {
+                        setServiceChargeCap(s.value);
                     }
                 }
             })
@@ -175,8 +183,14 @@ function OrderSettingsTab() {
             await apiClient.put('/admin/settings/manual_entry_date_enabled', {
                 value: manualEntryDateEnabled ? 'true' : 'false',
             });
+            await apiClient.put('/admin/settings/service_charge_enabled', {
+                value: serviceChargeEnabled ? 'true' : 'false',
+            });
             await apiClient.put('/admin/settings/service_charge_percent', {
                 value: serviceChargePercent,
+            });
+            await apiClient.put('/admin/settings/service_charge_cap', {
+                value: serviceChargeCap,
             });
             toast.success('Order settings saved');
         } catch {
@@ -200,18 +214,43 @@ function OrderSettingsTab() {
         <div className="flex flex-col gap-5">
             <Card>
                 <SectionHeader title="Service Charge" sub="A percentage-based fee added to online customer orders" />
-                <div className="max-w-xs">
-                    <FieldLabel>Service Charge (%)</FieldLabel>
-                    <TextInput
-                        value={serviceChargePercent}
-                        onChange={v => setServiceChargePercent(v)}
-                        type="number"
-                        placeholder="1"
-                    />
-                    <p className="text-neutral-gray text-[11px] font-body mt-1.5">
-                        Applied as a percentage of the subtotal on online orders. Set to 0 to disable.
-                    </p>
+                <div className="flex items-start justify-between gap-4 mb-4">
+                    <div>
+                        <p className="text-text-dark text-sm font-medium font-body">Enable Service Charge</p>
+                        <p className="text-neutral-gray text-xs font-body mt-0.5">
+                            When off, no service charge is applied to online orders.
+                        </p>
+                    </div>
+                    <Toggle checked={serviceChargeEnabled} onChange={setServiceChargeEnabled} />
                 </div>
+                {serviceChargeEnabled && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+                        <div>
+                            <FieldLabel>Percentage (%)</FieldLabel>
+                            <TextInput
+                                value={serviceChargePercent}
+                                onChange={v => setServiceChargePercent(v)}
+                                type="number"
+                                placeholder="1"
+                            />
+                            <p className="text-neutral-gray text-[11px] font-body mt-1.5">
+                                Applied to the order subtotal.
+                            </p>
+                        </div>
+                        <div>
+                            <FieldLabel>Cap (GHS)</FieldLabel>
+                            <TextInput
+                                value={serviceChargeCap}
+                                onChange={v => setServiceChargeCap(v)}
+                                type="number"
+                                placeholder="5"
+                            />
+                            <p className="text-neutral-gray text-[11px] font-body mt-1.5">
+                                Max charge amount. Set to 0 for no cap.
+                            </p>
+                        </div>
+                    </div>
+                )}
             </Card>
 
             <Card>
@@ -245,7 +284,6 @@ function OrderSettingsTab() {
         </div>
     );
 }
-
 // ─── Tab: Payment & Hubtel ────────────────────────────────────────────────────
 
 function PaymentTab() {

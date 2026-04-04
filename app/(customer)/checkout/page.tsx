@@ -32,6 +32,14 @@ type BranchSheetView = 'list' | 'conflict';
 interface ContactDetails { name: string; phone: string; address: string; note: string; }
 
 const DELIVERY_FEE = 0; // Delivery fees temporarily disabled
+
+interface ServiceChargeConfig { enabled: boolean; percent: number; cap: number; }
+const DEFAULT_SC_CONFIG: ServiceChargeConfig = { enabled: true, percent: 1, cap: 5 };
+function calcServiceCharge(subtotal: number, cfg: ServiceChargeConfig): number {
+    if (!cfg.enabled || cfg.percent <= 0) return 0;
+    const raw = Math.round(subtotal * (cfg.percent / 100) * 100) / 100;
+    return cfg.cap > 0 && raw > cfg.cap ? cfg.cap : raw;
+}
 const formatPrice = (p: number) => `₵${p.toFixed(2)}`;
 
 // ─── Input Field ──────────────────────────────────────────────────────────────
@@ -356,11 +364,11 @@ function StepIndicator({ current }: { current: Step }) {
 }
 
 // ─── Order Summary ────────────────────────────────────────────────────────────
-function OrderSummary({ orderType }: { orderType: OrderType }) {
+function OrderSummary({ orderType, scConfig }: { orderType: OrderType; scConfig: ServiceChargeConfig }) {
     const { displayItems: items, subtotal } = useCart();
     const { selectedBranch } = useBranch();
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
-    const serviceCharge = Math.round(subtotal * 0.01 * 100) / 100; // 1% service charge
+    const serviceCharge = calcServiceCharge(subtotal, scConfig);
     const total = subtotal + delivery + serviceCharge;
     return (
         <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
@@ -386,7 +394,7 @@ function OrderSummary({ orderType }: { orderType: OrderType }) {
             <div className="flex flex-col gap-2 text-sm">
                 <div className="flex justify-between"><span className="text-neutral-gray">Subtotal</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(subtotal)}</span></div>
                 <div className="flex justify-between"><span className="text-neutral-gray">Delivery Fee</span><span className="font-semibold text-text-dark dark:text-text-light">{orderType === 'delivery' ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-gray">Service Charge (1%)</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(serviceCharge)}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-gray">Service Charge{scConfig.enabled ? ` (${scConfig.percent}%)` : ''}</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(serviceCharge)}</span></div>
             </div>
             <div className="h-px bg-neutral-gray/10" />
             <div className="flex justify-between items-center">
@@ -492,15 +500,15 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
 }
 
 // ─── Step 2 ───────────────────────────────────────────────────────────────────
-function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBack, onPlace, placing }: {
+function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBack, onPlace, placing, scConfig }: {
     paymentMethod: PaymentMethod; setPaymentMethod: (m: PaymentMethod) => void;
-    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: () => void; placing: boolean;
+    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: () => void; placing: boolean; scConfig: ServiceChargeConfig;
 }) {
     const { subtotal } = useCart();
     const { selectedBranch } = useBranch();
     const [branchSheetOpen, setBranchSheetOpen] = useState(false);
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
-    const serviceCharge = Math.round(subtotal * 0.01 * 100) / 100;
+    const serviceCharge = calcServiceCharge(subtotal, scConfig);
     const total = subtotal + delivery + serviceCharge;
 
     const methods = [
@@ -813,6 +821,14 @@ export default function CheckoutPage() {
     const [orderNumber, setOrderNumber] = useState('');
     const [sessionToken, setSessionToken] = useState<string | null>(null);
     const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });
+    const [scConfig, setScConfig] = useState<ServiceChargeConfig>(DEFAULT_SC_CONFIG);
+
+    useEffect(() => {
+        apiClient.get('/checkout-config').then((res: unknown) => {
+            const d = (res as { data?: { service_charge_enabled?: boolean; service_charge_percent?: number; service_charge_cap?: number } })?.data;
+            if (d) setScConfig({ enabled: d.service_charge_enabled ?? true, percent: d.service_charge_percent ?? 1, cap: d.service_charge_cap ?? 5 });
+        }).catch(() => { /* fall back to defaults */ });
+    }, []);
 
     const effectiveBranch = selectedBranch ?? branches.find(b => b.isOpen) ?? branches[0] ?? null;
 
@@ -905,9 +921,9 @@ export default function CheckoutPage() {
                     <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
                         <div>
                             {step === 1 && <StepDetails orderType={orderType} setOrderType={setOrderType} contact={contact} setContact={setContact} onNext={() => { setContact(c => ({ ...c, phone: normalizeGhanaPhone(c.phone) })); setStep(2); }} />}
-                            {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} />}
+                            {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} scConfig={scConfig} />}
                         </div>
-                        <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} /></div>
+                        <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} scConfig={scConfig} /></div>
                     </div>
                 )}
             </div>
