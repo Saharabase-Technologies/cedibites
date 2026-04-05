@@ -13,11 +13,12 @@ export interface SearchableItem {
     description?: string;
     category: string;
     price?: number;
-    sizes?: { id: number; key: string; label: string; displayName?: string; price: number; image?: string }[];
+    sizes?: { id: number; key: string; label: string; displayName?: string; price: number; image?: string; thumbnail?: string }[];
     hasVariants?: boolean;
     variants?: { plain?: number; assorted?: number };
     availableAddOns?: string[];
     image?: string;
+    thumbnail?: string;
     url: string;
     tags?: { slug: string; name: string }[];
 }
@@ -37,6 +38,7 @@ function transformApiMenuItemToSearchable(apiItem: ApiMenuItem): SearchableItem 
         price: option.price,
         id: option.id,
         image: option.image_url ?? undefined,
+        thumbnail: option.thumbnail_url ?? undefined,
     }));
 
     // Determine pricing structure
@@ -51,6 +53,7 @@ function transformApiMenuItemToSearchable(apiItem: ApiMenuItem): SearchableItem 
         price,
         sizes: hasMultipleSizes ? sizes : undefined,
         image: (hasMultipleSizes ? sizes?.[0]?.image : apiItem.image_url) ?? undefined,
+        thumbnail: (hasMultipleSizes ? sizes?.[0]?.thumbnail : apiItem.thumbnail_url) ?? undefined,
         url: `/menu?item=${apiItem.id}`,
         tags: apiItem.tags?.map(t => ({ slug: t.slug, name: t.name })) ?? [],
         // Note: API doesn't have variants or add-ons yet, so we omit them

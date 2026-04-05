@@ -50,7 +50,7 @@ export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) 
     const inCart = !!cartItem;
 
     const activeSize = hasSizes ? sizes.find(s => s.key === selectedSize) : undefined;
-    const activeImage = activeSize?.image ?? item.image;
+    const activeImage = activeSize?.thumbnail ?? activeSize?.image ?? item.thumbnail ?? item.image;
 
     const handleToggle = (e: React.MouseEvent) => {
         e.stopPropagation();

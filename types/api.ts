@@ -114,6 +114,7 @@ export interface MenuItemOption {
   base_price?: number;
   is_available: boolean;
   image_url?: string | null;
+  thumbnail_url?: string | null;
   branch_prices?: MenuItemOptionBranchPrice[];
 }
 
@@ -148,6 +149,7 @@ export interface MenuItem {
   rating?: number | null;
   rating_count?: number;
   image_url?: string;
+  thumbnail_url?: string;
   options?: MenuItemOption[];
   tags?: MenuTag[];
   add_ons?: MenuAddOn[];
