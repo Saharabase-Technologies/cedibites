@@ -132,20 +132,15 @@ export const menuService = {
   },
 
   uploadOptionImage: async (menuItemId: number, optionId: number, imageFile: File): Promise<{ data: MenuItem }> => {
-    console.log(`[uploadOptionImage] START: menuItemId=${menuItemId}, optionId=${optionId}, file=${imageFile.name} (${imageFile.size} bytes)`);
     const compressed = await compressImage(imageFile);
-    console.log(`[uploadOptionImage] After compression: ${compressed.name} (${compressed.size} bytes)`);
     const formData = new FormData();
     formData.append('image', compressed);
 
-    console.log(`[uploadOptionImage] POST /admin/menu-items/${menuItemId}/options/${optionId}/image`);
-    const result = await apiClient.post(`/admin/menu-items/${menuItemId}/options/${optionId}/image`, formData, {
+    return apiClient.post(`/admin/menu-items/${menuItemId}/options/${optionId}/image`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
-    console.log(`[uploadOptionImage] DONE: response =`, result);
-    return result;
   },
 
   /**
