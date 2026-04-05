@@ -176,14 +176,6 @@ function formToGlobalItem(form: ItemFormState, existing?: GlobalMenuItem): Globa
         base.price = Number(form.simplePrice);
     } else {
         const validOptions = form.options.filter(o => o.label.trim() && o.price);
-        console.log('[formToGlobalItem] validOptions:', validOptions.map((o, i) => ({
-            index: i,
-            label: o.label,
-            hasImage: !!o.image,
-            hasImageFile: !!o.imageFile,
-            imageFileName: o.imageFile?.name,
-            imageFileSize: o.imageFile?.size,
-        })));
         base.sizes = validOptions.map((o, index) => ({
             id: index + 1,
             key: o.label.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, ''),
@@ -193,7 +185,6 @@ function formToGlobalItem(form: ItemFormState, existing?: GlobalMenuItem): Globa
             image: o.image,
         }));
         base.optionImageFiles = validOptions.map(o => o.imageFile);
-        console.log('[formToGlobalItem] optionImageFiles:', base.optionImageFiles?.map((f, i) => f ? `[${i}] ${f.name} (${f.size}b)` : `[${i}] UNDEFINED`));
     }
 
     return base;
@@ -1022,61 +1013,37 @@ export default function AdminMenuPage() {
             ? menuService.createItem(apiData)
             : menuService.updateItem(item.numericId, apiData);
 
-        console.log('[MenuSave] ====== SAVE START ======');
-        console.log('[MenuSave] Step 0: Item data', {
-            id: item.id,
-            numericId: item.numericId,
-            name: item.name,
-            isSinglePrice,
-            hasSizes: !!item.sizes?.length,
-            sizesCount: item.sizes?.length ?? 0,
-            sizeKeys: item.sizes?.map(s => s.key),
-            hasImageFile: !!item.imageFile,
-            imageFileName: item.imageFile?.name,
-            imageFileSize: item.imageFile?.size,
-            optionImageFiles: item.optionImageFiles?.map((f, i) => f ? `[${i}] ${f.name} (${f.size} bytes)` : `[${i}] null`),
-            image: item.image,
-        });
-
         savePromise
             .then(async (response) => {
                 const savedId = response.data.id;
-                console.log('[MenuSave] Step 1: Item saved to server, savedId =', savedId);
 
                 const desiredOptions = item.sizes?.length
                     ? item.sizes
                     : [{ id: 0, key: 'standard', label: 'Standard', price: item.price ?? 0, image: item.image }];
-                console.log('[MenuSave] Step 2: desiredOptions =', desiredOptions.map(o => ({ key: o.key, label: o.label })));
 
                 // ── uploadSimpleImage ──
                 try {
                     if (!isSinglePrice || !item.imageFile) {
-                        console.log('[MenuSave] Step 3: uploadSimpleImage SKIPPED (isSinglePrice=' + isSinglePrice + ', hasImageFile=' + !!item.imageFile + ')');
+                        // Skip simple image upload
                     } else {
-                        console.log('[MenuSave] Step 3: uploadSimpleImage RUNNING...');
                         const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
                         const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
                         const standardOpt = existing.find(o => o.option_key === 'standard');
-                        console.log('[MenuSave] Step 3a: Found standard option?', !!standardOpt, standardOpt?.id);
                         if (standardOpt) {
                             await menuService.uploadOptionImage(savedId, standardOpt.id, item.imageFile);
-                            console.log('[MenuSave] Step 3b: Simple image uploaded OK');
                         }
                     }
                 } catch (err) {
-                    console.error('[MenuSave] Step 3 FAILED:', err);
                     throw err;
                 }
 
                 // ── syncOptions ──
                 try {
                     if (!desiredOptions.length || isSinglePrice) {
-                        console.log('[MenuSave] Step 4: syncOptions SKIPPED (desiredOptions=' + desiredOptions.length + ', isSinglePrice=' + isSinglePrice + ')');
+                        // Skip sync when single price
                     } else {
-                        console.log('[MenuSave] Step 4: syncOptions RUNNING...');
                         const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
                         const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
-                        console.log('[MenuSave] Step 4a: Existing options from API:', existing.map(o => ({ id: o.id, key: o.option_key })));
 
                         const existingByKey = Object.fromEntries(existing.map(o => [o.option_key, o]));
                         const desiredKeys = new Set(desiredOptions.map(o => o.key));
@@ -1086,7 +1053,6 @@ export default function AdminMenuPage() {
                             const opt = desiredOptions[i];
                             const existingOpt = existingByKey[opt.key];
                             if (existingOpt) {
-                                console.log(`[MenuSave] Step 4b: PATCH option "${opt.key}" (id=${existingOpt.id})`);
                                 await apiClient.patch(`/admin/menu-items/${savedId}/options/${existingOpt.id}`, {
                                     option_label: opt.label,
                                     display_name: opt.displayName || null,
@@ -1096,7 +1062,6 @@ export default function AdminMenuPage() {
                                 });
                                 upsertedOptions.push({ id: existingOpt.id });
                             } else {
-                                console.log(`[MenuSave] Step 4b: CREATE option "${opt.key}"`);
                                 const created = await apiClient.post(`/admin/menu-items/${savedId}/options`, {
                                     option_key: opt.key,
                                     option_label: opt.label,
@@ -1105,45 +1070,34 @@ export default function AdminMenuPage() {
                                     display_order: i,
                                     is_available: true,
                                 }) as unknown as { data?: { id: number } };
-                                console.log(`[MenuSave] Step 4b: Created option response:`, created);
                                 if (created.data?.id) {
                                     upsertedOptions.push({ id: created.data.id });
                                 }
                             }
                         }
-                        console.log('[MenuSave] Step 4c: upsertedOptions =', upsertedOptions);
-
                         for (const existingOpt of existing) {
                             if (!desiredKeys.has(existingOpt.option_key)) {
-                                console.log(`[MenuSave] Step 4d: DELETE stale option "${existingOpt.option_key}" (id=${existingOpt.id})`);
                                 await apiClient.delete(`/admin/menu-items/${savedId}/options/${existingOpt.id}`);
                             }
                         }
 
                         // Upload per-option images
-                        console.log('[MenuSave] Step 5: Image upload loop — upsertedOptions.length=' + upsertedOptions.length + ', optionImageFiles.length=' + (item.optionImageFiles?.length ?? 0));
                         for (let i = 0; i < upsertedOptions.length; i += 1) {
                             const imageFile = item.optionImageFiles?.[i];
-                            console.log(`[MenuSave] Step 5a: Option[${i}] id=${upsertedOptions[i].id}, hasFile=${!!imageFile}, fileName=${imageFile?.name ?? 'N/A'}, fileSize=${imageFile?.size ?? 0}`);
                             if (imageFile) {
-                                console.log(`[MenuSave] Step 5b: Uploading image for option ${upsertedOptions[i].id}...`);
-                                const uploadResult = await menuService.uploadOptionImage(savedId, upsertedOptions[i].id, imageFile);
-                                console.log(`[MenuSave] Step 5c: Upload response:`, uploadResult);
+                                await menuService.uploadOptionImage(savedId, upsertedOptions[i].id, imageFile);
                             }
                         }
-                        console.log('[MenuSave] Step 5 DONE: Image uploads complete');
                     }
                 } catch (err) {
-                    console.error('[MenuSave] Step 4-5 FAILED:', err);
                     throw err;
                 }
 
                 // ── syncBranchOverrides ──
                 try {
                     if (!desiredOptions.length) {
-                        console.log('[MenuSave] Step 6: syncBranchOverrides SKIPPED (no options)');
+                        // Skip when no options
                     } else {
-                        console.log('[MenuSave] Step 6: syncBranchOverrides RUNNING, branchAvailability keys:', Object.keys(item.branchAvailability));
                         const branchesPayload: Record<string, { options: Array<{ option_key: string; price: number | null; is_available: boolean }> }> = {};
 
                         Object.entries(item.branchAvailability).forEach(([branchName, override]) => {
@@ -1162,20 +1116,14 @@ export default function AdminMenuPage() {
                         });
 
                         if (Object.keys(branchesPayload).length > 0) {
-                            console.log('[MenuSave] Step 6a: Sending branch overrides:', branchesPayload);
                             await apiClient.put(`/admin/menu-items/${savedId}/branch-options`, { branches: branchesPayload });
-                            console.log('[MenuSave] Step 6b: Branch overrides synced OK');
-                        } else {
-                            console.log('[MenuSave] Step 6a: No branch overrides to sync');
                         }
                     }
                 } catch (err) {
-                    console.error('[MenuSave] Step 6 FAILED:', err);
                     throw err;
                 }
 
                 // ── afterSave ──
-                console.log('[MenuSave] Step 7: afterSave — updating local state');
                 setItems(prev => {
                     if (isNew) {
                         const idx = prev.findIndex(x => x.id === item.id);
@@ -1194,10 +1142,8 @@ export default function AdminMenuPage() {
                 toast.success(`Menu item ${isNew ? 'created' : 'updated'} successfully!`);
                 setEditItem(null);
                 setSavingItem(false);
-                console.log('[MenuSave] ====== SAVE COMPLETE ======');
             })
             .catch(error => {
-                console.error('[MenuSave] ====== SAVE FAILED ======', error);
                 setSavingItem(false);
                 if (error.errors) {
                     const errorMessages = Object.entries(error.errors as Record<string, string[]>)
