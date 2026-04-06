@@ -165,6 +165,36 @@ export interface SmartCategory {
   item_ids: number[];
 }
 
+export interface SmartCategorySetting {
+  id: number;
+  slug: string;
+  name: string;
+  icon: string;
+  is_enabled: boolean;
+  display_order: number;
+  item_limit: number;
+  is_time_based: boolean;
+  requires_customer: boolean;
+  visible_hour_start: number | null;
+  visible_hour_end: number | null;
+  default_visible_hour_start: number | null;
+  default_visible_hour_end: number | null;
+  default_item_limit: number;
+}
+
+export interface SmartCategoryPreview {
+  slug: string;
+  branch_id: number;
+  item_count: number;
+  items: Array<{
+    id: number;
+    name: string;
+    category: string | null;
+    rating: number | null;
+    is_available: boolean;
+  }>;
+}
+
 // Cart types
 export interface CartItem {
   id: number;
