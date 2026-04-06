@@ -2,7 +2,7 @@
 
 > **Purpose**: Living record of all changes, decisions, and current state of the CediBites Next.js frontend. Maintained by the Project Chronicle agent. Read this before starting work on any area.
 
-> **Current Branch**: `payment-order-bug-fixes` (off `main`)
+> **Current Branch**: `menu-audit` (off `main`)
 
 ---
 
@@ -78,6 +78,180 @@ What the system looks like after changes.
 ### Pending / Follow-up
 Items still needing attention.
 -->
+
+---
+
+## [2026-04-06] Session: Smart Categories Admin Settings UI
+
+### Intent
+
+Build the admin management page for smart categories — a card-based UI allowing admins to enable/disable categories, adjust item limits, customize time windows for time-based categories, reorder display priority, preview resolved items per branch, warm cache, and reset individual categories to defaults.
+
+### Changes Made
+
+| File                                       | Change                                                                                                                                                                                                                                                                                                             | Reason                                                   |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| `types/api.ts`                             | Added `SmartCategorySetting` interface (14 fields) and `SmartCategoryPreview` interface                                                                                                                                                                                                                            | Type contracts for admin settings API                    |
+| `lib/api/services/menu.service.ts`         | Added 6 methods: getSmartCategorySettings, updateSmartCategorySetting, reorderSmartCategories, previewSmartCategory, warmSmartCategoryCache, resetSmartCategorySetting                                                                                                                                             | Admin API integration for all CRUD + operational actions |
+| `app/admin/menu/page.tsx`                  | Added "Smart Categories" tab to MENU_SUB_TABS                                                                                                                                                                                                                                                                      | Navigation to new admin page                             |
+| `app/admin/menu-tags/page.tsx`             | Added "Smart Categories" tab to MENU_SUB_TABS                                                                                                                                                                                                                                                                      | Navigation consistency across all menu sub-pages         |
+| `app/admin/menu/configure/page.tsx`        | Added "Smart Categories" tab to MENU_SUB_TABS                                                                                                                                                                                                                                                                      | Navigation consistency                                   |
+| `app/admin/menu-add-ons/page.tsx`          | Added "Smart Categories" tab to MENU_SUB_TABS                                                                                                                                                                                                                                                                      | Navigation consistency                                   |
+| `app/admin/menu/smart-categories/page.tsx` | **NEW** — Full admin page with: CardGrid for 9 categories (icon, name, toggle, item limit input, time window selectors), reorder arrows, preview panel with branch picker, cache warm button, reset-to-defaults per card, "Save All" banner for unsaved limit changes, stats bar showing enabled/time-based counts | Complete admin management interface for smart categories |
+
+### Decisions
+
+- **Decision**: Card-based layout (3-col grid) matching existing admin menu page conventions
+  - **Rationale**: Consistent with existing admin UI patterns (Card, Toggle, FieldLabel components)
+- **Decision**: Optimistic updates for reorder and limit changes
+  - **Rationale**: Snappy UX — state updates immediately, API call follows. Reverts on failure.
+- **Decision**: Branch picker in page header (not per-card)
+  - **Rationale**: Preview and cache-warm are branch-scoped; single picker reduces UI noise
+- **Decision**: "Save All" banner for unsaved item limit changes instead of per-card save
+  - **Rationale**: Item limit changes are frequent small edits; batching saves reduces API noise
+- **Decision**: Icon mapping dict from backend string keys to Phosphor React components
+  - **Rationale**: Backend stores icon keys (fire, trend-up, etc.); frontend maps to named Phosphor icons
+
+### Cross-Repo Impact
+
+| File (API repo)                                                     | Change                                                                                   | Triggered By               |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------- |
+| `app/Models/SmartCategorySetting.php`                               | **NEW** — Model for runtime category settings                                            | Admin settings storage     |
+| `app/Http/Controllers/Api/Admin/SmartCategorySettingController.php` | **NEW** — 6-action admin controller                                                      | CRUD + operations backend  |
+| `app/Services/SmartCategories/SmartCategoryService.php`             | **MODIFIED** — Now respects is_enabled, custom limits, custom time windows from settings | Settings integration       |
+| `routes/admin.php`                                                  | Added 6 admin routes under `permission:manage_menu`                                      | API endpoints for frontend |
+| `tests/Feature/SmartCategorySettingTest.php`                        | **NEW** — 16 tests, 170 assertions                                                       | Backend test coverage      |
+
+### Current State
+
+- **Admin menu navigation**: 5 tabs — Items, Add-ons, Tags, Configure, Smart Categories
+- **Smart Categories page**: Accessible at `/admin/menu/smart-categories`
+- **Features**: Toggle enable/disable, item limit (1–50), time window pickers (time-based only), arrow reorder, preview panel, cache warm, reset to defaults
+- **TypeScript**: 0 errors
+- **Branch**: `menu-audit`
+
+### Pending / Follow-up
+
+- Drag-and-drop reorder (currently arrow-based) if UX feedback warrants it
+- Bulk enable/disable toggle for all smart categories at once
+- Consider inline editing of category display names (currently uses enum-derived names)
+- Manager menu page (`/staff/manager/menu/`) may need Smart Categories tab too
+
+---
+
+## [2026-04-06] Session: UX Architect Agent Creation
+
+### Intent
+
+Create a comprehensive UI/UX Design System & Experience Architect agent that serves as the single authority on visual design quality, interaction patterns, layout composition, information architecture, and user experience across all CediBites portals (Customer, Staff, Kitchen Display, POS, Admin).
+
+### Changes Made
+
+| File                                   | Change                                                                                     | Reason                                                                           |
+| -------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `.github/agents/ux-architect.agent.md` | **NEW** — Full UX Architect agent definition encoding the complete CediBites design system | Needed a dedicated design quality gate for all frontend work across every portal |
+
+### Agent Coverage
+
+- **Design System**: Full color palette (brand, semantic, neutral), typography hierarchy (font sizes, weights, line heights), shape language (border radii, shadows), iconography rules (Lucide icon set, sizing)
+- **Component Standards**: Button variants, input fields, card patterns, modal/dialog rules, navigation patterns, table/list layouts, loading/empty/error states
+- **Portal-Specific Layouts**: Customer (mobile-first menu browsing), Staff (multi-panel dashboard), Kitchen Display (large-type scannable cards), POS (touch-optimized grid), Admin (dense data management)
+- **Responsive Rules**: Breakpoint system, mobile-first approach, touch target sizing
+- **Dark Mode**: Full color mapping for dark theme
+- **Animation Principles**: Transition durations, easing curves, motion guidelines
+- **Microcopy Standards**: Tone of voice, error message patterns, button label conventions
+- **Quality Checklist**: Structured checklist for validating design quality on every component
+
+### Decisions
+
+- **Decision**: Agent placed in the `cedibites` frontend workspace (not the API)
+  - **Rationale**: Purely frontend-focused — governs visual design, components, and UX patterns that live entirely in the Next.js codebase
+- **Decision**: Granted broad tools: `read, search, edit, execute, web, agent, todo`
+  - **Rationale**: Agent needs to inspect sibling components for consistency, edit code to fix design issues, run builds to verify changes, and delegate to other agents
+- **Decision**: Keyword-dense description for broad subagent discovery
+  - **Rationale**: Ensures the agent is invoked across all frontend tasks — styling, layout, components, accessibility, responsive design, dark mode, animations, etc.
+- **Decision**: Full design system encoded directly in the agent file
+  - **Alternatives**: Separate design token files or external design docs
+  - **Rationale**: Self-contained agent definition means the design system is always available in context when the agent is invoked, no extra file reads needed
+
+### Current State
+
+- **Agent ecosystem**: 5 agents now defined in `.github/agents/` — order-auditor, offline-explorer, project-chronicle, menu-auditor, **ux-architect**
+- **No code changes** — purely an agent definition addition
+- **Agent invocable** via `@UX Architect` in chat
+- **Branch**: `menu-audit`
+
+### Pending / Follow-up
+
+- Create a design checklist `.instructions.md` with `applyTo: "app/components/**"` to auto-trigger the quality checklist on every component file edit
+- Create a Tailwind class audit hook to catch rogue hex values, forbidden classes (`rounded-none`, `rounded-sm`, `font-light`), or colors outside the palette
+- First full design audit run by the new agent (recommended across all portals)
+
+---
+
+## [2026-04-06] Session: Smart Categories System — Data-Driven Menu Discovery
+
+### Intent
+
+Replace hardcoded "CediBites Mix" and "Most Popular" categories on the customer-facing menu with a data-driven Smart Categories system. Categories like "Most Popular", "Trending", "Top Rated", "New Arrivals", time-based categories (Breakfast Favorites, Lunch Picks, Dinner Favorites, Late Night Bites), and personalized "Order Again" are now computed from actual order data, ratings, timestamps, and customer history.
+
+### Architecture
+
+- **Pattern**: Strategy pattern — `SmartCategory` enum (backend) maps to Resolver classes; `SmartCategoryService` orchestrates resolution + caching
+- **Caching**: Laravel Cache with 6-hour TTL; warmed by `menu:compute-smart-categories` artisan command scheduled `everySixHours()`
+- **Category ID Convention**: Smart categories use `smart:{slug}` prefix (e.g., `smart:most-popular`) to distinguish from regular category names in the frontend state
+
+### Changes Made
+
+| File                                                 | Change                                                                                                                                                                                                                                                          | Reason                                                            |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `types/api.ts`                                       | Added `SmartCategory` interface: `{ slug: string; name: string; icon: string; item_ids: number[] }`                                                                                                                                                             | Type contract for smart categories API response                   |
+| `lib/api/services/menu.service.ts`                   | Added `getSmartCategories(branchId)` method calling `GET /smart-categories`                                                                                                                                                                                     | API integration for smart categories                              |
+| `lib/api/hooks/useSmartCategories.ts`                | **NEW** — TanStack Query hook with 10-minute staleTime, enabled when branchId present                                                                                                                                                                           | React Query hook for data fetching                                |
+| `app/components/providers/MenuDiscoveryProvider.tsx` | Integrated `useSmartCategories`. Smart categories prepended before regular categories with `smart:{slug}` IDs. `filteredItems` detects `smart:` prefix and filters by `item_ids` set. Removed hardcoded "Most Popular" tag-based logic.                         | Dynamic smart category integration replacing hardcoded categories |
+| `app/components/ui/MenuGrid.tsx`                     | Added `smartCategories` from context. `activeSmartCategory` memo resolves `smart:` prefix to SmartCategory object. Replaced hardcoded "Most Popular" section with generic smart category section using SectionHeader. Removed unused `PopularHeader` component. | Dynamic rendering of whichever smart category is selected         |
+| `app/(customer)/menu/page.tsx`                       | Categories now objects `{id, label}` instead of strings. `categoryCounts` includes smart category counts. Mobile strip and sidebar use `cat.id`/`cat.label`. `GroupedGrid` receives only regular (non-smart) categories via filter.                             | Support for mixed category types (smart + regular)                |
+
+### Decisions
+
+- **Decision**: `smart:` prefix convention to distinguish smart vs regular categories in state
+  - **Alternatives**: Separate data structures or boolean flag on category objects
+  - **Rationale**: String prefix is clean, simple, and requires no structural changes to the existing category handling pipeline
+- **Decision**: 10-minute staleTime on `useSmartCategories` hook
+  - **Rationale**: Smart categories change infrequently (6-hour backend cache TTL); 10-minute staleTime reduces unnecessary refetches while keeping data reasonably fresh
+- **Decision**: Smart categories prepended before regular categories in the category list
+  - **Rationale**: Smart categories are discovery-oriented and should appear first to drive engagement
+- **Decision**: `GroupedGrid` only receives regular (non-smart) categories
+  - **Rationale**: Smart categories display a flat item list (from `item_ids`), not grouped by category; different rendering logic
+
+### Cross-Repo Impact
+
+| File (API repo)                                         | Change                                                                                         | Triggered By                                       |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `app/Enums/SmartCategory.php`                           | **NEW** — 9-case backed enum with metadata methods                                             | Defines all smart category types                   |
+| `app/Services/SmartCategories/SmartCategoryService.php` | **NEW** — Orchestrator with caching                                                            | Resolves and caches smart categories per branch    |
+| `app/Services/SmartCategories/Resolvers/*.php`          | **NEW** — 6 resolver classes (Popular, Trending, TopRated, NewArrivals, TimeBased, OrderAgain) | Each resolver computes items for one category type |
+| `app/Http/Controllers/Api/SmartCategoryController.php`  | **NEW** — Public API controller                                                                | Serves `GET /v1/smart-categories?branch_id={id}`   |
+| `routes/public.php`                                     | Added smart-categories route                                                                   | Public endpoint consumed by frontend               |
+| `routes/console.php`                                    | Added scheduled cache warming                                                                  | `menu:compute-smart-categories` every 6 hours      |
+| `tests/Feature/SmartCategoryTest.php`                   | **NEW** — 22 tests, 83 assertions                                                              | Comprehensive backend test coverage                |
+
+### Current State
+
+- **TypeScript**: 0 errors across all modified files
+- **Smart categories**: Dynamically rendered on customer menu based on time of day, branch data, and customer history
+- **Categories**: Menu page now supports mixed category types — smart categories (prefixed `smart:`) + regular categories (plain names)
+- **Removed**: Hardcoded "CediBites Mix" / "Most Popular" tag-based logic replaced with data-driven system
+- **API endpoint**: `GET /v1/smart-categories?branch_id={id}` — public, no auth required
+- **Branch**: `menu-audit`
+
+### Pending / Follow-up
+
+- Admin settings UI for toggling/configuring smart categories (enable/disable individual categories, adjust limits)
+- "Staff Picks" tag to replace the manual `popular` tag for curated picks
+- Potential future: collaborative filtering for "You Might Like"
+- Consider adding smart category configuration to the admin menu management page
+- Monitor rendering performance with many smart categories active simultaneously
 
 ---
 
