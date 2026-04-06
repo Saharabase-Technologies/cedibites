@@ -247,6 +247,7 @@ export default function MenuPage() {
         allItems,
         filteredItems,
         categories: providerCategories,
+        smartCategories,
         selectedCategory,
         setSelectedCategory,
         searchQuery,
@@ -256,10 +257,10 @@ export default function MenuPage() {
         retryFetch,
     } = useMenuDiscovery();
 
-    // Use provider categories (sorted by display_order) — extract label strings
-    // "Most Popular" is included conditionally by the provider (only when popular-tagged items exist)
+    // Use provider categories — each has { id, label }
+    // Smart categories use id like 'smart:most-popular', regular use category name as id
     const categories = React.useMemo(() => {
-        return providerCategories.map(c => c.label);
+        return providerCategories;
     }, [providerCategories]);
 
     const [sort, setSort] = useState<SortKey>('default');
@@ -269,22 +270,27 @@ export default function MenuPage() {
     const searchRef = useRef<HTMLInputElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
-    // Category counts
+    // Category counts — smart categories use item_ids length, regular count from items
     const categoryCounts = React.useMemo(() => {
         const counts: Record<string, number> = { All: allItems.length };
+        // Regular category counts from items
         allItems.forEach(item => {
             if (item.category) counts[item.category] = (counts[item.category] ?? 0) + 1;
         });
+        // Smart category counts from API item_ids
+        smartCategories.forEach(sc => {
+            counts[`smart:${sc.slug}`] = sc.item_ids.length;
+        });
         return counts;
-    }, [allItems]);
+    }, [allItems, smartCategories]);
 
-    const allCategories = ['All', ...categories];
+    const allCategories = [{ id: 'All', label: 'All' }, ...categories];
 
     // Apply sort on top of provider's filtered items
     const displayItems = React.useMemo(() => sortItems(filteredItems, sort), [filteredItems, sort]);
 
-    const handleCategoryChange = (cat: string) => {
-        setSelectedCategory(cat === 'All' ? null : cat);
+    const handleCategoryChange = (catId: string) => {
+        setSelectedCategory(catId === 'All' ? null : catId);
         setShowMobileFilters(false);
         // scroll content to top on mobile
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -296,6 +302,10 @@ export default function MenuPage() {
 
     const isFiltered = searchQuery.trim() || selectedCategory;
     const activeCategory = selectedCategory ?? 'All';
+    const activeCategoryLabel = React.useMemo(() => {
+        const found = allCategories.find(c => c.id === activeCategory);
+        return found?.label ?? activeCategory;
+    }, [activeCategory, allCategories]);
 
     return (
         <div className="min-h-screen bg-neutral-light dark:bg-brand-darker">
@@ -370,15 +380,15 @@ export default function MenuPage() {
                     <div className="md:hidden border-t border-neutral-gray/10 overflow-x-auto scrollbar-none">
                         <div className="flex gap-2 px-4 py-3 w-max">
                             {allCategories.map(cat => {
-                                const active = cat === activeCategory;
+                                const active = cat.id === activeCategory;
                                 return (
-                                    <button key={cat} onClick={() => handleCategoryChange(cat)}
+                                    <button key={cat.id} onClick={() => handleCategoryChange(cat.id)}
                                         className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all
                                             ${active ? 'bg-primary text-white' : 'bg-white dark:bg-brand-dark text-text-dark dark:text-text-light border border-neutral-gray/15'}`}>
-                                        <span>{CATEGORY_ICONS[cat] ?? ''}</span>
-                                        {cat}
+                                        <span>{CATEGORY_ICONS[cat.label] ?? ''}</span>
+                                        {cat.label}
                                         <span className={`text-xs ${active ? 'opacity-80' : 'text-neutral-gray'}`}>
-                                            {categoryCounts[cat] ?? 0}
+                                            {categoryCounts[cat.id] ?? 0}
                                         </span>
                                     </button>
                                 );
@@ -400,11 +410,11 @@ export default function MenuPage() {
 
                     {allCategories.map(cat => (
                         <SidebarCategoryBtn
-                            key={cat}
-                            label={cat}
-                            count={categoryCounts[cat] ?? 0}
-                            active={cat === activeCategory}
-                            onClick={() => handleCategoryChange(cat)}
+                            key={cat.id}
+                            label={cat.label}
+                            count={categoryCounts[cat.id] ?? 0}
+                            active={cat.id === activeCategory}
+                            onClick={() => handleCategoryChange(cat.id)}
 
                         />
                     ))}
@@ -422,7 +432,7 @@ export default function MenuPage() {
                             <h1 className="text-xl md:text-2xl font-bold text-text-dark dark:text-text-light flex items-center gap-2.5">
                                 {activeCategory === 'All'
                                     ? <> <span className='text-2xl'>Our Full Menu</span></>
-                                    : <><span className="text-xl">{CATEGORY_ICONS[activeCategory] ?? ''}</span> {activeCategory}</>
+                                    : <><span className="text-xl">{CATEGORY_ICONS[activeCategoryLabel] ?? ''}</span> {activeCategoryLabel}</>
                                 }
                             </h1>
                             <p className="text-sm text-neutral-gray mt-0.5">
@@ -461,7 +471,7 @@ export default function MenuPage() {
                     ) : (
                         // Grid view — grouped by category when "All", flat when filtered
                         activeCategory === 'All' && !searchQuery ? (
-                            <GroupedGrid items={displayItems} categories={categories} onOpen={setDetailItem} />
+                            <GroupedGrid items={displayItems} categories={categories.filter(c => !c.id.startsWith('smart:')).map(c => c.label)} onOpen={setDetailItem} />
                         ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-3 md:gap-4">
                                 {displayItems.map(item => (

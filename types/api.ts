@@ -157,6 +157,14 @@ export interface MenuItem {
   updated_at: string;
 }
 
+// Smart category types (code-defined virtual categories with computed membership)
+export interface SmartCategory {
+  slug: string;
+  name: string;
+  icon: string;
+  item_ids: number[];
+}
+
 // Cart types
 export interface CartItem {
   id: number;

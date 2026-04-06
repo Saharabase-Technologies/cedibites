@@ -2,8 +2,9 @@
 
 import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import type { MenuItem as ApiMenuItem } from '@/types/api';
+import type { MenuItem as ApiMenuItem, SmartCategory } from '@/types/api';
 import { useMenu } from '@/lib/api/hooks/useMenu';
+import { useSmartCategories } from '@/lib/api/hooks/useSmartCategories';
 import { deriveCategories } from '@/lib/api/adapters/menu.adapter';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 
@@ -68,6 +69,7 @@ interface MenuDiscoveryContextType {
     filteredItems: SearchableItem[];
     searchResults: SearchableItem[];
     categories: { id: string; label: string }[];
+    smartCategories: SmartCategory[];
     isSearching: boolean;
     searchQuery: string;
     setSearchQuery: (query: string) => void;
@@ -91,10 +93,15 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
     const { selectedBranch } = useBranch();
     const pathname = usePathname();
 
+    const branchIdNum = selectedBranch ? parseInt(selectedBranch.id) : undefined;
+
     // Fetch menu data filtered by the selected branch
     const { items: apiItems, isLoading: isLoadingMenu, error, refetch } = useMenu(
-        selectedBranch ? { branch_id: parseInt(selectedBranch.id) } : undefined
+        branchIdNum ? { branch_id: branchIdNum } : undefined
     );
+
+    // Fetch smart categories (computed virtual categories) for the branch
+    const { smartCategories } = useSmartCategories(branchIdNum);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -116,8 +123,9 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
     // Use only transformed API items (no fallback to sample data)
     const menuItems = transformedApiItems;
 
-    // Derive categories from raw API items, sorted by display_order
+    // Derive categories: smart categories (computed) prepended before regular categories
     const categories = useMemo(() => {
+        // Regular categories from API items, sorted by display_order
         const seen = new Map<string, number>();
         for (const item of apiItems) {
             const name = item.category?.name;
@@ -125,17 +133,17 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
                 seen.set(name, item.category?.display_order ?? 999);
             }
         }
-        const sorted = [...seen.entries()]
+        const regularCategories = [...seen.entries()]
             .sort((a, b) => a[1] - b[1])
             .map(([name]) => ({ id: name, label: name }));
 
-        // Only prepend "Most Popular" if items with the "popular" tag exist
-        const hasPopular = menuItems.some(item => item.tags?.some(t => t.slug === 'popular'));
-        if (hasPopular) {
-            sorted.unshift({ id: 'Most Popular', label: 'Most Popular' });
-        }
-        return sorted;
-    }, [apiItems, menuItems]);
+        // Prepend smart categories that have items
+        const smartCats = smartCategories
+            .filter(sc => sc.item_ids.length > 0)
+            .map(sc => ({ id: `smart:${sc.slug}`, label: sc.name }));
+
+        return [...smartCats, ...regularCategories];
+    }, [apiItems, smartCategories]);
 
     // Load recent searches from localStorage on mount
     useEffect(() => {
@@ -152,8 +160,14 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
 
         // Filter by category
         if (selectedCategory) {
-            if (selectedCategory === 'Most Popular') {
-                result = result.filter(item => item.tags?.some(t => t.slug === 'popular'));
+            if (selectedCategory.startsWith('smart:')) {
+                // Smart category — filter by item IDs from the backend
+                const slug = selectedCategory.replace('smart:', '');
+                const sc = smartCategories.find(c => c.slug === slug);
+                if (sc) {
+                    const idSet = new Set(sc.item_ids.map(String));
+                    result = result.filter(item => idSet.has(item.id));
+                }
             } else {
                 result = result.filter(item => item.category === selectedCategory);
             }
@@ -177,7 +191,7 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
         }
 
         return result;
-    }, [menuItems, searchQuery, selectedCategory]);
+    }, [menuItems, searchQuery, selectedCategory, smartCategories]);
 
     // searchResults: only populated when there's an active query
     const searchResults = useMemo(() => {
@@ -212,6 +226,7 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
         filteredItems,
         searchResults,
         categories,
+        smartCategories,
         isSearching: isLoadingMenu,
         searchQuery,
         setSearchQuery: handleSetSearchQuery,

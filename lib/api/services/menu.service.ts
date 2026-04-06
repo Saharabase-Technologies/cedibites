@@ -1,5 +1,5 @@
 import apiClient from '../client';
-import { MenuItem } from '@/types/api';
+import { MenuItem, SmartCategory } from '@/types/api';
 import { compressImage } from '@/lib/utils/compressImage';
 
 export interface MenuItemsParams {
@@ -148,5 +148,12 @@ export const menuService = {
    */
   deleteItem: (id: number): Promise<void> => {
     return apiClient.delete(`/admin/menu-items/${id}`);
+  },
+
+  /**
+   * Get active smart categories (computed virtual categories) for a branch
+   */
+  getSmartCategories: (branchId: number): Promise<{ data: SmartCategory[] }> => {
+    return apiClient.get('/smart-categories', { params: { branch_id: branchId } });
   },
 };
