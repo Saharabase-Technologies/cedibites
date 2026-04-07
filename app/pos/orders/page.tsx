@@ -193,13 +193,15 @@ export default function POSOrdersPage() {
         <CancelOrderModal
           orderNumber={cancelTarget.orderNumber}
           theme="light"
-          context="staff"
+          context={isAdmin ? 'self' : 'staff'}
           onCancel={() => setCancelTarget(null)}
           onConfirm={async (reason) => {
             if (isAdmin) {
               await cancelOrder({ id: Number(cancelTarget.id), reason: reason || 'Cancelled by POS admin' });
+              toast.success('Order cancelled');
             } else {
               await requestCancel({ id: Number(cancelTarget.id), reason: reason || 'Requested by POS staff' });
+              toast.success('Cancel request submitted — awaiting manager approval');
             }
           }}
         />

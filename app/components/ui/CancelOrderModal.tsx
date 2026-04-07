@@ -42,6 +42,7 @@ export default function CancelOrderModal({
     const [custom, setCustom] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [succeeded, setSucceeded] = useState(false);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     const reason = selected === '__custom__' ? custom.trim() : (selected ?? '');
 
@@ -70,9 +71,13 @@ export default function CancelOrderModal({
 
     async function handleConfirm() {
         setIsLoading(true);
+        setErrorMsg(null);
         try {
             await onConfirm(reason);
             setSucceeded(true);
+        } catch (err: any) {
+            const msg = err?.response?.data?.message ?? err?.message ?? 'Something went wrong. Please try again.';
+            setErrorMsg(msg);
         } finally {
             setIsLoading(false);
         }
@@ -154,6 +159,11 @@ export default function CancelOrderModal({
                                 className={`w-full rounded-xl px-3 py-2.5 text-sm font-body resize-none outline-none transition-colors ${inputClass} mb-3`}
                                 autoFocus
                             />
+                        )}
+
+                        {/* Error message */}
+                        {errorMsg && (
+                            <p className="text-error text-xs font-body text-center mt-1 mb-1">{errorMsg}</p>
                         )}
 
                         {/* Actions */}

@@ -488,6 +488,7 @@ function OrderDetailPanel({
                     onConfirm={async (reason) => {
                         await cancelOrder({ id: order.dbId, reason });
                         queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+                        toast.success('Order cancelled');
                     }}
                 />
             )}

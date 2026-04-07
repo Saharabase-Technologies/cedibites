@@ -23,6 +23,7 @@ import { formatPrice, type OrderStatus, type Order } from '@/types/order';
 import { STATUS_CONFIG } from '@/lib/constants/order.constants';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
+import { toast } from '@/lib/utils/toast';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -210,8 +211,10 @@ export default function SalesOrdersPage() {
         if (!cancelTarget) return;
         if (isAdmin) {
             await cancelOrder({ id: Number(cancelTarget.id), reason });
+            toast.success('Order cancelled');
         } else {
             await requestCancel({ id: Number(cancelTarget.id), reason });
+            toast.success('Cancel request submitted — awaiting manager approval');
         }
     }, [cancelTarget, isAdmin, cancelOrder, requestCancel]);
 
