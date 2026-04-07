@@ -141,7 +141,7 @@ export default function POSTerminalPage() {
   } = usePOS();
   const { staffUser, logout } = useStaffAuth();
   const { branches } = useBranch();
-  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'super_admin';
+  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
   const { items: menuItems, categories: menuCategories, isLoading: menuLoading } = useMenuItems();
 
   const [activeCategory, setActiveCategory] = useState('all');
@@ -176,7 +176,7 @@ export default function POSTerminalPage() {
   useEffect(() => {
     if (!session?.branchId || cart.length === 0) { setActivePromo(null); setPromoDiscount(0); return; }
     const itemIds = cart.map(c => c.menuItemId);
-    getPromoService().resolvePromo(itemIds, session.branchId).then(p => {
+    getPromoService().resolvePromo(itemIds, session.branchId, cartTotal).then(p => {
       if (!p) { setActivePromo(null); setPromoDiscount(0); return; }
       setActivePromo(p);
       setPromoDiscount(getPromoService().calculateDiscount(p, cartTotal));
@@ -349,7 +349,7 @@ export default function POSTerminalPage() {
     );
   }
 
-  // Guard: branch is closed or inactive — admin/super_admin bypass
+  // Guard: branch is closed or inactive — admin/tech_admin bypass
   if (!isAdmin && branchInfo && (!branchInfo.isActive || !branchInfo.isOpen)) {
     const isInactive = !branchInfo.isActive;
     return (
@@ -756,21 +756,34 @@ export default function POSTerminalPage() {
 
         {/* Total & Pay Button */}
         <div className="shrink-0 p-4 border-t border-neutral-gray/20 bg-neutral-light">
-          {activePromo && promoDiscount > 0 && (
-            <div className="flex items-center justify-between mb-2">
-              <span className="flex items-center gap-1.5 text-secondary text-sm">
-                <TagIcon size={12} weight="fill" />
-                {activePromo.name}
+          {activePromo && promoDiscount > 0 ? (
+            <>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-neutral-gray text-sm">Subtotal</span>
+                <span className="text-sm text-neutral-gray">{formatGHS(cartTotal)}</span>
+              </div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="flex items-center gap-1.5 text-secondary text-sm">
+                  <TagIcon size={12} weight="fill" />
+                  {activePromo.name}
+                </span>
+                <span className="text-secondary text-sm font-semibold">-{formatGHS(promoDiscount)}</span>
+              </div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-neutral-gray font-medium">Total</span>
+                <span className="text-2xl font-bold text-primary">
+                  {formatGHS(effectiveTotal)}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-neutral-gray">Total</span>
+              <span className="text-2xl font-bold text-primary">
+                {formatGHS(effectiveTotal)}
               </span>
-              <span className="text-secondary text-sm font-semibold">-{formatGHS(promoDiscount)}</span>
             </div>
           )}
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-neutral-gray">Total</span>
-            <span className="text-2xl font-bold text-primary">
-              {formatGHS(effectiveTotal)}
-            </span>
-          </div>
 
           {isManualEntry && (
             <div className="flex items-center justify-between py-2 px-3 mb-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
@@ -1001,7 +1014,7 @@ interface PaymentModalProps {
 
 function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentMethods }: PaymentModalProps) {
   const { staffUser } = useStaffAuth();
-  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'super_admin';
+  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [cashAmount, setCashAmount] = useState('');
   const [momoNumber, setMomoNumber] = useState('');

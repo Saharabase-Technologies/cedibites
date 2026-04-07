@@ -93,7 +93,7 @@ export default function OrderManagerPage() {
     () => effectiveBranchId ? branches.find(b => b.id === effectiveBranchId) ?? null : null,
     [effectiveBranchId, branches]
   );
-  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'super_admin';
+  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
 
   const { orders } = useOrderChannel(effectiveBranchId);
   const sounds = useKitchenSounds();
@@ -253,7 +253,7 @@ export default function OrderManagerPage() {
     );
   }
 
-  // Guard: branch is closed or inactive — admin/super_admin bypass
+  // Guard: branch is closed or inactive — admin/tech_admin bypass
   if (!isAdmin && branchInfo && (!branchInfo.isActive || !branchInfo.isOpen)) {
     const isInactive = !branchInfo.isActive;
     return (

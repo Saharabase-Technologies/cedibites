@@ -391,6 +391,8 @@ export interface Order {
   estimated_delivery_time?: string;
   amount_paid?: number;
   discount?: number;
+  promo_id?: number;
+  promo_name?: string;
   staff_name?: string;
   cancel_requested_by?: number | null;
   cancel_request_reason?: string | null;

@@ -121,7 +121,7 @@ export function POSProvider({ children }: POSProviderProps) {
       setSession(prev => {
         // Restore persisted branch selection for this staff member
         const storedBranchId = localStorage.getItem(POS_BRANCH_KEY);
-        // branchIds.length === 0 means admin/super_admin with access to all branches
+        // branchIds.length === 0 means admin/tech_admin with access to all branches
         const isStoredValid = storedBranchId && (branchIds.length === 0 || branchIds.includes(storedBranchId));
         const restoredBranchId = isStoredValid ? storedBranchId : defaultBranchId;
         // Prefer in-memory prev (same session), then persisted, then default

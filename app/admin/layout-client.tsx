@@ -22,6 +22,10 @@ import {
     MonitorIcon,
     ClipboardTextIcon,
     ReceiptIcon,
+    HeartbeatIcon,
+    WarningCircleIcon,
+    UsersIcon,
+    KeyIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
@@ -51,6 +55,13 @@ const ADMIN_DISPLAYS = [
     { href: '/pos/terminal',  label: 'POS Terminal',    icon: CashRegisterIcon,  external: true },
     { href: '/kitchen/display', label: 'Kitchen Display', icon: MonitorIcon, external: true },
     { href: '/order-manager', label: 'Order Manager',   icon: ClipboardTextIcon, external: true },
+];
+
+const PLATFORM_NAV = [
+    { href: '/admin/platform',            label: 'System Health',   icon: HeartbeatIcon     },
+    { href: '/admin/platform/errors',     label: 'Error Feed',      icon: WarningCircleIcon },
+    { href: '/admin/platform/admins',     label: 'Platform Team',   icon: UsersIcon         },
+    { href: '/admin/platform/passwords',  label: 'Staff Passwords', icon: KeyIcon           },
 ];
 
 // ─── Sidebar link ─────────────────────────────────────────────────────────────
@@ -106,7 +117,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     const { staffUser, isLoading, logout } = useStaffAuth();
     const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
-    // Redirect to login if not authenticated or not admin/super_admin
+    // Redirect to login if not authenticated or not authorized
     useEffect(() => {
         if (!isLoading) {
             if (!staffUser) {
@@ -190,6 +201,24 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                             external={item.external}
                         />
                     ))}
+
+                    {staffUser.permissions?.includes('access_platform_admin') && (
+                        <>
+                            <div className="my-2 border-t border-[#f0e8d8]" />
+                            <p className="text-[10px] font-body font-medium text-neutral-gray/60 uppercase tracking-wider px-3 pb-1">
+                                Platform
+                            </p>
+                            {PLATFORM_NAV.map(item => (
+                                <SidebarLink
+                                    key={item.href}
+                                    href={item.href}
+                                    label={item.label}
+                                    icon={item.icon}
+                                    active={pathname === item.href}
+                                />
+                            ))}
+                        </>
+                    )}
                 </nav>
 
                 {/* Admin identity + sign out */}

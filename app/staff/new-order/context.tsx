@@ -88,9 +88,9 @@ export function NewOrderProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (!branchId || cart.length === 0) { setPromo(null); setDiscount(0); return; }
         const itemIds = cart.map(c => c.id);
-        getPromoService().resolvePromo(itemIds, branchId).then(p => {
+        const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+        getPromoService().resolvePromo(itemIds, branchId, subtotal).then(p => {
             if (!p) { setPromo(null); setDiscount(0); return; }
-            const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
             setPromo(p);
             setDiscount(getPromoService().calculateDiscount(p, subtotal));
         }).catch(() => { setPromo(null); setDiscount(0); });

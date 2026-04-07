@@ -157,6 +157,11 @@ export default function Navbar() {
                                                 <p className="text-sm font-bold text-text-dark dark:text-text-light truncate">{user?.name}</p>
                                                 <p className="text-xs text-neutral-gray truncate">{user?.phone}</p>
                                             </div>
+                                            <Link href="/account"
+                                                onClick={() => setIsUserMenuOpen(false)}
+                                                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-dark dark:text-text-light hover:text-primary hover:bg-primary/5 transition-colors">
+                                                <UserIcon weight="fill" size={14} className="text-neutral-gray" /> My Account
+                                            </Link>
                                             <Link href="/order-history"
                                                 onClick={() => setIsUserMenuOpen(false)}
                                                 className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-dark dark:text-text-light hover:text-primary hover:bg-primary/5 transition-colors">
@@ -239,6 +244,10 @@ export default function Navbar() {
                                         <p className="text-xs text-neutral-gray truncate">{user?.phone}</p>
                                     </div>
                                 </div>
+                                <Link href="/account" onClick={() => setIsMobileMenuOpen(false)}
+                                    className="flex items-center gap-3 px-4 py-3 rounded-2xl text-text-light hover:bg-white/6 hover:text-primary transition-all text-sm font-semibold">
+                                    <UserIcon weight="fill" size={15} className="text-neutral-gray" /> My Account
+                                </Link>
                                 <Link href="/orders" onClick={() => setIsMobileMenuOpen(false)}
                                     className="flex items-center gap-3 px-4 py-3 rounded-2xl text-text-light hover:bg-white/6 hover:text-primary transition-all text-sm font-semibold">
                                     <PathIcon weight="fill" size={15} className="text-neutral-gray" /> My Orders

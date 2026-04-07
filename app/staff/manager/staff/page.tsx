@@ -18,6 +18,8 @@ import {
     ToggleLeftIcon,
     ToggleRightIcon,
     IdentificationCardIcon,
+    CaretLeftIcon,
+    CaretRightIcon,
 } from '@phosphor-icons/react';
 import ActionMenu from '@/app/components/ui/ActionMenu';
 import type { ActionMenuItem } from '@/app/components/ui/ActionMenu';
@@ -43,8 +45,8 @@ import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 // ─── Display helpers ──────────────────────────────────────────────────────────
 
 const ROLE_STYLES: Record<string, string> = {
+    tech_admin:     'bg-primary/10 text-primary',
     admin:          'bg-primary/10 text-primary',
-    super_admin:    'bg-primary/10 text-primary',
     branch_partner: 'bg-purple-100 text-purple-700',
     manager:        'bg-secondary/10 text-secondary',
     call_center:    'bg-info/10 text-info',
@@ -212,7 +214,7 @@ function StaffModal({ staff, onClose, onSave, branchName, branchId }: {
 
     const dbRoleToStaffRole = (dbRoleName: string): StaffRole => {
         const mapping: Record<string, StaffRole> = {
-            'super_admin': 'super_admin', 'admin': 'super_admin', 'branch_partner': 'branch_partner',
+            'tech_admin': 'tech_admin', 'admin': 'admin', 'branch_partner': 'branch_partner',
             'manager': 'manager', 'call_center': 'call_center', 'sales_staff': 'sales_staff',
             'kitchen': 'kitchen', 'rider': 'rider', 'employee': 'sales_staff',
         };
@@ -589,9 +591,11 @@ export default function ManagerStaffPage() {
 
     const [tab, setTab] = useState<FilterTab>('All');
     const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
     const [editStaff, setEditStaff] = useState<StaffMember | null | 'new'>(null);
     const [deleteStaff, setDeleteStaff] = useState<StaffMember | null>(null);
 
+    const PER_PAGE = 10;
     const TABS: FilterTab[] = ['All', 'Manager', 'Sales Staff', 'Call Center', 'Kitchen', 'Rider', 'Suspended', 'Terminated'];
 
     const filtered = useMemo(() => {
@@ -606,6 +610,12 @@ export default function ManagerStaffPage() {
         }
         return list;
     }, [staff, tab, search]);
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+    const paged = useMemo(() => filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE), [filtered, page]);
+
+    // Reset page when filters change
+    useEffect(() => { setPage(1); }, [tab, search]);
 
     async function saveStaff(s: StaffMember) {
         const isNew = isNewStaffId(s.id);
@@ -767,9 +777,9 @@ export default function ManagerStaffPage() {
                             <span>Last Login</span>
                             <span className="text-right">Actions</span>
                         </div>
-                        {filtered.map((member, i) => (
+                        {paged.map((member, i) => (
                             <div key={member.id}
-                                className={`px-5 py-3.5 flex flex-col sm:grid sm:grid-cols-[minmax(0,1.5fr)_100px_minmax(0,1fr)_100px_140px] gap-2 sm:gap-3 sm:items-center ${i < filtered.length - 1 ? 'border-b border-[#f0e8d8]' : ''} hover:bg-neutral-light/40 transition-colors`}>
+                                className={`px-5 py-3.5 flex flex-col sm:grid sm:grid-cols-[minmax(0,1.5fr)_100px_minmax(0,1fr)_100px_140px] gap-2 sm:gap-3 sm:items-center ${i < paged.length - 1 ? 'border-b border-[#f0e8d8]' : ''} hover:bg-neutral-light/40 transition-colors`}>
 
                                 {/* Name + avatar + status */}
                                 <div className="flex items-center gap-2.5 min-w-0">
@@ -838,6 +848,26 @@ export default function ManagerStaffPage() {
                     </>
                 )}
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                    <p className="text-neutral-gray text-xs font-body">
+                        Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, filtered.length)} of {filtered.length}
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                        <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium font-body bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                            <CaretLeftIcon size={12} weight="bold" /> Prev
+                        </button>
+                        <span className="text-neutral-gray text-xs font-body px-2">Page {page} of {totalPages}</span>
+                        <button type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium font-body bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                            Next <CaretRightIcon size={12} weight="bold" />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Modals */}
             {editStaff !== null && (

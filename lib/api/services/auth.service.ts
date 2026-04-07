@@ -24,6 +24,11 @@ export interface QuickRegisterRequest {
   email?: string;
 }
 
+export interface UpdateProfileRequest {
+  name?: string;
+  email?: string | null;
+}
+
 export const authService = {
   /**
    * Send OTP to phone number
@@ -58,6 +63,13 @@ export const authService = {
    */
   getUser: (): Promise<{ data: User }> => {
     return apiClient.get('/auth/user');
+  },
+
+  /**
+   * Update authenticated customer's profile
+   */
+  updateProfile: (data: UpdateProfileRequest): Promise<{ data: User }> => {
+    return apiClient.patch('/auth/profile', data);
   },
 
   /**

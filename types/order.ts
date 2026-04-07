@@ -166,7 +166,7 @@ export interface KanbanColumn {
 
 // Re-exported from staff.ts — identity types belong there.
 export type { StaffRole } from '@/types/staff';
-export type UserRole = 'call_center' | 'manager' | 'super_admin' | 'branch_partner';
+export type UserRole = 'call_center' | 'manager' | 'admin' | 'tech_admin' | 'branch_partner';
 
 // ─── Filter type (for service layer) ─────────────────────────────────────────
 
@@ -442,7 +442,7 @@ export function canAdvanceOrder(
     if (!allowed.includes(targetStatus)) return false;
 
     // Full control: managers and super admins
-    if (role === 'manager' || role === 'super_admin') return true;
+    if (role === 'manager' || role === 'admin' || role === 'tech_admin') return true;
 
     // Call center: read-only observers — cannot advance any order
     if (role === 'call_center') return false;

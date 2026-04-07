@@ -52,8 +52,8 @@ function extractData<T>(response: unknown): T {
 
 function mapApiRoleToStaffRole(roleName: string): StaffRole {
   const map: Record<string, StaffRole> = {
-    super_admin: 'super_admin',
-    admin: 'super_admin', // backend admin role maps to super_admin for display
+    tech_admin: 'tech_admin',
+    admin: 'admin',
     branch_partner: 'branch_partner',
     manager: 'manager',
     call_center: 'call_center',
@@ -135,13 +135,13 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
 }
 
 /** Backend role enum: all available roles */
-export type BackendRole = 'super_admin' | 'admin' | 'branch_partner' | 'manager' | 'call_center' | 'sales_staff' | 'kitchen' | 'rider';
+export type BackendRole = 'tech_admin' | 'admin' | 'branch_partner' | 'manager' | 'call_center' | 'sales_staff' | 'kitchen' | 'rider';
 
 /** Map frontend StaffRole to backend role for API */
 export function staffRoleToBackendRole(role: StaffRole): BackendRole {
   const map: Record<StaffRole, BackendRole> = {
+    tech_admin: 'tech_admin',
     admin: 'admin',
-    super_admin: 'super_admin',
     branch_partner: 'branch_partner',
     manager: 'manager',
     call_center: 'call_center',
@@ -193,6 +193,8 @@ export interface CreateEmployeePayload {
   phone: string;
   /** Optional; when omitted backend auto-generates a password. */
   password?: string;
+  /** Controls how the password is handled on creation: auto (default), custom, or prompt. */
+  password_mode?: 'auto' | 'custom' | 'prompt';
   branch_ids: number[];
   role: BackendRole;
   hire_date?: string;
@@ -229,6 +231,14 @@ export interface UpdateEmployeePayload {
   emergency_contact_relationship?: string;
   // Individual permissions
   permissions?: string[];
+}
+
+export interface EmployeeNoteResponse {
+  id: number;
+  content: string;
+  author: string;
+  created_at: string;
+  is_own: boolean;
 }
 
 export const employeeService = {
@@ -269,6 +279,7 @@ export const employeeService = {
       email: payload.email || null,
       phone: payload.phone,
       ...(payload.password != null && payload.password !== '' && { password: payload.password }),
+      ...(payload.password_mode && { password_mode: payload.password_mode }),
       branch_ids: payload.branch_ids,
       role: payload.role,
       hire_date: payload.hire_date ?? undefined,
@@ -326,5 +337,23 @@ export const employeeService = {
 
   requirePasswordReset: async (id: string): Promise<void> => {
     await apiClient.post(`/admin/employees/${id}/require-password-reset`);
+  },
+
+  // ─── Employee Notes ──────────────────────────────────────────────────
+
+  getNotes: async (employeeId: string): Promise<EmployeeNoteResponse[]> => {
+    const response = await apiClient.get(`/admin/employees/${employeeId}/notes`);
+    const outer = response as { data?: { data?: EmployeeNoteResponse[] } };
+    return outer?.data?.data ?? outer?.data ?? [];
+  },
+
+  addNote: async (employeeId: string, content: string): Promise<EmployeeNoteResponse> => {
+    const response = await apiClient.post(`/admin/employees/${employeeId}/notes`, { content });
+    const outer = response as { data?: { data?: EmployeeNoteResponse } };
+    return outer?.data?.data ?? outer?.data ?? (response as unknown as EmployeeNoteResponse);
+  },
+
+  deleteNote: async (employeeId: string, noteId: number): Promise<void> => {
+    await apiClient.delete(`/admin/employees/${employeeId}/notes/${noteId}`);
   },
 };

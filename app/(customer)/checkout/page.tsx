@@ -10,8 +10,9 @@ import {
     ArrowLeftIcon, ShoppingBagIcon, PencilSimpleIcon,
     LockIcon, MagnifyingGlassIcon, XIcon, SpinnerGapIcon,
     NavigationArrowIcon, StorefrontIcon, WarningCircleIcon,
-    CaretRightIcon, SparkleIcon, UserCircleIcon,
+    CaretRightIcon, SparkleIcon, UserCircleIcon, TagIcon,
 } from '@phosphor-icons/react';
+import { getPromoService, type Promo } from '@/lib/services/promos/promo.service';
 import { useCart, CartItem } from '@/app/components/providers/CartProvider';
 import { useBranch, Branch, BranchWithDistance } from '@/app/components/providers/BranchProvider';
 import { useLocation } from '@/app/components/providers/LocationProvider';
@@ -366,13 +367,13 @@ function StepIndicator({ current }: { current: Step }) {
 }
 
 // ─── Order Summary ────────────────────────────────────────────────────────────
-function OrderSummary({ orderType, scConfig, deliveryFeeEnabled }: { orderType: OrderType; scConfig: ServiceChargeConfig; deliveryFeeEnabled: boolean }) {
+function OrderSummary({ orderType, scConfig, deliveryFeeEnabled, discount, promoName }: { orderType: OrderType; scConfig: ServiceChargeConfig; deliveryFeeEnabled: boolean; discount?: number; promoName?: string }) {
     const { displayItems: items, subtotal } = useCart();
     const { selectedBranch } = useBranch();
     const showDelivery = deliveryFeeEnabled && orderType === 'delivery';
     const delivery = showDelivery ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
     const serviceCharge = calcServiceCharge(subtotal, scConfig);
-    const total = subtotal + delivery + serviceCharge;
+    const total = subtotal + delivery + serviceCharge - (discount ?? 0);
     return (
         <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
             <div className="flex items-center justify-between">
@@ -400,6 +401,15 @@ function OrderSummary({ orderType, scConfig, deliveryFeeEnabled }: { orderType: 
                     <div className="flex justify-between"><span className="text-neutral-gray">Delivery Fee</span><span className="font-semibold text-text-dark dark:text-text-light">{showDelivery ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span></div>
                 )}
                 <div className="flex justify-between"><span className="text-neutral-gray">Service Charge{scConfig.enabled ? ` (${scConfig.percent}%)` : ''}</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(serviceCharge)}</span></div>
+                {(discount ?? 0) > 0 && (
+                    <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-1.5 text-secondary text-sm">
+                            <TagIcon size={14} weight="fill" />
+                            {promoName || 'Promo Discount'}
+                        </span>
+                        <span className="font-semibold text-secondary">-{formatPrice(discount!)}</span>
+                    </div>
+                )}
             </div>
             <div className="h-px bg-neutral-gray/10" />
             <div className="flex justify-between items-center">
@@ -868,6 +878,8 @@ export default function CheckoutPage() {
     const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });
     const [scConfig, setScConfig] = useState<ServiceChargeConfig>(DEFAULT_SC_CONFIG);
     const [deliveryFeeEnabled, setDeliveryFeeEnabled] = useState(false);
+    const [activePromo, setActivePromo] = useState<Promo | null>(null);
+    const [promoDiscount, setPromoDiscount] = useState(0);
 
     useEffect(() => {
         apiClient.get('/checkout-config').then((res: unknown) => {
@@ -880,6 +892,17 @@ export default function CheckoutPage() {
     }, []);
 
     const effectiveBranch = selectedBranch ?? branches.find(b => b.isOpen) ?? branches[0] ?? null;
+
+    // Auto-resolve best applicable promo
+    useEffect(() => {
+        if (!effectiveBranch || items.length === 0) { setActivePromo(null); setPromoDiscount(0); return; }
+        const itemIds = items.map(ci => String(ci.item.id));
+        getPromoService().resolvePromo(itemIds, String(effectiveBranch.id), subtotal).then(p => {
+            if (!p) { setActivePromo(null); setPromoDiscount(0); return; }
+            setActivePromo(p);
+            setPromoDiscount(getPromoService().calculateDiscount(p, subtotal));
+        }).catch(() => { setActivePromo(null); setPromoDiscount(0); });
+    }, [items, effectiveBranch, subtotal]);
 
     const handlePlaceOrder = useCallback(async () => {
         if (!effectiveBranch) return;
@@ -992,7 +1015,7 @@ export default function CheckoutPage() {
                             {step === 1 && <StepDetails orderType={orderType} setOrderType={setOrderType} contact={contact} setContact={setContact} onNext={() => { setContact(c => ({ ...c, phone: normalizeGhanaPhone(c.phone) })); setStep(2); }} />}
                             {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} scConfig={scConfig} />}
                         </div>
-                        <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} scConfig={scConfig} deliveryFeeEnabled={deliveryFeeEnabled} /></div>
+                        <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} scConfig={scConfig} deliveryFeeEnabled={deliveryFeeEnabled} discount={promoDiscount} promoName={activePromo?.name} /></div>
                     </div>
                 )}
             </div>

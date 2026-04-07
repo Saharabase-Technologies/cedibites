@@ -208,6 +208,7 @@ export default function AdminCustomersPage() {
     const [tab, setTab] = useState<FilterTab>('All');
     const [search, setSearch] = useState('');
     const [sortBy, setSortBy] = useState<SortBy>('recent');
+    const [page, setPage] = useState(1);
     const [selected, setSelected] = useState<DisplayCustomer | null>(null);
     const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; customer: DisplayCustomer | null; isLoading: boolean }>({
         isOpen: false,
@@ -215,10 +216,18 @@ export default function AdminCustomersPage() {
         isLoading: false,
     });
 
+    // Reset to page 1 when filters change
+    const handleTabChange = (t: FilterTab) => { setTab(t); setPage(1); };
+    const handleSearchChange = (v: string) => { setSearch(v); setPage(1); };
+    const handleSortChange = (v: SortBy) => { setSortBy(v); setPage(1); };
+
     const { customers: apiCustomers, meta, isLoading, refetch } = useCustomers({
         search: search.trim() || undefined,
         is_guest: tab === 'Guest' ? true : tab === 'Registered' ? false : undefined,
-        per_page: 100,
+        status: tab === 'Suspended' ? 'suspended' : undefined,
+        sort_by: sortBy === 'recent' ? undefined : sortBy,
+        page,
+        per_page: 15,
     });
 
     const { orders: customerOrders } = useCustomerOrders(selected?.id ?? null);
@@ -227,23 +236,11 @@ export default function AdminCustomersPage() {
         return apiCustomers.map((api) => mapApiCustomerToDisplay(api, []));
     }, [apiCustomers]);
 
-    const filtered = useMemo(() => {
-        let list = customers;
-        if (tab === 'Suspended') list = list.filter((c) => c.status === 'suspended');
-        else {
-            list = list.filter((c) => c.status !== 'suspended');
-            if (tab !== 'All') list = list.filter((c) => c.accountType === tab);
-        }
-
-        if (sortBy === 'orders') list = [...list].sort((a, b) => b.totalOrders - a.totalOrders);
-        else if (sortBy === 'spend') list = [...list].sort((a, b) => b.totalSpend - a.totalSpend);
-
-        return list;
-    }, [customers, tab, sortBy]);
+    // Filtering and sorting is now fully server-side — no client-side filtering needed.
 
     const buildExportRows = useCallback(() => {
         const headers = ['Name', 'Phone', 'Email', 'Account Type', 'Status', 'Total Orders', 'Total Spend (GHS)', 'Avg Order Value (GHS)', 'Last Order', 'Join Date'];
-        const rows = filtered.map((c) => [
+        const rows = customers.map((c) => [
             c.name,
             c.phone,
             c.email ?? '',
@@ -256,7 +253,7 @@ export default function AdminCustomersPage() {
             c.joinDate,
         ]);
         return [headers, ...rows];
-    }, [filtered]);
+    }, [customers]);
 
     const handleExportCsv = useCallback(() => {
         const allRows = buildExportRows();
@@ -339,15 +336,15 @@ export default function AdminCustomersPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
                 <div>
                     <h1 className="text-text-dark text-2xl font-bold font-body">Customers</h1>
-                    <p className="text-neutral-gray text-sm font-body mt-0.5">{filtered.length} customers shown</p>
+                    <p className="text-neutral-gray text-sm font-body mt-0.5">{meta?.total ?? customers.length} customers</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                    <button type="button" onClick={handleExportCsv} disabled={filtered.length === 0}
+                    <button type="button" onClick={handleExportCsv} disabled={customers.length === 0}
                         className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                         <DownloadSimpleIcon size={15} weight="bold" className="text-primary" />
                         CSV
                     </button>
-                    <button type="button" onClick={handleExportExcel} disabled={filtered.length === 0}
+                    <button type="button" onClick={handleExportExcel} disabled={customers.length === 0}
                         className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                         <DownloadSimpleIcon size={15} weight="bold" className="text-secondary" />
                         Excel
@@ -359,7 +356,7 @@ export default function AdminCustomersPage() {
             <div className="flex flex-col sm:flex-row gap-3 mb-5">
                 <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
                     {TABS.map(t => (
-                        <button key={t} type="button" onClick={() => setTab(t)}
+                        <button key={t} type="button" onClick={() => handleTabChange(t)}
                             className={`px-3 py-2 rounded-xl text-sm font-medium font-body whitespace-nowrap transition-all cursor-pointer ${tab === t ? 'bg-primary text-white' : 'bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark'}`}>
                             {t}
                         </button>
@@ -368,10 +365,10 @@ export default function AdminCustomersPage() {
                 <div className="flex gap-2 ml-auto">
                     <div className="relative flex-1 min-w-[180px]">
                         <MagnifyingGlassIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray" />
-                        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
+                        <input type="text" value={search} onChange={e => handleSearchChange(e.target.value)} placeholder="Search…"
                             className="w-full pl-9 pr-3 py-2.5 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40" />
                     </div>
-                    <select value={sortBy} onChange={e => setSortBy(e.target.value as SortBy)}
+                    <select value={sortBy} onChange={e => handleSortChange(e.target.value as SortBy)}
                         className="px-3 py-2.5 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40 cursor-pointer">
                         <option value="recent">Most Recent</option>
                         <option value="orders">Most Orders</option>
@@ -392,17 +389,17 @@ export default function AdminCustomersPage() {
                     <div className="px-4 py-16 text-center">
                         <p className="text-neutral-gray text-sm font-body">Loading customers…</p>
                     </div>
-                ) : filtered.length === 0 ? (
+                ) : customers.length === 0 ? (
                     <div className="px-4 py-16 text-center">
                         <UserCircleIcon size={32} weight="thin" className="text-neutral-gray/40 mx-auto mb-3" />
                         <p className="text-neutral-gray text-sm font-body">No customers found.</p>
                     </div>
                 ) : (
-                    filtered.map((customer, i) => (
+                    customers.map((customer, i) => (
                         <div
                             key={customer.id}
                             onClick={() => setSelected(customer)}
-                            className={`px-4 py-3.5 flex flex-col md:grid md:grid-cols-[1fr_90px_80px_90px_110px_80px_80px] gap-2 md:gap-4 md:items-center cursor-pointer hover:bg-neutral-light/60 transition-colors ${i < filtered.length - 1 ? 'border-b border-[#f0e8d8]' : ''}`}
+                            className={`px-4 py-3.5 flex flex-col md:grid md:grid-cols-[1fr_90px_80px_90px_110px_80px_80px] gap-2 md:gap-4 md:items-center cursor-pointer hover:bg-neutral-light/60 transition-colors ${i < customers.length - 1 ? 'border-b border-[#f0e8d8]' : ''}`}
                         >
                             <div className="flex items-center gap-3 min-w-0">
                                 <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
@@ -427,6 +424,42 @@ export default function AdminCustomersPage() {
                     ))
                 )}
             </div>
+
+            {/* Pagination */}
+            {meta && meta.last_page > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                    <p className="text-neutral-gray text-xs font-body">
+                        Showing {meta.from}–{meta.to} of {meta.total}
+                    </p>
+                    <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium font-body bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                            Prev
+                        </button>
+                        {Array.from({ length: meta.last_page }, (_, i) => i + 1)
+                            .filter(p => p === 1 || p === meta.last_page || Math.abs(p - page) <= 1)
+                            .reduce<(number | '...')[]>((acc, p, i, arr) => {
+                                if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('...');
+                                acc.push(p);
+                                return acc;
+                            }, [])
+                            .map((p, i) =>
+                                p === '...' ? (
+                                    <span key={`ellipsis-${i}`} className="px-2 text-neutral-gray text-xs font-body">…</span>
+                                ) : (
+                                    <button key={p} type="button" onClick={() => setPage(p)}
+                                        className={`w-8 h-8 rounded-lg text-xs font-medium font-body transition-colors cursor-pointer ${p === page ? 'bg-primary text-white' : 'bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark'}`}>
+                                        {p}
+                                    </button>
+                                )
+                            )}
+                        <button type="button" onClick={() => setPage(p => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium font-body bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                            Next
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Detail panel */}
             {selected && selectedWithOrders && (

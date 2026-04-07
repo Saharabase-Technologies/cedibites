@@ -1,6 +1,6 @@
 export type StaffRole =
+    | 'tech_admin'
     | 'admin'
-    | 'super_admin'
     | 'branch_partner'
     | 'manager'
     | 'call_center'
@@ -56,6 +56,10 @@ export interface StaffMember {
     name:             string;
     email:            string;
     phone:            string;
+    /** Only set during creation — not persisted in the list. */
+    password?:        string;
+    /** Controls password handling during creation: auto, custom, or prompt. */
+    passwordMode?:    'auto' | 'custom' | 'prompt';
     role:             StaffRole;
     /** Display branch name(s). */
     branch:           string | string[];
@@ -95,9 +99,13 @@ const ALL_TRUE: StaffPermissions = Object.fromEntries(
 
 export function defaultPermissions(role: StaffRole): StaffPermissions {
     switch (role) {
-        case 'admin':
-        case 'super_admin':
+        case 'tech_admin':
             return { ...ALL_TRUE };
+        case 'admin':
+            return {
+                ...ALL_TRUE,
+                // Admin (business owner) does not get platform-specific permissions
+            };
         case 'manager':
             return {
                 ...ALL_FALSE,
@@ -153,8 +161,8 @@ export function defaultPermissions(role: StaffRole): StaffPermissions {
 
 export function roleDisplayName(role: StaffRole): string {
     const map: Record<StaffRole, string> = {
+        tech_admin:     'Tech Admin',
         admin:          'Admin',
-        super_admin:    'Super Admin',
         branch_partner: 'Branch Partner',
         manager:        'Branch Manager',
         call_center:    'Call Center',

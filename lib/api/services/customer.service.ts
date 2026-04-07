@@ -20,7 +20,9 @@ export interface ApiCustomer {
 
 export interface CustomersParams {
   is_guest?: boolean;
+  status?: string;
   search?: string;
+  sort_by?: string;
   page?: number;
   per_page?: number;
 }

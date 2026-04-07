@@ -108,7 +108,8 @@ function BottomNavLink({
 
 function roleLabel(role: StaffRole | string): string {
     const map: Record<string, string> = {
-        super_admin:    'Super Admin',
+        admin:          'Admin',
+        tech_admin:     'Tech Admin',
         branch_partner: 'Branch Partner',
         manager:        'Branch Manager',
         call_center:    'Call Center',

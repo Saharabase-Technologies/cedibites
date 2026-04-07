@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
     XIcon, PhoneIcon, ArrowRightIcon, ArrowLeftIcon,
     CheckCircleIcon, UserIcon, SpinnerGapIcon,
-    DeviceMobileIcon, LockIcon, WarningCircleIcon, EnvelopeIcon,
+    DeviceMobileIcon, LockIcon, WarningCircleIcon,
 } from '@phosphor-icons/react';
 import Image from 'next/image';
 import { useAuth } from '@/app/components/providers/AuthProvider';
@@ -60,11 +60,10 @@ function OTPInput({ value, onChange, disabled }: {
     );
 }
 
-// ─── Step: Phone + Email Entry ────────────────────────────────────────────────
+// ─── Step: Phone Entry ────────────────────────────────────────────────────
 function StepPhone({ onNext }: { onNext: () => void }) {
-    const { sendOTP, pendingPhone, pendingEmail } = useAuth();
+    const { sendOTP, pendingPhone } = useAuth();
     const [phone, setPhone] = useState(pendingPhone || '');
-    const [email, setEmail] = useState(pendingEmail || '');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -75,7 +74,7 @@ function StepPhone({ onNext }: { onNext: () => void }) {
         setLoading(true);
         setError('');
         const formatted = phone.startsWith('+') ? phone : `+233${phone.replace(/^0/, '')}`;
-        const result = await sendOTP(formatted, email.trim() || undefined);
+        const result = await sendOTP(formatted);
         setLoading(false);
         if (result.success) onNext();
         else setError(result.error ?? 'Something went wrong');
@@ -91,38 +90,22 @@ function StepPhone({ onNext }: { onNext: () => void }) {
                 <p className="text-sm text-neutral-gray mt-1">Enter your phone number to receive a verification code</p>
             </div>
 
-            <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                    <label className="text-xs font-semibold text-neutral-gray">Phone Number</label>
-                    <div className={`flex items-center bg-neutral-light dark:bg-brand-dark border-2 rounded-2xl overflow-hidden transition-all ${error ? 'border-error' : 'border-neutral-gray/40 focus-within:border-primary'}`}>
-                        <div className="flex items-center gap-2 px-4 py-3.5 border-r border-neutral-gray/20 shrink-0">
-                            <span className="text-lg">🇬🇭</span>
-                            <span className="text-sm font-semibold text-neutral-gray">+233</span>
-                        </div>
-                        <input
-                            type="tel"
-                            placeholder="24 000 0000"
-                            value={phone}
-                            onChange={e => { setPhone(e.target.value); setError(''); }}
-                            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                            autoFocus
-                            className="flex-1 px-4 py-3.5 bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/50 text-base font-medium"
-                        />
+            <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-neutral-gray">Phone Number</label>
+                <div className={`flex items-center bg-neutral-light dark:bg-brand-dark border-2 rounded-2xl overflow-hidden transition-all ${error ? 'border-error' : 'border-neutral-gray/40 focus-within:border-primary'}`}>
+                    <div className="flex items-center gap-2 px-4 py-3.5 border-r border-neutral-gray/20 shrink-0">
+                        <span className="text-lg">🇬🇭</span>
+                        <span className="text-sm font-semibold text-neutral-gray">+233</span>
                     </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                    <label className="text-xs font-semibold text-neutral-gray">Email <span className="font-normal text-neutral-gray/70">(optional)</span></label>
-                    <div className="flex items-center bg-neutral-light dark:bg-brand-dark border-2 border-neutral-gray/40 focus-within:border-primary rounded-2xl overflow-hidden transition-all">
-                        <span className="pl-4 text-neutral-gray shrink-0"><EnvelopeIcon weight="fill" size={16} /></span>
-                        <input
-                            type="email"
-                            placeholder="e.g. kwame@example.com"
-                            value={email}
-                            onChange={e => setEmail(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                            className="flex-1 px-3 py-3.5 bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/50 text-base font-medium"
-                        />
-                    </div>
+                    <input
+                        type="tel"
+                        placeholder="24 000 0000"
+                        value={phone}
+                        onChange={e => { setPhone(e.target.value); setError(''); }}
+                        onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                        autoFocus
+                        className="flex-1 px-4 py-3.5 bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/50 text-base font-medium"
+                    />
                 </div>
             </div>
 

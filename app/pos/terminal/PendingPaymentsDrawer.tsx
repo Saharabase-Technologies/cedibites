@@ -12,6 +12,7 @@ import {
   CheckCircleIcon,
   CheckIcon,
   WarningCircleIcon,
+  CreditCardIcon,
 } from '@phosphor-icons/react';
 import { formatGHS } from '@/lib/utils/currency';
 import { toast } from '@/lib/utils/toast';
@@ -66,12 +67,14 @@ function SessionCard({
   onResend,
   onPayCash,
   onPayCard,
+  onSwitchToMomo,
   onDelete,
 }: {
   session: CheckoutSession;
   onResend: (token: string, phone?: string) => Promise<void>;
   onPayCash: (token: string, totalAmount: number) => Promise<void>;
   onPayCard: (token: string, totalAmount: number) => Promise<void>;
+  onSwitchToMomo: (token: string, phone: string) => Promise<void>;
   onDelete: (token: string) => Promise<void>;
 }) {
   const [isActing, setIsActing] = useState(false);
@@ -85,7 +88,9 @@ function SessionCard({
     const remaining = 300 - elapsed; // 5 min cooldown
     return remaining > 0 ? remaining : 0;
   });
-  const [confirmingAction, setConfirmingAction] = useState<'cash' | 'card' | null>(null);
+  const [confirmingAction, setConfirmingAction] = useState<'cash' | 'card' | 'momo' | null>(null);
+  const [showMomoInput, setShowMomoInput] = useState(false);
+  const [momoPhone, setMomoPhone] = useState(session.customer_phone ?? '');
 
   const itemsSummary = session.items
     .map(i => {
@@ -200,8 +205,8 @@ function SessionCard({
       {/* Actions (only for pending/payment_initiated sessions) */}
       {isPending && !isActing && (
         <>
-          {/* Change number input */}
-          {showChangeNumber && (
+          {/* Change number input (MoMo sessions - re-send to different number) */}
+          {showChangeNumber && session.payment_method === 'mobile_money' && (
             <div className="flex gap-2 mb-2">
               <input
                 type="tel"
@@ -225,98 +230,150 @@ function SessionCard({
             </div>
           )}
 
-          <div className="flex gap-2">
-            {/* Re-send prompt */}
-            {session.payment_method === 'mobile_money' && (
+          {/* MoMo phone input (switching TO MoMo from cash/card) */}
+          {showMomoInput && session.payment_method !== 'mobile_money' && (
+            <div className="flex gap-2 mb-2">
+              <input
+                type="tel"
+                placeholder="Customer MoMo number"
+                value={momoPhone}
+                onChange={e => setMomoPhone(e.target.value)}
+                className="flex-1 h-9 px-3 rounded-xl border border-neutral-gray/20 text-sm focus:border-primary/50 outline-none"
+              />
               <button
-                onClick={() => handleAction(() => handleResendWithCooldown(session.session_token))}
-                disabled={resendCooldown > 0}
-                className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl text-xs font-medium transition-colors ${
-                  resendCooldown > 0
-                    ? 'bg-neutral-gray/5 text-neutral-gray/40 cursor-not-allowed opacity-50'
-                    : 'bg-primary/10 text-primary hover:bg-primary/20'
-                }`}
-                title={resendCooldown > 0 ? `Wait ${Math.ceil(resendCooldown / 60)}m before re-sending` : 'Re-send MoMo prompt'}
+                onClick={() => {
+                  if (!isValidGhanaPhone(momoPhone)) {
+                    toast.error('Enter a valid Ghana phone number');
+                    return;
+                  }
+                  handleAction(() => onSwitchToMomo(session.session_token, normalizeGhanaPhone(momoPhone)));
+                  setShowMomoInput(false);
+                }}
+                className="h-9 px-3 rounded-xl bg-primary text-brown text-xs font-medium hover:bg-primary/90 transition-colors"
               >
-                <ArrowClockwiseIcon className={`w-3.5 h-3.5 ${resendCooldown > 0 ? 'opacity-40' : ''}`} />
-                {resendCooldown > 0
-                  ? `${Math.floor(resendCooldown / 60)}:${(resendCooldown % 60).toString().padStart(2, '0')}`
-                  : 'Re-send'}
+                Send
               </button>
+              <button
+                onClick={() => setShowMomoInput(false)}
+                className="h-9 px-3 rounded-xl bg-neutral-gray/10 text-neutral-gray text-xs hover:bg-neutral-gray/20 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            {/* === MoMo-specific: Re-send prompt & Change number === */}
+            {session.payment_method === 'mobile_money' && (
+              <>
+                <button
+                  onClick={() => handleAction(() => handleResendWithCooldown(session.session_token))}
+                  disabled={resendCooldown > 0}
+                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl text-xs font-medium transition-colors ${
+                    resendCooldown > 0
+                      ? 'bg-neutral-gray/5 text-neutral-gray/40 cursor-not-allowed opacity-50'
+                      : 'bg-primary/10 text-primary hover:bg-primary/20'
+                  }`}
+                  title={resendCooldown > 0 ? `Wait ${Math.ceil(resendCooldown / 60)}m before re-sending` : 'Re-send MoMo prompt'}
+                >
+                  <ArrowClockwiseIcon className={`w-3.5 h-3.5 ${resendCooldown > 0 ? 'opacity-40' : ''}`} />
+                  {resendCooldown > 0
+                    ? `${Math.floor(resendCooldown / 60)}:${(resendCooldown % 60).toString().padStart(2, '0')}`
+                    : 'Re-send'}
+                </button>
+                {!showChangeNumber && (
+                  <button
+                    onClick={() => setShowChangeNumber(true)}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-neutral-gray/10 text-text-dark text-xs font-medium hover:bg-neutral-gray/20 transition-colors"
+                    title="Change phone number & resend"
+                  >
+                    <DeviceMobileIcon className="w-3.5 h-3.5" />
+                    Change #
+                  </button>
+                )}
+              </>
             )}
 
-            {/* Change number */}
-            {session.payment_method === 'mobile_money' && !showChangeNumber && (
+            {/* === Switch to MoMo (only when NOT already MoMo) === */}
+            {session.payment_method !== 'mobile_money' && !showMomoInput && (
               <button
-                onClick={() => setShowChangeNumber(true)}
-                className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-neutral-gray/10 text-text-dark text-xs font-medium hover:bg-neutral-gray/20 transition-colors"
-                title="Change phone number & resend"
+                onClick={() => setShowMomoInput(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-yellow-50 text-yellow-700 text-xs font-medium hover:bg-yellow-100 transition-colors"
+                title="Switch to MoMo payment"
               >
                 <DeviceMobileIcon className="w-3.5 h-3.5" />
-                Change #
+                MoMo
               </button>
             )}
 
-            {/* Pay with cash */}
-            {confirmingAction === 'cash' ? (
-              <div className="flex-1 flex gap-1">
-                <button
-                  onClick={() => {
-                    handleAction(() => onPayCash(session.session_token, session.total_amount));
-                    setConfirmingAction(null);
-                  }}
-                  className="flex-1 flex items-center justify-center w-10 h-10 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-colors"
-                  title="Confirm cash payment"
-                >
-                  <CheckIcon className="w-5 h-5" weight="bold" />
-                </button>
-                <button
-                  onClick={() => setConfirmingAction(null)}
-                  className="h-10 px-2 rounded-xl bg-neutral-gray/10 text-neutral-gray text-xs hover:bg-neutral-gray/20 transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmingAction('cash')}
-                className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-green-50 text-green-700 text-xs font-medium hover:bg-green-100 transition-colors"
-                title="Switch to cash payment"
-              >
-                <CurrencyDollarIcon className="w-3.5 h-3.5" />
-                Cash
-              </button>
+            {/* === Switch to Cash (only when NOT already cash) === */}
+            {session.payment_method !== 'cash' && (
+              <>
+                {confirmingAction === 'cash' ? (
+                  <div className="flex-1 flex gap-1">
+                    <button
+                      onClick={() => {
+                        handleAction(() => onPayCash(session.session_token, session.total_amount));
+                        setConfirmingAction(null);
+                      }}
+                      className="flex-1 flex items-center justify-center w-10 h-10 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-colors"
+                      title="Confirm cash payment"
+                    >
+                      <CheckIcon className="w-5 h-5" weight="bold" />
+                    </button>
+                    <button
+                      onClick={() => setConfirmingAction(null)}
+                      className="h-10 px-2 rounded-xl bg-neutral-gray/10 text-neutral-gray text-xs hover:bg-neutral-gray/20 transition-colors"
+                    >
+                      ?
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmingAction('cash')}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-green-50 text-green-700 text-xs font-medium hover:bg-green-100 transition-colors"
+                    title="Switch to cash payment"
+                  >
+                    <CurrencyDollarIcon className="w-3.5 h-3.5" />
+                    Cash
+                  </button>
+                )}
+              </>
             )}
 
-            {/* Pay with card */}
-            {confirmingAction === 'card' ? (
-              <div className="flex-1 flex gap-1">
-                <button
-                  onClick={() => {
-                    handleAction(() => onPayCard(session.session_token, session.total_amount));
-                    setConfirmingAction(null);
-                  }}
-                  className="flex-1 flex items-center justify-center w-10 h-10 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                  title="Confirm card payment"
-                >
-                  <CheckIcon className="w-5 h-5" weight="bold" />
-                </button>
-                <button
-                  onClick={() => setConfirmingAction(null)}
-                  className="h-10 px-2 rounded-xl bg-neutral-gray/10 text-neutral-gray text-xs hover:bg-neutral-gray/20 transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmingAction('card')}
-                className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors"
-                title="Switch to card payment"
-              >
-                <CurrencyDollarIcon className="w-3.5 h-3.5" />
-                Card
-              </button>
+            {/* === Switch to Card (only when NOT already card) === */}
+            {session.payment_method !== 'card' && (
+              <>
+                {confirmingAction === 'card' ? (
+                  <div className="flex-1 flex gap-1">
+                    <button
+                      onClick={() => {
+                        handleAction(() => onPayCard(session.session_token, session.total_amount));
+                        setConfirmingAction(null);
+                      }}
+                      className="flex-1 flex items-center justify-center w-10 h-10 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                      title="Confirm card payment"
+                    >
+                      <CheckIcon className="w-5 h-5" weight="bold" />
+                    </button>
+                    <button
+                      onClick={() => setConfirmingAction(null)}
+                      className="h-10 px-2 rounded-xl bg-neutral-gray/10 text-neutral-gray text-xs hover:bg-neutral-gray/20 transition-colors"
+                    >
+                      ?
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmingAction('card')}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors"
+                    title="Switch to card payment"
+                  >
+                    <CreditCardIcon className="w-3.5 h-3.5" />
+                    Card
+                  </button>
+                )}
+              </>
             )}
 
             {/* Delete */}
@@ -390,6 +447,15 @@ export default function PendingPaymentsDrawer({
     refetch();
   };
 
+
+  const handleSwitchToMomo = async (token: string, phone: string) => {
+    await checkoutSessionService.posChangePayment(token, {
+      payment_method: 'mobile_money',
+      momo_number: phone,
+    });
+    toast.success('MoMo prompt sent');
+    refetch();
+  };
   const handleDelete = async (token: string) => {
     await checkoutSessionService.posAbandon(token);
     toast.success('Session cancelled');
@@ -437,6 +503,7 @@ export default function PendingPaymentsDrawer({
                 onResend={handleResend}
                 onPayCash={handlePayCash}
                 onPayCard={handlePayCard}
+                onSwitchToMomo={handleSwitchToMomo}
                 onDelete={handleDelete}
               />
             ))
