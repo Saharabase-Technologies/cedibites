@@ -140,7 +140,7 @@ function BranchModal({
             perKmFee: 3,
             minOrderValue: 50,
             orderTypes: { delivery: true, pickup: true, dineIn: false },
-            payments: { momo: true, cashOnDelivery: true, cashAtPickup: true },
+            payments: { momo: true, cashOnDelivery: true, card: false, noCharge: false },
             hours: defaultHours(),
         }
     );
@@ -184,7 +184,7 @@ function BranchModal({
         }
 
         // At least one payment method must be enabled
-        if (!form.payments.momo && !form.payments.cashOnDelivery && !form.payments.cashAtPickup) {
+        if (!form.payments.momo && !form.payments.cashOnDelivery && !form.payments.card && !form.payments.noCharge) {
             newErrors.payments = 'At least one payment method must be enabled';
         }
 
@@ -317,7 +317,7 @@ function BranchModal({
                     <Section title="Payment Methods">
                         {errors.payments && <p className="text-error text-xs font-body mb-2">{errors.payments}</p>}
                         <div className="flex gap-4 flex-wrap">
-                            {([['momo', 'Mobile Money'], ['cashOnDelivery', 'Cash on Delivery'], ['cashAtPickup', 'Cash at Pickup']] as const).map(([key, label]) => (
+                            {([['momo', 'Mobile Money'], ['cashOnDelivery', 'Cash on Delivery'], ['card', 'Card'], ['noCharge', 'No Charge (POS)']] as const).map(([key, label]) => (
                                 <label key={key} className="flex items-center gap-2 cursor-pointer">
                                     <Toggle checked={form.payments[key]} onChange={v => setForm(f => ({ ...f, payments: { ...f.payments, [key]: v } }))} />
                                     <span className="text-text-dark text-sm font-body">{label}</span>
@@ -466,7 +466,8 @@ export default function AdminBranchesPage() {
                 payment_methods: {
                     momo: { is_enabled: b.payments.momo },
                     cash_on_delivery: { is_enabled: b.payments.cashOnDelivery },
-                    cash_at_pickup: { is_enabled: b.payments.cashAtPickup },
+                    card: { is_enabled: b.payments.card },
+                    no_charge: { is_enabled: b.payments.noCharge },
                 },
             };
 
@@ -622,7 +623,9 @@ export default function AdminBranchesPage() {
                                 Edit
                             </button>
                             <button type="button" onClick={() => toggleOpen(branch)}
-                                className="flex items-center gap-1.5 px-3 py-2 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer">
+                                disabled={branch.status !== 'active' && branch.openStatus !== 'open'}
+                                title={branch.status !== 'active' && branch.openStatus !== 'open' ? 'Reactivate this branch before marking it open' : undefined}
+                                className={`flex items-center gap-1.5 px-3 py-2 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body transition-colors ${branch.status !== 'active' && branch.openStatus !== 'open' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#f0e8d8] cursor-pointer'}`}>
                                 {branch.openStatus === 'open'
                                     ? <ToggleRightIcon size={13} weight="fill" className="text-secondary" />
                                     : <ToggleLeftIcon size={13} weight="fill" className="text-neutral-gray" />

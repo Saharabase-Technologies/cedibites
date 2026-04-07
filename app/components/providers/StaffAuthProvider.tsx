@@ -182,7 +182,7 @@ export function permissionsHomeRoute(permissions: string[]): string {
 
 /** @deprecated Use permissionsHomeRoute instead. */
 export function roleHomeRoute(role: StaffRole | string): string {
-    if (role === 'super_admin' || role === 'admin') return '/admin/dashboard';
+    if (role === 'admin' || role === 'tech_admin') return '/admin/dashboard';
     if (role === 'manager') return '/staff/manager/dashboard';
     if (role === 'branch_partner') return '/partner/dashboard';
     if (role === 'call_center' || role === 'sales_staff') return '/staff/sales/dashboard';

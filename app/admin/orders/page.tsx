@@ -21,7 +21,6 @@ import {
     CheckCircleIcon,
     ArrowCounterClockwiseIcon,
     NotePencilIcon,
-    ChatTextIcon,
     ArrowsClockwiseIcon,
     DownloadSimpleIcon,
     XCircleIcon,
@@ -35,9 +34,9 @@ import apiClient from '@/lib/api/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type OrderStatus = 'received' | 'preparing' | 'ready' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'completed' | 'cancelled';
-type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone';
-type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash at Pickup' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
+type OrderStatus = 'received' | 'preparing' | 'ready' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'completed' | 'cancelled' | 'cancel_requested';
+type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone' | 'Past Order';
+type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
 type PaymentStatus = 'Paid' | 'Pending' | 'Failed' | 'Refunded' | 'No Charge';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -51,19 +50,35 @@ const STATUS_STYLES: Record<string, { dot: string; label: string; pulse?: boolea
     delivered:        { dot: 'bg-secondary',    label: 'Delivered' },
     completed:        { dot: 'bg-secondary',    label: 'Completed' },
     cancelled:        { dot: 'bg-error',        label: 'Cancelled' },
+    cancel_requested: { dot: 'bg-orange-500',   label: 'Cancel Requested', pulse: true },
 };
 
-const SOURCE_STYLES: Record<OrderSource, string> = {
-    WhatsApp: 'bg-[#25D366]/10 text-[#128C7E]',
-    Instagram: 'bg-pink-50 text-pink-600',
-    Facebook: 'bg-blue-50 text-blue-600',
-    Phone: 'bg-neutral-light text-neutral-gray',
-    Online: 'bg-primary/10 text-primary',
-    POS: 'bg-secondary/10 text-secondary',
+const SOURCE_COLORS: Record<OrderSource, string> = {
+    WhatsApp: 'text-[#128C7E]',
+    Instagram: 'text-pink-600',
+    Facebook: 'text-blue-600',
+    Phone: 'text-neutral-gray',
+    Online: 'text-primary',
+    POS: 'text-secondary',
+    'Past Order': 'text-neutral-gray',
 };
 
-const ALL_STATUSES: OrderStatus[] = ['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'completed', 'cancelled'];
-const ALL_SOURCES: OrderSource[] = ['Online', 'POS', 'WhatsApp', 'Instagram', 'Facebook', 'Phone'];
+const ALL_STATUSES: OrderStatus[] = ['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'completed', 'cancel_requested', 'cancelled'];
+
+// Admin override: map current status → allowed override targets.
+// cancel_requested is excluded — admins cancel directly, they don't request.
+const ADMIN_OVERRIDE_TARGETS: Record<string, OrderStatus[]> = {
+    received:         ['preparing', 'ready', 'cancelled'],
+    preparing:        ['ready', 'ready_for_pickup', 'cancelled'],
+    ready:            ['ready_for_pickup', 'out_for_delivery', 'completed', 'cancelled'],
+    ready_for_pickup: ['out_for_delivery', 'delivered', 'completed', 'cancelled'],
+    out_for_delivery: ['delivered', 'completed', 'cancelled'],
+    delivered:        ['completed'],
+    completed:        [],
+    cancel_requested: ['preparing', 'cancelled'],
+    cancelled:        [],
+};
+const ALL_SOURCES: OrderSource[] = ['Online', 'POS', 'WhatsApp', 'Instagram', 'Facebook', 'Phone', 'Past Order'];
 const ALL_PAYMENTS: PaymentMethod[] = ['Mobile Money', 'Cash', 'Card', 'Wallet', 'GhQR', 'No Charge'];
 const ALL_PAYMENT_STATUSES: PaymentStatus[] = ['Paid', 'Pending', 'Failed', 'Refunded', 'No Charge'];
 
@@ -74,6 +89,7 @@ const SOURCE_TO_API: Record<OrderSource, string> = {
     Instagram: 'instagram',
     Facebook: 'facebook',
     Phone: 'phone',
+    'Past Order': 'manual_entry',
 };
 
 const PAYMENT_STATUS_TO_API: Record<PaymentStatus, string> = {
@@ -106,7 +122,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function SourceBadge({ source }: { source: OrderSource }) {
     return (
-        <span className={`text-[10px] font-medium font-body px-2 py-0.5 rounded-full ${SOURCE_STYLES[source]}`}>
+        <span className={`text-sm font-semibold font-body ${SOURCE_COLORS[source]}`}>
             {source}
         </span>
     );
@@ -175,6 +191,7 @@ function OrderDetailPanel({
 
     const subtotal = order.items.reduce((s, i) => s + i.qty * i.price, 0);
     const isTerminal = ['completed', 'delivered', 'cancelled'].includes(order.status);
+    const overrideTargets = ADMIN_OVERRIDE_TARGETS[order.status] ?? [];
 
     async function overrideStatus(newStatus: string): Promise<void> {
         setUpdatingStatus(true);
@@ -353,11 +370,11 @@ function OrderDetailPanel({
                     <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Admin Actions</p>
 
                     {/* Status picker */}
-                    {showStatusPicker && (
+                    {showStatusPicker && overrideTargets.length > 0 && (
                         <div className="bg-neutral-light rounded-xl p-3 flex flex-col gap-2">
                             <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Set Status</p>
                             <div className="grid grid-cols-2 gap-1.5">
-                                {(ALL_STATUSES as string[]).filter(s => s !== order.status).map(s => (
+                                {overrideTargets.map(s => (
                                     <button
                                         key={s}
                                         type="button"
@@ -376,15 +393,65 @@ function OrderDetailPanel({
                         </div>
                     )}
 
+                    {/* Cancel request banner */}
+                    {order.status === 'cancel_requested' && (
+                        <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl space-y-2">
+                            <p className="text-xs font-bold text-orange-700 font-body">Cancel Requested</p>
+                            {order.cancelRequestedBy && (
+                                <p className="text-xs text-orange-600 font-body">By: {order.cancelRequestedBy}</p>
+                            )}
+                            {order.cancelRequestReason && (
+                                <p className="text-xs text-text-dark font-body">&ldquo;{order.cancelRequestReason}&rdquo;</p>
+                            )}
+                            {order.cancelRequestedAt && (
+                                <p className="text-xs text-neutral-gray font-body">
+                                    {new Date(order.cancelRequestedAt).toLocaleString('en-GH', { timeZone: 'Africa/Accra' })}
+                                </p>
+                            )}
+                            <div className="flex gap-2 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            await apiClient.post(`/admin/orders/${order.dbId}/approve-cancel`);
+                                            queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+                                            toast.success('Cancellation approved');
+                                            onClose();
+                                        } catch { toast.error('Failed to approve cancellation'); }
+                                    }}
+                                    className="flex-1 px-3 py-2 rounded-xl bg-error text-white text-xs font-medium font-body hover:bg-error/90 transition-colors cursor-pointer"
+                                >
+                                    Approve Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            await apiClient.post(`/admin/orders/${order.dbId}/reject-cancel`);
+                                            queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+                                            toast.success('Cancel request rejected');
+                                            onClose();
+                                        } catch { toast.error('Failed to reject cancellation'); }
+                                    }}
+                                    className="flex-1 px-3 py-2 rounded-xl bg-neutral-light text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer"
+                                >
+                                    Reject — Keep Order
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setShowStatusPicker(v => !v)}
-                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer"
-                        >
-                            <ArrowsClockwiseIcon size={13} weight="bold" className="text-primary" />
-                            Override Status
-                        </button>
+                        {overrideTargets.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => setShowStatusPicker(v => !v)}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer"
+                            >
+                                <ArrowsClockwiseIcon size={13} weight="bold" className="text-primary" />
+                                Override Status
+                            </button>
+                        )}
                         {!isTerminal ? (
                             <button type="button" onClick={() => setShowConfirm('cancel')} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-error/10 rounded-xl text-error text-xs font-medium font-body hover:bg-error/20 transition-colors cursor-pointer">
                                 <XCircleIcon size={13} weight="bold" />
@@ -408,10 +475,6 @@ function OrderDetailPanel({
                             <NotePencilIcon size={13} weight="bold" className="text-primary" />
                             Add Note
                         </button>
-                        <button type="button" className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer col-span-2">
-                            <ChatTextIcon size={13} weight="bold" className="text-primary" />
-                            Re-send SMS
-                        </button>
                     </div>
                 </div>
             </aside>
@@ -425,6 +488,7 @@ function OrderDetailPanel({
                     onConfirm={async (reason) => {
                         await cancelOrder({ id: order.dbId, reason });
                         queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+                        toast.success('Order cancelled');
                     }}
                 />
             )}

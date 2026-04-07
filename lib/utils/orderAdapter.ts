@@ -85,6 +85,7 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
     subtotal: Number(apiOrder.subtotal) || 0,
     deliveryFee: Number(apiOrder.delivery_fee) ?? 0,
     discount: Number(apiOrder.discount) || 0,
+    promoCode: apiOrder.promo_name || undefined,
     tax: Number(apiOrder.tax_amount ?? apiOrder.tax) || 0,
     total: Number(apiOrder.total_amount ?? apiOrder.total) || 0,
     amountPaid: apiOrder.amount_paid != null ? Number(apiOrder.amount_paid) : undefined,
@@ -105,6 +106,10 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
       },
     },
     placedAt,
+    cancelRequestedBy: apiOrder.cancel_requested_by_user?.name
+      ?? (apiOrder.cancel_requested_by ? `Staff #${apiOrder.cancel_requested_by}` : undefined),
+    cancelRequestReason: apiOrder.cancel_request_reason ?? undefined,
+    cancelRequestedAt: apiOrder.cancel_requested_at ? new Date(apiOrder.cancel_requested_at).getTime() : undefined,
     staffId: apiOrder.assigned_employee_id ? String(apiOrder.assigned_employee_id) : undefined,
     staffName: apiOrder.assigned_employee?.name ?? apiOrder.staff_name ?? undefined,
   };

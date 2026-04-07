@@ -21,12 +21,15 @@ export interface SalesByType {
 export interface SalesAnalytics {
   total_sales: number;
   total_orders: number;
+  completed_orders: number;
+  cancelled_orders: number;
+  cancelled_revenue: number;
   average_order_value: number;
   sales_by_day: SalesByDay[];
   sales_by_type: SalesByType[];
   no_charge_count: number;
   no_charge_amount: number;
-  avg_items_per_order?: number;
+  avg_items_per_order: number;
 }
 
 export interface OrdersByHour {
@@ -37,7 +40,8 @@ export interface OrdersByHour {
 export interface OrderAnalytics {
   orders_by_status: Record<string, number>;
   orders_by_hour: OrdersByHour[];
-  average_prep_time: number;
+  active_orders: number;
+  average_prep_time: number | null;
   total_orders: number;
 }
 
@@ -63,6 +67,7 @@ export interface OrderSource {
   count: number;
   pct: number;
   avgValue: number;
+  total_revenue: number;
 }
 
 export interface TopItem {
@@ -100,6 +105,8 @@ export interface BranchPerformance {
 export interface DeliveryPickupAnalytics {
   delivery_pct: number;
   pickup_pct: number;
+  delivery_revenue: number;
+  pickup_revenue: number;
 }
 
 export interface PaymentMethod {

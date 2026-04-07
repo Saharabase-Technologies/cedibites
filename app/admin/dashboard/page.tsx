@@ -151,8 +151,8 @@ export default function AdminDashboardPage() {
 
     const liveKpis = useMemo(() => {
         const todayOrders = orders.filter(o => o.placedAt >= startOfDay);
-        const cancelledToday = todayOrders.filter(o => o.status === 'cancelled' || o.status === 'cancel_requested');
-        const activeStatuses = new Set(['received', 'accepted', 'preparing', 'ready', 'out_for_delivery', 'ready_for_pickup', 'cancel_requested']);
+        const cancelledToday = todayOrders.filter(o => o.status === 'cancelled');
+        const activeStatuses = new Set(['received', 'accepted', 'preparing', 'ready', 'out_for_delivery', 'ready_for_pickup']);
         return {
             revenueToday: todayOrders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.total, 0),
             ordersToday: todayOrders.length,

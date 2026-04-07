@@ -777,6 +777,19 @@ export default function ManagerAnalyticsPage() {
         : 0;
 
     const orderRange = useMemo(() => getDateRangeForPeriod(period), [period]);
+
+    // Canonical analytics for the Order Log period (same source of truth as top KPIs)
+    const { data: periodSales } = useQuery({
+        queryKey: ['analytics', 'sales', period, branchId, orderRange.date_from, orderRange.date_to],
+        queryFn: () => analyticsService.getSalesAnalytics({ ...orderRange, branch_id: branchId }),
+        staleTime: 2 * 60 * 1000,
+    });
+    const { data: periodOrders } = useQuery({
+        queryKey: ['analytics', 'orders', period, branchId, orderRange.date_from, orderRange.date_to],
+        queryFn: () => analyticsService.getOrderAnalytics({ ...orderRange, branch_id: branchId }),
+        staleTime: 2 * 60 * 1000,
+    });
+
     const { orders: rawOrders, isLoading: ordersLoading } = useEmployeeOrders({
         branch_id: branchId,
         date_from: orderRange.date_from,
@@ -799,16 +812,19 @@ export default function ManagerAnalyticsPage() {
         }));
     }, [apiOrders]);
 
-    const activeOrders    = useMemo(() => filteredOrders.filter(o => o.status !== 'cancelled'), [filteredOrders]);
     const cancelledOrders = useMemo(() => filteredOrders.filter(o => o.status === 'cancelled'), [filteredOrders]);
-    const totalRevenue    = useMemo(() => activeOrders.reduce((s, o) => s + o.total, 0), [activeOrders]);
-    const avgOrderValue   = activeOrders.length > 0 ? totalRevenue / activeOrders.length : 0;
+    // Use canonical analytics for summary stats (same definition as top KPIs)
+    const totalRevenue    = periodSales?.total_sales ?? 0;
+    const activeOrderCount = periodOrders ? (periodOrders.total_orders - (periodOrders.orders_by_status?.cancelled ?? 0)) : filteredOrders.filter(o => o.status !== 'cancelled').length;
+    const avgOrderValue   = periodSales?.average_order_value ?? 0;
+    const cancelRate      = periodOrders?.total_orders ? Math.round(((periodOrders.orders_by_status?.cancelled ?? 0) / periodOrders.total_orders) * 100) : 0;
 
     const sourceBreakdown = useMemo(() => {
+        const active = filteredOrders.filter(o => o.status !== 'cancelled');
         const map: Record<string, number> = {};
-        activeOrders.forEach(o => { map[o.source] = (map[o.source] ?? 0) + 1; });
+        active.forEach(o => { map[o.source] = (map[o.source] ?? 0) + 1; });
         return Object.entries(map).sort((a, b) => b[1] - a[1]);
-    }, [activeOrders]);
+    }, [filteredOrders]);
 
     const totalPages = Math.ceil(filteredOrders.length / PAGE_SIZE);
     const pageOrders = filteredOrders.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -973,7 +989,7 @@ export default function ManagerAnalyticsPage() {
 
             {/* ══ ROW 3 — Prep time + Payment split + Fulfilment ══════════════ */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                <PrepTimeTrend avgPrepTime={todayOrderAnalytics?.average_prep_time} />
+                <PrepTimeTrend avgPrepTime={todayOrderAnalytics?.average_prep_time ?? undefined} />
                 <PaymentSplitCard methods={paymentMethods} />
                 <FulfilmentRate ordersByStatus={todayOrderAnalytics?.orders_by_status} />
             </div>
@@ -1020,9 +1036,9 @@ export default function ManagerAnalyticsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
                 {[
                     { icon: CurrencyCircleDollarIcon, label: 'Revenue',     value: formatGHS(totalRevenue),  sub: 'Excl. cancelled'    },
-                    { icon: ReceiptIcon,              label: 'Orders',      value: String(activeOrders.length), sub: `${cancelledOrders.length} cancelled` },
+                    { icon: ReceiptIcon,              label: 'Orders',      value: String(activeOrderCount), sub: `${cancelledOrders.length} cancelled` },
                     { icon: TrendUpIcon,              label: 'Avg. Value',  value: formatGHS(avgOrderValue), sub: 'Per order'          },
-                    { icon: XCircleIcon,              label: 'Cancel Rate', value: filteredOrders.length > 0 ? `${Math.round((cancelledOrders.length / filteredOrders.length) * 100)}%` : '0%', sub: 'Of total orders' },
+                    { icon: XCircleIcon,              label: 'Cancel Rate', value: `${cancelRate}%`, sub: 'Of total orders' },
                 ].map(({ icon: Icon, label, value, sub }) => (
                     <div key={label} className="bg-neutral-card border border-brown-light/15 rounded-2xl px-4 py-4 flex flex-col gap-2">
                         <div className="flex items-center gap-2">

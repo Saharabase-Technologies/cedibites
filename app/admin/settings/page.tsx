@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     GearSixIcon,
     CreditCardIcon,
@@ -19,11 +19,15 @@ import {
     DatabaseIcon,
     ToggleLeftIcon,
     ToggleRightIcon,
+    ReceiptIcon,
+    SpinnerIcon,
 } from '@phosphor-icons/react';
+import apiClient from '@/lib/api/client';
+import { toast } from '@/lib/utils/toast';
 
 // ─── Types / helpers ──────────────────────────────────────────────────────────
 
-type Tab = 'general' | 'payment' | 'sms' | 'delivery' | 'roles' | 'danger';
+type Tab = 'general' | 'orders' | 'payment' | 'sms' | 'delivery' | 'roles' | 'danger';
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
     return (
@@ -80,8 +84,44 @@ function GeneralTab() {
         defaultOrderType: 'Delivery',
         minOrderValue: '45',
         globalHoursFrom: '08:00',
-        globalHoursTo: '21:00',
+        globalHoursTo: '22:00',
     });
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        apiClient.get('/admin/settings')
+            .then((res: unknown) => {
+                const settings = (res as { data?: Array<{ key: string; value: string }> })?.data ?? [];
+                for (const s of settings) {
+                    if (s.key === 'global_operating_hours_open') {
+                        setForm(f => ({ ...f, globalHoursFrom: s.value }));
+                    }
+                    if (s.key === 'global_operating_hours_close') {
+                        setForm(f => ({ ...f, globalHoursTo: s.value }));
+                    }
+                }
+            })
+            .catch(() => toast.error('Failed to load settings'))
+            .finally(() => setIsLoading(false));
+    }, []);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await apiClient.put('/admin/settings/global_operating_hours_open', {
+                value: form.globalHoursFrom,
+            });
+            await apiClient.put('/admin/settings/global_operating_hours_close', {
+                value: form.globalHoursTo,
+            });
+            toast.success('General settings saved');
+        } catch {
+            toast.error('Failed to save settings');
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     return (
         <div className="flex flex-col gap-5">
@@ -135,11 +175,185 @@ function GeneralTab() {
                 </div>
             </Card>
 
-            <div className="flex justify-end"><SaveButton /></div>
+            <div className="flex justify-end">
+                <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isSaving || isLoading}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium font-body hover:bg-primary-hover transition-colors cursor-pointer disabled:opacity-60"
+                >
+                    {isSaving
+                        ? <SpinnerIcon size={15} className="animate-spin" />
+                        : <FloppyDiskIcon size={15} weight="bold" />
+                    }
+                    Save Changes
+                </button>
+            </div>
         </div>
     );
 }
 
+// ─── Tab: Order Settings ──────────────────────────────────────────────────────
+
+function OrderSettingsTab() {
+    const [manualEntryDateEnabled, setManualEntryDateEnabled] = useState(false);
+    const [serviceChargeEnabled, setServiceChargeEnabled] = useState(true);
+    const [serviceChargePercent, setServiceChargePercent] = useState('1');
+    const [serviceChargeCap, setServiceChargeCap] = useState('5');
+    const [deliveryFeeEnabled, setDeliveryFeeEnabled] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        apiClient.get('/admin/settings')
+            .then((res: unknown) => {
+                const settings = (res as { data?: Array<{ key: string; value: string }> })?.data ?? [];
+                for (const s of settings) {
+                    const boolVal = s.value === 'true' || s.value === '1';
+                    if (s.key === 'manual_entry_date_enabled') {
+                        setManualEntryDateEnabled(boolVal);
+                    }
+                    if (s.key === 'service_charge_enabled') {
+                        setServiceChargeEnabled(boolVal);
+                    }
+                    if (s.key === 'service_charge_percent') {
+                        setServiceChargePercent(s.value);
+                    }
+                    if (s.key === 'service_charge_cap') {
+                        setServiceChargeCap(s.value);
+                    }
+                    if (s.key === 'delivery_fee_enabled') {
+                        setDeliveryFeeEnabled(boolVal);
+                    }
+                }
+            })
+            .catch(() => toast.error('Failed to load order settings'))
+            .finally(() => setIsLoading(false));
+    }, []);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await apiClient.put('/admin/settings/manual_entry_date_enabled', {
+                value: manualEntryDateEnabled ? 'true' : 'false',
+            });
+            await apiClient.put('/admin/settings/service_charge_enabled', {
+                value: serviceChargeEnabled ? 'true' : 'false',
+            });
+            await apiClient.put('/admin/settings/service_charge_percent', {
+                value: serviceChargePercent,
+            });
+            await apiClient.put('/admin/settings/service_charge_cap', {
+                value: serviceChargeCap,
+            });
+            await apiClient.put('/admin/settings/delivery_fee_enabled', {
+                value: deliveryFeeEnabled ? 'true' : 'false',
+            });
+            toast.success('Order settings saved');
+        } catch {
+            toast.error('Failed to save settings');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    if (isLoading) {
+        return (
+            <Card>
+                <div className="flex items-center justify-center py-12">
+                    <SpinnerIcon size={24} className="animate-spin text-primary" />
+                </div>
+            </Card>
+        );
+    }
+
+    return (
+        <div className="flex flex-col gap-5">
+            <Card>
+                <SectionHeader title="Service Charge" sub="A percentage-based fee added to online customer orders" />
+                <div className="flex items-start justify-between gap-4 mb-4">
+                    <div>
+                        <p className="text-text-dark text-sm font-medium font-body">Enable Service Charge</p>
+                        <p className="text-neutral-gray text-xs font-body mt-0.5">
+                            When off, no service charge is applied to online orders.
+                        </p>
+                    </div>
+                    <Toggle checked={serviceChargeEnabled} onChange={setServiceChargeEnabled} />
+                </div>
+                {serviceChargeEnabled && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+                        <div>
+                            <FieldLabel>Percentage (%)</FieldLabel>
+                            <TextInput
+                                value={serviceChargePercent}
+                                onChange={v => setServiceChargePercent(v)}
+                                type="number"
+                                placeholder="1"
+                            />
+                            <p className="text-neutral-gray text-[11px] font-body mt-1.5">
+                                Applied to the order subtotal.
+                            </p>
+                        </div>
+                        <div>
+                            <FieldLabel>Cap (GHS)</FieldLabel>
+                            <TextInput
+                                value={serviceChargeCap}
+                                onChange={v => setServiceChargeCap(v)}
+                                type="number"
+                                placeholder="5"
+                            />
+                            <p className="text-neutral-gray text-[11px] font-body mt-1.5">
+                                Max charge amount. Set to 0 for no cap.
+                            </p>
+                        </div>
+                    </div>
+                )}
+            </Card>
+
+            <Card>
+                <SectionHeader title="Delivery Fee" sub="Standard delivery fee charged on delivery orders" />
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <p className="text-text-dark text-sm font-medium font-body">Enable Delivery Fee</p>
+                        <p className="text-neutral-gray text-xs font-body mt-0.5">
+                            When off, no delivery fee is shown or charged on customer orders.
+                        </p>
+                    </div>
+                    <Toggle checked={deliveryFeeEnabled} onChange={setDeliveryFeeEnabled} />
+                </div>
+            </Card>
+
+            <Card>
+                <SectionHeader title="Manual Entry" sub="Controls how staff record past orders in the POS" />
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <p className="text-text-dark text-sm font-medium font-body">Allow date selection</p>
+                        <p className="text-neutral-gray text-xs font-body mt-0.5">
+                            When off, staff can only enter a time (today&apos;s date is used automatically).
+                            When on, staff can pick any past date and time.
+                        </p>
+                    </div>
+                    <Toggle checked={manualEntryDateEnabled} onChange={setManualEntryDateEnabled} />
+                </div>
+            </Card>
+
+            <div className="flex justify-end">
+                <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium font-body hover:bg-primary-hover transition-colors cursor-pointer disabled:opacity-60"
+                >
+                    {isSaving
+                        ? <SpinnerIcon size={15} className="animate-spin" />
+                        : <FloppyDiskIcon size={15} weight="bold" />
+                    }
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    );
+}
 // ─── Tab: Payment & Hubtel ────────────────────────────────────────────────────
 
 function PaymentTab() {
@@ -153,7 +367,7 @@ function PaymentTab() {
         clientSecret: '•••••••••••••••••',
         senderId: 'CediBites',
     });
-    const [payments, setPayments] = useState({ momo: true, cod: true, cup: true });
+    const [payments, setPayments] = useState({ momo: true, cod: true });
 
     return (
         <div className="flex flex-col gap-5">
@@ -231,7 +445,6 @@ function PaymentTab() {
                     {[
                         { key: 'momo', label: 'Mobile Money', sub: 'MTN, Vodafone, AirtelTigo MoMo via Hubtel' },
                         { key: 'cod',  label: 'Cash on Delivery', sub: 'Customer pays rider on delivery' },
-                        { key: 'cup',  label: 'Cash at Pickup', sub: 'Customer pays at branch counter' },
                     ].map(({ key, label, sub }) => (
                         <div key={key} className="flex items-center justify-between p-3 bg-neutral-light rounded-xl">
                             <div>
@@ -577,6 +790,7 @@ function DangerAction({ icon: Icon, label, sub, btnLabel, confirmText, danger }:
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
     { key: 'general',  label: 'General',         icon: GearSixIcon      },
+    { key: 'orders',   label: 'Order Settings',  icon: ReceiptIcon      },
     { key: 'payment',  label: 'Payment & Hubtel', icon: CreditCardIcon   },
     { key: 'sms',      label: 'SMS & Notifications', icon: ChatTextIcon  },
     { key: 'delivery', label: 'Delivery',         icon: TruckIcon        },
@@ -614,6 +828,7 @@ export default function AdminSettingsPage() {
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                     {tab === 'general'  && <GeneralTab />}
+                    {tab === 'orders'   && <OrderSettingsTab />}
                     {tab === 'payment'  && <PaymentTab />}
                     {tab === 'sms'      && <SmsTab />}
                     {tab === 'delivery' && <DeliveryTab />}

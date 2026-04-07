@@ -100,6 +100,7 @@ export interface Order {
     discount: number;
     promoCode?: string;
     tax: number;
+    serviceCharge?: number;
     total: number;
 
     // People
@@ -114,6 +115,7 @@ export interface Order {
     startedAt?: number;             // kitchen started preparing
     readyAt?: number;               // kitchen marked ready
     completedAt?: number;           // order completed/delivered
+    recordedAt?: number;            // manual entry: when the order actually happened
     estimatedMinutes?: number;
 
     // Tracking
@@ -132,6 +134,9 @@ export interface Order {
 
     // Customer-facing timeline (computed on read, not stored)
     timeline?: OrderTimelineEvent[];
+
+    // Checkout session token (for polling pending payments)
+    _sessionToken?: string;
 }
 
 // ─── Notification (used by kanban + kitchen) ─────────────────────────────────
@@ -159,8 +164,9 @@ export interface KanbanColumn {
 
 // ─── User roles for permissions ──────────────────────────────────────────────
 
-export type StaffRole = 'admin' | 'super_admin' | 'branch_partner' | 'manager' | 'call_center' | 'sales_staff' | 'kitchen' | 'rider';
-export type UserRole = 'call_center' | 'manager' | 'super_admin' | 'branch_partner';
+// Re-exported from staff.ts — identity types belong there.
+export type { StaffRole } from '@/types/staff';
+export type UserRole = 'call_center' | 'manager' | 'admin' | 'tech_admin' | 'branch_partner';
 
 // ─── Filter type (for service layer) ─────────────────────────────────────────
 
@@ -375,7 +381,6 @@ export function getPaymentLabel(method: PaymentMethod, fulfillment?: Fulfillment
     if (method === 'card') return 'Card';
     if (method === 'cash') {
         if (fulfillment === 'delivery') return 'Cash on Delivery';
-        if (fulfillment === 'pickup') return 'Cash at Pickup';
         return 'Cash';
     }
     return method;
@@ -437,7 +442,7 @@ export function canAdvanceOrder(
     if (!allowed.includes(targetStatus)) return false;
 
     // Full control: managers and super admins
-    if (role === 'manager' || role === 'super_admin') return true;
+    if (role === 'manager' || role === 'admin' || role === 'tech_admin') return true;
 
     // Call center: read-only observers — cannot advance any order
     if (role === 'call_center') return false;

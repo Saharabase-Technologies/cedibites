@@ -125,7 +125,7 @@ export default function ManagerDashboardPage() {
     const monthRevenue = stats?.month_revenue ?? 0;
 
     // Calculate max sold for progress bars
-    const maxSold = topItems.length > 0 ? Math.max(...topItems.map(i => i.sold)) : 1;
+    const maxSold = topItems.length > 0 ? Math.max(...topItems.map(i => i.units)) : 1;
 
     return (
         <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
@@ -161,8 +161,8 @@ export default function ManagerDashboardPage() {
                     {chartData.length > 0 ? chartData.map((bar, i) => (
                         <div key={i} className="flex-1 flex flex-col items-center gap-1">
                             <div
-                                className={`w-full rounded-md transition-all ${bar.percentage === Math.max(...chartData.map(d => d.percentage)) ? 'bg-primary' : 'bg-neutral-gray/50'}`}
-                                style={{ height: `${Math.max((bar.percentage / 100) * 112, 2)}px` }}
+                                className={`w-full rounded-md transition-all ${(bar.percentage ?? 0) === Math.max(...chartData.map(d => d.percentage ?? 0)) ? 'bg-primary' : 'bg-neutral-gray/50'}`}
+                                style={{ height: `${Math.max(((bar.percentage ?? 0) / 100) * 112, 2)}px` }}
                             />
                             <span className="text-[10px] text-neutral-gray font-body">{bar.day}</span>
                         </div>
@@ -250,13 +250,13 @@ export default function ManagerDashboardPage() {
                                     <div className="mt-1 h-1.5 bg-brown-light/15 rounded-full overflow-hidden">
                                         <div
                                             className="h-full bg-primary/60 rounded-full"
-                                            style={{ width: `${(item.sold / maxSold) * 100}%` }}
+                                            style={{ width: `${(item.units / maxSold) * 100}%` }}
                                         />
                                     </div>
                                 </div>
                                 <div className="shrink-0 text-right">
-                                    <p className="text-text-dark text-xs font-bold font-body">{item.sold} sold</p>
-                                    <p className="text-neutral-gray text-[10px] font-body">₵{item.revenue}</p>
+                                    <p className="text-text-dark text-xs font-bold font-body">{item.units} sold</p>
+                                    <p className="text-neutral-gray text-[10px] font-body">₵{item.rev}</p>
                                 </div>
                             </div>
                         )) : (

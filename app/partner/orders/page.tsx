@@ -12,6 +12,7 @@ import {
     CaretUpIcon,
     FunnelIcon,
     SpinnerIcon,
+    WarningIcon,
 } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
@@ -80,14 +81,21 @@ function OrderRow({ order, isLast }: { order: Order; isLast: boolean }) {
                     <p className="text-neutral-gray text-xs font-body">#{order.orderNumber}</p>
                 </div>
                 <span className="text-neutral-gray text-xs font-body">
+                    <span className="md:hidden text-neutral-gray/60">Items: </span>
                     {order.items.reduce((s, it) => s + it.quantity, 0)} item{order.items.reduce((s, it) => s + it.quantity, 0) !== 1 ? 's' : ''}
                 </span>
-                <StatusDot status={order.status} />
+                <div>
+                    <span className="md:hidden text-neutral-gray/60 text-xs font-body">Status: </span>
+                    <StatusDot status={order.status} />
+                </div>
                 <span className="text-neutral-gray text-xs font-body flex items-center gap-1">
                     <ClockIcon size={11} weight="fill" />
                     {isToday(order.placedAt) ? formatTime(order.placedAt) : formatShortDate(order.placedAt)}
                 </span>
-                <span className="text-text-dark text-sm font-bold font-body">{formatPrice(order.total)}</span>
+                <span className="text-text-dark text-sm font-bold font-body">
+                    <span className="md:hidden text-neutral-gray/60 text-xs font-normal">Total: </span>
+                    {formatPrice(order.total)}
+                </span>
                 <span className="shrink-0 text-neutral-gray">
                     {open ? <CaretUpIcon size={14} weight="bold" /> : <CaretDownIcon size={14} weight="bold" />}
                 </span>
@@ -145,7 +153,7 @@ export default function PartnerOrdersPage() {
     const { staffUser } = useStaffAuth();
     const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
 
-    const { orders: apiOrders, isLoading } = useEmployeeOrders({ branch_id: branchId, per_page: 100 });
+    const { orders: apiOrders, isLoading, error } = useEmployeeOrders({ branch_id: branchId, per_page: 100 });
 
     const branchOrders = useMemo(() =>
         apiOrders.map(mapApiOrderToOrder).sort((a, b) => b.placedAt - a.placedAt),
@@ -162,7 +170,9 @@ export default function PartnerOrdersPage() {
             const q = search.toLowerCase();
             list = list.filter(o =>
                 o.contact.name.toLowerCase().includes(q) ||
-                o.orderNumber.toLowerCase().includes(q)
+                o.orderNumber.toLowerCase().includes(q) ||
+                (o.contact.phone ?? '').toLowerCase().includes(q) ||
+                (o.contact.address ?? '').toLowerCase().includes(q)
             );
         }
         return list;
@@ -176,10 +186,30 @@ export default function PartnerOrdersPage() {
 
     const activeCount = branchOrders.filter(o => ACTIVE_STATUSES.includes(o.status as OrderStatus)).length;
 
+    if (!branchId) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
+                <WarningIcon size={32} weight="fill" className="text-warning" />
+                <p className="text-text-dark text-sm font-body font-semibold">No branch assigned</p>
+                <p className="text-neutral-gray text-xs font-body text-center">Your account is not assigned to any branch. Contact an administrator.</p>
+            </div>
+        );
+    }
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[50vh]">
                 <SpinnerIcon size={32} className="text-primary animate-spin" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
+                <WarningIcon size={32} weight="fill" className="text-error" />
+                <p className="text-text-dark text-sm font-body font-semibold">Unable to load orders</p>
+                <p className="text-neutral-gray text-xs font-body text-center">Please check your connection and try again.</p>
             </div>
         );
     }
@@ -206,7 +236,7 @@ export default function PartnerOrdersPage() {
                     <MagnifyingGlassIcon size={15} weight="bold" className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray" />
                     <input
                         type="text"
-                        placeholder="Search by name or order #..."
+                        placeholder="Search by name, order #, phone, or address..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         className="w-full pl-9 pr-9 py-2.5 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary"

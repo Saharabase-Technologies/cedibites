@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { orderService } from '../services/order.service';
 import type { EmployeeOrdersParams } from '../services/order.service';
 import type { Order as ApiOrder } from '@/types/api';
@@ -37,12 +37,15 @@ export const useEmployeeOrders = (params?: EmployeeOrdersParams) => {
   const {
     data: response,
     isLoading,
+    isFetching,
     error,
     refetch,
   } = useQuery({
     queryKey: ['employee-orders', params],
     queryFn: () => orderService.getEmployeeOrders(params),
     enabled: typeof window !== 'undefined' && !!localStorage.getItem('cedibites_staff_token'),
+    refetchInterval: 15_000,
+    placeholderData: keepPreviousData,
   });
 
   const rawData = response?.data;
@@ -56,6 +59,7 @@ export const useEmployeeOrders = (params?: EmployeeOrdersParams) => {
     meta,
     links,
     isLoading,
+    isFetching,
     error,
     refetch,
   };

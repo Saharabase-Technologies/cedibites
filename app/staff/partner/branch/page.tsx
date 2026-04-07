@@ -32,7 +32,7 @@ const BRANCH_DATA: Record<string, {
     perKmFee: number;
     minOrderValue: number;
     orderTypes: { delivery: boolean; pickup: boolean; dineIn: boolean };
-    payments: { momo: boolean; cashOnDelivery: boolean; cashAtPickup: boolean };
+    payments: { momo: boolean; cashOnDelivery: boolean };
     hours: Record<string, { open: boolean; from: string; to: string }>;
 }> = {
     'East Legon': {
@@ -46,21 +46,7 @@ const BRANCH_DATA: Record<string, {
         perKmFee: 4,
         minOrderValue: 60,
         orderTypes: { delivery: true, pickup: true, dineIn: true },
-        payments: { momo: true, cashOnDelivery: true, cashAtPickup: false },
-        hours: Object.fromEntries(DAYS.map(d => [d, { open: true, from: '08:00', to: '20:00' }])),
-    },
-    'Osu': {
-        address: '14 Ring Road, Osu, Accra',
-        phone: '0302123456',
-        email: 'osu@cedibites.com',
-        manager: 'Ama Boateng',
-        openStatus: 'open',
-        deliveryRadius: 5,
-        baseDeliveryFee: 15,
-        perKmFee: 3,
-        minOrderValue: 50,
-        orderTypes: { delivery: true, pickup: true, dineIn: false },
-        payments: { momo: true, cashOnDelivery: true, cashAtPickup: true },
+        payments: { momo: true, cashOnDelivery: true },
         hours: Object.fromEntries(DAYS.map(d => [d, { open: d !== 'Sun', from: '08:00', to: '21:00' }])),
     },
     'Spintex': {
@@ -74,7 +60,7 @@ const BRANCH_DATA: Record<string, {
         perKmFee: 2.5,
         minOrderValue: 45,
         orderTypes: { delivery: true, pickup: false, dineIn: false },
-        payments: { momo: true, cashOnDelivery: false, cashAtPickup: false },
+        payments: { momo: true, cashOnDelivery: false },
         hours: Object.fromEntries(DAYS.map(d => [d, { open: true, from: '09:00', to: '19:00' }])),
     },
 };
@@ -148,7 +134,7 @@ export default function PartnerBranchPage() {
             perKmFee: apiBranch.delivery_settings?.per_km_fee ?? 0,
             minOrderValue: apiBranch.delivery_settings?.min_order_value ?? 0,
             orderTypes: { delivery: true, pickup: true, dineIn: false },
-            payments: { momo: true, cashOnDelivery: true, cashAtPickup: true },
+            payments: { momo: true, cashOnDelivery: true },
             hours: Object.fromEntries(DAYS.map(d => [d, { open: true, from: '08:00', to: '20:00' }])),
         }
         : (BRANCH_DATA[branchName] ?? FALLBACK_BRANCH);
@@ -211,7 +197,6 @@ export default function PartnerBranchPage() {
                         {[
                             { icon: DeviceMobileIcon, label: 'Mobile Money',       on: branch.payments.momo             },
                             { icon: MoneyIcon,        label: 'Cash on Delivery',   on: branch.payments.cashOnDelivery   },
-                            { icon: MoneyIcon,        label: 'Cash at Pickup',     on: branch.payments.cashAtPickup     },
                         ].map(({ icon: Icon, label, on }) => (
                             <div key={label} className="flex items-center justify-between py-2 border-b border-[#f0e8d8] last:border-0">
                                 <div className="flex items-center gap-2.5">

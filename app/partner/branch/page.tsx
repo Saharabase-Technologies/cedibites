@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import {
     BuildingsIcon,
     PhoneIcon,
@@ -15,71 +16,33 @@ import {
     MotorcycleIcon,
     MoneyIcon,
     DeviceMobileIcon,
+    SpinnerIcon,
+    WarningIcon,
+    CreditCardIcon,
 } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useBranch } from '@/lib/api/hooks/useBranches';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const BRANCH_DATA: Record<string, {
-    address: string;
-    phone: string;
-    email: string;
-    manager: string;
-    openStatus: 'open' | 'closed' | 'busy';
-    deliveryRadius: number;
-    baseDeliveryFee: number;
-    perKmFee: number;
-    minOrderValue: number;
-    orderTypes: { delivery: boolean; pickup: boolean; dineIn: boolean };
-    payments: { momo: boolean; cashOnDelivery: boolean; cashAtPickup: boolean };
-    hours: Record<string, { open: boolean; from: string; to: string }>;
-}> = {
-    'East Legon': {
-        address: 'East Legon Hills, Accra',
-        phone: '0302789456',
-        email: 'eastlegon@cedibites.com',
-        manager: 'Kwame Asante',
-        openStatus: 'open',
-        deliveryRadius: 6,
-        baseDeliveryFee: 20,
-        perKmFee: 4,
-        minOrderValue: 60,
-        orderTypes: { delivery: true, pickup: true, dineIn: true },
-        payments: { momo: true, cashOnDelivery: true, cashAtPickup: false },
-        hours: Object.fromEntries(DAYS.map(d => [d, { open: true, from: '08:00', to: '20:00' }])),
-    },
-    'Osu': {
-        address: '14 Ring Road, Osu, Accra',
-        phone: '0302123456',
-        email: 'osu@cedibites.com',
-        manager: 'Ama Boateng',
-        openStatus: 'open',
-        deliveryRadius: 5,
-        baseDeliveryFee: 15,
-        perKmFee: 3,
-        minOrderValue: 50,
-        orderTypes: { delivery: true, pickup: true, dineIn: false },
-        payments: { momo: true, cashOnDelivery: true, cashAtPickup: true },
-        hours: Object.fromEntries(DAYS.map(d => [d, { open: d !== 'Sun', from: '08:00', to: '21:00' }])),
-    },
-    'Spintex': {
-        address: 'Spintex Road, Accra',
-        phone: '0302654321',
-        email: 'spintex@cedibites.com',
-        manager: 'Abena Mensah',
-        openStatus: 'busy',
-        deliveryRadius: 4,
-        baseDeliveryFee: 12,
-        perKmFee: 2.5,
-        minOrderValue: 45,
-        orderTypes: { delivery: true, pickup: false, dineIn: false },
-        payments: { momo: true, cashOnDelivery: false, cashAtPickup: false },
-        hours: Object.fromEntries(DAYS.map(d => [d, { open: true, from: '09:00', to: '19:00' }])),
-    },
+const DAY_KEY_MAP: Record<string, string> = {
+    monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu',
+    friday: 'Fri', saturday: 'Sat', sunday: 'Sun',
+    '0': 'Mon', '1': 'Tue', '2': 'Wed', '3': 'Thu', '4': 'Fri', '5': 'Sat', '6': 'Sun',
+    Mon: 'Mon', Tue: 'Tue', Wed: 'Wed', Thu: 'Thu', Fri: 'Fri', Sat: 'Sat', Sun: 'Sun',
 };
 
-const FALLBACK = BRANCH_DATA['East Legon'];
+const PAYMENT_LABELS: Record<string, { icon: React.ElementType; label: string }> = {
+    mobile_money: { icon: DeviceMobileIcon, label: 'Mobile Money' },
+    cash: { icon: MoneyIcon, label: 'Cash' },
+    card: { icon: CreditCardIcon, label: 'Card' },
+};
+
+const ORDER_TYPE_LABELS: Record<string, { icon: React.ElementType; label: string }> = {
+    delivery: { icon: TruckIcon, label: 'Delivery' },
+    pickup: { icon: ShoppingBagIcon, label: 'Pickup' },
+    dine_in: { icon: ForkKnifeIcon, label: 'Dine In' },
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -133,25 +96,67 @@ function SectionCard({ title, children }: { title: string; children: React.React
 export default function PartnerBranchPage() {
     const { staffUser } = useStaffAuth();
     const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : null;
-    const { branch: apiBranch } = useBranch(branchId ?? 0);
+    const { branch: apiBranch, isLoading, error } = useBranch(branchId ?? 0);
     const branchName = staffUser?.branches[0]?.name ?? apiBranch?.name ?? '—';
 
-    const branch = apiBranch
-        ? {
-            address: apiBranch.address ?? '—',
-            phone: apiBranch.phone ?? '—',
-            email: apiBranch.email ?? '—',
-            manager: apiBranch.manager?.name ?? '—',
-            openStatus: (apiBranch.is_active ? 'open' : 'closed') as 'open' | 'closed' | 'busy',
-            deliveryRadius: apiBranch.delivery_settings?.delivery_radius_km ?? 0,
-            baseDeliveryFee: apiBranch.delivery_settings?.base_delivery_fee ?? 0,
-            perKmFee: apiBranch.delivery_settings?.per_km_fee ?? 0,
-            minOrderValue: apiBranch.delivery_settings?.min_order_value ?? 0,
-            orderTypes: { delivery: true, pickup: true, dineIn: false },
-            payments: { momo: true, cashOnDelivery: true, cashAtPickup: true },
-            hours: Object.fromEntries(DAYS.map(d => [d, { open: true, from: '08:00', to: '20:00' }])),
+    const hours = useMemo(() => {
+        const result: Record<string, { open: boolean; from: string; to: string }> = {};
+        DAYS.forEach(d => { result[d] = { open: false, from: '', to: '' }; });
+
+        if (apiBranch?.operating_hours) {
+            for (const [key, oh] of Object.entries(apiBranch.operating_hours)) {
+                const day = DAY_KEY_MAP[key.toLowerCase()] ?? DAY_KEY_MAP[key];
+                if (day && oh) {
+                    result[day] = {
+                        open: oh.is_open,
+                        from: oh.open_time?.slice(0, 5) ?? '',
+                        to: oh.close_time?.slice(0, 5) ?? '',
+                    };
+                }
+            }
         }
-        : (BRANCH_DATA[branchName] ?? FALLBACK);
+        return result;
+    }, [apiBranch]);
+
+    const orderTypes = useMemo(() => {
+        if (!apiBranch?.order_types) return [];
+        return Object.entries(apiBranch.order_types).map(([key, val]) => ({
+            key,
+            ...(ORDER_TYPE_LABELS[key] ?? { icon: ShoppingBagIcon, label: key.replace(/_/g, ' ') }),
+            enabled: val.is_enabled,
+        }));
+    }, [apiBranch]);
+
+    const paymentMethods = useMemo(() => {
+        if (!apiBranch?.payment_methods) return [];
+        return Object.entries(apiBranch.payment_methods).map(([key, val]) => ({
+            key,
+            ...(PAYMENT_LABELS[key] ?? { icon: CurrencyCircleDollarIcon, label: key.replace(/_/g, ' ') }),
+            enabled: val.is_enabled,
+        }));
+    }, [apiBranch]);
+
+    const openStatus: 'open' | 'closed' = apiBranch?.is_open ? 'open' : 'closed';
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[50vh]">
+                <SpinnerIcon size={32} className="text-primary animate-spin" />
+            </div>
+        );
+    }
+
+    if (error || !apiBranch) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
+                <WarningIcon size={32} weight="fill" className="text-warning" />
+                <p className="text-text-dark text-sm font-body font-semibold">Unable to load branch data</p>
+                <p className="text-neutral-gray text-xs font-body text-center">
+                    {!branchId ? 'No branch assigned to your account.' : 'Please check your connection and try again.'}
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="px-4 md:px-8 py-6 max-w-4xl mx-auto">
@@ -165,62 +170,58 @@ export default function PartnerBranchPage() {
                     </div>
                     <p className="text-neutral-gray text-sm font-body">Branch information · read-only</p>
                 </div>
-                <StatusBadge status={branch.openStatus} />
+                <StatusBadge status={openStatus} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
                 {/* Contact info */}
                 <SectionCard title="Contact & Location">
-                    <InfoRow icon={MapPinIcon}    label="Address"  value={branch.address} />
-                    <InfoRow icon={PhoneIcon}     label="Phone"    value={branch.phone} />
-                    <InfoRow icon={EnvelopeIcon}  label="Email"    value={branch.email} />
-                    <InfoRow icon={ForkKnifeIcon} label="Manager"  value={branch.manager} />
+                    <InfoRow icon={MapPinIcon}    label="Address"  value={apiBranch.address ?? '—'} />
+                    <InfoRow icon={PhoneIcon}     label="Phone"    value={apiBranch.phone ?? '—'} />
+                    <InfoRow icon={EnvelopeIcon}  label="Email"    value={apiBranch.email ?? '—'} />
+                    <InfoRow icon={ForkKnifeIcon} label="Manager"  value={apiBranch.manager?.name ?? '—'} />
                 </SectionCard>
 
                 {/* Delivery settings */}
                 <SectionCard title="Delivery Settings">
-                    <InfoRow icon={TruckIcon}                label="Delivery Radius"   value={`${branch.deliveryRadius} km`} />
-                    <InfoRow icon={CurrencyCircleDollarIcon} label="Base Delivery Fee" value={`₵${branch.baseDeliveryFee}`} />
-                    <InfoRow icon={MotorcycleIcon}           label="Per-km Fee"        value={`₵${branch.perKmFee} / km`} />
-                    <InfoRow icon={ShoppingBagIcon}          label="Min. Order Value"  value={`₵${branch.minOrderValue}`} />
+                    <InfoRow icon={TruckIcon}                label="Delivery Radius"   value={`${apiBranch.delivery_settings?.delivery_radius_km ?? 0} km`} />
+                    <InfoRow icon={CurrencyCircleDollarIcon} label="Base Delivery Fee" value={`₵${apiBranch.delivery_settings?.base_delivery_fee ?? 0}`} />
+                    <InfoRow icon={MotorcycleIcon}           label="Per-km Fee"        value={`₵${apiBranch.delivery_settings?.per_km_fee ?? 0} / km`} />
+                    <InfoRow icon={ShoppingBagIcon}          label="Min. Order Value"  value={`₵${apiBranch.delivery_settings?.min_order_value ?? 0}`} />
                 </SectionCard>
 
                 {/* Order types */}
                 <SectionCard title="Order Types">
                     <div className="flex flex-col gap-3">
-                        {[
-                            { icon: TruckIcon,       label: 'Delivery',  on: branch.orderTypes.delivery },
-                            { icon: ShoppingBagIcon, label: 'Pickup',    on: branch.orderTypes.pickup   },
-                            { icon: ForkKnifeIcon,   label: 'Dine In',   on: branch.orderTypes.dineIn   },
-                        ].map(({ icon: Icon, label, on }) => (
-                            <div key={label} className="flex items-center justify-between py-2 border-b border-[#f0e8d8] last:border-0">
+                        {orderTypes.length > 0 ? orderTypes.map(({ key, icon: Icon, label, enabled }) => (
+                            <div key={key} className="flex items-center justify-between py-2 border-b border-[#f0e8d8] last:border-0">
                                 <div className="flex items-center gap-2.5">
                                     <Icon size={15} weight="fill" className="text-neutral-gray" />
-                                    <span className="text-text-dark text-sm font-body">{label}</span>
+                                    <span className="text-text-dark text-sm font-body capitalize">{label}</span>
                                 </div>
-                                <Flag on={on} />
+                                <Flag on={enabled} />
                             </div>
-                        ))}
+                        )) : (
+                            <p className="text-neutral-gray text-sm font-body">No order types configured</p>
+                        )}
                     </div>
                 </SectionCard>
 
                 {/* Payment methods */}
                 <SectionCard title="Payment Methods">
                     <div className="flex flex-col gap-3">
-                        {[
-                            { icon: DeviceMobileIcon, label: 'Mobile Money',     on: branch.payments.momo           },
-                            { icon: MoneyIcon,         label: 'Cash on Delivery', on: branch.payments.cashOnDelivery },
-                            { icon: MoneyIcon,         label: 'Cash at Pickup',   on: branch.payments.cashAtPickup   },
-                        ].map(({ icon: Icon, label, on }) => (
-                            <div key={label} className="flex items-center justify-between py-2 border-b border-[#f0e8d8] last:border-0">
+                        {paymentMethods.length > 0 ? paymentMethods.map(({ key, icon: Icon, label, enabled }) => (
+                            <div key={key} className="flex items-center justify-between py-2 border-b border-[#f0e8d8] last:border-0">
                                 <div className="flex items-center gap-2.5">
                                     <Icon size={15} weight="fill" className="text-neutral-gray" />
-                                    <span className="text-text-dark text-sm font-body">{label}</span>
+                                    <span className="text-text-dark text-sm font-body capitalize">{label}</span>
                                 </div>
-                                <Flag on={on} />
+                                <Flag on={enabled} />
                             </div>
-                        ))}
+                        )) : (
+                            <p className="text-neutral-gray text-sm font-body">No payment methods configured</p>
+                        )}
                     </div>
                 </SectionCard>
 
@@ -229,7 +230,7 @@ export default function PartnerBranchPage() {
                     <SectionCard title="Operating Hours">
                         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
                             {DAYS.map(day => {
-                                const h = branch.hours[day];
+                                const h = hours[day];
                                 return (
                                     <div key={day} className={`rounded-xl px-3 py-3 ${h.open ? 'bg-secondary/5 border border-secondary/15' : 'bg-neutral-light border border-[#f0e8d8]'}`}>
                                         <p className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-wider mb-1">{day}</p>

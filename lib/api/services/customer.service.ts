@@ -20,7 +20,9 @@ export interface ApiCustomer {
 
 export interface CustomersParams {
   is_guest?: boolean;
+  status?: string;
   search?: string;
+  sort_by?: string;
   page?: number;
   per_page?: number;
 }
@@ -48,5 +50,9 @@ export const customerService = {
 
   unsuspendCustomer: (id: number): Promise<{ data: ApiCustomer }> => {
     return apiClient.patch(`/admin/customers/${id}/unsuspend`);
+  },
+
+  forceLogoutCustomer: (id: number): Promise<void> => {
+    return apiClient.post(`/admin/customers/${id}/force-logout`);
   },
 };

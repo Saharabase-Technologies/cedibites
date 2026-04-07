@@ -36,7 +36,6 @@ function toSlug(name: string): string {
 const MENU_SUB_TABS = [
     { href: '/staff/manager/menu',           label: 'Items'     },
     { href: '/staff/manager/menu/tags',      label: 'Tags'      },
-    { href: '/staff/manager/menu/configure', label: 'Configure'  },
 ];
 
 function MenuSubTabs() {

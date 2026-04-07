@@ -13,7 +13,7 @@ export const useBranchStats = (branchId: number | null, asManager = false) => {
     enabled: !!branchId,
     staleTime: 60 * 1000,
   });
-  return { stats: data?.data, isLoading, error, refetch };
+  return { stats: data, isLoading, error, refetch };
 };
 
 export const useBranches = () => {

@@ -7,7 +7,7 @@ export interface MenuCategory {
   slug: string;
   display_order: number;
   is_active: boolean;
-  menu_items_count?: number;
+  items_count?: number;
   created_at: string;
   updated_at: string;
 }

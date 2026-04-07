@@ -36,7 +36,8 @@ export function getDateRange(period: AnalyticsPeriod, customRange?: CustomRange)
     }
     case 'week': {
       const weekStart = new Date(now);
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const daysSinceMonday = (weekStart.getDay() + 6) % 7;
+      weekStart.setDate(weekStart.getDate() - daysSinceMonday);
       return { date_from: weekStart.toISOString().slice(0, 10), date_to: today };
     }
     case 'month': {
@@ -83,7 +84,7 @@ export const useAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number
 
   const customersQuery = useQuery({
     queryKey: ['analytics', 'customers', period, branchId, range.date_from, range.date_to],
-    queryFn: () => analyticsService.getCustomerAnalytics({ date_from: range.date_from, date_to: range.date_to }),
+    queryFn: () => analyticsService.getCustomerAnalytics(filters),
     staleTime: 2 * 60 * 1000,
   });
 

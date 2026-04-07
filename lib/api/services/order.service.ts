@@ -27,7 +27,7 @@ export interface EmployeeOrdersParams {
   staff_id?: string | number;
   status?: string | string[];
   order_type?: string;
-  order_source?: string;
+  order_source?: string | string[];
   payment_status?: string[];
   payment_method?: string;
   search?: string;
@@ -71,7 +71,14 @@ export const orderService = {
    * Cancel order with optional reason
    */
   cancelOrder: (id: number, reason?: string): Promise<{ data: Order }> => {
-    return apiClient.post(`/orders/${id}/cancel`, { reason: reason ?? null });
+    return apiClient.post(`/admin/orders/${id}/cancel`, { reason: reason ?? null });
+  },
+
+  /**
+   * Request cancel (staff) — requires admin approval
+   */
+  requestCancel: (id: number, reason: string): Promise<{ data: Order }> => {
+    return apiClient.post(`/employee/orders/${id}/request-cancel`, { reason });
   },
 
   /**

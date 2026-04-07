@@ -13,6 +13,7 @@ import {
     ChartBarIcon,
     ClockIcon,
     SpinnerIcon,
+    WarningIcon,
 } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useAnalytics } from '@/lib/api/hooks/useAnalytics';
@@ -93,7 +94,7 @@ export default function PartnerDashboardPage() {
     const branchName = staffUser?.branches[0]?.name ?? '';
     const branchIdNum = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
 
-    const { sales, orders: orderAnalytics, isLoading: analyticsLoading } = useAnalytics('today', branchIdNum);
+    const { sales, orders: orderAnalytics, isLoading: analyticsLoading, error: analyticsError } = useAnalytics('today', branchIdNum);
 
     const todayStr = new Date().toISOString().slice(0, 10);
     const { orders: apiOrders, isLoading: ordersLoading } = useEmployeeOrders({
@@ -122,7 +123,7 @@ export default function PartnerDashboardPage() {
     const cancelledToday = orderAnalytics?.orders_by_status?.['cancelled'] ?? 0;
 
     const { employees: branchStaff } = useEmployees({ branch_id: branchIdNum });
-    const nonArchived = branchStaff.filter(s => s.status !== 'archived');
+    const nonArchived = branchStaff.filter(s => s.status !== 'terminated');
     const activeStaff = nonArchived.filter(s => s.systemAccess === 'enabled').length;
 
     const dateStr = new Date().toLocaleDateString('en-GH', {
@@ -131,10 +132,30 @@ export default function PartnerDashboardPage() {
 
     const isLoading = analyticsLoading || ordersLoading;
 
+    if (!branchIdNum) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
+                <WarningIcon size={32} weight="fill" className="text-warning" />
+                <p className="text-text-dark text-sm font-body font-semibold">No branch assigned</p>
+                <p className="text-neutral-gray text-xs font-body text-center">Your account is not assigned to any branch. Contact an administrator.</p>
+            </div>
+        );
+    }
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[50vh]">
                 <SpinnerIcon size={32} className="text-primary animate-spin" />
+            </div>
+        );
+    }
+
+    if (analyticsError) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
+                <WarningIcon size={32} weight="fill" className="text-error" />
+                <p className="text-text-dark text-sm font-body font-semibold">Unable to load dashboard data</p>
+                <p className="text-neutral-gray text-xs font-body text-center">Please check your connection and try again.</p>
             </div>
         );
     }

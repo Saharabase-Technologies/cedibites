@@ -12,12 +12,23 @@ const REASON_PRESETS = [
     'Payment issue',
 ];
 
+const STAFF_REASON_PRESETS = [
+    'Customer changed their mind',
+    'Customer ordered by mistake',
+    'Taking too long',
+    'Wrong items ordered',
+    'Payment issue',
+    'Duplicate order',
+];
+
 interface CancelOrderModalProps {
     orderNumber: string;
     onConfirm: (reason: string) => Promise<void>;
     onCancel: () => void;
     /** Dark theme for staff panels, light for customer/admin */
     theme?: 'dark' | 'light';
+    /** 'self' = customer cancelling their own, 'staff' = staff cancelling on behalf */
+    context?: 'self' | 'staff';
 }
 
 export default function CancelOrderModal({
@@ -25,15 +36,18 @@ export default function CancelOrderModal({
     onConfirm,
     onCancel,
     theme = 'light',
+    context = 'self',
 }: CancelOrderModalProps) {
     const [selected, setSelected] = useState<string | null>(null);
     const [custom, setCustom] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [succeeded, setSucceeded] = useState(false);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     const reason = selected === '__custom__' ? custom.trim() : (selected ?? '');
 
     const isDark = theme === 'dark';
+    const presets = context === 'staff' ? STAFF_REASON_PRESETS : REASON_PRESETS;
 
     const bg = isDark ? 'bg-brown border-brown-light/20' : 'bg-white border-[#f0e8d8]';
     const titleColor = isDark ? 'text-text-light' : 'text-text-dark';
@@ -57,9 +71,13 @@ export default function CancelOrderModal({
 
     async function handleConfirm() {
         setIsLoading(true);
+        setErrorMsg(null);
         try {
             await onConfirm(reason);
             setSucceeded(true);
+        } catch (err: any) {
+            const msg = err?.response?.data?.message ?? err?.message ?? 'Something went wrong. Please try again.';
+            setErrorMsg(msg);
         } finally {
             setIsLoading(false);
         }
@@ -76,8 +94,14 @@ export default function CancelOrderModal({
                         <div className="w-14 h-14 rounded-full bg-secondary/10 flex items-center justify-center">
                             <CheckCircleIcon size={32} weight="fill" className="text-secondary" />
                         </div>
-                        <p className={`text-base font-bold font-body ${titleColor}`}>Order Cancelled</p>
-                        <p className={`text-sm font-body ${subColor}`}>#{orderNumber} has been successfully cancelled.</p>
+                        <p className={`text-base font-bold font-body ${titleColor}`}>
+                            {context === 'staff' ? 'Cancellation Requested' : 'Order Cancelled'}
+                        </p>
+                        <p className={`text-sm font-body ${subColor}`}>
+                            {context === 'staff'
+                                ? `#${orderNumber} — a manager will review your request.`
+                                : `#${orderNumber} has been successfully cancelled.`}
+                        </p>
                     </div>
                 ) : (
                     <>
@@ -106,7 +130,7 @@ export default function CancelOrderModal({
                             Select a reason
                         </p>
                         <div className="flex flex-wrap gap-2 mb-3">
-                            {REASON_PRESETS.map(r => (
+                            {presets.map(r => (
                                 <button
                                     key={r}
                                     type="button"
@@ -135,6 +159,11 @@ export default function CancelOrderModal({
                                 className={`w-full rounded-xl px-3 py-2.5 text-sm font-body resize-none outline-none transition-colors ${inputClass} mb-3`}
                                 autoFocus
                             />
+                        )}
+
+                        {/* Error message */}
+                        {errorMsg && (
+                            <p className="text-error text-xs font-body text-center mt-1 mb-1">{errorMsg}</p>
                         )}
 
                         {/* Actions */}

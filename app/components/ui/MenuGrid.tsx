@@ -59,16 +59,6 @@ function MixHeader() {
     );
 }
 
-function PopularHeader({ count }: { count: number }) {
-    return (
-        <div className="flex items-center gap-3 mb-6">
-            <h2 className="text-xl md:text-2xl font-bold text-text-dark dark:text-text-light">Most Popular</h2>
-            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-primary/15 text-primary">
-                {count} item{count !== 1 ? 's' : ''}
-            </span>
-        </div>
-    );
-}
 
 function LoadingState() {
     return (
@@ -102,9 +92,16 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 }
 
 export default function MenuGrid() {
-    const { filteredItems, searchQuery, selectedCategory, allItems, isSearching, error, retryFetch } = useMenuDiscovery();
+    const { filteredItems, searchQuery, selectedCategory, allItems, smartCategories, isSearching, error, retryFetch } = useMenuDiscovery();
     const [detailItem, setDetailItem] = useState<SearchableItem | null>(null);
     const cediBitesMix = useMemo(() => buildCediBitesMix(allItems), [allItems]);
+
+    // Resolve the smart category label when a smart category is selected
+    const activeSmartCategory = useMemo(() => {
+        if (!selectedCategory?.startsWith('smart:')) return null;
+        const slug = selectedCategory.replace('smart:', '');
+        return smartCategories.find(sc => sc.slug === slug) ?? null;
+    }, [selectedCategory, smartCategories]);
 
     const grid = (items: SearchableItem[]) => (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
@@ -138,18 +135,18 @@ export default function MenuGrid() {
                                 </section>
                             )}
 
-                            {/* Most Popular */}
-                            {selectedCategory === 'Most Popular' && !searchQuery.trim() && (
+                            {/* Smart category (Most Popular, Trending, Top Rated, etc.) */}
+                            {activeSmartCategory && !searchQuery.trim() && (
                                 <section className="w-[95%] md:w-[80%] xl:w-[70%] mx-auto pb-8 mt-6">
-                                    <PopularHeader count={filteredItems.length} />
+                                    <SectionHeader label={activeSmartCategory.name} count={filteredItems.length} />
                                     {filteredItems.length === 0
-                                        ? <EmptyState query="" category="Most Popular" />
+                                        ? <EmptyState query="" category={activeSmartCategory.name} />
                                         : grid(filteredItems)}
                                 </section>
                             )}
 
-                            {/* Search or category */}
-                            {(searchQuery.trim() || (selectedCategory && selectedCategory !== 'Most Popular')) && (
+                            {/* Search or regular category */}
+                            {(searchQuery.trim() || (selectedCategory && !activeSmartCategory)) && (
                                 <section className="w-[95%] md:w-[80%] xl:w-[70%] mx-auto pb-8 mt-6">
                                     <SectionHeader
                                         label={searchQuery.trim() ? `Results for "${searchQuery}"` : selectedCategory ?? ''}

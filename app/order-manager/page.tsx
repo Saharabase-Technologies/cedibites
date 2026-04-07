@@ -25,10 +25,12 @@ import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
+import { useBranch } from '@/app/components/providers/BranchProvider';
 import type { Order, OrderStatus, FulfillmentType } from '@/types/order';
 import { STATUS_CONFIG } from '@/lib/constants/order.constants';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { toast } from '@/lib/utils/toast';
+import apiClient from '@/lib/api/client';
 
 function formatTimeAgo(timestamp: number): string {
   const minutes = Math.floor((Date.now() - timestamp) / 60000);
@@ -85,6 +87,13 @@ export default function OrderManagerPage() {
   // Auto-select if exactly 1 branch; use explicit selection otherwise
   const autoSelectedBranchId = assignedIds.length === 1 ? assignedIds[0] : null;
   const effectiveBranchId = selectedBranchId ?? autoSelectedBranchId;
+
+  const { branches } = useBranch();
+  const branchInfo = useMemo(
+    () => effectiveBranchId ? branches.find(b => b.id === effectiveBranchId) ?? null : null,
+    [effectiveBranchId, branches]
+  );
+  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
 
   const { orders } = useOrderChannel(effectiveBranchId);
   const sounds = useKitchenSounds();
@@ -186,25 +195,25 @@ export default function OrderManagerPage() {
     handleStatusUpdate(orderId, 'completed', { completedAt: Date.now() });
   }, [handleStatusUpdate]);
 
-  const approveCancel = useCallback((orderId: string) => {
-    handleStatusUpdate(orderId, 'cancelled', { completedAt: Date.now() });
-  }, [handleStatusUpdate]);
+  const approveCancel = useCallback(async (orderId: string) => {
+    try {
+      await apiClient.post(`/admin/orders/${orderId}/approve-cancel`);
+      toast.success('Cancellation approved');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to approve cancellation';
+      toast.error(message);
+    }
+  }, []);
 
   const rejectCancel = useCallback(async (order: Order) => {
-    const restoreStatus = (order.cancelPreviousStatus ?? 'received') as OrderStatus;
     try {
-      await updateOrder(order.id, {
-        status: restoreStatus,
-        cancelRequestedBy: undefined,
-        cancelRequestedAt: undefined,
-        cancelRequestReason: undefined,
-        cancelPreviousStatus: undefined,
-      });
+      await apiClient.post(`/admin/orders/${order.id}/reject-cancel`);
+      toast.success('Cancel request rejected');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to reject cancellation';
       toast.error(message);
     }
-  }, [updateOrder]);
+  }, []);
 
   const handleAction = useCallback((order: Order) => {
     if (order.status === 'received') acceptOrder(order.id);
@@ -233,6 +242,56 @@ export default function OrderManagerPage() {
         onSelect={id => { localStorage.setItem('cedibites-om-branchId', id); setSelectedBranchId(id); }}
         subtitle="Choose which branch to manage orders for"
       />
+    );
+  }
+
+  // Guard: branch is closed or inactive — admin/tech_admin bypass
+  if (!isAdmin && branchInfo && (!branchInfo.isActive || !branchInfo.isOpen)) {
+    const isInactive = !branchInfo.isActive;
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-neutral-light p-6">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-lg p-8 flex flex-col items-center gap-5 text-center">
+          <div className="w-16 h-16 rounded-full bg-error/10 flex items-center justify-center">
+            <WarningCircleIcon weight="fill" size={36} className="text-error" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-text-dark">
+              {isInactive ? 'Branch Inactive' : 'Branch Closed'}
+            </h2>
+            <p className="text-sm text-neutral-gray mt-2">
+              {isInactive
+                ? `${branchInfo.name} is currently inactive. Contact an administrator to reactivate it.`
+                : `${branchInfo.name} is currently closed. Order management is unavailable outside operating hours.`}
+            </p>
+          </div>
+          {selectableBranches.length > 1 && (
+            <button
+              onClick={() => setIsBranchSwitcherOpen(true)}
+              className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold px-6 py-3 rounded-2xl transition-all active:scale-[0.98]"
+            >
+              <StorefrontIcon weight="fill" size={18} />
+              Switch Branch
+            </button>
+          )}
+          <button
+            onClick={() => setIsSignOutOpen(true)}
+            className="flex items-center gap-2 text-sm font-semibold text-neutral-gray hover:text-error transition-colors"
+          >
+            <SignOutIcon weight="bold" size={16} />
+            Sign Out
+          </button>
+        </div>
+        {selectableBranches.length > 1 && (
+          <BranchSwitcherDialog
+            isOpen={isBranchSwitcherOpen}
+            branches={selectableBranches}
+            currentBranchId={effectiveBranchId ?? undefined}
+            onSelect={id => { localStorage.setItem('cedibites-om-branchId', id); setSelectedBranchId(id); setIsBranchSwitcherOpen(false); }}
+            onClose={() => setIsBranchSwitcherOpen(false)}
+          />
+        )}
+        <SignOutDialog isOpen={isSignOutOpen} onCancel={() => setIsSignOutOpen(false)} onConfirm={logout} />
+      </div>
     );
   }
 

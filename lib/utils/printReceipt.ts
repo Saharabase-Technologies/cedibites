@@ -45,7 +45,10 @@ export function formatReceiptItemLabel(item: OrderItem): string {
 
 
 function receiptHTML(order: Order, branch: ReceiptBranch, kind: ReceiptKind): string {
-  const sectionTitle = kind === 'reprint' ? 'Reprinted Receipt' : 'Original Receipt';
+  const isPastOrder = order.source === 'manual_entry';
+  const sectionTitle = isPastOrder
+    ? 'Recorded Past Order'
+    : kind === 'reprint' ? 'Reprinted Receipt' : 'Original Receipt';
   const createdAt = new Date(order.placedAt);
 
   const itemRows = order.items.map(item => {
@@ -134,6 +137,7 @@ function receiptHTML(order: Order, branch: ReceiptBranch, kind: ReceiptKind): st
   .thank-you { font-size: 12px; font-weight: bold; text-align: center; margin: 6px 0 4px; }
   .order-code-num { font-size: 28px; font-weight: bold; text-align: center; letter-spacing: 4px; margin: 4px 0 0; }
   .order-code-label { font-size: 10px; text-align: center; letter-spacing: 2px; margin-bottom: 4px; }
+  .past-order-banner { text-align: center; font-size: 12px; font-weight: bold; padding: 4px 0; margin: 4px 0; border: 2px solid #000; letter-spacing: 1px; }
   @media print {
     @page { size: 80mm auto; margin: 3mm; }
     body { width: 100%; }
@@ -148,9 +152,9 @@ function receiptHTML(order: Order, branch: ReceiptBranch, kind: ReceiptKind): st
   ${branch.address ? `<div class="center branch-info">${branch.address}</div>` : ''}
   ${branch.phone ? `<div class="center branch-info">Phone: ${branch.phone}</div>` : ''}
 
-  <div class="divider"></div>
+  ${isPastOrder ? '<div class="past-order-banner">⏱ RECORDED PAST ORDER</div>' : ''}
 
-  <table class="meta-table">
+  <div class="divider"></div>
     <tr>
       <td class="label">Receipt No.:</td>
       <td>${order.orderNumber}</td>
@@ -167,6 +171,10 @@ function receiptHTML(order: Order, branch: ReceiptBranch, kind: ReceiptKind): st
       <td class="label">Pay Mode:</td>
       <td>${paymentLabel[order.paymentMethod] ?? order.paymentMethod.toUpperCase()}</td>
     </tr>
+    ${order.momoNumber ? `<tr>
+      <td class="label">MoMo #:</td>
+      <td>${escapeHtml(order.momoNumber)}</td>
+    </tr>` : ''}
     <tr>
       <td class="label">Order Type:</td>
       <td>${FULFILLMENT_LABELS[order.fulfillmentType]}</td>

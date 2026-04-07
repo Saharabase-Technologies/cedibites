@@ -10,13 +10,15 @@ import {
     ArrowLeftIcon, ShoppingBagIcon, PencilSimpleIcon,
     LockIcon, MagnifyingGlassIcon, XIcon, SpinnerGapIcon,
     NavigationArrowIcon, StorefrontIcon, WarningCircleIcon,
-    CaretRightIcon, SparkleIcon, UserCircleIcon,
+    CaretRightIcon, SparkleIcon, UserCircleIcon, TagIcon,
 } from '@phosphor-icons/react';
+import { getPromoService, type Promo } from '@/lib/services/promos/promo.service';
 import { useCart, CartItem } from '@/app/components/providers/CartProvider';
 import { useBranch, Branch, BranchWithDistance } from '@/app/components/providers/BranchProvider';
 import { useLocation } from '@/app/components/providers/LocationProvider';
 import { useAuth } from '@/app/components/providers/AuthProvider';
-import { useCreateOrder } from '@/lib/api/hooks/useOrders';
+import { useCreateCheckoutSession, useCheckoutSessionStatus, useAbandonCheckoutSession, useRetryPayment, useChangePaymentMethod } from '@/lib/api/hooks/useCheckoutSession';
+import PaymentRecoveryActions from '@/app/components/order/PaymentRecoveryActions';
 import type { PaymentMethod as UnifiedPaymentMethod, FulfillmentType } from '@/types/order';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import apiClient, { ApiError } from '@/lib/api/client';
@@ -25,12 +27,22 @@ import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
 type OrderType = 'delivery' | 'pickup';
 type PaymentMethod = 'mobile_money' | 'cash';
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
 type BranchSheetView = 'list' | 'conflict';
 
 interface ContactDetails { name: string; phone: string; address: string; note: string; }
 
 const DELIVERY_FEE = 0; // Delivery fees temporarily disabled
+
+interface ServiceChargeConfig { enabled: boolean; percent: number; cap: number; }
+interface CheckoutConfig { serviceCharge: ServiceChargeConfig; deliveryFeeEnabled: boolean; }
+const DEFAULT_SC_CONFIG: ServiceChargeConfig = { enabled: true, percent: 1, cap: 5 };
+const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = { serviceCharge: DEFAULT_SC_CONFIG, deliveryFeeEnabled: false };
+function calcServiceCharge(subtotal: number, cfg: ServiceChargeConfig): number {
+    if (!cfg.enabled || cfg.percent <= 0) return 0;
+    const raw = Math.round(subtotal * (cfg.percent / 100) * 100) / 100;
+    return cfg.cap > 0 && raw > cfg.cap ? cfg.cap : raw;
+}
 const formatPrice = (p: number) => `₵${p.toFixed(2)}`;
 
 // ─── Input Field ──────────────────────────────────────────────────────────────
@@ -333,7 +345,7 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
 // ─── Step Indicator ───────────────────────────────────────────────────────────
 function StepIndicator({ current }: { current: Step }) {
-    const steps = [{ n: 1, label: 'Details' }, { n: 2, label: 'Payment' }, { n: 3, label: 'Done' }];
+    const steps = [{ n: 1, label: 'Details' }, { n: 2, label: 'Payment' }, { n: 3, label: 'Processing' }, { n: 4, label: 'Done' }];
     return (
         <div className="flex items-center">
             {steps.map((s, i) => {
@@ -355,11 +367,13 @@ function StepIndicator({ current }: { current: Step }) {
 }
 
 // ─── Order Summary ────────────────────────────────────────────────────────────
-function OrderSummary({ orderType }: { orderType: OrderType }) {
+function OrderSummary({ orderType, scConfig, deliveryFeeEnabled, discount, promoName }: { orderType: OrderType; scConfig: ServiceChargeConfig; deliveryFeeEnabled: boolean; discount?: number; promoName?: string }) {
     const { displayItems: items, subtotal } = useCart();
     const { selectedBranch } = useBranch();
-    const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
-    const total = subtotal + delivery;
+    const showDelivery = deliveryFeeEnabled && orderType === 'delivery';
+    const delivery = showDelivery ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
+    const serviceCharge = calcServiceCharge(subtotal, scConfig);
+    const total = subtotal + delivery + serviceCharge - (discount ?? 0);
     return (
         <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
             <div className="flex items-center justify-between">
@@ -383,7 +397,19 @@ function OrderSummary({ orderType }: { orderType: OrderType }) {
             <div className="h-px bg-neutral-gray/10" />
             <div className="flex flex-col gap-2 text-sm">
                 <div className="flex justify-between"><span className="text-neutral-gray">Subtotal</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(subtotal)}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-gray">Delivery Fee</span><span className="font-semibold text-text-dark dark:text-text-light">{orderType === 'delivery' ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span></div>
+                {deliveryFeeEnabled && (
+                    <div className="flex justify-between"><span className="text-neutral-gray">Delivery Fee</span><span className="font-semibold text-text-dark dark:text-text-light">{showDelivery ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span></div>
+                )}
+                <div className="flex justify-between"><span className="text-neutral-gray">Service Charge{scConfig.enabled ? ` (${scConfig.percent}%)` : ''}</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(serviceCharge)}</span></div>
+                {(discount ?? 0) > 0 && (
+                    <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-1.5 text-secondary text-sm">
+                            <TagIcon size={14} weight="fill" />
+                            {promoName || 'Promo Discount'}
+                        </span>
+                        <span className="font-semibold text-secondary">-{formatPrice(discount!)}</span>
+                    </div>
+                )}
             </div>
             <div className="h-px bg-neutral-gray/10" />
             <div className="flex justify-between items-center">
@@ -404,27 +430,49 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
     const [phoneTouched, setPhoneTouched] = useState(false);
     const update = (f: keyof ContactDetails) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setContact({ ...contact, [f]: e.target.value });
     const phoneError = phoneTouched && contact.phone.trim() && !isValidGhanaPhone(contact.phone) ? 'Enter a valid Ghana number (e.g. 0241234567 or +233241234567)' : '';
-    const canProceed = contact.name.trim() && contact.phone.trim() && isValidGhanaPhone(contact.phone) && (orderType === 'pickup' || contact.address.trim());
+
+    // Filter order types by branch settings
+    const allOrderTypes = [
+        { type: 'delivery' as const, icon: <TruckIcon weight="fill" size={22} />, label: 'Delivery', sub: 'Delivered to you' },
+        { type: 'pickup' as const, icon: <BagIcon weight="fill" size={22} />, label: 'Pickup', sub: 'Pick up at branch' },
+    ];
+    const enabledOrderTypes = selectedBranch
+        ? allOrderTypes.filter(ot => selectedBranch.orderTypes[ot.type]?.is_enabled !== false)
+        : allOrderTypes;
+
+    // Auto-select order type if only one is available
+    useEffect(() => {
+        if (enabledOrderTypes.length === 1 && orderType !== enabledOrderTypes[0].type) {
+            setOrderType(enabledOrderTypes[0].type);
+        }
+    }, [enabledOrderTypes.length]);
+
+    const branchUnavailable = selectedBranch && (!selectedBranch.isActive || !selectedBranch.isOpen);
+    const canProceed = !branchUnavailable && enabledOrderTypes.length > 0 && contact.name.trim() && contact.phone.trim() && isValidGhanaPhone(contact.phone) && (orderType === 'pickup' || contact.address.trim());
 
     return (
         <>
             <div className="flex flex-col gap-5">
                 <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
                     <h2 className="font-bold text-text-dark dark:text-text-light">How do you want your order?</h2>
-                    <div className="grid grid-cols-2 gap-3">
-                        {([
-                            { type: 'delivery' as const, icon: <TruckIcon weight="fill" size={22} />, label: 'Delivery', sub: 'Delivered to you' },
-                            { type: 'pickup' as const, icon: <BagIcon weight="fill" size={22} />, label: 'Pickup', sub: 'Pick up at branch' },
-                        ]).map(({ type, icon, label, sub }) => (
-                            <button key={type} onClick={() => setOrderType(type)}
-                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all duration-150 cursor-pointer
-                                    ${orderType === type ? 'border-primary bg-primary/8 text-primary' : 'border-neutral-gray/15 text-neutral-gray hover:border-primary/30'}`}>
-                                <span className={orderType === type ? 'text-primary' : 'text-neutral-gray'}>{icon}</span>
-                                <span className="text-sm font-bold">{label}</span>
-                                <span className="text-xs opacity-70">{sub}</span>
-                            </button>
-                        ))}
-                    </div>
+                    {enabledOrderTypes.length === 0 ? (
+                        <div className="flex items-center gap-3 p-4 rounded-2xl bg-error/5 border border-error/20">
+                            <WarningCircleIcon weight="fill" size={20} className="text-error shrink-0" />
+                            <p className="text-sm text-error">No order types are currently available at this branch.</p>
+                        </div>
+                    ) : (
+                        <div className={`grid gap-3 ${enabledOrderTypes.length === 1 ? 'grid-cols-1 max-w-xs' : 'grid-cols-2'}`}>
+                            {enabledOrderTypes.map(({ type, icon, label, sub }) => (
+                                <button key={type} onClick={() => setOrderType(type)}
+                                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all duration-150 cursor-pointer
+                                        ${orderType === type ? 'border-primary bg-primary/8 text-primary' : 'border-neutral-gray/15 text-neutral-gray hover:border-primary/30'}`}>
+                                    <span className={orderType === type ? 'text-primary' : 'text-neutral-gray'}>{icon}</span>
+                                    <span className="text-sm font-bold">{label}</span>
+                                    <span className="text-xs opacity-70">{sub}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {selectedBranch && (
@@ -489,20 +537,34 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
 }
 
 // ─── Step 2 ───────────────────────────────────────────────────────────────────
-function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBack, onPlace, placing }: {
+function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBack, onPlace, placing, scConfig }: {
     paymentMethod: PaymentMethod; setPaymentMethod: (m: PaymentMethod) => void;
-    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: () => void; placing: boolean;
+    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: () => void; placing: boolean; scConfig: ServiceChargeConfig;
 }) {
     const { subtotal } = useCart();
     const { selectedBranch } = useBranch();
     const [branchSheetOpen, setBranchSheetOpen] = useState(false);
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
-    const total = subtotal + delivery;
+    const serviceCharge = calcServiceCharge(subtotal, scConfig);
+    const total = subtotal + delivery + serviceCharge;
 
-    const methods = [
+    // Map frontend payment keys to backend DB keys for branch settings lookup
+    const paymentKeyMap: Record<string, string> = { mobile_money: 'momo', cash: 'cash_on_delivery' };
+
+    const allMethods = [
         { id: 'mobile_money' as const, icon: <DeviceMobileIcon weight="fill" size={20} />, label: 'Mobile Money', sub: 'MTN MoMo · Telecel · AirtelTigo', color: 'text-warning' },
-        { id: 'cash' as const, icon: <MoneyIcon weight="fill" size={20} />, label: orderType === 'delivery' ? 'Cash on Delivery' : 'Cash at Pickup', sub: orderType === 'delivery' ? 'Pay when your order arrives' : 'Pay when you collect', color: 'text-secondary' },
+        { id: 'cash' as const, icon: <MoneyIcon weight="fill" size={20} />, label: 'Cash on Delivery', sub: 'Pay when your order arrives', color: 'text-secondary' },
     ];
+    const methods = selectedBranch
+        ? allMethods.filter(m => selectedBranch.paymentMethods[paymentKeyMap[m.id]]?.is_enabled !== false)
+        : allMethods;
+
+    // Auto-select payment method if only one is available
+    useEffect(() => {
+        if (methods.length === 1 && paymentMethod !== methods[0].id) {
+            setPaymentMethod(methods[0].id);
+        }
+    }, [methods.length]);
 
     return (
         <>
@@ -535,7 +597,12 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
 
                 <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 shadow-sm flex flex-col gap-3">
                     <h2 className="font-bold text-text-dark dark:text-text-light">Payment Method</h2>
-                    {methods.map(m => (
+                    {methods.length === 0 ? (
+                        <div className="flex items-center gap-3 p-4 rounded-2xl bg-error/5 border border-error/20">
+                            <WarningCircleIcon weight="fill" size={20} className="text-error shrink-0" />
+                            <p className="text-sm text-error">No payment methods are currently available at this branch.</p>
+                        </div>
+                    ) : methods.map(m => (
                         <div key={m.id}>
                             <button onClick={() => setPaymentMethod(m.id)}
                                 className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left cursor-pointer ${paymentMethod === m.id ? 'border-primary bg-primary/5' : 'border-neutral-gray/15 hover:border-primary/30'}`}>
@@ -556,7 +623,7 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                     <button onClick={onBack} className="flex cursor-pointer items-center gap-2 px-5 py-4 rounded-2xl border-2 border-neutral-gray/20 font-bold text-neutral-gray hover:border-primary/40 hover:text-primary transition-all">
                         <ArrowLeftIcon weight="bold" size={16} /> Back
                     </button>
-                    <button onClick={() => onPlace()} disabled={placing}
+                    <button onClick={() => onPlace()} disabled={placing || methods.length === 0}
                         className="flex-1 flex cursor-pointer items-center justify-between bg-brown dark:bg-brand-dark hover:bg-brown-light disabled:opacity-70 text-white font-bold px-6 py-4 rounded-2xl transition-all active:scale-[0.98] group">
                         <span>{placing ? 'Placing Order...' : paymentMethod === 'mobile_money' ? 'Pay & Place Order' : 'Place Order'}</span>
                         <div className="flex items-center gap-2">
@@ -572,7 +639,86 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
     );
 }
 
-// ─── Step 3 ───────────────────────────────────────────────────────────────────
+// ─── Step 3: Payment Processing (polls checkout session) ──────────────────────
+function StepProcessing({ sessionToken, onSuccess, onFail, onAbandon }: {
+    sessionToken: string;
+    onSuccess: (orderNumber: string) => void;
+    onFail: (message: string) => void;
+    onAbandon: () => void;
+}) {
+    const { session } = useCheckoutSessionStatus(sessionToken);
+    const abandon = useAbandonCheckoutSession();
+    const [showRecovery, setShowRecovery] = useState(false);
+
+    useEffect(() => {
+        if (!session) return;
+        if (session.status === 'confirmed' && session.order?.order_number) {
+            onSuccess(session.order.order_number);
+        } else if (session.status === 'failed' || session.status === 'expired') {
+            setShowRecovery(true);
+        }
+    }, [session, onSuccess, onFail]);
+
+    const handleAbandon = async () => {
+        try {
+            await abandon.mutateAsync(sessionToken);
+        } catch { /* ignore */ }
+        onAbandon();
+    };
+
+    // Show recovery UI when payment fails or expires
+    if (showRecovery && session) {
+        const isFailed = session.status === 'failed';
+        return (
+            <div className="flex flex-col items-center gap-5 py-10 text-center max-w-sm mx-auto">
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center ${isFailed ? 'bg-red-100 dark:bg-red-900/20' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
+                    <WarningCircleIcon weight="fill" size={40} className={isFailed ? 'text-red-500' : 'text-amber-500'} />
+                </div>
+                <div>
+                    <h2 className="text-xl font-bold text-text-dark dark:text-text-light">
+                        {isFailed ? 'Payment Failed' : 'Session Expired'}
+                    </h2>
+                    <p className="text-sm text-neutral-gray mt-2">
+                        {isFailed
+                            ? 'Your payment could not be completed. Choose an option below to try again.'
+                            : 'Your payment session has expired. You can retry or switch to cash.'}
+                    </p>
+                </div>
+
+                <PaymentRecoveryActions
+                    session={session}
+                    onOrderCreated={onSuccess}
+                    onAbandoned={onAbandon}
+                />
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col items-center gap-6 py-12 text-center">
+            <div className="w-20 h-20 rounded-full bg-primary/15 flex items-center justify-center">
+                <SpinnerGapIcon size={40} className="text-primary animate-spin" />
+            </div>
+            <div>
+                <h2 className="text-xl font-bold text-text-dark dark:text-text-light">Awaiting Payment</h2>
+                <p className="text-sm text-neutral-gray mt-2">
+                    Complete the payment on the Hubtel page.<br />
+                    This page will update automatically once confirmed.
+                </p>
+            </div>
+            <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 w-full max-w-sm text-sm text-text-dark dark:text-text-light text-left flex items-start gap-3">
+                <DeviceMobileIcon weight="fill" size={18} className="text-primary shrink-0 mt-0.5" />
+                <span>If prompted on your phone, approve the Mobile Money payment to continue.</span>
+            </div>
+            <button onClick={handleAbandon} disabled={abandon.isPending}
+                className="text-sm font-semibold text-neutral-gray hover:text-error transition-colors cursor-pointer mt-2">
+                {abandon.isPending ? 'Cancelling...' : 'Cancel & go back'}
+            </button>
+        </div>
+    );
+}
+
+// ─── Step 4 ───────────────────────────────────────────────────────────────────
 function StepDone({ orderNumber, orderType, contact }: {
     orderNumber: string; orderType: OrderType; contact: ContactDetails;
 }) {
@@ -722,26 +868,51 @@ export default function CheckoutPage() {
     const { displayItems: items, clearCart, subtotal } = useCart();
     const { selectedBranch, branches } = useBranch();
     const { coordinates } = useLocation();
-    const { createOrder } = useCreateOrder();
+    const createSession = useCreateCheckoutSession();
     const [step, setStep] = useState<Step>(1);
     const [orderType, setOrderType] = useState<OrderType>('delivery');
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mobile_money');
     const [placing, setPlacing] = useState(false);
     const [orderNumber, setOrderNumber] = useState('');
+    const [sessionToken, setSessionToken] = useState<string | null>(null);
     const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });
+    const [scConfig, setScConfig] = useState<ServiceChargeConfig>(DEFAULT_SC_CONFIG);
+    const [deliveryFeeEnabled, setDeliveryFeeEnabled] = useState(false);
+    const [activePromo, setActivePromo] = useState<Promo | null>(null);
+    const [promoDiscount, setPromoDiscount] = useState(0);
+
+    useEffect(() => {
+        apiClient.get('/checkout-config').then((res: unknown) => {
+            const d = (res as { data?: { service_charge_enabled?: boolean; service_charge_percent?: number; service_charge_cap?: number; delivery_fee_enabled?: boolean } })?.data;
+            if (d) {
+                setScConfig({ enabled: d.service_charge_enabled ?? true, percent: d.service_charge_percent ?? 1, cap: d.service_charge_cap ?? 5 });
+                setDeliveryFeeEnabled(d.delivery_fee_enabled ?? false);
+            }
+        }).catch(() => { /* fall back to defaults */ });
+    }, []);
 
     const effectiveBranch = selectedBranch ?? branches.find(b => b.isOpen) ?? branches[0] ?? null;
+
+    // Auto-resolve best applicable promo
+    useEffect(() => {
+        if (!effectiveBranch || items.length === 0) { setActivePromo(null); setPromoDiscount(0); return; }
+        const itemIds = items.map(ci => String(ci.item.id));
+        getPromoService().resolvePromo(itemIds, String(effectiveBranch.id), subtotal).then(p => {
+            if (!p) { setActivePromo(null); setPromoDiscount(0); return; }
+            setActivePromo(p);
+            setPromoDiscount(getPromoService().calculateDiscount(p, subtotal));
+        }).catch(() => { setActivePromo(null); setPromoDiscount(0); });
+    }, [items, effectiveBranch, subtotal]);
 
     const handlePlaceOrder = useCallback(async () => {
         if (!effectiveBranch) return;
         setPlacing(true);
         try {
-            // Create order via API
-            const response = await createOrder({
+            const session = await createSession.mutateAsync({
                 branch_id: Number(effectiveBranch.id),
                 order_type: orderType,
                 customer_name: contact.name,
-                customer_phone: contact.phone,
+                customer_phone: normalizeGhanaPhone(contact.phone),
                 delivery_address: orderType === 'delivery' ? contact.address : undefined,
                 delivery_latitude: orderType === 'delivery' && coordinates ? coordinates.latitude : undefined,
                 delivery_longitude: orderType === 'delivery' && coordinates ? coordinates.longitude : undefined,
@@ -749,67 +920,102 @@ export default function CheckoutPage() {
                 payment_method: paymentMethod,
             });
 
-            const order = response.data;
-
             if (paymentMethod === 'mobile_money') {
-                // Format phone to 233XXXXXXXXX for Hubtel
-                const formattedPhone = contact.phone.replace(/\s+/g, '').replace(/^\+/, '').replace(/^0/, '233');
-
-                // Initiate Hubtel checkout — returns a checkoutUrl to redirect the customer
-                const paymentResponse = await apiClient.post(
-                    `/orders/${order.id}/payments/hubtel/initiate`,
-                    {
-                        description: `Order ${order.order_number} - ${effectiveBranch.name}`,
-                        customer_name: contact.name,
-                        customer_phone: formattedPhone,
-                    }
-                ) as { data?: { checkout_url?: string } };
-
-                const checkoutUrl = paymentResponse?.data?.checkout_url;
-                if (checkoutUrl) {
-                    clearCart();
-                    window.location.href = checkoutUrl;
+                // Redirect to Hubtel checkout if we have a URL
+                if (session.checkout_url) {
+                    // Don't clear cart here — backend clears it when order is created.
+                    // If payment fails, the customer can retry with their cart intact.
+                    window.location.href = session.checkout_url;
                     return;
                 }
-                // Fallback: Hubtel not configured — treat as placed
-                toast.info('Payment will be collected on delivery/pickup.');
+                // Otherwise poll for status (e.g. if redirect didn't happen)
+                setSessionToken(session.session_token);
+                setStep(3);
+            } else {
+                // Cash: backend creates order immediately
+                if (session.status === 'confirmed' && session.order?.order_number) {
+                    clearCart();
+                    setOrderNumber(session.order.order_number);
+                    setStep(4);
+                } else {
+                    // Session still pending — poll for status
+                    setSessionToken(session.session_token);
+                    setStep(3);
+                }
             }
-
-            clearCart();
-            setOrderNumber(order.order_number);
-            setStep(3);
         } catch (err: unknown) {
             const msg = err instanceof ApiError ? err.message : 'Failed to place order. Please try again.';
             toast.error(msg);
         } finally {
             setPlacing(false);
         }
-    }, [effectiveBranch, paymentMethod, orderType, contact, coordinates, createOrder, clearCart]);
+    }, [effectiveBranch, paymentMethod, orderType, contact, coordinates, createSession, clearCart]);
 
-    if (items.length === 0 && step !== 3) return <EmptyCartGuard />;
+    const handleProcessingSuccess = useCallback((num: string) => {
+        clearCart();
+        setOrderNumber(num);
+        setStep(4);
+    }, [clearCart]);
+
+    const handleProcessingFail = useCallback((message: string) => {
+        toast.error(message);
+        setStep(2);
+        setSessionToken(null);
+    }, []);
+
+    const handleProcessingAbandon = useCallback(() => {
+        setStep(2);
+        setSessionToken(null);
+    }, []);
+
+    if (items.length === 0 && step !== 3 && step !== 4) return <EmptyCartGuard />;
+
+    const branchClosed = effectiveBranch && !effectiveBranch.isOpen;
+    const branchInactive = effectiveBranch && !effectiveBranch.isActive;
+    const branchUnavailable = branchClosed || branchInactive;
 
     return (
         <div className="min-h-screen bg-neutral-light dark:bg-brand-darker pt-20 pb-12">
             <div className="w-[95%] md:w-[85%] xl:w-[75%] max-w-5xl mx-auto">
                 <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-text-dark dark:text-text-light">{step === 3 ? 'Order Confirmed' : 'Checkout'}</h1>
-                        {step !== 3 && <p className="text-sm text-neutral-gray mt-1">Complete your order details below</p>}
+                        <h1 className="text-2xl md:text-3xl font-bold text-text-dark dark:text-text-light">{step === 4 ? 'Order Confirmed' : step === 3 ? 'Processing Payment' : 'Checkout'}</h1>
+                        {step <= 2 && <p className="text-sm text-neutral-gray mt-1">Complete your order details below</p>}
                     </div>
-                    {step !== 3 && <StepIndicator current={step} />}
+                    {step <= 3 && <StepIndicator current={step} />}
                 </div>
 
-                {step === 3 ? (
+                {branchUnavailable && step <= 2 && (
+                    <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl bg-error/5 border border-error/20">
+                        <WarningCircleIcon weight="fill" size={22} className="text-error shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-sm font-bold text-error">
+                                {branchInactive ? 'This branch is currently inactive' : 'This branch is currently closed'}
+                            </p>
+                            <p className="text-xs text-error/80 mt-1">
+                                {branchInactive
+                                    ? 'This branch is not accepting orders at the moment. Please select a different branch or try again later.'
+                                    : 'This branch is closed right now. Please check back during operating hours or select a different branch.'}
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {step === 4 ? (
                     <div className="max-w-md mx-auto">
                         <StepDone orderNumber={orderNumber} orderType={orderType} contact={contact} />
+                    </div>
+                ) : step === 3 && sessionToken ? (
+                    <div className="max-w-md mx-auto">
+                        <StepProcessing sessionToken={sessionToken} onSuccess={handleProcessingSuccess} onFail={handleProcessingFail} onAbandon={handleProcessingAbandon} />
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
                         <div>
                             {step === 1 && <StepDetails orderType={orderType} setOrderType={setOrderType} contact={contact} setContact={setContact} onNext={() => { setContact(c => ({ ...c, phone: normalizeGhanaPhone(c.phone) })); setStep(2); }} />}
-                            {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} />}
+                            {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} scConfig={scConfig} />}
                         </div>
-                        <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} /></div>
+                        <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} scConfig={scConfig} deliveryFeeEnabled={deliveryFeeEnabled} discount={promoDiscount} promoName={activePromo?.name} /></div>
                     </div>
                 )}
             </div>

@@ -1,5 +1,6 @@
 import apiClient from '../client';
-import { MenuItem } from '@/types/api';
+import { MenuItem, SmartCategory, SmartCategorySetting, SmartCategoryPreview } from '@/types/api';
+import { compressImage } from '@/lib/utils/compressImage';
 
 export interface MenuItemsParams {
   category_id?: number;
@@ -118,9 +119,10 @@ export const menuService = {
   /**
    * Upload image for menu item
    */
-  uploadImage: (id: number, imageFile: File): Promise<{ data: MenuItem }> => {
+  uploadImage: async (id: number, imageFile: File): Promise<{ data: MenuItem }> => {
+    const compressed = await compressImage(imageFile);
     const formData = new FormData();
-    formData.append('image', imageFile);
+    formData.append('image', compressed);
 
     return apiClient.post(`/admin/menu-items/${id}/image`, formData, {
       headers: {
@@ -129,9 +131,10 @@ export const menuService = {
     });
   },
 
-  uploadOptionImage: (menuItemId: number, optionId: number, imageFile: File): Promise<{ data: MenuItem }> => {
+  uploadOptionImage: async (menuItemId: number, optionId: number, imageFile: File): Promise<{ data: MenuItem }> => {
+    const compressed = await compressImage(imageFile);
     const formData = new FormData();
-    formData.append('image', imageFile);
+    formData.append('image', compressed);
 
     return apiClient.post(`/admin/menu-items/${menuItemId}/options/${optionId}/image`, formData, {
       headers: {
@@ -145,5 +148,41 @@ export const menuService = {
    */
   deleteItem: (id: number): Promise<void> => {
     return apiClient.delete(`/admin/menu-items/${id}`);
+  },
+
+  /**
+   * Get active smart categories (computed virtual categories) for a branch
+   */
+  getSmartCategories: (branchId: number): Promise<{ data: SmartCategory[] }> => {
+    return apiClient.get('/smart-categories', { params: { branch_id: branchId } });
+  },
+
+  // ─── Smart Category Settings (Admin) ─────────────────────────────────────
+
+  getSmartCategorySettings: (): Promise<{ data: SmartCategorySetting[] }> => {
+    return apiClient.get('/admin/smart-categories');
+  },
+
+  updateSmartCategorySetting: (
+    id: number,
+    data: Partial<Pick<SmartCategorySetting, 'is_enabled' | 'item_limit' | 'visible_hour_start' | 'visible_hour_end'>>,
+  ): Promise<{ data: SmartCategorySetting }> => {
+    return apiClient.patch(`/admin/smart-categories/${id}`, data);
+  },
+
+  reorderSmartCategories: (order: number[]): Promise<{ data: SmartCategorySetting[] }> => {
+    return apiClient.post('/admin/smart-categories/reorder', { order });
+  },
+
+  previewSmartCategory: (id: number, branchId: number): Promise<{ data: SmartCategoryPreview }> => {
+    return apiClient.get(`/admin/smart-categories/${id}/preview`, { params: { branch_id: branchId } });
+  },
+
+  warmSmartCategoryCache: (branchId?: number): Promise<{ data: null; message: string }> => {
+    return apiClient.post('/admin/smart-categories/warm-cache', branchId ? { branch_id: branchId } : {});
+  },
+
+  resetSmartCategorySetting: (id: number): Promise<{ data: SmartCategorySetting }> => {
+    return apiClient.post(`/admin/smart-categories/${id}/reset`);
   },
 };

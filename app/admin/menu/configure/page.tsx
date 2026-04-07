@@ -24,14 +24,15 @@ import {
 } from '@/lib/api/hooks/useMenuCategories';
 import type { MenuCategory, CreateMenuCategoryData } from '@/lib/api/services/menuCategory.service';
 import { useBranch } from '@/app/components/providers/BranchProvider';
+import SmartCategoriesSection from './SmartCategoriesSection';
 
 // ─── Menu sub-tabs (shared pattern) ──────────────────────────────────────────
 
 const MENU_SUB_TABS = [
-    { href: '/admin/menu',           label: 'Items'     },
-    { href: '/admin/menu-add-ons',   label: 'Add-ons'   },
-    { href: '/admin/menu-tags',      label: 'Tags'      },
-    { href: '/admin/menu/configure', label: 'Configure'  },
+    { href: '/admin/menu',                    label: 'Items'            },
+    { href: '/admin/menu-add-ons',            label: 'Add-ons'          },
+    { href: '/admin/menu-tags',               label: 'Tags'             },
+    { href: '/admin/menu/configure',          label: 'Configure'        },
 ];
 
 function MenuSubTabs() {
@@ -289,7 +290,7 @@ export default function AdminMenuConfigurePage() {
 
                                 {/* Items count */}
                                 <p className="text-center text-sm font-body text-neutral-gray">
-                                    {cat.menu_items_count ?? 0}
+                                    {cat.items_count ?? 0}
                                 </p>
 
                                 {/* Active toggle */}
@@ -310,9 +311,9 @@ export default function AdminMenuConfigurePage() {
                                         <PencilSimpleIcon size={14} weight="bold" />
                                     </button>
                                     <button type="button" onClick={() => setDeleteTarget(cat)}
-                                        disabled={(cat.menu_items_count ?? 0) > 0}
+                                        disabled={(cat.items_count ?? 0) > 0}
                                         className="p-1.5 rounded-lg text-neutral-gray hover:text-error hover:bg-error/10 transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
-                                        title={(cat.menu_items_count ?? 0) > 0 ? `Has ${cat.menu_items_count} items — move them first` : 'Delete category'}>
+                                        title={(cat.items_count ?? 0) > 0 ? `Has ${cat.items_count} items — move them first` : 'Delete category'}>
                                         <TrashIcon size={14} weight="bold" />
                                     </button>
                                 </div>
@@ -356,6 +357,9 @@ export default function AdminMenuConfigurePage() {
                     </p>
                 </>
             )}
+
+            {/* ─── Smart Categories Section ─────────────────────────────── */}
+            <SmartCategoriesSection branches={branches} />
 
             {/* Delete confirm modal */}
             {deleteTarget && (

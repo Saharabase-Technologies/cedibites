@@ -24,6 +24,8 @@ import {
   ClipboardTextIcon,
   PrinterIcon,
   TagIcon,
+  HourglassIcon,
+  WarningCircleIcon,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { usePOS } from '../context';
@@ -41,6 +43,8 @@ import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
+import PendingPaymentsDrawer from './PendingPaymentsDrawer';
+import { usePosCheckoutSessions } from '@/lib/api/hooks/useCheckoutSession';
 
 interface ItemOption {
   key: string;
@@ -132,10 +136,12 @@ export default function POSTerminalPage() {
     closePayment,
     processPayment,
     isManualEntry,
+    setIsManualEntry,
     todayOrders,
   } = usePOS();
-  const { logout } = useStaffAuth();
+  const { staffUser, logout } = useStaffAuth();
   const { branches } = useBranch();
+  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
   const { items: menuItems, categories: menuCategories, isLoading: menuLoading } = useMenuItems();
 
   const [activeCategory, setActiveCategory] = useState('all');
@@ -149,6 +155,15 @@ export default function POSTerminalPage() {
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
   const [optionPickerItem, setOptionPickerItem] = useState<DisplayMenuItem | null>(null);
+  const [isPendingDrawerOpen, setIsPendingDrawerOpen] = useState(false);
+  const [backgroundMomoToken, setBackgroundMomoToken] = useState<string | null>(null);
+  const [backgroundConfirmedOrder, setBackgroundConfirmedOrder] = useState<Order | null>(null);
+
+  // Pending checkout sessions count for badge
+  const { data: pendingSessionsData } = usePosCheckoutSessions(
+    session?.branchId ? { branch_id: Number(session.branchId), status: 'pending,payment_initiated' } : undefined
+  );
+  const pendingCount = pendingSessionsData?.data?.length ?? 0;
 
   // Redirect if no session (but not if we just need branch selection)
   useEffect(() => {
@@ -161,12 +176,45 @@ export default function POSTerminalPage() {
   useEffect(() => {
     if (!session?.branchId || cart.length === 0) { setActivePromo(null); setPromoDiscount(0); return; }
     const itemIds = cart.map(c => c.menuItemId);
-    getPromoService().resolvePromo(itemIds, session.branchId).then(p => {
+    getPromoService().resolvePromo(itemIds, session.branchId, cartTotal).then(p => {
       if (!p) { setActivePromo(null); setPromoDiscount(0); return; }
       setActivePromo(p);
       setPromoDiscount(getPromoService().calculateDiscount(p, cartTotal));
     }).catch(() => { setActivePromo(null); setPromoDiscount(0); });
   }, [cart, session?.branchId, cartTotal]);
+
+  // Background poll for dismissed MoMo sessions — detect when payment completes
+  useEffect(() => {
+    if (!backgroundMomoToken) return;
+    const interval = setInterval(async () => {
+      try {
+        const { checkoutSessionService } = await import('@/lib/api/services/checkout-session.service');
+        const cs = await checkoutSessionService.posGetStatus(backgroundMomoToken);
+        if (cs.status === 'confirmed' && cs.order) {
+          clearInterval(interval);
+          setBackgroundMomoToken(null);
+          const o = cs.order;
+          setBackgroundConfirmedOrder({
+            orderNumber: o.order_number ?? '',
+            status: 'received',
+            paymentStatus: 'completed',
+            isPaid: true,
+            total: o.total_amount ?? cs.total_amount,
+            items: (o.items ?? []).map((i) => ({
+              name: i.menu_item?.name ?? i.menu_item_snapshot?.name ?? 'Item',
+              quantity: i.quantity,
+              price: i.unit_price,
+            })),
+            contact: { name: o.contact_name, phone: o.contact_phone },
+          } as unknown as Order);
+        } else if (cs.status === 'failed' || cs.status === 'expired') {
+          clearInterval(interval);
+          setBackgroundMomoToken(null);
+        }
+      } catch { /* ignore poll errors */ }
+    }, 7000);
+    return () => clearInterval(interval);
+  }, [backgroundMomoToken]);
 
   // Branches this staff member can switch between (empty branchIds = admin = all branches)
   const switchableBranches = useMemo(() => {
@@ -259,8 +307,13 @@ export default function POSTerminalPage() {
       } else {
         setCompletedOrder(order);
       }
-    } catch {
-      toast.error('Failed to create order. Please try again.');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> }; status?: number } };
+      const apiMsg = axiosErr?.response?.data?.message;
+      const apiErrors = axiosErr?.response?.data?.errors;
+      const status = axiosErr?.response?.status;
+      console.error('[POS] Order creation failed:', { status, apiMsg, apiErrors, err });
+      toast.error(apiMsg || 'Failed to create order. Please try again.');
     }
   };
 
@@ -293,6 +346,55 @@ export default function POSTerminalPage() {
         onSelect={selectBranch}
         subtitle="Choose which branch POS to operate"
       />
+    );
+  }
+
+  // Guard: branch is closed or inactive — admin/tech_admin bypass
+  if (!isAdmin && branchInfo && (!branchInfo.isActive || !branchInfo.isOpen)) {
+    const isInactive = !branchInfo.isActive;
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-neutral-light p-6">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-lg p-8 flex flex-col items-center gap-5 text-center">
+          <div className="w-16 h-16 rounded-full bg-error/10 flex items-center justify-center">
+            <WarningCircleIcon weight="fill" size={36} className="text-error" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-text-dark">
+              {isInactive ? 'Branch Inactive' : 'Branch Closed'}
+            </h2>
+            <p className="text-sm text-neutral-gray mt-2">
+              {isInactive
+                ? `${branchInfo.name} Branch is currently inactive and not accepting orders. Contact an administrator to reactivate it.`
+                : `${branchInfo.name} Branch is currently closed. POS is unavailable outside operating hours.`}
+            </p>
+          </div>
+          {switchableBranches.length > 1 && (
+            <button
+              onClick={() => setIsBranchSwitcherOpen(true)}
+              className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold px-6 py-3 rounded-2xl transition-all active:scale-[0.98]"
+            >
+              <StorefrontIcon weight="fill" size={18} />
+              Switch Branch
+            </button>
+          )}
+          <button
+            onClick={() => logout()}
+            className="flex items-center gap-2 text-sm font-semibold text-neutral-gray hover:text-error transition-colors"
+          >
+            <SignOutIcon weight="bold" size={16} />
+            Sign Out
+          </button>
+        </div>
+        {switchableBranches.length > 1 && (
+          <BranchSwitcherDialog
+            isOpen={isBranchSwitcherOpen}
+            branches={switchableBranches}
+            currentBranchId={session?.branchId}
+            onSelect={selectBranch}
+            onClose={() => setIsBranchSwitcherOpen(false)}
+          />
+        )}
+      </div>
     );
   }
 
@@ -349,6 +451,20 @@ export default function POSTerminalPage() {
                 <p className="text-lg font-medium text-primary">{formatGHS(todayStats.revenue)}</p>
               </div>
             </div>
+
+            {/* Pending payments button */}
+            <button
+              onClick={() => setIsPendingDrawerOpen(true)}
+              className="relative w-10 h-10 rounded-xl bg-neutral-gray/10 flex items-center justify-center text-neutral-gray hover:text-primary hover:bg-primary/10 transition-colors"
+              title="Pending Payments"
+            >
+              <HourglassIcon className="w-5 h-5" />
+              {pendingCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-0.5 rounded-full bg-error text-white text-[10px] font-bold flex items-center justify-center">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
 
             {/* Orders link with active badge */}
             <Link
@@ -500,6 +616,8 @@ export default function POSTerminalPage() {
         {/* Order Type Toggle */}
         <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15">
           <div className="flex gap-2">
+            {/* Map POS order types to DB keys: dine_in→dine_in, takeaway→pickup */}
+            {(branchInfo?.orderTypes?.['dine_in']?.is_enabled !== false) && (
             <button
               onClick={() => setOrderType('dine_in')}
               className={`
@@ -513,6 +631,8 @@ export default function POSTerminalPage() {
             >
               Dine In
             </button>
+            )}
+            {(branchInfo?.orderTypes?.['pickup']?.is_enabled !== false) && (
             <button
               onClick={() => setOrderType('takeaway')}
               className={`
@@ -526,6 +646,7 @@ export default function POSTerminalPage() {
             >
               Takeaway
             </button>
+            )}
           </div>
         </div>
 
@@ -635,26 +756,47 @@ export default function POSTerminalPage() {
 
         {/* Total & Pay Button */}
         <div className="shrink-0 p-4 border-t border-neutral-gray/20 bg-neutral-light">
-          {activePromo && promoDiscount > 0 && (
-            <div className="flex items-center justify-between mb-2">
-              <span className="flex items-center gap-1.5 text-secondary text-sm">
-                <TagIcon size={12} weight="fill" />
-                {activePromo.name}
+          {activePromo && promoDiscount > 0 ? (
+            <>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-neutral-gray text-sm">Subtotal</span>
+                <span className="text-sm text-neutral-gray">{formatGHS(cartTotal)}</span>
+              </div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="flex items-center gap-1.5 text-secondary text-sm">
+                  <TagIcon size={12} weight="fill" />
+                  {activePromo.name}
+                </span>
+                <span className="text-secondary text-sm font-semibold">-{formatGHS(promoDiscount)}</span>
+              </div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-neutral-gray font-medium">Total</span>
+                <span className="text-2xl font-bold text-primary">
+                  {formatGHS(effectiveTotal)}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-neutral-gray">Total</span>
+              <span className="text-2xl font-bold text-primary">
+                {formatGHS(effectiveTotal)}
               </span>
-              <span className="text-secondary text-sm font-semibold">-{formatGHS(promoDiscount)}</span>
             </div>
           )}
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-neutral-gray">Total</span>
-            <span className="text-2xl font-bold text-primary">
-              {formatGHS(effectiveTotal)}
-            </span>
-          </div>
 
           {isManualEntry && (
-            <div className="flex items-center justify-center gap-2 py-2 mb-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-              Recording Past Order
+            <div className="flex items-center justify-between py-2 px-3 mb-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
+              <span className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                Recording Past Order
+              </span>
+              <button
+                onClick={() => { clearCart(); setIsManualEntry(false); }}
+                className="px-2 py-0.5 rounded-md bg-amber-200 hover:bg-amber-300 text-amber-800 text-xs font-semibold transition-colors"
+              >
+                Exit
+              </button>
             </div>
           )}
 
@@ -719,6 +861,7 @@ export default function POSTerminalPage() {
           onClose={closePayment}
           onPayment={handlePaymentComplete}
           isManualEntry={isManualEntry}
+          branchPaymentMethods={branchInfo?.paymentMethods}
         />
       )}
 
@@ -731,10 +874,25 @@ export default function POSTerminalPage() {
             setCompletedOrder(confirmedOrder);
           }}
           onTimeout={() => {
+            const token = pendingMomoOrder._sessionToken;
             setPendingMomoOrder(null);
-            toast.error('Payment timed out. Please ask the customer to try again.');
+            if (token) {
+              setBackgroundMomoToken(token);
+              setIsPendingDrawerOpen(true);
+              toast.error('Payment timed out. Moved to Pending Payments — you can retry from there.');
+            } else {
+              toast.error('Payment timed out. Please ask the customer to try again.');
+            }
           }}
-          onCancel={() => setPendingMomoOrder(null)}
+          onCancel={() => {
+            const token = pendingMomoOrder._sessionToken;
+            setPendingMomoOrder(null);
+            if (token) {
+              setBackgroundMomoToken(token);
+              setIsPendingDrawerOpen(true);
+              toast.info('Payment moved to Pending Payments. You can continue taking orders.');
+            }
+          }}
         />
       )}
 
@@ -744,6 +902,38 @@ export default function POSTerminalPage() {
           order={completedOrder}
           branch={{ name: branchInfo?.name ?? 'CediBites', address: branchInfo?.address, phone: branchInfo?.phone }}
           onClose={() => setCompletedOrder(null)}
+        />
+      )}
+
+      {/* Background MoMo Payment Confirmed Overlay */}
+      {backgroundConfirmedOrder && (
+        <PaymentConfirmedOverlay
+          order={backgroundConfirmedOrder}
+          onDismiss={() => setBackgroundConfirmedOrder(null)}
+        />
+      )}
+
+      {/* Pending Payments Drawer */}
+      {session?.branchId && (
+        <PendingPaymentsDrawer
+          branchId={Number(session.branchId)}
+          isOpen={isPendingDrawerOpen}
+          onClose={() => setIsPendingDrawerOpen(false)}
+          onSessionConfirmed={(cs) => {
+            if (cs.order) {
+              setCompletedOrder({
+                id: cs.order.id,
+                orderCode: cs.order.order_number ?? '',
+                orderNumber: cs.order.order_number ?? '',
+                status: 'received',
+                paymentStatus: 'completed',
+                isPaid: true,
+                total: cs.total_amount,
+                items: cs.items.map(i => ({ name: i.name, quantity: i.quantity, price: i.unit_price })),
+                contact: { name: cs.customer_name, phone: cs.customer_phone },
+              } as unknown as Order);
+            }
+          }}
         />
       )}
 
@@ -819,9 +1009,12 @@ interface PaymentModalProps {
   onClose: () => void;
   onPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string }) => void;
   isManualEntry?: boolean;
+  branchPaymentMethods?: Record<string, { is_enabled: boolean }>;
 }
 
-function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModalProps) {
+function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentMethods }: PaymentModalProps) {
+  const { staffUser } = useStaffAuth();
+  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [cashAmount, setCashAmount] = useState('');
   const [momoNumber, setMomoNumber] = useState('');
@@ -831,7 +1024,21 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
   const [momoVerifyError, setMomoVerifyError] = useState<string | null>(null);
   // Manual entry fields
   const [recordedAt, setRecordedAt] = useState('');
+  const [recordedTime, setRecordedTime] = useState('');
   const [momoReference, setMomoReference] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [dateEnabled, setDateEnabled] = useState<boolean | null>(null);
+
+  // Fetch manual_entry_date_enabled setting
+  useEffect(() => {
+    if (!isManualEntry) return;
+    apiClient.get('/settings/manual_entry_date_enabled')
+      .then((res: unknown) => {
+        const val = (res as { data?: { value?: unknown } })?.data?.value;
+        setDateEnabled(val === true || val === 'true' || val === '1');
+      })
+      .catch(() => setDateEnabled(false));
+  }, [isManualEntry]);
 
   const cashChange = useMemo(() => {
     const paid = parseFloat(cashAmount) || 0;
@@ -873,21 +1080,32 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
 
   const handleConfirm = async () => {
     if (!selectedMethod) return;
+    setValidationError(null);
 
-    // Manual entry requires a date
-    if (isManualEntry && !recordedAt) {
-      alert('Please enter the date & time the order was taken');
-      return;
+    // Manual entry requires a date/time
+    if (isManualEntry) {
+      if (dateEnabled && !recordedAt) {
+        setValidationError('Please enter the date & time the order was taken.');
+        return;
+      }
+      if (!dateEnabled && !recordedTime) {
+        setValidationError('Please enter the time the order was taken.');
+        return;
+      }
     }
 
     setIsProcessing(true);
 
-    const manualOpts = isManualEntry ? { recordedAt, momoReference: momoReference || undefined } : undefined;
+    // Compose recordedAt: if time-only mode, combine today's date + entered time
+    const effectiveRecordedAt = isManualEntry
+      ? (dateEnabled ? recordedAt : `${new Date().toISOString().slice(0, 10)}T${recordedTime}`)
+      : undefined;
+    const manualOpts = isManualEntry ? { recordedAt: effectiveRecordedAt!, momoReference: momoReference || undefined } : undefined;
 
     if (selectedMethod === 'cash') {
       const paid = parseFloat(cashAmount) || total;
       if (paid < total) {
-        alert('Amount paid is less than total');
+        setValidationError('Amount paid is less than total.');
         setIsProcessing(false);
         return;
       }
@@ -895,7 +1113,8 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
     } else if (selectedMethod === 'mobile_money') {
       await onPayment('mobile_money', undefined, normalizeGhanaPhone(momoNumber), manualOpts);
     } else if (selectedMethod === 'manual_momo') {
-      await onPayment('manual_momo', undefined, undefined, manualOpts);
+      const manualMomoNum = momoNumber ? normalizeGhanaPhone(momoNumber) : undefined;
+      await onPayment('manual_momo', undefined, manualMomoNum, manualOpts);
     } else if (selectedMethod === 'no_charge') {
       await onPayment('no_charge', undefined, undefined, manualOpts);
     } else {
@@ -907,15 +1126,15 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-      <div className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl">
+      <div className="w-full max-w-md rounded-3xl overflow-hidden shadow-2xl bg-white">
         {/* Header */}
         <div className="px-6 py-4 border-b border-neutral-gray/20 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-text-dark">
-            {isManualEntry ? 'Record Past Order' : 'Payment'}
+            {isManualEntry ? '⏱ Record Past Order' : 'Payment'}
           </h2>
           <button
             onClick={onClose}
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-neutral-gray hover:text-text-dark hover:bg-neutral-gray/10 transition-all"
+            className="w-10 h-10 rounded-xl flex items-center justify-center transition-all text-neutral-gray hover:text-text-dark hover:bg-neutral-gray/10"
           >
             <XIcon className="w-5 h-5" />
           </button>
@@ -923,7 +1142,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
 
         {/* Total */}
         <div className="px-6 py-6 border-b border-neutral-gray/15 text-center">
-          <p className="text-neutral-gray text-sm mb-1">Amount Due</p>
+          <p className="text-sm mb-1 text-neutral-gray">Amount Due</p>
           <p className="text-4xl font-bold text-primary">{formatGHS(total)}</p>
         </div>
 
@@ -931,36 +1150,70 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
 
           {/* Manual entry: date/time picker */}
-          {isManualEntry && (
+          {isManualEntry && dateEnabled !== null && (
             <div className="space-y-2">
-              <p className="text-neutral-gray text-sm">When was this order?</p>
-              <input
-                type="datetime-local"
-                value={recordedAt}
-                max={new Date().toISOString().slice(0, 16)}
-                onChange={e => setRecordedAt(e.target.value)}
-                className="
-                  w-full h-12 px-4 rounded-xl text-sm
-                  bg-neutral-light text-text-dark
-                  border border-neutral-gray/20 focus:border-primary/50
-                  outline-none transition-colors
-                "
-              />
+              <p className="text-sm text-neutral-gray">
+                {dateEnabled ? 'When was this order?' : 'What time was this order?'}
+              </p>
+              {dateEnabled ? (
+                <>
+                  <input
+                    type="datetime-local"
+                    value={recordedAt}
+                    max={new Date().toISOString().slice(0, 16)}
+                    onChange={e => setRecordedAt(e.target.value)}
+                    className={`
+                      w-full h-12 px-4 rounded-xl text-sm
+                      border focus:border-primary/50
+                      outline-none transition-colors
+                      bg-neutral-light text-text-dark border-neutral-gray/20
+                    `}
+                  />
+                  <p className="text-xs text-neutral-gray/70">Only past dates &amp; times allowed — you cannot log a future order.</p>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="time"
+                    value={recordedTime}
+                    onChange={e => setRecordedTime(e.target.value)}
+                    className={`
+                      w-full h-12 px-4 rounded-xl text-sm
+                      border focus:border-primary/50
+                      outline-none transition-colors
+                      bg-neutral-light text-text-dark border-neutral-gray/20
+                    `}
+                  />
+                  <p className="text-xs text-neutral-gray/70">Only past times allowed — you cannot log a future order.</p>
+                </>
+              )}
             </div>
           )}
 
-          <p className="text-neutral-gray text-sm">Select payment method</p>
+          <p className="text-sm text-neutral-gray">Select payment method</p>
 
           <div className="grid grid-cols-2 gap-3">
-            {([
-              { id: 'cash' as PaymentMethod, label: 'Cash', icon: CurrencyDollarIcon },
-              ...(isManualEntry
-                ? [{ id: 'manual_momo' as PaymentMethod, label: 'Direct MoMo', icon: DeviceMobileIcon }]
-                : [{ id: 'mobile_money' as PaymentMethod, label: 'MoMo', icon: DeviceMobileIcon }]
-              ),
-              { id: 'card' as PaymentMethod, label: 'Card', icon: CreditCardIcon },
-              { id: 'no_charge' as PaymentMethod, label: 'No Charge', icon: ProhibitIcon },
-            ]).map(method => (
+            {(() => {
+              // Map POS payment method IDs to branch settings DB keys
+              const posToDbKey: Record<string, string> = { cash: 'cash_on_delivery', mobile_money: 'momo', manual_momo: 'momo', card: 'card', no_charge: 'no_charge' };
+              const isMethodEnabled = (id: string) => {
+                const dbKey = posToDbKey[id];
+                if (!dbKey || !branchPaymentMethods) return true; // No branch data = allow all
+                return branchPaymentMethods[dbKey]?.is_enabled !== false;
+              };
+
+              return [
+                { id: 'cash' as PaymentMethod, label: 'Cash', icon: CurrencyDollarIcon },
+                ...(isManualEntry
+                  ? [{ id: 'manual_momo' as PaymentMethod, label: 'Direct MoMo', icon: DeviceMobileIcon }]
+                  : [{ id: 'mobile_money' as PaymentMethod, label: 'MoMo', icon: DeviceMobileIcon }]
+                ),
+                { id: 'card' as PaymentMethod, label: 'Card', icon: CreditCardIcon },
+                ...(isAdmin
+                  ? [{ id: 'no_charge' as PaymentMethod, label: 'No Charge', icon: ProhibitIcon }]
+                  : []
+                ),
+              ].filter(m => isMethodEnabled(m.id)).map(method => (
               <button
                 key={method.id}
                 onClick={() => setSelectedMethod(method.id)}
@@ -968,15 +1221,15 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
                   py-4 rounded-2xl flex flex-col items-center gap-2
                   transition-all duration-150
                   ${selectedMethod === method.id
-                    ? 'bg-primary text-brown ring-2 ring-primary ring-offset-2 ring-offset-white'
-                    : 'bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20'
-                  }
+? 'bg-primary text-brown ring-2 ring-primary ring-offset-2 ring-offset-white'
+                    : 'bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20'}
                 `}
               >
                 <method.icon className="w-7 h-7" />
                 <span className="font-medium text-sm">{method.label}</span>
               </button>
-            ))}
+            ));
+            })()}
           </div>
 
           {/* Cash Input */}
@@ -1091,16 +1344,30 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
             <div className="pt-2 space-y-2">
               <p className="text-neutral-gray text-xs">Customer paid via direct MoMo transfer to branch number</p>
               <input
+                type="tel"
+                placeholder="Customer's MoMo number"
+                value={momoNumber}
+                onChange={e => setMomoNumber(e.target.value)}
+                className={`
+                  w-full h-12 px-4 rounded-xl text-sm
+                  placeholder:text-neutral-gray/60
+                  border focus:border-primary/50
+                  outline-none transition-colors
+                  bg-neutral-light text-text-dark border-neutral-gray/20
+                `}
+              />
+              <input
                 type="text"
                 placeholder="MoMo transaction ID (optional)"
                 value={momoReference}
                 onChange={e => setMomoReference(e.target.value)}
-                className="
+                className={`
                   w-full h-12 px-4 rounded-xl text-sm
-                  bg-neutral-light text-text-dark placeholder:text-neutral-gray/60
-                  border border-neutral-gray/20 focus:border-primary/50
+                  placeholder:text-neutral-gray/60
+                  border focus:border-primary/50
                   outline-none transition-colors
-                "
+                  bg-neutral-light text-text-dark border-neutral-gray/20
+                `}
               />
             </div>
           )}
@@ -1113,6 +1380,10 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
           )}
         </div>
 
+        {validationError && (
+          <p className="text-sm text-error text-center mb-2">{validationError}</p>
+        )}
+
         {/* Confirm Button */}
         <div className="p-6 pt-0">
           <button
@@ -1120,7 +1391,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
             disabled={
               !selectedMethod || isProcessing
               || (selectedMethod === 'mobile_money' && !momoVerified)
-              || (isManualEntry && !recordedAt)
+              || (isManualEntry && !recordedAt && !recordedTime)
             }
             className="
               w-full h-14 rounded-2xl font-semibold text-lg
@@ -1262,6 +1533,7 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
   useEffect(() => {
     const startTime = Date.now();
     let timedOut = false;
+    const sessionToken = order._sessionToken;
 
     // Countdown timer
     const countdown = setInterval(() => {
@@ -1270,9 +1542,9 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
       setSecondsRemaining(remaining);
     }, 1000);
 
-    // Payment status polling
+    // Payment status polling via checkout session or legacy payment verify
     const poll = setInterval(async () => {
-      if (timedOut || !order.paymentId) return;
+      if (timedOut) return;
 
       const elapsed = Date.now() - startTime;
       if (elapsed >= MOMO_TIMEOUT_MS) {
@@ -1284,19 +1556,37 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
       }
 
       try {
-        const response = await apiClient.get(`/payments/${order.paymentId}/verify`);
-        const data = response as unknown as { data?: { payment_status?: string } };
-        const status = data?.data?.payment_status;
+        if (sessionToken) {
+          // New flow: poll checkout session status
+          const { checkoutSessionService } = await import('@/lib/api/services/checkout-session.service');
+          const session = await checkoutSessionService.posGetStatus(sessionToken);
 
-        if (status === 'completed') {
-          clearInterval(poll);
-          clearInterval(countdown);
-          onConfirmed({ ...order, paymentStatus: 'completed', isPaid: true });
-        } else if (status === 'failed') {
-          clearInterval(poll);
-          clearInterval(countdown);
-          toast.error('Payment was declined. Please ask the customer to try again.');
-          onCancel();
+          if (session.status === 'confirmed') {
+            clearInterval(poll);
+            clearInterval(countdown);
+            onConfirmed({ ...order, paymentStatus: 'completed', isPaid: true, orderNumber: session.order?.order_number ?? order.orderNumber });
+          } else if (session.status === 'failed' || session.status === 'expired') {
+            clearInterval(poll);
+            clearInterval(countdown);
+            toast.error('Payment was declined. Please ask the customer to try again.');
+            onCancel();
+          }
+        } else if (order.paymentId) {
+          // Legacy flow: poll payment verify endpoint
+          const response = await apiClient.get(`/payments/${order.paymentId}/verify`);
+          const data = response as unknown as { data?: { payment_status?: string } };
+          const status = data?.data?.payment_status;
+
+          if (status === 'completed') {
+            clearInterval(poll);
+            clearInterval(countdown);
+            onConfirmed({ ...order, paymentStatus: 'completed', isPaid: true });
+          } else if (status === 'failed') {
+            clearInterval(poll);
+            clearInterval(countdown);
+            toast.error('Payment was declined. Please ask the customer to try again.');
+            onCancel();
+          }
         }
       } catch {
         // ignore poll errors — keep trying
@@ -1353,8 +1643,61 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
               transition-all duration-150
             "
           >
-            Cancel
+            Dismiss &mdash; Track in Pending
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Payment Confirmed Overlay (background MoMo) ─────────────────────────────
+
+function PaymentConfirmedOverlay({ order, onDismiss }: { order: Order; onDismiss: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 8000);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-start justify-center bg-black/50 animate-in fade-in duration-300">
+      <div className="w-full max-w-lg mt-0 bg-green-600 text-white rounded-b-3xl shadow-2xl overflow-hidden animate-in slide-in-from-top duration-500">
+        <div className="px-6 py-8 text-center">
+          <div className="w-16 h-16 mx-auto rounded-full bg-white/20 flex items-center justify-center mb-4">
+            <CheckCircleIcon className="w-10 h-10 text-white" weight="fill" />
+          </div>
+          <h2 className="text-2xl font-bold mb-1">Payment Confirmed!</h2>
+          <p className="text-white/80 text-sm mb-4">
+            A pending MoMo payment just completed
+          </p>
+
+          <div className="bg-white/15 rounded-2xl p-4 mb-5 text-left space-y-2">
+            {order.orderNumber && (
+              <div className="flex justify-between text-sm">
+                <span className="text-white/70">Order</span>
+                <span className="font-bold">{order.orderNumber}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-white/70">Customer</span>
+              <span className="font-medium">{order.contact?.name || 'Walk-in'}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-white/70">Amount</span>
+              <span className="font-bold">{formatGHS(order.total)}</span>
+            </div>
+          </div>
+
+          <button
+            onClick={onDismiss}
+            className="w-full h-12 rounded-2xl font-medium bg-white text-green-700 hover:bg-white/90 active:scale-[0.98] transition-all"
+          >
+            Got it
+          </button>
+        </div>
+
+        <div className="h-1 bg-white/20">
+          <div className="h-full bg-white animate-shrink" style={{ animationDuration: '8s' }} />
         </div>
       </div>
     </div>

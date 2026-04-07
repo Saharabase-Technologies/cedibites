@@ -20,7 +20,7 @@ export interface DisplayBranch {
   perKmFee: number;
   minOrderValue: number;
   orderTypes: { delivery: boolean; pickup: boolean; dineIn: boolean };
-  payments: { momo: boolean; cashOnDelivery: boolean; cashAtPickup: boolean };
+  payments: { momo: boolean; cashOnDelivery: boolean; card: boolean; noCharge: boolean };
   hours: Record<string, { open: boolean; from: string; to: string }>;
 }
 
@@ -118,7 +118,8 @@ export function mapApiBranchToDisplay(api: ApiBranch, stats?: { today_orders?: n
     payments: {
       momo: paymentMethods.momo?.is_enabled ?? true,
       cashOnDelivery: paymentMethods.cash_on_delivery?.is_enabled ?? true,
-      cashAtPickup: paymentMethods.cash_at_pickup?.is_enabled ?? true,
+      card: paymentMethods.card?.is_enabled ?? false,
+      noCharge: paymentMethods.no_charge?.is_enabled ?? false,
     },
     hours,
   };

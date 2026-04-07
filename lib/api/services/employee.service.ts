@@ -52,15 +52,14 @@ function extractData<T>(response: unknown): T {
 
 function mapApiRoleToStaffRole(roleName: string): StaffRole {
   const map: Record<string, StaffRole> = {
-    super_admin: 'super_admin',
-    admin: 'super_admin', // backend admin role maps to super_admin for display
+    tech_admin: 'tech_admin',
+    admin: 'admin',
     branch_partner: 'branch_partner',
     manager: 'manager',
     call_center: 'call_center',
     sales_staff: 'sales_staff',
     kitchen: 'kitchen',
     rider: 'rider',
-    employee: 'sales_staff', // legacy employee role maps to sales_staff
   };
   const lower = roleName.toLowerCase().replace(/\s+/g, '_');
   return (map[lower] ?? 'sales_staff') as StaffRole;
@@ -69,24 +68,41 @@ function mapApiRoleToStaffRole(roleName: string): StaffRole {
 function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
   const role = api.user?.roles?.[0] ?? 'sales_staff';
   const staffRole = mapApiRoleToStaffRole(role);
-  const status = api.status === 'active' ? 'active' : api.status === 'archived' ? 'archived' : 'inactive';
+  const status = (api.status === 'active' || api.status === 'on_leave' || api.status === 'suspended' || api.status === 'terminated')
+    ? api.status as StaffMember['status']
+    : 'active';
   const branchIds: string[] = (api.branch_ids ?? api.branches?.map((b) => String(b.id)) ?? (api.branch ? [String(api.branch.id)] : [])).map((id) => String(id));
   const branchNames = api.branches?.map((b) => b.name) ?? (api.branch ? [api.branch.name] : []);
   const branchDisplay = branchNames.length > 1 ? branchNames.join(', ') : branchNames[0] ?? '';
 
   // Map permissions from API to frontend permissions structure
   const permissions = api.user.permissions ?? [];
-  const staffPermissions = {
-    canPlaceOrders:    permissions.includes('create_orders'),
-    canAdvanceOrders:  permissions.includes('update_orders'),
-    canAccessPOS:      permissions.includes('access_pos'),
-    canViewReports:    permissions.includes('view_analytics'),
-    canManageMenu:     permissions.includes('manage_menu'),
-    canManageStaff:    permissions.includes('manage_employees'),
-    canManageShifts:   permissions.includes('manage_shifts'),
-    canManageSettings: permissions.includes('manage_settings'),
-    canViewMyShifts:   permissions.includes('view_my_shifts'),
-    canViewMySales:    permissions.includes('view_my_sales'),
+  const staffPermissions: StaffPermissions = {
+    canViewOrders:         permissions.includes('view_orders'),
+    canPlaceOrders:        permissions.includes('create_orders'),
+    canAdvanceOrders:      permissions.includes('update_orders'),
+    canDeleteOrders:       permissions.includes('delete_orders'),
+    canViewMenu:           permissions.includes('view_menu'),
+    canManageMenu:         permissions.includes('manage_menu'),
+    canViewBranches:       permissions.includes('view_branches'),
+    canManageBranches:     permissions.includes('manage_branches'),
+    canViewCustomers:      permissions.includes('view_customers'),
+    canManageCustomers:    permissions.includes('manage_customers'),
+    canViewEmployees:      permissions.includes('view_employees'),
+    canManageStaff:        permissions.includes('manage_employees'),
+    canViewReports:        permissions.includes('view_analytics'),
+    canViewActivityLog:    permissions.includes('view_activity_log'),
+    canAccessAdminPanel:   permissions.includes('access_admin_panel'),
+    canAccessManagerPortal: permissions.includes('access_manager_portal'),
+    canAccessSalesPortal:  permissions.includes('access_sales_portal'),
+    canAccessPartnerPortal: permissions.includes('access_partner_portal'),
+    canAccessPOS:          permissions.includes('access_pos'),
+    canAccessKitchen:      permissions.includes('access_kitchen'),
+    canAccessOrderManager: permissions.includes('access_order_manager'),
+    canManageShifts:       permissions.includes('manage_shifts'),
+    canManageSettings:     permissions.includes('manage_settings'),
+    canViewMyShifts:       permissions.includes('view_my_shifts'),
+    canViewMySales:        permissions.includes('view_my_sales'),
   };
 
   return {
@@ -98,10 +114,9 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
     branch: branchDisplay,
     branchIds,
     status,
-    employmentStatus: 'active',
+    employmentStatus: status,
     systemAccess: status === 'active' ? 'enabled' : 'disabled',
     permissions: staffPermissions,
-    password: '',
     joinedAt: api.hire_date ?? api.created_at ?? '',
     lastLogin: '',
     ordersToday: 0,
@@ -120,13 +135,13 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
 }
 
 /** Backend role enum: all available roles */
-export type BackendRole = 'super_admin' | 'admin' | 'branch_partner' | 'manager' | 'call_center' | 'sales_staff' | 'kitchen' | 'rider' | 'employee';
+export type BackendRole = 'tech_admin' | 'admin' | 'branch_partner' | 'manager' | 'call_center' | 'sales_staff' | 'kitchen' | 'rider';
 
 /** Map frontend StaffRole to backend role for API */
 export function staffRoleToBackendRole(role: StaffRole): BackendRole {
   const map: Record<StaffRole, BackendRole> = {
+    tech_admin: 'tech_admin',
     admin: 'admin',
-    super_admin: 'super_admin',
     branch_partner: 'branch_partner',
     manager: 'manager',
     call_center: 'call_center',
@@ -139,20 +154,37 @@ export function staffRoleToBackendRole(role: StaffRole): BackendRole {
 
 /** Map frontend permissions to backend permission names */
 export function mapPermissionsToBackend(permissions: StaffPermissions): string[] {
-  const backendPermissions: string[] = [];
-  
-  if (permissions.canPlaceOrders)    backendPermissions.push('create_orders');
-  if (permissions.canAdvanceOrders)  backendPermissions.push('update_orders');
-  if (permissions.canAccessPOS)      backendPermissions.push('access_pos');
-  if (permissions.canViewReports)    backendPermissions.push('view_analytics');
-  if (permissions.canManageMenu)     backendPermissions.push('manage_menu');
-  if (permissions.canManageStaff)    backendPermissions.push('manage_employees');
-  if (permissions.canManageShifts)   backendPermissions.push('manage_shifts');
-  if (permissions.canManageSettings) backendPermissions.push('manage_settings');
-  if (permissions.canViewMyShifts)   backendPermissions.push('view_my_shifts');
-  if (permissions.canViewMySales)    backendPermissions.push('view_my_sales');
-  
-  return backendPermissions;
+  const map: Record<keyof StaffPermissions, string> = {
+    canViewOrders:         'view_orders',
+    canPlaceOrders:        'create_orders',
+    canAdvanceOrders:      'update_orders',
+    canDeleteOrders:       'delete_orders',
+    canViewMenu:           'view_menu',
+    canManageMenu:         'manage_menu',
+    canViewBranches:       'view_branches',
+    canManageBranches:     'manage_branches',
+    canViewCustomers:      'view_customers',
+    canManageCustomers:    'manage_customers',
+    canViewEmployees:      'view_employees',
+    canManageStaff:        'manage_employees',
+    canViewReports:        'view_analytics',
+    canViewActivityLog:    'view_activity_log',
+    canAccessAdminPanel:   'access_admin_panel',
+    canAccessManagerPortal: 'access_manager_portal',
+    canAccessSalesPortal:  'access_sales_portal',
+    canAccessPartnerPortal: 'access_partner_portal',
+    canAccessPOS:          'access_pos',
+    canAccessKitchen:      'access_kitchen',
+    canAccessOrderManager: 'access_order_manager',
+    canManageShifts:       'manage_shifts',
+    canManageSettings:     'manage_settings',
+    canViewMyShifts:       'view_my_shifts',
+    canViewMySales:        'view_my_sales',
+  };
+
+  return (Object.entries(map) as [keyof StaffPermissions, string][])
+    .filter(([key]) => permissions[key])
+    .map(([, backend]) => backend);
 }
 
 export interface CreateEmployeePayload {
@@ -161,6 +193,8 @@ export interface CreateEmployeePayload {
   phone: string;
   /** Optional; when omitted backend auto-generates a password. */
   password?: string;
+  /** Controls how the password is handled on creation: auto (default), custom, or prompt. */
+  password_mode?: 'auto' | 'custom' | 'prompt';
   branch_ids: number[];
   role: BackendRole;
   hire_date?: string;
@@ -197,6 +231,14 @@ export interface UpdateEmployeePayload {
   emergency_contact_relationship?: string;
   // Individual permissions
   permissions?: string[];
+}
+
+export interface EmployeeNoteResponse {
+  id: number;
+  content: string;
+  author: string;
+  created_at: string;
+  is_own: boolean;
 }
 
 export const employeeService = {
@@ -237,6 +279,7 @@ export const employeeService = {
       email: payload.email || null,
       phone: payload.phone,
       ...(payload.password != null && payload.password !== '' && { password: payload.password }),
+      ...(payload.password_mode && { password_mode: payload.password_mode }),
       branch_ids: payload.branch_ids,
       role: payload.role,
       hire_date: payload.hire_date ?? undefined,
@@ -294,5 +337,23 @@ export const employeeService = {
 
   requirePasswordReset: async (id: string): Promise<void> => {
     await apiClient.post(`/admin/employees/${id}/require-password-reset`);
+  },
+
+  // ─── Employee Notes ──────────────────────────────────────────────────
+
+  getNotes: async (employeeId: string): Promise<EmployeeNoteResponse[]> => {
+    const response = await apiClient.get(`/admin/employees/${employeeId}/notes`);
+    const outer = response as { data?: { data?: EmployeeNoteResponse[] } };
+    return outer?.data?.data ?? (Array.isArray(outer?.data) ? outer.data : []);
+  },
+
+  addNote: async (employeeId: string, content: string): Promise<EmployeeNoteResponse> => {
+    const response = await apiClient.post(`/admin/employees/${employeeId}/notes`, { content });
+    const outer = response as { data?: { data?: EmployeeNoteResponse } };
+    return outer?.data?.data ?? (response as unknown as EmployeeNoteResponse);
+  },
+
+  deleteNote: async (employeeId: string, noteId: number): Promise<void> => {
+    await apiClient.delete(`/admin/employees/${employeeId}/notes/${noteId}`);
   },
 };

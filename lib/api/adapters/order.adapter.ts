@@ -1,7 +1,7 @@
 import type { Order, OrderItem, Payment } from '@/types/api';
 
-export type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone';
-export type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash at Pickup' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
+export type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone' | 'Past Order';
+export type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
 
 export interface AdminOrderItem {
   name: string;
@@ -37,17 +37,22 @@ export interface AdminOrder {
   placedAt: string;
   placedAtFull: string;
   createdAt: string;
+  recordedAt?: string;
   timeAgo?: string;
   timeline: TimelineEvent[];
+  cancelRequestedBy?: string | null;
+  cancelRequestReason?: string | null;
+  cancelRequestedAt?: string | null;
 }
 
-const SOURCE_MAP: Record<string, OrderSource> = {
+const SOURCE_MAP: Record<string, string> = {
   online: 'Online',
   pos: 'POS',
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
   facebook: 'Facebook',
   phone: 'Phone',
+  manual_entry: 'Past Order',
 };
 
 const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
@@ -55,8 +60,7 @@ const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
   mobile_money: 'Mobile Money',
   cash_delivery: 'Cash on Delivery',
   cash_on_delivery: 'Cash on Delivery',
-  cash_pickup: 'Cash at Pickup',
-  cash_at_pickup: 'Cash at Pickup',
+  cash_pickup: 'Cash on Delivery',
   cash: 'Cash',
   card: 'Card',
   wallet: 'Wallet',
@@ -195,7 +199,7 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
   const amount = Number(api.total_amount ?? api.subtotal ?? 0);
   const amountPaid = Number(primaryPayment?.amount ?? 0);
   const orderSource = (api.order_source ?? 'online').toLowerCase().replace(/\s+/g, '_');
-  const source = SOURCE_MAP[orderSource] ?? 'Online';
+  const source = (SOURCE_MAP[orderSource] ?? 'Online') as OrderSource;
   const paymentMethod = (primaryPayment?.payment_method ?? 'momo').toLowerCase().replace(/\s+/g, '_');
   const payment = PAYMENT_METHOD_MAP[paymentMethod] ?? paymentMethod.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
@@ -206,6 +210,7 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
     id: api.order_number ?? String(api.id),
     dbId: Number(api.id),
     createdAt: api.created_at ?? '',
+    recordedAt: api.recorded_at ?? undefined,
     customer: api.contact_name ?? api.customer_name ?? api.customer?.name ?? '—',
     phone: api.contact_phone ?? api.customer_phone ?? api.customer?.phone ?? '—',
     email: api.customer?.email,
@@ -220,10 +225,13 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
     paymentStatus,
     hubtelRef: primaryPayment?.transaction_id,
     status: api.status ?? 'received',
-    placedAt: formatPlacedAt(api.created_at),
-    placedAtFull: formatPlacedAtFull(api.created_at),
-    timeAgo: formatTimeAgo(api.created_at),
+    placedAt: formatPlacedAt(api.recorded_at ?? api.created_at),
+    placedAtFull: formatPlacedAtFull(api.recorded_at ?? api.created_at),
+    timeAgo: formatTimeAgo(api.recorded_at ?? api.created_at),
     timeline,
+    cancelRequestedBy: api.cancel_requested_by_user?.name ?? (api.cancel_requested_by ? `Staff #${api.cancel_requested_by}` : null),
+    cancelRequestReason: api.cancel_request_reason ?? null,
+    cancelRequestedAt: api.cancel_requested_at ?? null,
   };
 }
 
@@ -296,10 +304,15 @@ export function mapApiOrderToOrder(api: any): import('@/types/order').Order {
         longitude: Number(api.branch?.longitude ?? 0),
       },
     },
-    placedAt: createdIso ? new Date(createdIso).getTime() : 0,
+    placedAt: (api.recorded_at ? new Date(api.recorded_at).getTime() : null) ?? (createdIso ? new Date(createdIso).getTime() : 0),
     acceptedAt: api.accepted_at ? new Date(api.accepted_at).getTime() : undefined,
     startedAt: api.started_at ? new Date(api.started_at).getTime() : undefined,
     readyAt: api.ready_at ? new Date(api.ready_at).getTime() : undefined,
     completedAt: api.completed_at ? new Date(api.completed_at).getTime() : undefined,
+    recordedAt: api.recorded_at ? new Date(api.recorded_at).getTime() : undefined,
+    cancelRequestedBy: api.cancel_requested_by_user?.name
+      ?? (api.cancel_requested_by ? `Staff #${api.cancel_requested_by}` : undefined),
+    cancelRequestReason: api.cancel_request_reason ?? undefined,
+    cancelRequestedAt: api.cancel_requested_at ? new Date(api.cancel_requested_at).getTime() : undefined,
   };
 }

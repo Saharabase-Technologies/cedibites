@@ -86,10 +86,13 @@ export interface Branch {
 // Menu types
 export interface MenuCategory {
   id: number;
+  branch_id?: number;
   name: string;
+  slug?: string;
   description?: string;
   display_order: number;
   is_active: boolean;
+  items_count?: number;
 }
 
 export interface MenuItemOptionBranchPrice {
@@ -111,6 +114,7 @@ export interface MenuItemOption {
   base_price?: number;
   is_available: boolean;
   image_url?: string | null;
+  thumbnail_url?: string | null;
   branch_prices?: MenuItemOptionBranchPrice[];
 }
 
@@ -145,11 +149,50 @@ export interface MenuItem {
   rating?: number | null;
   rating_count?: number;
   image_url?: string;
+  thumbnail_url?: string;
   options?: MenuItemOption[];
   tags?: MenuTag[];
   add_ons?: MenuAddOn[];
   created_at: string;
   updated_at: string;
+}
+
+// Smart category types (code-defined virtual categories with computed membership)
+export interface SmartCategory {
+  slug: string;
+  name: string;
+  icon: string;
+  item_ids: number[];
+}
+
+export interface SmartCategorySetting {
+  id: number;
+  slug: string;
+  name: string;
+  icon: string;
+  is_enabled: boolean;
+  display_order: number;
+  item_limit: number;
+  is_time_based: boolean;
+  requires_customer: boolean;
+  visible_hour_start: number | null;
+  visible_hour_end: number | null;
+  default_visible_hour_start: number | null;
+  default_visible_hour_end: number | null;
+  default_item_limit: number;
+}
+
+export interface SmartCategoryPreview {
+  slug: string;
+  branch_id: number;
+  item_count: number;
+  items: Array<{
+    id: number;
+    name: string;
+    category: string | null;
+    rating: number | null;
+    is_available: boolean;
+  }>;
 }
 
 // Cart types
@@ -198,13 +241,74 @@ export type OrderStatus =
   | 'out_for_delivery'
   | 'delivered'
   | 'completed'
+  | 'cancel_requested'
   | 'cancelled';
 
 export type OrderType = 'delivery' | 'pickup';
 
-export type PaymentMethod = 'mobile_money' | 'cash';
+export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'manual_momo' | 'no_charge' | 'wallet' | 'ghqr';
 
 export type PaymentStatus = 'pending' | 'paid' | 'completed' | 'failed' | 'refunded' | 'no_charge';
+
+export type CheckoutSessionStatus =
+  | 'pending'
+  | 'payment_initiated'
+  | 'confirmed'
+  | 'failed'
+  | 'expired'
+  | 'abandoned';
+
+export interface CheckoutSession {
+  id: number;
+  session_token: string;
+  branch_id: number;
+  branch?: Branch;
+  session_type: 'online' | 'pos';
+  status: CheckoutSessionStatus;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  order_type?: OrderType;
+  delivery_address?: string;
+  special_instructions?: string;
+  items: CheckoutSessionItem[];
+  subtotal: number;
+  delivery_fee: number;
+  service_charge: number;
+  total_amount: number;
+  payment_method?: PaymentMethod;
+  momo_number?: string;
+  checkout_url?: string | null;
+  order_id?: number | null;
+  order?: Order | null;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+  failure_reason?: string | null;
+  // Recovery flags from show() endpoint
+  can_retry?: boolean;
+  can_change_payment?: boolean;
+  can_change_number?: boolean;
+}
+
+export interface CheckoutSessionItem {
+  menu_item_id: number;
+  menu_item_option_id?: number | null;
+  name?: string;
+  option_label?: string;
+  quantity: number;
+  unit_price: number;
+  subtotal?: number;
+  /** Raw snapshot from backend — name lives here for POS sessions. */
+  menu_item_snapshot?: { id?: number; name?: string; description?: string | null } | null;
+  menu_item_option_snapshot?: {
+    id?: number;
+    option_key?: string;
+    option_label?: string;
+    display_name?: string;
+    price?: number;
+  } | null;
+}
 
 export interface OrderItem {
   id: number;
@@ -269,6 +373,7 @@ export interface Order {
   payments?: Payment[];
   subtotal: number;
   delivery_fee: number;
+  service_charge?: number;
   tax?: number;
   tax_amount?: number;
   total?: number;
@@ -286,7 +391,14 @@ export interface Order {
   estimated_delivery_time?: string;
   amount_paid?: number;
   discount?: number;
+  promo_id?: number;
+  promo_name?: string;
   staff_name?: string;
+  cancel_requested_by?: number | null;
+  cancel_request_reason?: string | null;
+  cancel_requested_at?: string | null;
+  cancel_requested_by_user?: { id: number; name?: string | null } | null;
+  recorded_at?: string;
   created_at: string;
   updated_at: string;
 }

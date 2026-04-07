@@ -14,7 +14,7 @@ export function useOrderChannel(branchId: string | null) {
   const [isLoading, setIsLoading] = useState(true);
   const serviceRef = useRef(new ApiOrderService());
 
-  // Initial load via REST, server-side filtered by branchId
+  // Initial load + polling fallback via REST
   useEffect(() => {
     if (!branchId) {
       setOrders([]);
@@ -22,14 +22,29 @@ export function useOrderChannel(branchId: string | null) {
       return;
     }
 
-    setIsLoading(true);
+    let active = true;
 
-    serviceRef.current
-      .getAll({ branchId })
-      .then((data) => {
-        setOrders(data);
-      })
-      .finally(() => setIsLoading(false));
+    const fetchOrders = () => {
+      serviceRef.current
+        .getAll({ branchId })
+        .then((data) => {
+          if (active) setOrders(data);
+        })
+        .finally(() => {
+          if (active) setIsLoading(false);
+        });
+    };
+
+    setIsLoading(true);
+    fetchOrders();
+
+    // Poll every 1 second as a fallback (covers when Reverb is unavailable)
+    const interval = setInterval(fetchOrders, 1000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [branchId]);
 
   // Real-time updates via Reverb

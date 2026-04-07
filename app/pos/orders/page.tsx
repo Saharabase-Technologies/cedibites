@@ -28,8 +28,10 @@ import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
 import { formatOrderLineItemSummary } from '@/lib/utils/orderItemDisplay';
 import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
-import { useCancelOrder } from '@/lib/api/hooks/useOrders';
+import { useRequestCancel, useCancelOrder } from '@/lib/api/hooks/useOrders';
 import { toast } from '@/lib/utils/toast';
+import { useQueryClient } from '@tanstack/react-query';
+import { getEcho } from '@/lib/echo';
 
 function formatOrderTime(placedAt: number): string {
   if (!placedAt) {
@@ -48,12 +50,15 @@ export default function POSOrdersPage() {
     isManualEntry,
     setIsManualEntry,
   } = usePOS();
-  const { logout } = useStaffAuth();
+  const { logout, staffUser } = useStaffAuth();
   const { branches } = useBranch();
+  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
 
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  const { requestCancel } = useRequestCancel();
   const { cancelOrder } = useCancelOrder();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (isSessionLoaded && !isSessionValid) {
@@ -71,11 +76,32 @@ export default function POSOrdersPage() {
   const { orders: rawOrders, isLoading } = useEmployeeOrders({
     branch_id: session?.branchId ? Number(session.branchId) : undefined,
     staff_id: session?.staffId,
-    order_source: 'pos',
+    order_source: ['pos', 'manual_entry'],
     date_from: today,
     date_to: today,
     per_page: 100,
   });
+
+  // ─── Real-time order updates via Reverb ───────────────────────────────
+  useEffect(() => {
+    const branchId = session?.branchId;
+    if (!branchId) return;
+
+    const echo = getEcho();
+    if (!echo) return;
+
+    const channel = echo.private(`orders.branch.${branchId}`);
+
+    const handler = () => {
+      queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+    };
+
+    channel.listen('.order.updated', handler);
+
+    return () => {
+      channel.stopListening('.order.updated', handler);
+    };
+  }, [session?.branchId, queryClient]);
 
   const todayOrders = useMemo(
     () => rawOrders.map(mapApiOrderToOrder).sort((a, b) => b.placedAt - a.placedAt),
@@ -167,9 +193,16 @@ export default function POSOrdersPage() {
         <CancelOrderModal
           orderNumber={cancelTarget.orderNumber}
           theme="light"
+          context={isAdmin ? 'self' : 'staff'}
           onCancel={() => setCancelTarget(null)}
           onConfirm={async (reason) => {
-            await cancelOrder({ id: Number(cancelTarget.id), reason });
+            if (isAdmin) {
+              await cancelOrder({ id: Number(cancelTarget.id), reason: reason || 'Cancelled by POS admin' });
+              toast.success('Order cancelled');
+            } else {
+              await requestCancel({ id: Number(cancelTarget.id), reason: reason || 'Requested by POS staff' });
+              toast.success('Cancel request submitted — awaiting manager approval');
+            }
           }}
         />
       )}
@@ -189,6 +222,7 @@ export default function POSOrdersPage() {
               order={order}
               branchName={branchInfo?.name ?? 'CediBites'}
               staffName={session.staffName}
+              isAdmin={isAdmin}
               onCancelRequested={setCancelTarget}
             />
           ))
@@ -204,10 +238,11 @@ interface OrderCardProps {
   order: Order;
   branchName: string;
   staffName: string;
+  isAdmin: boolean;
   onCancelRequested: (order: Order) => void;
 }
 
-function OrderCard({ order, branchName, staffName, onCancelRequested }: OrderCardProps) {
+function OrderCard({ order, branchName, staffName, isAdmin, onCancelRequested }: OrderCardProps) {
   const itemSummary = order.items.map((i) => formatOrderLineItemSummary(i)).join(', ');
 
   return (
@@ -233,21 +268,31 @@ function OrderCard({ order, branchName, staffName, onCancelRequested }: OrderCar
               </span>
             );
           })()}
+          {order.source === 'manual_entry' && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-neutral-gray/10 text-neutral-gray">
+              Past Order
+            </span>
+          )}
         </div>
         <span className="text-xs text-neutral-gray whitespace-nowrap shrink-0 mt-0.5">
           {formatOrderTime(order.placedAt)}
         </span>
         {/* Cancel row — separated to avoid accidental taps */}
-        {order.status !== 'cancelled' && (
+        {order.source !== 'manual_entry' && order.status !== 'cancelled' && order.status !== 'completed' && order.status !== 'cancel_requested' && (
           <div className="">
             <button
               onClick={() => onCancelRequested(order)}
-              className="w-ful px-3 py-2 rounded-lg text-xs font-medium text-error/70 hover:text-error hover:bg-error/5 transition-colors border border-dashed border-error/20 hover:border-error/40"
-              title="Cancel Order"
+              className="w-ful px-3 py-2 rounded-lg text-xs font-medium text-amber-600/70 hover:text-amber-700 hover:bg-amber-50 transition-colors border border-dashed border-amber-300/40 hover:border-amber-400"
+              title={isAdmin ? 'Cancel Order' : 'Request Cancel'}
             >
-              Cancel order
+              {isAdmin ? 'Cancel' : 'Request Cancel'}
             </button>
           </div>
+        )}
+        {order.status === 'cancel_requested' && (
+          <span className="text-[11px] font-medium text-amber-600 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200">
+            Cancel pending approval
+          </span>
         )}
       </div>
 

@@ -20,6 +20,7 @@ import {
     WarningCircleIcon,
     CaretDownIcon,
     ImageIcon,
+    DotsThreeVerticalIcon,
 } from '@phosphor-icons/react';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import { useMenuCategories } from '@/lib/api/hooks/useMenuCategories';
@@ -177,7 +178,7 @@ function formToGlobalItem(form: ItemFormState, existing?: GlobalMenuItem): Globa
         const validOptions = form.options.filter(o => o.label.trim() && o.price);
         base.sizes = validOptions.map((o, index) => ({
             id: index + 1,
-            key: o.label.trim().toLowerCase().replace(/\s+/g, '-'),
+            key: o.label.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, ''),
             label: o.label.trim(),
             displayName: o.displayName?.trim() || undefined,
             price: Number(o.price),
@@ -205,6 +206,46 @@ function TagBadge({ tag }: { tag: string }) {
         </span>
     );
 }
+
+﻿// ─── Action dropdown menu ─────────────────────────────────────────────────────
+
+function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+    const [open, setOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        function close(e: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+        }
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [open]);
+
+    return (
+        <div ref={menuRef} className="relative">
+            <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-neutral-light transition-colors cursor-pointer">
+                <DotsThreeVerticalIcon size={16} weight="bold" className="text-neutral-gray" />
+            </button>
+            {open ? (
+                <div className="absolute right-0 top-full mt-1 z-20 bg-neutral-card border border-[#f0e8d8] rounded-xl shadow-lg overflow-hidden min-w-36">
+                    <button type="button" onClick={() => { setOpen(false); onEdit(); }}
+                        className="w-full text-left px-4 py-2.5 flex items-center gap-2.5 hover:bg-neutral-light transition-colors cursor-pointer text-text-dark text-sm font-body">
+                        <PencilSimpleIcon size={14} weight="bold" className="text-primary" />
+                        Edit
+                    </button>
+                    <button type="button" onClick={() => { setOpen(false); onDelete(); }}
+                        className="w-full text-left px-4 py-2.5 flex items-center gap-2.5 hover:bg-error/5 transition-colors cursor-pointer text-error text-sm font-body">
+                        <TrashIcon size={14} weight="bold" />
+                        Delete
+                    </button>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
 
 // ─── Confirm delete modal ─────────────────────────────────────────────────────
 
@@ -792,10 +833,10 @@ function BulkImportModal({ onClose, branchId }: { onClose: () => void; branchId:
 // ─── Menu sub-tabs ────────────────────────────────────────────────────────────
 
 const MENU_SUB_TABS = [
-    { href: '/admin/menu',           label: 'Items'     },
-    { href: '/admin/menu-add-ons',   label: 'Add-ons'   },
-    { href: '/admin/menu-tags',      label: 'Tags'      },
-    { href: '/admin/menu/configure', label: 'Configure'  },
+    { href: '/admin/menu',                    label: 'Items'            },
+    { href: '/admin/menu-add-ons',            label: 'Add-ons'          },
+    { href: '/admin/menu-tags',               label: 'Tags'             },
+    { href: '/admin/menu/configure',          label: 'Configure'        },
 ];
 
 function MenuSubTabs() {
@@ -973,134 +1014,138 @@ export default function AdminMenuPage() {
             : menuService.updateItem(item.numericId, apiData);
 
         savePromise
-            .then(response => {
+            .then(async (response) => {
                 const savedId = response.data.id;
 
                 const desiredOptions = item.sizes?.length
                     ? item.sizes
                     : [{ id: 0, key: 'standard', label: 'Standard', price: item.price ?? 0, image: item.image }];
 
-                const syncOptions = async () => {
+                // ── uploadSimpleImage ──
+                try {
+                    if (!isSinglePrice || !item.imageFile) {
+                        // Skip simple image upload
+                    } else {
+                        const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
+                        const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
+                        const standardOpt = existing.find(o => o.option_key === 'standard');
+                        if (standardOpt) {
+                            await menuService.uploadOptionImage(savedId, standardOpt.id, item.imageFile);
+                        }
+                    }
+                } catch (err) {
+                    throw err;
+                }
+
+                // ── syncOptions ──
+                try {
                     if (!desiredOptions.length || isSinglePrice) {
-                        return;
-                    }
+                        // Skip sync when single price
+                    } else {
+                        const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
+                        const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
 
-                    const existingResponse = await apiClient.get(`/admin/menu-items/${savedId}/options`);
-                    const existing = ((existingResponse as unknown as { data?: Array<{ id: number; option_key: string }> }).data ?? []) as Array<{ id: number; option_key: string }>;
-                    const existingByKey = Object.fromEntries(existing.map(o => [o.option_key, o]));
-                    const desiredKeys = new Set(desiredOptions.map(o => o.key));
+                        const existingByKey = Object.fromEntries(existing.map(o => [o.option_key, o]));
+                        const desiredKeys = new Set(desiredOptions.map(o => o.key));
 
-                    // Delete options that are no longer desired
-                    for (const existingOpt of existing) {
-                        if (!desiredKeys.has(existingOpt.option_key)) {
-                            await apiClient.delete(`/admin/menu-items/${savedId}/options/${existingOpt.id}`);
+                        const upsertedOptions: Array<{ id: number }> = [];
+                        for (let i = 0; i < desiredOptions.length; i += 1) {
+                            const opt = desiredOptions[i];
+                            const existingOpt = existingByKey[opt.key];
+                            if (existingOpt) {
+                                await apiClient.patch(`/admin/menu-items/${savedId}/options/${existingOpt.id}`, {
+                                    option_label: opt.label,
+                                    display_name: opt.displayName || null,
+                                    price: opt.price,
+                                    display_order: i,
+                                    is_available: true,
+                                });
+                                upsertedOptions.push({ id: existingOpt.id });
+                            } else {
+                                const created = await apiClient.post(`/admin/menu-items/${savedId}/options`, {
+                                    option_key: opt.key,
+                                    option_label: opt.label,
+                                    display_name: opt.displayName || null,
+                                    price: opt.price,
+                                    display_order: i,
+                                    is_available: true,
+                                }) as unknown as { data?: { id: number } };
+                                if (created.data?.id) {
+                                    upsertedOptions.push({ id: created.data.id });
+                                }
+                            }
                         }
-                    }
+                        for (const existingOpt of existing) {
+                            if (!desiredKeys.has(existingOpt.option_key)) {
+                                await apiClient.delete(`/admin/menu-items/${savedId}/options/${existingOpt.id}`);
+                            }
+                        }
 
-                    // Upsert desired options (update if key exists, create if new)
-                    const upsertedOptions: Array<{ id: number }> = [];
-                    for (let i = 0; i < desiredOptions.length; i += 1) {
-                        const opt = desiredOptions[i];
-                        const existingOpt = existingByKey[opt.key];
-                        if (existingOpt) {
-                            await apiClient.patch(`/admin/menu-items/${savedId}/options/${existingOpt.id}`, {
-                                option_label: opt.label,
-                                display_name: opt.displayName || null,
-                                price: opt.price,
-                                display_order: i,
-                                is_available: true,
-                            });
-                            upsertedOptions.push({ id: existingOpt.id });
-                        } else {
-                            const created = await apiClient.post(`/admin/menu-items/${savedId}/options`, {
-                                option_key: opt.key,
-                                option_label: opt.label,
-                                display_name: opt.displayName || null,
-                                price: opt.price,
-                                display_order: i,
-                                is_available: true,
-                            }) as unknown as { data?: { id: number } };
-                            if (created.data?.id) {
-                                upsertedOptions.push({ id: created.data.id });
+                        // Upload per-option images
+                        for (let i = 0; i < upsertedOptions.length; i += 1) {
+                            const imageFile = item.optionImageFiles?.[i];
+                            if (imageFile) {
+                                await menuService.uploadOptionImage(savedId, upsertedOptions[i].id, imageFile);
                             }
                         }
                     }
+                } catch (err) {
+                    throw err;
+                }
 
-                    // Upload per-option images
-                    for (let i = 0; i < upsertedOptions.length; i += 1) {
-                        const imageFile = item.optionImageFiles?.[i];
-                        if (imageFile) {
-                            await menuService.uploadOptionImage(savedId, upsertedOptions[i].id, imageFile);
-                        }
-                    }
-                };
-
-                const syncBranchOverrides = async () => {
+                // ── syncBranchOverrides ──
+                try {
                     if (!desiredOptions.length) {
-                        return;
-                    }
+                        // Skip when no options
+                    } else {
+                        const branchesPayload: Record<string, { options: Array<{ option_key: string; price: number | null; is_available: boolean }> }> = {};
 
-                    const branchesPayload: Record<string, { options: Array<{ option_key: string; price: number | null; is_available: boolean }> }> = {};
-
-                    Object.entries(item.branchAvailability).forEach(([branchName, override]) => {
-                        const branchId = branches.find(branch => branch.name === branchName)?.id;
-                        if (!branchId) {
-                            return;
-                        }
-
-                        branchesPayload[String(branchId)] = {
-                            options: desiredOptions.map((option) => {
-                                const overridePrice = override.optionPrices?.[option.key];
-                                return {
-                                    option_key: option.key,
-                                    price: overridePrice ? Number(overridePrice) : null,
-                                    is_available: override.available,
-                                };
-                            }),
-                        };
-                    });
-
-                    if (Object.keys(branchesPayload).length > 0) {
-                        await apiClient.put(`/admin/menu-items/${savedId}/branch-options`, {
-                            branches: branchesPayload,
+                        Object.entries(item.branchAvailability).forEach(([branchName, override]) => {
+                            const branchId = branches.find(branch => branch.name === branchName)?.id;
+                            if (!branchId) return;
+                            branchesPayload[String(branchId)] = {
+                                options: desiredOptions.map((option) => {
+                                    const overridePrice = override.optionPrices?.[option.key];
+                                    return {
+                                        option_key: option.key,
+                                        price: overridePrice ? Number(overridePrice) : null,
+                                        is_available: override.available,
+                                    };
+                                }),
+                            };
                         });
-                    }
-                };
 
-                const afterSave = () => {
-                    // Update local state with the response from server
-                    setItems(prev => {
-                        if (isNew) {
-                            const idx = prev.findIndex(x => x.id === item.id);
-                            if (idx >= 0) {
-                                const n = [...prev];
-                                n[idx] = { ...item, numericId: savedId };
-                                return n;
-                            }
-                            return [...prev, { ...item, numericId: savedId }];
-                        } else {
-                            return prev.map(x => x.id === item.id ? item : x);
+                        if (Object.keys(branchesPayload).length > 0) {
+                            await apiClient.put(`/admin/menu-items/${savedId}/branch-options`, { branches: branchesPayload });
                         }
-                    });
+                    }
+                } catch (err) {
+                    throw err;
+                }
 
-                    refetchMenuItems();
-                    toast.success(`Menu item ${isNew ? 'created' : 'updated'} successfully!`);
-                    setEditItem(null);
-                    setSavingItem(false);
-                };
+                // ── afterSave ──
+                setItems(prev => {
+                    if (isNew) {
+                        const idx = prev.findIndex(x => x.id === item.id);
+                        if (idx >= 0) {
+                            const n = [...prev];
+                            n[idx] = { ...item, numericId: savedId };
+                            return n;
+                        }
+                        return [...prev, { ...item, numericId: savedId }];
+                    } else {
+                        return prev.map(x => x.id === item.id ? item : x);
+                    }
+                });
 
-                syncOptions()
-                    .then(syncBranchOverrides)
-                    .then(afterSave)
-                    .catch(() => {
-                        toast.error('Item saved but option or branch override sync failed. Please re-open and retry.');
-                        afterSave();
-                    });
+                refetchMenuItems();
+                toast.success(`Menu item ${isNew ? 'created' : 'updated'} successfully!`);
+                setEditItem(null);
+                setSavingItem(false);
             })
             .catch(error => {
                 setSavingItem(false);
                 if (error.errors) {
-                    // Show validation errors
                     const errorMessages = Object.entries(error.errors as Record<string, string[]>)
                         .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
                         .join(', ');
@@ -1168,7 +1213,20 @@ export default function AdminMenuPage() {
     }
 
     function toggleGlobal(item: GlobalMenuItem) {
-        setItems(prev => prev.map(x => x.id === item.id ? { ...x, globallyAvailable: !x.globallyAvailable } : x));
+        const newAvailability = !item.globallyAvailable;
+        setItems(prev => prev.map(x => x.id === item.id ? { ...x, globallyAvailable: newAvailability } : x));
+
+        if (item.numericId && !item.id.startsWith('item-')) {
+            menuService.updateItem(item.numericId, { is_available: newAvailability })
+                .then(() => {
+                    toast.success(`${item.name} ${newAvailability ? 'enabled' : 'disabled'}`);
+                })
+                .catch(() => {
+                    // Revert on failure
+                    setItems(prev => prev.map(x => x.id === item.id ? { ...x, globallyAvailable: !newAvailability } : x));
+                    toast.error('Failed to update availability');
+                });
+        }
     }
 
     return (
@@ -1293,16 +1351,7 @@ export default function AdminMenuPage() {
                                 }
                             </button>
 
-                            <div className="flex items-center gap-1.5">
-                                <button type="button" onClick={() => openItemEditor(item)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-neutral-light transition-colors cursor-pointer">
-                                    <PencilSimpleIcon size={14} weight="bold" className="text-primary" />
-                                </button>
-                                <button type="button" onClick={() => setDeleteItem(item)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-error/10 transition-colors cursor-pointer">
-                                    <TrashIcon size={14} weight="bold" className="text-error" />
-                                </button>
-                            </div>
+                            <ActionMenu onEdit={() => openItemEditor(item)} onDelete={() => setDeleteItem(item)} />
                         </div>
                     ))
                 )}

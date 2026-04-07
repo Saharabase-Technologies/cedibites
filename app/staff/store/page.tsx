@@ -651,7 +651,6 @@ function StepReview({
     const PAYMENT_OPTIONS: { id: PaymentMethod; label: string; sub: string; icon: React.ElementType; only?: OrderType }[] = [
         { id: 'momo', label: 'Mobile Money', sub: 'MTN, Telecel, AirtelTigo', icon: DeviceMobileIcon },
         { id: 'cash_delivery', label: 'Cash on Delivery', sub: 'Paid when delivered', icon: MoneyIcon, only: 'delivery' },
-        { id: 'cash_pickup', label: 'Cash at Pickup', sub: 'Paid at branch', icon: HandCoinsIcon, only: 'pickup' },
     ];
 
     const availablePayments = PAYMENT_OPTIONS.filter(p => !p.only || p.only === orderType);
