@@ -52,7 +52,7 @@ export default function POSOrdersPage() {
   } = usePOS();
   const { logout, staffUser } = useStaffAuth();
   const { branches } = useBranch();
-  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'super_admin';
+  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
 
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);

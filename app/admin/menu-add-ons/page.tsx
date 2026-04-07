@@ -36,7 +36,6 @@ const MENU_SUB_TABS = [
   { href: '/admin/menu-add-ons',            label: 'Add-ons'          },
   { href: '/admin/menu-tags',               label: 'Tags'             },
   { href: '/admin/menu/configure',          label: 'Configure'        },
-  { href: '/admin/menu/smart-categories',   label: 'Smart Categories' },
 ];
 
 function MenuSubTabs() {

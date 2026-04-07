@@ -164,8 +164,9 @@ export interface KanbanColumn {
 
 // ─── User roles for permissions ──────────────────────────────────────────────
 
-export type StaffRole = 'admin' | 'super_admin' | 'branch_partner' | 'manager' | 'call_center' | 'sales_staff' | 'kitchen' | 'rider';
-export type UserRole = 'call_center' | 'manager' | 'super_admin' | 'branch_partner';
+// Re-exported from staff.ts — identity types belong there.
+export type { StaffRole } from '@/types/staff';
+export type UserRole = 'call_center' | 'manager' | 'admin' | 'tech_admin' | 'branch_partner';
 
 // ─── Filter type (for service layer) ─────────────────────────────────────────
 
@@ -380,7 +381,6 @@ export function getPaymentLabel(method: PaymentMethod, fulfillment?: Fulfillment
     if (method === 'card') return 'Card';
     if (method === 'cash') {
         if (fulfillment === 'delivery') return 'Cash on Delivery';
-        if (fulfillment === 'pickup') return 'Cash at Pickup';
         return 'Cash';
     }
     return method;
@@ -442,7 +442,7 @@ export function canAdvanceOrder(
     if (!allowed.includes(targetStatus)) return false;
 
     // Full control: managers and super admins
-    if (role === 'manager' || role === 'super_admin') return true;
+    if (role === 'manager' || role === 'admin' || role === 'tech_admin') return true;
 
     // Call center: read-only observers — cannot advance any order
     if (role === 'call_center') return false;

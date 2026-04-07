@@ -367,7 +367,7 @@ function PaymentTab() {
         clientSecret: '•••••••••••••••••',
         senderId: 'CediBites',
     });
-    const [payments, setPayments] = useState({ momo: true, cod: true, cup: true });
+    const [payments, setPayments] = useState({ momo: true, cod: true });
 
     return (
         <div className="flex flex-col gap-5">
@@ -445,7 +445,6 @@ function PaymentTab() {
                     {[
                         { key: 'momo', label: 'Mobile Money', sub: 'MTN, Vodafone, AirtelTigo MoMo via Hubtel' },
                         { key: 'cod',  label: 'Cash on Delivery', sub: 'Customer pays rider on delivery' },
-                        { key: 'cup',  label: 'Cash at Pickup', sub: 'Customer pays at branch counter' },
                     ].map(({ key, label, sub }) => (
                         <div key={key} className="flex items-center justify-between p-3 bg-neutral-light rounded-xl">
                             <div>

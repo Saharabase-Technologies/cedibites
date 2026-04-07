@@ -25,6 +25,7 @@ import {
   PrinterIcon,
   TagIcon,
   HourglassIcon,
+  WarningCircleIcon,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { usePOS } from '../context';
@@ -138,8 +139,9 @@ export default function POSTerminalPage() {
     setIsManualEntry,
     todayOrders,
   } = usePOS();
-  const { logout } = useStaffAuth();
+  const { staffUser, logout } = useStaffAuth();
   const { branches } = useBranch();
+  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
   const { items: menuItems, categories: menuCategories, isLoading: menuLoading } = useMenuItems();
 
   const [activeCategory, setActiveCategory] = useState('all');
@@ -174,7 +176,7 @@ export default function POSTerminalPage() {
   useEffect(() => {
     if (!session?.branchId || cart.length === 0) { setActivePromo(null); setPromoDiscount(0); return; }
     const itemIds = cart.map(c => c.menuItemId);
-    getPromoService().resolvePromo(itemIds, session.branchId).then(p => {
+    getPromoService().resolvePromo(itemIds, session.branchId, cartTotal).then(p => {
       if (!p) { setActivePromo(null); setPromoDiscount(0); return; }
       setActivePromo(p);
       setPromoDiscount(getPromoService().calculateDiscount(p, cartTotal));
@@ -344,6 +346,55 @@ export default function POSTerminalPage() {
         onSelect={selectBranch}
         subtitle="Choose which branch POS to operate"
       />
+    );
+  }
+
+  // Guard: branch is closed or inactive — admin/tech_admin bypass
+  if (!isAdmin && branchInfo && (!branchInfo.isActive || !branchInfo.isOpen)) {
+    const isInactive = !branchInfo.isActive;
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-neutral-light p-6">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-lg p-8 flex flex-col items-center gap-5 text-center">
+          <div className="w-16 h-16 rounded-full bg-error/10 flex items-center justify-center">
+            <WarningCircleIcon weight="fill" size={36} className="text-error" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-text-dark">
+              {isInactive ? 'Branch Inactive' : 'Branch Closed'}
+            </h2>
+            <p className="text-sm text-neutral-gray mt-2">
+              {isInactive
+                ? `${branchInfo.name} Branch is currently inactive and not accepting orders. Contact an administrator to reactivate it.`
+                : `${branchInfo.name} Branch is currently closed. POS is unavailable outside operating hours.`}
+            </p>
+          </div>
+          {switchableBranches.length > 1 && (
+            <button
+              onClick={() => setIsBranchSwitcherOpen(true)}
+              className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold px-6 py-3 rounded-2xl transition-all active:scale-[0.98]"
+            >
+              <StorefrontIcon weight="fill" size={18} />
+              Switch Branch
+            </button>
+          )}
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 text-sm font-semibold text-neutral-gray hover:text-error transition-colors"
+          >
+            <SignOutIcon weight="bold" size={16} />
+            Sign Out
+          </button>
+        </div>
+        {switchableBranches.length > 1 && (
+          <BranchSwitcherDialog
+            isOpen={isBranchSwitcherOpen}
+            branches={switchableBranches}
+            currentBranchId={session?.branchId}
+            onSelect={selectBranch}
+            onClose={() => setIsBranchSwitcherOpen(false)}
+          />
+        )}
+      </div>
     );
   }
 
@@ -565,6 +616,8 @@ export default function POSTerminalPage() {
         {/* Order Type Toggle */}
         <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15">
           <div className="flex gap-2">
+            {/* Map POS order types to DB keys: dine_in→dine_in, takeaway→pickup */}
+            {(branchInfo?.orderTypes?.['dine_in']?.is_enabled !== false) && (
             <button
               onClick={() => setOrderType('dine_in')}
               className={`
@@ -578,6 +631,8 @@ export default function POSTerminalPage() {
             >
               Dine In
             </button>
+            )}
+            {(branchInfo?.orderTypes?.['pickup']?.is_enabled !== false) && (
             <button
               onClick={() => setOrderType('takeaway')}
               className={`
@@ -591,6 +646,7 @@ export default function POSTerminalPage() {
             >
               Takeaway
             </button>
+            )}
           </div>
         </div>
 
@@ -700,21 +756,34 @@ export default function POSTerminalPage() {
 
         {/* Total & Pay Button */}
         <div className="shrink-0 p-4 border-t border-neutral-gray/20 bg-neutral-light">
-          {activePromo && promoDiscount > 0 && (
-            <div className="flex items-center justify-between mb-2">
-              <span className="flex items-center gap-1.5 text-secondary text-sm">
-                <TagIcon size={12} weight="fill" />
-                {activePromo.name}
+          {activePromo && promoDiscount > 0 ? (
+            <>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-neutral-gray text-sm">Subtotal</span>
+                <span className="text-sm text-neutral-gray">{formatGHS(cartTotal)}</span>
+              </div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="flex items-center gap-1.5 text-secondary text-sm">
+                  <TagIcon size={12} weight="fill" />
+                  {activePromo.name}
+                </span>
+                <span className="text-secondary text-sm font-semibold">-{formatGHS(promoDiscount)}</span>
+              </div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-neutral-gray font-medium">Total</span>
+                <span className="text-2xl font-bold text-primary">
+                  {formatGHS(effectiveTotal)}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-neutral-gray">Total</span>
+              <span className="text-2xl font-bold text-primary">
+                {formatGHS(effectiveTotal)}
               </span>
-              <span className="text-secondary text-sm font-semibold">-{formatGHS(promoDiscount)}</span>
             </div>
           )}
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-neutral-gray">Total</span>
-            <span className="text-2xl font-bold text-primary">
-              {formatGHS(effectiveTotal)}
-            </span>
-          </div>
 
           {isManualEntry && (
             <div className="flex items-center justify-between py-2 px-3 mb-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
@@ -792,6 +861,7 @@ export default function POSTerminalPage() {
           onClose={closePayment}
           onPayment={handlePaymentComplete}
           isManualEntry={isManualEntry}
+          branchPaymentMethods={branchInfo?.paymentMethods}
         />
       )}
 
@@ -939,11 +1009,12 @@ interface PaymentModalProps {
   onClose: () => void;
   onPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string }) => void;
   isManualEntry?: boolean;
+  branchPaymentMethods?: Record<string, { is_enabled: boolean }>;
 }
 
-function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModalProps) {
+function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentMethods }: PaymentModalProps) {
   const { staffUser } = useStaffAuth();
-  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'super_admin';
+  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [cashAmount, setCashAmount] = useState('');
   const [momoNumber, setMomoNumber] = useState('');
@@ -1122,18 +1193,28 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
           <p className="text-sm text-neutral-gray">Select payment method</p>
 
           <div className="grid grid-cols-2 gap-3">
-            {([
-              { id: 'cash' as PaymentMethod, label: 'Cash', icon: CurrencyDollarIcon },
-              ...(isManualEntry
-                ? [{ id: 'manual_momo' as PaymentMethod, label: 'Direct MoMo', icon: DeviceMobileIcon }]
-                : [{ id: 'mobile_money' as PaymentMethod, label: 'MoMo', icon: DeviceMobileIcon }]
-              ),
-              { id: 'card' as PaymentMethod, label: 'Card', icon: CreditCardIcon },
-              ...(isAdmin
-                ? [{ id: 'no_charge' as PaymentMethod, label: 'No Charge', icon: ProhibitIcon }]
-                : []
-              ),
-            ]).map(method => (
+            {(() => {
+              // Map POS payment method IDs to branch settings DB keys
+              const posToDbKey: Record<string, string> = { cash: 'cash_on_delivery', mobile_money: 'momo', manual_momo: 'momo', card: 'card' };
+              const isMethodEnabled = (id: string) => {
+                if (id === 'no_charge') return true; // Admin override, always allowed
+                const dbKey = posToDbKey[id];
+                if (!dbKey || !branchPaymentMethods) return true; // No branch data = allow all
+                return branchPaymentMethods[dbKey]?.is_enabled !== false;
+              };
+
+              return [
+                { id: 'cash' as PaymentMethod, label: 'Cash', icon: CurrencyDollarIcon },
+                ...(isManualEntry
+                  ? [{ id: 'manual_momo' as PaymentMethod, label: 'Direct MoMo', icon: DeviceMobileIcon }]
+                  : [{ id: 'mobile_money' as PaymentMethod, label: 'MoMo', icon: DeviceMobileIcon }]
+                ),
+                { id: 'card' as PaymentMethod, label: 'Card', icon: CreditCardIcon },
+                ...(isAdmin
+                  ? [{ id: 'no_charge' as PaymentMethod, label: 'No Charge', icon: ProhibitIcon }]
+                  : []
+                ),
+              ].filter(m => isMethodEnabled(m.id)).map(method => (
               <button
                 key={method.id}
                 onClick={() => setSelectedMethod(method.id)}
@@ -1148,7 +1229,8 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry }: PaymentModal
                 <method.icon className="w-7 h-7" />
                 <span className="font-medium text-sm">{method.label}</span>
               </button>
-            ))}
+            ));
+            })()}
           </div>
 
           {/* Cash Input */}

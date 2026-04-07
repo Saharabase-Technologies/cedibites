@@ -18,6 +18,8 @@ import {
     ToggleLeftIcon,
     ToggleRightIcon,
     IdentificationCardIcon,
+    CaretLeftIcon,
+    CaretRightIcon,
 } from '@phosphor-icons/react';
 import ActionMenu from '@/app/components/ui/ActionMenu';
 import type { ActionMenuItem } from '@/app/components/ui/ActionMenu';
@@ -43,8 +45,8 @@ import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 // ─── Display helpers ──────────────────────────────────────────────────────────
 
 const ROLE_STYLES: Record<string, string> = {
+    tech_admin:     'bg-primary/10 text-primary',
     admin:          'bg-primary/10 text-primary',
-    super_admin:    'bg-primary/10 text-primary',
     branch_partner: 'bg-purple-100 text-purple-700',
     manager:        'bg-secondary/10 text-secondary',
     call_center:    'bg-info/10 text-info',
@@ -212,7 +214,7 @@ function StaffModal({ staff, onClose, onSave, branchName, branchId }: {
 
     const dbRoleToStaffRole = (dbRoleName: string): StaffRole => {
         const mapping: Record<string, StaffRole> = {
-            'super_admin': 'super_admin', 'admin': 'super_admin', 'branch_partner': 'branch_partner',
+            'tech_admin': 'tech_admin', 'admin': 'admin', 'branch_partner': 'branch_partner',
             'manager': 'manager', 'call_center': 'call_center', 'sales_staff': 'sales_staff',
             'kitchen': 'kitchen', 'rider': 'rider', 'employee': 'sales_staff',
         };
@@ -220,25 +222,44 @@ function StaffModal({ staff, onClose, onSave, branchName, branchId }: {
     };
 
     const availableRoles = roles.filter(role => {
-        if (role.name === 'employee') return false;
         const staffRole = dbRoleToStaffRole(role.name);
         return MANAGER_ASSIGNABLE_ROLES.includes(staffRole);
     });
 
+    const BACKEND_TO_FRONTEND: Record<string, keyof StaffPermissions> = {
+        view_orders:           'canViewOrders',
+        create_orders:         'canPlaceOrders',
+        update_orders:         'canAdvanceOrders',
+        delete_orders:         'canDeleteOrders',
+        view_menu:             'canViewMenu',
+        manage_menu:           'canManageMenu',
+        view_branches:         'canViewBranches',
+        manage_branches:       'canManageBranches',
+        view_customers:        'canViewCustomers',
+        manage_customers:      'canManageCustomers',
+        view_employees:        'canViewEmployees',
+        manage_employees:      'canManageStaff',
+        view_analytics:        'canViewReports',
+        view_activity_log:     'canViewActivityLog',
+        access_admin_panel:    'canAccessAdminPanel',
+        access_manager_portal: 'canAccessManagerPortal',
+        access_sales_portal:   'canAccessSalesPortal',
+        access_partner_portal: 'canAccessPartnerPortal',
+        access_pos:            'canAccessPOS',
+        access_kitchen:        'canAccessKitchen',
+        access_order_manager:  'canAccessOrderManager',
+        manage_shifts:         'canManageShifts',
+        manage_settings:       'canManageSettings',
+        view_my_shifts:        'canViewMyShifts',
+        view_my_sales:         'canViewMySales',
+    };
+
     const getPermissionMapping = () => {
         const mapping: Record<string, { key: keyof StaffPermissions; label: string; description: string }> = {};
         permissions.forEach(perm => {
-            switch (perm.name) {
-                case 'create_orders':    mapping[perm.name] = { key: 'canPlaceOrders', label: perm.display_name, description: perm.description }; break;
-                case 'update_orders':    mapping[perm.name] = { key: 'canAdvanceOrders', label: perm.display_name, description: perm.description }; break;
-                case 'access_pos':       mapping[perm.name] = { key: 'canAccessPOS', label: 'Can Access POS Terminal', description: 'Allows logging in to the POS terminal with a PIN' }; break;
-                case 'view_analytics':   mapping[perm.name] = { key: 'canViewReports', label: perm.display_name, description: perm.description }; break;
-                case 'manage_menu':      mapping[perm.name] = { key: 'canManageMenu', label: perm.display_name, description: perm.description }; break;
-                case 'manage_employees': mapping[perm.name] = { key: 'canManageStaff', label: perm.display_name, description: perm.description }; break;
-                case 'manage_shifts':    mapping[perm.name] = { key: 'canManageShifts', label: perm.display_name, description: perm.description }; break;
-                case 'manage_settings':  mapping[perm.name] = { key: 'canManageSettings', label: perm.display_name, description: perm.description }; break;
-                case 'view_my_shifts':   mapping[perm.name] = { key: 'canViewMyShifts', label: perm.display_name, description: perm.description }; break;
-                case 'view_my_sales':    mapping[perm.name] = { key: 'canViewMySales', label: perm.display_name, description: perm.description }; break;
+            const frontendKey = BACKEND_TO_FRONTEND[perm.name];
+            if (frontendKey) {
+                mapping[perm.name] = { key: frontendKey, label: perm.display_name, description: perm.description };
             }
         });
         return mapping;
@@ -385,7 +406,7 @@ function StaffModal({ staff, onClose, onSave, branchName, branchId }: {
                             <div>
                                 <label className="block text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Employment Status</label>
                                 <div className="flex gap-2 flex-wrap">
-                                    {(['active', 'on_leave', 'resigned'] as EmploymentStatus[]).map(s => (
+                                    {(['active', 'on_leave', 'suspended', 'terminated'] as EmploymentStatus[]).map(s => (
                                         <button key={s} type="button"
                                             onClick={() => setForm(f => ({ ...f, employmentStatus: s }))}
                                             className={`px-3 py-1.5 rounded-xl text-xs font-semibold font-body cursor-pointer transition-colors ${form.employmentStatus === s
@@ -521,17 +542,17 @@ function FieldInput({ label, value, onChange, placeholder, error, span }: {
 
 // ─── Filter tabs ──────────────────────────────────────────────────────────────
 
-type FilterTab = 'All' | 'Manager' | 'Sales Staff' | 'Call Center' | 'Kitchen' | 'Rider' | 'Suspended' | 'Archived';
+type FilterTab = 'All' | 'Manager' | 'Sales Staff' | 'Call Center' | 'Kitchen' | 'Rider' | 'Suspended' | 'Terminated';
 
 function matchesTab(s: StaffMember, tab: FilterTab): boolean {
-    if (tab === 'Suspended') return s.systemAccess === 'disabled' && s.status !== 'archived';
-    if (tab === 'Archived')  return s.status === 'archived';
-    if (tab === 'All')       return s.status !== 'archived';
-    if (tab === 'Manager')    return s.role === 'manager'      && s.status !== 'archived';
-    if (tab === 'Sales Staff') return s.role === 'sales_staff' && s.status !== 'archived';
-    if (tab === 'Call Center') return s.role === 'call_center' && s.status !== 'archived';
-    if (tab === 'Kitchen')    return s.role === 'kitchen'      && s.status !== 'archived';
-    if (tab === 'Rider')      return s.role === 'rider'        && s.status !== 'archived';
+    if (tab === 'Suspended')  return s.status === 'suspended';
+    if (tab === 'Terminated') return s.status === 'terminated';
+    if (tab === 'All')        return s.status !== 'terminated';
+    if (tab === 'Manager')     return s.role === 'manager'      && s.status !== 'terminated';
+    if (tab === 'Sales Staff') return s.role === 'sales_staff' && s.status !== 'terminated';
+    if (tab === 'Call Center') return s.role === 'call_center' && s.status !== 'terminated';
+    if (tab === 'Kitchen')     return s.role === 'kitchen'      && s.status !== 'terminated';
+    if (tab === 'Rider')       return s.role === 'rider'        && s.status !== 'terminated';
     return false;
 }
 
@@ -570,10 +591,12 @@ export default function ManagerStaffPage() {
 
     const [tab, setTab] = useState<FilterTab>('All');
     const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
     const [editStaff, setEditStaff] = useState<StaffMember | null | 'new'>(null);
     const [deleteStaff, setDeleteStaff] = useState<StaffMember | null>(null);
 
-    const TABS: FilterTab[] = ['All', 'Manager', 'Sales Staff', 'Call Center', 'Kitchen', 'Rider', 'Suspended', 'Archived'];
+    const PER_PAGE = 10;
+    const TABS: FilterTab[] = ['All', 'Manager', 'Sales Staff', 'Call Center', 'Kitchen', 'Rider', 'Suspended', 'Terminated'];
 
     const filtered = useMemo(() => {
         let list = staff.filter(s => matchesTab(s, tab));
@@ -587,6 +610,12 @@ export default function ManagerStaffPage() {
         }
         return list;
     }, [staff, tab, search]);
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+    const paged = useMemo(() => filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE), [filtered, page]);
+
+    // Reset page when filters change
+    useEffect(() => { setPage(1); }, [tab, search]);
 
     async function saveStaff(s: StaffMember) {
         const isNew = isNewStaffId(s.id);
@@ -662,7 +691,7 @@ export default function ManagerStaffPage() {
     async function suspend(s: StaffMember) {
         try {
             await employeeService.updateEmployee(s.id, { status: 'suspended' });
-            setStaff(prev => prev.map(x => x.id === s.id ? { ...x, status: 'inactive' as StaffStatus, systemAccess: 'disabled' as SystemAccess } : x));
+            setStaff(prev => prev.map(x => x.id === s.id ? { ...x, status: 'suspended' as StaffStatus, systemAccess: 'disabled' as SystemAccess } : x));
             toast.success(`${s.name} has been suspended`);
         } catch { toast.error('Failed to suspend. Please try again.'); }
     }
@@ -677,10 +706,10 @@ export default function ManagerStaffPage() {
 
     async function archive(s: StaffMember) {
         try {
-            await employeeService.updateEmployee(s.id, { status: 'archived' });
-            setStaff(prev => prev.map(x => x.id === s.id ? { ...x, status: 'archived' as StaffStatus, systemAccess: 'disabled' as SystemAccess, employmentStatus: 'resigned' as EmploymentStatus } : x));
-            toast.success(`${s.name} has been archived`);
-        } catch { toast.error('Failed to archive. Please try again.'); }
+            await employeeService.updateEmployee(s.id, { status: 'terminated' });
+            setStaff(prev => prev.map(x => x.id === s.id ? { ...x, status: 'terminated' as StaffStatus, systemAccess: 'disabled' as SystemAccess, employmentStatus: 'terminated' as EmploymentStatus } : x));
+            toast.success(`${s.name} has been terminated`);
+        } catch { toast.error('Failed to terminate. Please try again.'); }
     }
 
     async function forceLogout(s: StaffMember) {
@@ -748,9 +777,9 @@ export default function ManagerStaffPage() {
                             <span>Last Login</span>
                             <span className="text-right">Actions</span>
                         </div>
-                        {filtered.map((member, i) => (
+                        {paged.map((member, i) => (
                             <div key={member.id}
-                                className={`px-5 py-3.5 flex flex-col sm:grid sm:grid-cols-[minmax(0,1.5fr)_100px_minmax(0,1fr)_100px_140px] gap-2 sm:gap-3 sm:items-center ${i < filtered.length - 1 ? 'border-b border-[#f0e8d8]' : ''} hover:bg-neutral-light/40 transition-colors`}>
+                                className={`px-5 py-3.5 flex flex-col sm:grid sm:grid-cols-[minmax(0,1.5fr)_100px_minmax(0,1fr)_100px_140px] gap-2 sm:gap-3 sm:items-center ${i < paged.length - 1 ? 'border-b border-[#f0e8d8]' : ''} hover:bg-neutral-light/40 transition-colors`}>
 
                                 {/* Name + avatar + status */}
                                 <div className="flex items-center gap-2.5 min-w-0">
@@ -758,17 +787,14 @@ export default function ManagerStaffPage() {
                                     <div className="min-w-0">
                                         <p className="text-text-dark text-sm font-semibold font-body truncate">{member.name}</p>
                                         <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                                            {member.systemAccess === 'disabled' && member.status !== 'archived' && (
-                                                <span className="text-[10px] font-body bg-error/10 text-error px-2 py-0.5 rounded-full">No Access</span>
+                                            {member.status === 'suspended' && (
+                                                <span className="text-[10px] font-body bg-error/10 text-error px-2 py-0.5 rounded-full">Suspended</span>
                                             )}
-                                            {member.employmentStatus === 'on_leave' && (
+                                            {member.status === 'on_leave' && (
                                                 <span className="text-[10px] font-body bg-warning/10 text-warning px-2 py-0.5 rounded-full">On Leave</span>
                                             )}
-                                            {member.employmentStatus === 'resigned' && member.status !== 'archived' && (
-                                                <span className="text-[10px] font-body bg-error/10 text-error px-2 py-0.5 rounded-full">Resigned</span>
-                                            )}
-                                            {member.status === 'archived' && (
-                                                <span className="text-[10px] font-body bg-neutral-light text-neutral-gray px-2 py-0.5 rounded-full">Archived</span>
+                                            {member.status === 'terminated' && (
+                                                <span className="text-[10px] font-body bg-neutral-light text-neutral-gray px-2 py-0.5 rounded-full">Terminated</span>
                                             )}
                                         </div>
                                     </div>
@@ -793,19 +819,19 @@ export default function ManagerStaffPage() {
                                 <div className="flex items-center justify-end shrink-0">
                                     <ActionMenu items={(() => {
                                         const actions: ActionMenuItem[] = [];
-                                        if (member.status !== 'archived') {
+                                        if (member.status !== 'terminated') {
                                             actions.push(
                                                 { icon: PencilSimpleIcon, label: 'Edit', onClick: () => setEditStaff(member), color: 'text-primary' },
                                                 { icon: LockSimpleIcon, label: 'Reset PW', onClick: () => requirePasswordReset(member), color: 'text-neutral-gray' },
                                                 { icon: SignOutIcon, label: 'Force Logout', onClick: () => forceLogout(member), color: 'text-neutral-gray' },
                                             );
-                                            if (member.systemAccess === 'enabled') {
+                                            if (member.status !== 'suspended') {
                                                 actions.push({ icon: ArchiveIcon, label: 'Suspend', onClick: () => suspend(member), color: 'text-warning' });
                                             } else {
                                                 actions.push({ icon: ArrowCounterClockwiseIcon, label: 'Reinstate', onClick: () => reinstate(member), color: 'text-secondary' });
                                             }
                                             actions.push(
-                                                { icon: ArchiveIcon, label: 'Archive', onClick: () => archive(member), color: 'text-neutral-gray' },
+                                                { icon: ArchiveIcon, label: 'Terminate', onClick: () => archive(member), color: 'text-neutral-gray' },
                                                 { icon: TrashIcon, label: 'Delete', onClick: () => setDeleteStaff(member), color: 'text-error' },
                                             );
                                         } else {
@@ -822,6 +848,26 @@ export default function ManagerStaffPage() {
                     </>
                 )}
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                    <p className="text-neutral-gray text-xs font-body">
+                        Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, filtered.length)} of {filtered.length}
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                        <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium font-body bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                            <CaretLeftIcon size={12} weight="bold" /> Prev
+                        </button>
+                        <span className="text-neutral-gray text-xs font-body px-2">Page {page} of {totalPages}</span>
+                        <button type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium font-body bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                            Next <CaretRightIcon size={12} weight="bold" />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Modals */}
             {editStaff !== null && (

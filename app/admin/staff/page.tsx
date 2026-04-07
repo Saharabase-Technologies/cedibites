@@ -19,9 +19,17 @@ import {
     ToggleLeftIcon,
     ToggleRightIcon,
     IdentificationCardIcon,
+    EnvelopeSimpleIcon,
+    PhoneIcon,
+    CalendarIcon,
+    NoteIcon,
+    CaretLeftIcon,
+    CaretRightIcon,
+    ShieldCheckIcon,
+    GlobeIcon,
+    FirstAidKitIcon,
+    PaperPlaneTiltIcon,
 } from '@phosphor-icons/react';
-import ActionMenu from '@/app/components/ui/ActionMenu';
-import type { ActionMenuItem } from '@/app/components/ui/ActionMenu';
 import {
     type StaffMember,
     type StaffRole,
@@ -36,21 +44,21 @@ import {
 import { useEmployees } from '@/lib/api/hooks/useEmployees';
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import { useRoles, usePermissions } from '@/lib/api/hooks/useRoles';
-import { employeeService, staffRoleToBackendRole, mapPermissionsToBackend } from '@/lib/api/services/employee.service';
+import { employeeService, staffRoleToBackendRole, mapPermissionsToBackend, type EmployeeNoteResponse } from '@/lib/api/services/employee.service';
 import { toast } from '@/lib/utils/toast';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
 // ─── Display helpers ──────────────────────────────────────────────────────────
 
-const ROLE_STYLES: Record<StaffRole, string> = {
-    admin:          'bg-primary/10 text-primary',
-    super_admin:    'bg-primary/10 text-primary',
-    branch_partner: 'bg-purple-100 text-purple-700',
-    manager:        'bg-secondary/10 text-secondary',
-    call_center:    'bg-info/10 text-info',
-    sales_staff:    'bg-neutral-200 text-neutral-700',
-    kitchen:        'bg-warning/10 text-warning',
-    rider:          'bg-secondary/15 text-secondary',
+const ROLE_COLORS: Record<StaffRole, string> = {
+    tech_admin:     'text-primary',
+    admin:          'text-primary',
+    branch_partner: 'text-purple-600',
+    manager:        'text-secondary',
+    call_center:    'text-info',
+    sales_staff:    'text-neutral-gray',
+    kitchen:        'text-warning',
+    rider:          'text-secondary',
 };
 
 function initials(name?: string | null) {
@@ -69,7 +77,7 @@ function branchDisplay(branch: string | string[]) {
 
 function RoleBadge({ role }: { role: StaffRole }) {
     return (
-        <span className={`text-[10px] font-bold font-body px-2.5 py-1 rounded-full ${ROLE_STYLES[role]}`}>
+        <span className={`text-xs font-medium font-body ${ROLE_COLORS[role]}`}>
             {roleDisplayName(role)}
         </span>
     );
@@ -135,6 +143,367 @@ function ConfirmDeleteModal({ staff, onConfirm, onCancel }: { staff: StaffMember
     );
 }
 
+// ─── Staff detail drawer ──────────────────────────────────────────────────────
+
+type DetailTab = 'overview' | 'notes';
+
+interface StaffDetailDrawerProps {
+    staff: StaffMember;
+    onClose: () => void;
+    onEdit: (s: StaffMember) => void;
+    onSuspend: (s: StaffMember) => void;
+    onReinstate: (s: StaffMember) => void;
+    onTerminate: (s: StaffMember) => void;
+    onForceLogout: (s: StaffMember) => void;
+    onResetPassword: (s: StaffMember) => void;
+    onDelete: (s: StaffMember) => void;
+}
+
+function StaffDetailDrawer({ staff, onClose, onEdit, onSuspend, onReinstate, onTerminate, onForceLogout, onResetPassword, onDelete }: StaffDetailDrawerProps) {
+    const [activeTab, setActiveTab] = useState<DetailTab>('overview');
+    const [notes, setNotes] = useState<EmployeeNoteResponse[]>([]);
+    const [newNote, setNewNote] = useState('');
+    const [isSavingNote, setIsSavingNote] = useState(false);
+    const [isLoadingNotes, setIsLoadingNotes] = useState(false);
+
+    // Load notes from API on mount
+    useEffect(() => {
+        setIsLoadingNotes(true);
+        employeeService.getNotes(staff.id)
+            .then(setNotes)
+            .catch(() => toast.error('Failed to load notes'))
+            .finally(() => setIsLoadingNotes(false));
+    }, [staff.id]);
+
+    async function addNote() {
+        if (!newNote.trim()) return;
+        setIsSavingNote(true);
+        try {
+            const note = await employeeService.addNote(staff.id, newNote.trim());
+            setNotes(prev => [note, ...prev]);
+            setNewNote('');
+            toast.success('Note added');
+        } catch {
+            toast.error('Failed to save note');
+        } finally {
+            setIsSavingNote(false);
+        }
+    }
+
+    async function removeNote(noteId: number) {
+        try {
+            await employeeService.deleteNote(staff.id, noteId);
+            setNotes(prev => prev.filter(n => n.id !== noteId));
+            toast.success('Note deleted');
+        } catch {
+            toast.error('Failed to delete note');
+        }
+    }
+
+    const statusConfig = {
+        active: { label: 'Active', color: 'bg-secondary/10 text-secondary', dot: 'bg-secondary' },
+        on_leave: { label: 'On Leave', color: 'bg-warning/10 text-warning', dot: 'bg-warning' },
+        suspended: { label: 'Suspended', color: 'bg-error/10 text-error', dot: 'bg-error' },
+        terminated: { label: 'Terminated', color: 'bg-neutral-200 text-neutral-gray', dot: 'bg-neutral-gray' },
+    };
+
+    const current = statusConfig[staff.status] ?? statusConfig.active;
+
+    return (
+        <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
+            <div className="relative w-full max-w-md bg-neutral-card shadow-2xl flex flex-col animate-in slide-in-from-right duration-200" onClick={e => e.stopPropagation()}>
+
+                {/* Header */}
+                <div className="px-6 py-5 border-b border-[#f0e8d8]">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-12 h-12 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                                <span className="text-primary text-base font-bold font-body">{initials(staff.name)}</span>
+                            </div>
+                            <div className="min-w-0">
+                                <h2 className="text-text-dark text-lg font-bold font-body truncate">{staff.name}</h2>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    <span className={`text-xs font-medium font-body ${ROLE_COLORS[staff.role]}`}>{roleDisplayName(staff.role)}</span>
+                                    <span className="text-neutral-gray/30">·</span>
+                                    <span className={`inline-flex items-center gap-1 text-[10px] font-medium font-body px-2 py-0.5 rounded-full ${current.color}`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${current.dot}`} />
+                                        {current.label}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-neutral-light cursor-pointer shrink-0">
+                            <XIcon size={16} className="text-neutral-gray" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex gap-0 px-6 border-b border-[#f0e8d8]">
+                    {([{ id: 'overview', label: 'Overview' }, { id: 'notes', label: 'Notes' }] as { id: DetailTab; label: string }[]).map(t => (
+                        <button key={t.id} type="button" onClick={() => setActiveTab(t.id)}
+                            className={`px-4 py-3 text-xs font-medium font-body border-b-2 transition-colors cursor-pointer ${activeTab === t.id ? 'border-primary text-primary' : 'border-transparent text-neutral-gray hover:text-text-dark'}`}>
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto">
+
+                    {activeTab === 'overview' && (
+                        <div className="p-6 flex flex-col gap-5">
+
+                            {/* Contact info */}
+                            <div>
+                                <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-3">Contact</p>
+                                <div className="flex flex-col gap-2.5">
+                                    <div className="flex items-center gap-2.5">
+                                        <PhoneIcon size={14} weight="bold" className="text-neutral-gray/60 shrink-0" />
+                                        <span className="text-text-dark text-sm font-body">{staff.phone || '—'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2.5">
+                                        <EnvelopeSimpleIcon size={14} weight="bold" className="text-neutral-gray/60 shrink-0" />
+                                        <span className="text-text-dark text-sm font-body">{staff.email || '—'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="h-px bg-[#f0e8d8]" />
+
+                            {/* Work info */}
+                            <div>
+                                <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-3">Work</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-3 bg-neutral-light rounded-xl">
+                                        <p className="text-[10px] font-body text-neutral-gray mb-1">Branch</p>
+                                        <div className="flex items-center gap-1.5">
+                                            <BuildingsIcon size={13} weight="fill" className="text-neutral-gray/60 shrink-0" />
+                                            <p className="text-text-dark text-xs font-medium font-body truncate">{branchDisplay(staff.branch)}</p>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-neutral-light rounded-xl">
+                                        <p className="text-[10px] font-body text-neutral-gray mb-1">Joined</p>
+                                        <div className="flex items-center gap-1.5">
+                                            <CalendarIcon size={13} weight="fill" className="text-neutral-gray/60 shrink-0" />
+                                            <p className="text-text-dark text-xs font-medium font-body">{staff.joinedAt || '—'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-neutral-light rounded-xl">
+                                        <p className="text-[10px] font-body text-neutral-gray mb-1">Last Login</p>
+                                        <div className="flex items-center gap-1.5">
+                                            <ClockIcon size={13} weight="fill" className="text-neutral-gray/60 shrink-0" />
+                                            <p className="text-text-dark text-xs font-medium font-body">{staff.lastLogin || 'Never'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-neutral-light rounded-xl">
+                                        <p className="text-[10px] font-body text-neutral-gray mb-1">Orders Today</p>
+                                        <p className="text-text-dark text-xs font-medium font-body">{staff.ordersToday}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* HR info - only if any exists */}
+                            {(staff.ssnit || staff.ghanaCard || staff.tinNumber || staff.dateOfBirth || staff.nationality || staff.emergencyContact) && (
+                                <>
+                                    <div className="h-px bg-[#f0e8d8]" />
+                                    <div>
+                                        <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-3">HR Information</p>
+                                        <div className="flex flex-col gap-2">
+                                            {staff.nationality && (
+                                                <div className="flex items-center gap-2.5">
+                                                    <GlobeIcon size={14} weight="bold" className="text-neutral-gray/60 shrink-0" />
+                                                    <span className="text-text-dark text-sm font-body">{staff.nationality}</span>
+                                                </div>
+                                            )}
+                                            {staff.dateOfBirth && (
+                                                <div className="flex items-center gap-2.5">
+                                                    <CalendarIcon size={14} weight="bold" className="text-neutral-gray/60 shrink-0" />
+                                                    <span className="text-text-dark text-sm font-body">{staff.dateOfBirth}</span>
+                                                </div>
+                                            )}
+                                            {staff.ssnit && (
+                                                <div className="flex items-center gap-2.5">
+                                                    <ShieldCheckIcon size={14} weight="bold" className="text-neutral-gray/60 shrink-0" />
+                                                    <span className="text-neutral-gray text-xs font-body">SSNIT</span>
+                                                    <span className="text-text-dark text-sm font-body">{staff.ssnit}</span>
+                                                </div>
+                                            )}
+                                            {staff.ghanaCard && (
+                                                <div className="flex items-center gap-2.5">
+                                                    <IdentificationCardIcon size={14} weight="bold" className="text-neutral-gray/60 shrink-0" />
+                                                    <span className="text-neutral-gray text-xs font-body">Ghana Card</span>
+                                                    <span className="text-text-dark text-sm font-body">{staff.ghanaCard}</span>
+                                                </div>
+                                            )}
+                                            {staff.tinNumber && (
+                                                <div className="flex items-center gap-2.5">
+                                                    <IdentificationCardIcon size={14} weight="bold" className="text-neutral-gray/60 shrink-0" />
+                                                    <span className="text-neutral-gray text-xs font-body">TIN</span>
+                                                    <span className="text-text-dark text-sm font-body">{staff.tinNumber}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {staff.emergencyContact && (
+                                            <div className="mt-3 p-3 bg-neutral-light rounded-xl">
+                                                <div className="flex items-center gap-1.5 mb-2">
+                                                    <FirstAidKitIcon size={13} weight="fill" className="text-error/60" />
+                                                    <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Emergency Contact</p>
+                                                </div>
+                                                <p className="text-text-dark text-sm font-medium font-body">{staff.emergencyContact.name}</p>
+                                                <p className="text-neutral-gray text-xs font-body">{staff.emergencyContact.phone} · {staff.emergencyContact.relationship}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+
+                            <div className="h-px bg-[#f0e8d8]" />
+
+                            {/* Permissions summary */}
+                            <div>
+                                <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-3">Permissions</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {Object.entries(staff.permissions)
+                                        .filter(([, v]) => v)
+                                        .map(([key]) => (
+                                            <span key={key} className="text-[10px] font-body text-neutral-gray bg-neutral-light px-2 py-1 rounded-lg">
+                                                {key.replace(/^can/, '').replace(/([A-Z])/g, ' $1').trim()}
+                                            </span>
+                                        ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'notes' && (
+                        <div className="p-6 flex flex-col gap-4">
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <NoteIcon size={16} weight="bold" className="text-neutral-gray" />
+                                    <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Staff Notes</p>
+                                </div>
+                                <p className="text-neutral-gray text-xs font-body mb-4">Private notes about this staff member. Visible to admins and managers with employee access.</p>
+
+                                {/* Add note */}
+                                <div className="mb-5">
+                                    <textarea
+                                        value={newNote}
+                                        onChange={e => setNewNote(e.target.value)}
+                                        placeholder="Add a note…"
+                                        rows={3}
+                                        className="w-full px-3.5 py-3 bg-neutral-light border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body placeholder:text-neutral-gray/50 focus:outline-none focus:border-primary/40 resize-none"
+                                    />
+                                    <div className="flex justify-end mt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => void addNote()}
+                                            disabled={!newNote.trim() || isSavingNote}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-medium font-body rounded-xl cursor-pointer hover:bg-primary-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            <PaperPlaneTiltIcon size={12} weight="bold" />
+                                            {isSavingNote ? 'Saving…' : 'Add Note'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Notes list */}
+                                {isLoadingNotes ? (
+                                    <p className="text-neutral-gray text-sm font-body text-center py-4">Loading notes…</p>
+                                ) : notes.length === 0 ? (
+                                    <div className="text-center py-6">
+                                        <NoteIcon size={24} weight="thin" className="text-neutral-gray/30 mx-auto mb-2" />
+                                        <p className="text-neutral-gray text-sm font-body">No notes yet.</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-3">
+                                        {notes.map(note => (
+                                            <div key={note.id} className="p-3 bg-neutral-light rounded-xl border border-[#f0e8d8]">
+                                                <div className="flex items-start justify-between gap-2 mb-1.5">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-text-dark text-xs font-semibold font-body">{note.author}</span>
+                                                        <span className="text-neutral-gray/40">·</span>
+                                                        <span className="text-neutral-gray text-[10px] font-body">
+                                                            {new Date(note.created_at).toLocaleDateString('en-GH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                        </span>
+                                                    </div>
+                                                    {note.is_own && (
+                                                        <button type="button" onClick={() => void removeNote(note.id)}
+                                                            className="text-neutral-gray/40 hover:text-error transition-colors cursor-pointer shrink-0">
+                                                            <XIcon size={12} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <p className="text-text-dark text-sm font-body whitespace-pre-wrap">{note.content}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Bottom actions */}
+                <div className="px-6 py-4 border-t border-[#f0e8d8] flex flex-col gap-2">
+                    <button type="button" onClick={() => { onClose(); onEdit(staff); }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium font-body cursor-pointer hover:bg-primary-hover transition-colors">
+                        <PencilSimpleIcon size={14} weight="bold" />
+                        Edit Staff Member
+                    </button>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button type="button" onClick={() => { onForceLogout(staff); }}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-neutral-light text-text-dark rounded-xl text-xs font-medium font-body cursor-pointer hover:bg-neutral-light/70 transition-colors">
+                            <SignOutIcon size={13} weight="bold" />
+                            Force Logout
+                        </button>
+                        <button type="button" onClick={() => { onResetPassword(staff); }}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-neutral-light text-text-dark rounded-xl text-xs font-medium font-body cursor-pointer hover:bg-neutral-light/70 transition-colors">
+                            <LockSimpleIcon size={13} weight="bold" />
+                            Reset Password
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {staff.status !== 'suspended' && staff.status !== 'terminated' ? (
+                            <button type="button" onClick={() => { onSuspend(staff); onClose(); }}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2 bg-warning/10 text-warning rounded-xl text-xs font-medium font-body cursor-pointer hover:bg-warning/15 transition-colors">
+                                <ArchiveIcon size={13} weight="bold" />
+                                Suspend
+                            </button>
+                        ) : staff.status === 'suspended' ? (
+                            <button type="button" onClick={() => { onReinstate(staff); onClose(); }}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2 bg-secondary/10 text-secondary rounded-xl text-xs font-medium font-body cursor-pointer hover:bg-secondary/15 transition-colors">
+                                <ArrowCounterClockwiseIcon size={13} weight="bold" />
+                                Reinstate
+                            </button>
+                        ) : (
+                            <button type="button" onClick={() => { onReinstate(staff); onClose(); }}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2 bg-secondary/10 text-secondary rounded-xl text-xs font-medium font-body cursor-pointer hover:bg-secondary/15 transition-colors">
+                                <ArrowCounterClockwiseIcon size={13} weight="bold" />
+                                Restore
+                            </button>
+                        )}
+                        {staff.status !== 'terminated' ? (
+                            <button type="button" onClick={() => { onTerminate(staff); onClose(); }}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2 bg-neutral-light text-neutral-gray rounded-xl text-xs font-medium font-body cursor-pointer hover:bg-neutral-200 transition-colors">
+                                <ArchiveIcon size={13} weight="bold" />
+                                Terminate
+                            </button>
+                        ) : (
+                            <button type="button" onClick={() => { onDelete(staff); onClose(); }}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2 bg-error/10 text-error rounded-xl text-xs font-medium font-body cursor-pointer hover:bg-error/15 transition-colors">
+                                <TrashIcon size={13} weight="bold" />
+                                Delete
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Staff modal ──────────────────────────────────────────────────────────────
 
 type ModalTab = 'profile' | 'access' | 'permissions' | 'hr';
@@ -145,6 +514,7 @@ interface StaffFormState {
     email:            string;
     password:         string;
     passwordConfirm:  string;
+    passwordMode:     'auto' | 'custom' | 'prompt';
     role:             StaffRole;
     branch:           string | string[];
     employmentStatus: EmploymentStatus;
@@ -191,6 +561,7 @@ function memberToForm(s: StaffMember): StaffFormState {
         email: s.email ?? '',
         password: '',
         passwordConfirm: '',
+        passwordMode: 'auto' as const,
         role: s.role,
         branch: branchValue,
         employmentStatus: s.employmentStatus,
@@ -209,7 +580,7 @@ function memberToForm(s: StaffMember): StaffFormState {
 }
 
 // Roles that can span multiple branches
-const MULTI_BRANCH_ROLES: StaffRole[] = ['call_center', 'branch_partner', 'super_admin'];
+const MULTI_BRANCH_ROLES: StaffRole[] = ['call_center', 'branch_partner', 'admin', 'tech_admin'];
 
 function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onClose: () => void; onSave: (s: StaffMember) => void | Promise<void> }) {
     const { branches, isLoading: branchesLoading } = useBranchesApi();
@@ -222,6 +593,7 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
     // Create a dynamic blank form that uses the first available branch
     const createBlankForm = (): StaffFormState => ({
         name: '', phone: '', email: '', password: '', passwordConfirm: '',
+        passwordMode: 'auto' as const,
         role: 'sales_staff',
         branch: ALL_BRANCHES[0] || '',
         employmentStatus: 'active',
@@ -249,8 +621,8 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
     // Convert database role name to StaffRole
     const dbRoleToStaffRole = (dbRoleName: string): StaffRole => {
         const mapping: Record<string, StaffRole> = {
-            'super_admin': 'super_admin',
-            'admin': 'super_admin', // Map admin to super_admin for display
+            'tech_admin': 'tech_admin',
+            'admin': 'admin',
             'branch_partner': 'branch_partner',
             'manager': 'manager',
             'call_center': 'call_center',
@@ -265,8 +637,8 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
     // Convert StaffRole to database role name
     const staffRoleToDbRole = (staffRole: StaffRole): string => {
         const mapping: Record<StaffRole, string> = {
+            'tech_admin': 'tech_admin',
             'admin': 'admin',
-            'super_admin': 'super_admin',
             'branch_partner': 'branch_partner',
             'manager': 'manager',
             'call_center': 'call_center',
@@ -279,52 +651,51 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
 
     // Get available roles for the dropdown (filter to only show roles that map to valid StaffRole)
     const availableRoles = roles.filter(role => {
-        if (role.name === 'employee') {
-            return false;
-        }
         const staffRole = dbRoleToStaffRole(role.name);
-        return ['super_admin', 'branch_partner', 'manager', 'call_center', 'sales_staff', 'kitchen', 'rider'].includes(staffRole);
+        return ['admin', 'branch_partner', 'manager', 'call_center', 'sales_staff', 'kitchen', 'rider'].includes(staffRole);
     });
 
-    // Map database permissions to frontend permission structure
+    // Map *every* backend permission to its frontend key/label/description.
+    // The UI already filters out permissions the selected role already grants,
+    // so the admin sees only the extras they can toggle per-user.
+    const BACKEND_TO_FRONTEND: Record<string, keyof StaffPermissions> = {
+        view_orders:           'canViewOrders',
+        create_orders:         'canPlaceOrders',
+        update_orders:         'canAdvanceOrders',
+        delete_orders:         'canDeleteOrders',
+        view_menu:             'canViewMenu',
+        manage_menu:           'canManageMenu',
+        view_branches:         'canViewBranches',
+        manage_branches:       'canManageBranches',
+        view_customers:        'canViewCustomers',
+        manage_customers:      'canManageCustomers',
+        view_employees:        'canViewEmployees',
+        manage_employees:      'canManageStaff',
+        view_analytics:        'canViewReports',
+        view_activity_log:     'canViewActivityLog',
+        access_admin_panel:    'canAccessAdminPanel',
+        access_manager_portal: 'canAccessManagerPortal',
+        access_sales_portal:   'canAccessSalesPortal',
+        access_partner_portal: 'canAccessPartnerPortal',
+        access_pos:            'canAccessPOS',
+        access_kitchen:        'canAccessKitchen',
+        access_order_manager:  'canAccessOrderManager',
+        manage_shifts:         'canManageShifts',
+        manage_settings:       'canManageSettings',
+        view_my_shifts:        'canViewMyShifts',
+        view_my_sales:         'canViewMySales',
+    };
+
     const getPermissionMapping = () => {
         const mapping: Record<string, { key: keyof StaffPermissions; label: string; description: string }> = {};
-        
+
         permissions.forEach(perm => {
-            switch (perm.name) {
-                case 'create_orders':
-                    mapping[perm.name] = { key: 'canPlaceOrders', label: perm.display_name, description: perm.description };
-                    break;
-                case 'update_orders':
-                    mapping[perm.name] = { key: 'canAdvanceOrders', label: perm.display_name, description: perm.description };
-                    break;
-                case 'access_pos':
-                    mapping[perm.name] = { key: 'canAccessPOS', label: 'Can Access POS Terminal', description: 'Allows logging in to the POS terminal with a PIN' };
-                    break;
-                case 'view_analytics':
-                    mapping[perm.name] = { key: 'canViewReports', label: perm.display_name, description: perm.description };
-                    break;
-                case 'manage_menu':
-                    mapping[perm.name] = { key: 'canManageMenu', label: perm.display_name, description: perm.description };
-                    break;
-                case 'manage_employees':
-                    mapping[perm.name] = { key: 'canManageStaff', label: perm.display_name, description: perm.description };
-                    break;
-                case 'manage_shifts':
-                    mapping[perm.name] = { key: 'canManageShifts', label: perm.display_name, description: perm.description };
-                    break;
-                case 'manage_settings':
-                    mapping[perm.name] = { key: 'canManageSettings', label: perm.display_name, description: perm.description };
-                    break;
-                case 'view_my_shifts':
-                    mapping[perm.name] = { key: 'canViewMyShifts', label: perm.display_name, description: perm.description };
-                    break;
-                case 'view_my_sales':
-                    mapping[perm.name] = { key: 'canViewMySales', label: perm.display_name, description: perm.description };
-                    break;
+            const frontendKey = BACKEND_TO_FRONTEND[perm.name];
+            if (frontendKey) {
+                mapping[perm.name] = { key: frontendKey, label: perm.display_name, description: perm.description };
             }
         });
-        
+
         return mapping;
     };
 
@@ -352,6 +723,10 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
         if (!form.name.trim()) e.name = 'Name is required';
         if (!isValidGhanaPhone(form.phone)) e.phone = 'Enter a valid Ghanaian phone number (e.g. 0241234567 or +233241234567)';
         if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email address';
+        if (isNew && form.passwordMode === 'custom') {
+            if (!form.password || form.password.length < 8) e.password = 'Min 8 characters';
+            else if (form.password !== form.passwordConfirm) e.passwordConfirm = 'Passwords do not match';
+        }
         setErrors(e);
         return Object.keys(e).length === 0;
     }
@@ -403,7 +778,6 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
             ...(staff ?? {
                 id:          `u${Date.now()}`,
                 status:      'active' as StaffStatus,
-                password:    form.password,
                 joinedAt:    new Date().toLocaleDateString('en-GH', { month: 'short', year: 'numeric' }),
                 lastLogin:   'Never',
                 ordersToday: 0,
@@ -417,6 +791,7 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
             employmentStatus: form.employmentStatus,
             systemAccess:     form.systemAccess,
             permissions:      form.permissions,
+            ...(isNew ? { password: form.password, passwordMode: form.passwordMode } : {}),
             ssnit:            form.ssnit || undefined,
             ghanaCard:        form.ghanaCard || undefined,
             tinNumber:        form.tinNumber || undefined,
@@ -545,6 +920,44 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
                                 </div>
                             </div>
 
+                            {/* Password mode — new employees only */}
+                            {isNew && (
+                                <div className="mt-1">
+                                    <label className="block text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Password Setup</label>
+                                    <div className="flex gap-2 flex-wrap mb-3">
+                                        {([
+                                            { value: 'auto' as const, label: 'Auto-Generate' },
+                                            { value: 'custom' as const, label: 'Set Password' },
+                                            { value: 'prompt' as const, label: 'Send Prompt' },
+                                        ]).map(opt => (
+                                            <button
+                                                key={opt.value}
+                                                type="button"
+                                                onClick={() => setForm(f => ({ ...f, passwordMode: opt.value, password: '', passwordConfirm: '' }))}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-semibold font-body cursor-pointer transition-colors ${
+                                                    form.passwordMode === opt.value
+                                                        ? 'bg-primary text-white'
+                                                        : 'bg-neutral-light text-neutral-gray border border-[#f0e8d8]'
+                                                }`}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <p className="text-neutral-gray text-[10px] font-body mb-2">
+                                        {form.passwordMode === 'auto' && 'A secure password will be generated and shared with the staff member.'}
+                                        {form.passwordMode === 'custom' && 'You set the password — the staff member will receive it directly.'}
+                                        {form.passwordMode === 'prompt' && 'Staff member will receive a prompt to create their own password on first login.'}
+                                    </p>
+                                    {form.passwordMode === 'custom' && (
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <FieldInput label="Password" value={form.password} onChange={v => setForm(f => ({ ...f, password: v }))} placeholder="Min 8 characters" error={errors.password} />
+                                            <FieldInput label="Confirm" value={form.passwordConfirm} onChange={v => setForm(f => ({ ...f, passwordConfirm: v }))} placeholder="Re-type password" error={errors.passwordConfirm} />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                         </>
                     )}
 
@@ -554,7 +967,7 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
                             <div>
                                 <label className="block text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Employment Status</label>
                                 <div className="flex gap-2 flex-wrap">
-                                    {(['active', 'on_leave', 'resigned'] as EmploymentStatus[]).map(s => (
+                                    {(['active', 'on_leave', 'suspended', 'terminated'] as EmploymentStatus[]).map(s => (
                                         <button key={s} type="button"
                                             onClick={() => setForm(f => ({ ...f, employmentStatus: s }))}
                                             className={`px-3 py-1.5 rounded-xl text-xs font-semibold font-body cursor-pointer transition-colors ${form.employmentStatus === s
@@ -705,20 +1118,20 @@ function FieldInput({ label, value, onChange, placeholder, error, span }: {
 
 // ─── Tab types ────────────────────────────────────────────────────────────────
 
-type FilterTab = 'All' | 'Super Admin' | 'Branch Partner' | 'Branch Manager' | 'Sales Staff' | 'Call Center' | 'Support Staff' | 'Suspended' | 'Archived';
+type FilterTab = 'All' | 'Admin' | 'Branch Partner' | 'Branch Manager' | 'Sales Staff' | 'Call Center' | 'Support Staff' | 'Suspended' | 'Terminated';
 
 const SUPPORT_ROLES: StaffRole[] = ['kitchen', 'rider'];
 
 function matchesTab(s: StaffMember, tab: FilterTab): boolean {
-    if (tab === 'Suspended') return s.systemAccess === 'disabled' && s.status !== 'archived';
-    if (tab === 'Archived')  return s.status === 'archived';
-    if (tab === 'All')       return s.status !== 'archived';
-    if (tab === 'Super Admin')    return s.role === 'super_admin'    && s.status !== 'archived';
-    if (tab === 'Branch Partner') return s.role === 'branch_partner' && s.status !== 'archived';
-    if (tab === 'Branch Manager') return s.role === 'manager'        && s.status !== 'archived';
-    if (tab === 'Sales Staff')   return s.role === 'sales_staff'    && s.status !== 'archived';
-    if (tab === 'Call Center')    return s.role === 'call_center'    && s.status !== 'archived';
-    if (tab === 'Support Staff')  return SUPPORT_ROLES.includes(s.role) && s.status !== 'archived';
+    if (tab === 'Suspended')  return s.status === 'suspended';
+    if (tab === 'Terminated') return s.status === 'terminated';
+    if (tab === 'All')        return s.status !== 'terminated';
+    if (tab === 'Admin')         return s.role === 'admin'          && s.status !== 'terminated';
+    if (tab === 'Branch Partner') return s.role === 'branch_partner' && s.status !== 'terminated';
+    if (tab === 'Branch Manager') return s.role === 'manager'        && s.status !== 'terminated';
+    if (tab === 'Sales Staff')    return s.role === 'sales_staff'    && s.status !== 'terminated';
+    if (tab === 'Call Center')    return s.role === 'call_center'    && s.status !== 'terminated';
+    if (tab === 'Support Staff')  return SUPPORT_ROLES.includes(s.role) && s.status !== 'terminated';
     return false;
 }
 
@@ -745,10 +1158,13 @@ export default function AdminStaffPage() {
     }, [apiStaff]);
     const [tab, setTab] = useState<FilterTab>('All');
     const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
     const [editStaff, setEditStaff] = useState<StaffMember | null | 'new'>(null);
     const [deleteStaff, setDeleteStaff] = useState<StaffMember | null>(null);
+    const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
 
-    const TABS: FilterTab[] = ['All', 'Super Admin', 'Branch Partner', 'Branch Manager', 'Sales Staff', 'Call Center', 'Support Staff', 'Suspended', 'Archived'];
+    const PER_PAGE = 10;
+    const TABS: FilterTab[] = ['All', 'Admin', 'Branch Partner', 'Branch Manager', 'Sales Staff', 'Call Center', 'Support Staff', 'Suspended', 'Terminated'];
 
     const filtered = useMemo(() => {
         let list = staff.filter(s => matchesTab(s, tab));
@@ -763,6 +1179,12 @@ export default function AdminStaffPage() {
         return list;
     }, [staff, tab, search]);
 
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+    const paged = useMemo(() => filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE), [filtered, page]);
+
+    // Reset page when filters change
+    useEffect(() => { setPage(1); }, [tab, search]);
+
     async function saveStaff(s: StaffMember) {
         const branchIds = s.branchIds ?? [];
         const isNew = isNewStaffId(s.id);
@@ -773,6 +1195,8 @@ export default function AdminStaffPage() {
                     name: s.name,
                     email: s.email || null,
                     phone: s.phone,
+                    ...(s.passwordMode === 'custom' && s.password ? { password: s.password } : {}),
+                    password_mode: s.passwordMode || 'auto',
                     branch_ids: branchIds.map((id) => Number(id)),
                     role: staffRoleToBackendRole(s.role),
                     hire_date: s.joinedAt || undefined,
@@ -845,7 +1269,7 @@ export default function AdminStaffPage() {
             await employeeService.updateEmployee(s.id, { status: 'suspended' });
             setStaff(prev => prev.map(x => x.id === s.id ? { 
                 ...x, 
-                status: 'inactive' as StaffStatus, 
+                status: 'suspended' as StaffStatus, 
                 systemAccess: 'disabled' as SystemAccess 
             } : x));
             toast.success(`${s.name} has been suspended`);
@@ -872,17 +1296,17 @@ export default function AdminStaffPage() {
 
     async function archive(s: StaffMember) {
         try {
-            await employeeService.updateEmployee(s.id, { status: 'archived' });
+            await employeeService.updateEmployee(s.id, { status: 'terminated' });
             setStaff(prev => prev.map(x => x.id === s.id ? { 
                 ...x, 
-                status: 'archived' as StaffStatus, 
+                status: 'terminated' as StaffStatus, 
                 systemAccess: 'disabled' as SystemAccess, 
-                employmentStatus: 'resigned' as EmploymentStatus 
+                employmentStatus: 'terminated' as EmploymentStatus 
             } : x));
-            toast.success(`${s.name} has been archived`);
+            toast.success(`${s.name} has been terminated`);
         } catch (error) {
-            console.error('Failed to archive employee:', error);
-            toast.error('Failed to archive employee. Please try again.');
+            console.error('Failed to terminate employee:', error);
+            toast.error('Failed to terminate employee. Please try again.');
         }
     }
 
@@ -910,7 +1334,7 @@ export default function AdminStaffPage() {
         <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
 
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
                 <div>
                     <h1 className="text-text-dark text-2xl font-bold font-body">Staff</h1>
                     <p className="text-neutral-gray text-sm font-body mt-0.5">{filtered.length} accounts shown</p>
@@ -922,22 +1346,22 @@ export default function AdminStaffPage() {
                 </button>
             </div>
 
-            {/* Tabs + search */}
-            <div className="flex flex-col sm:flex-row gap-3 mb-5">
-                <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                    {TABS.map(t => (
-                        <button key={t} type="button" onClick={() => setTab(t)}
-                            className={`px-3 py-2 rounded-xl text-xs font-medium font-body whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${tab === t ? 'bg-primary text-white' : 'bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark'}`}>
-                            {t}
-                            <span className={`text-[10px] font-bold rounded-full px-1.5 py-0.5 ${tab === t ? 'bg-neutral-card/20 text-white' : 'bg-neutral-light text-neutral-gray'}`}>{tabCount(staff, t)}</span>
-                        </button>
-                    ))}
-                </div>
-                <div className="relative flex-1 min-w-45">
-                    <MagnifyingGlassIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray" />
-                    <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, phone, email…"
-                        className="w-full pl-9 pr-3 py-2.5 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40" />
-                </div>
+            {/* Search (above tabs) */}
+            <div className="relative mb-4">
+                <MagnifyingGlassIcon size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-gray" />
+                <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, phone, email…"
+                    className="w-full pl-10 pr-4 py-2.5 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40" />
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 mb-4">
+                {TABS.map(t => (
+                    <button key={t} type="button" onClick={() => setTab(t)}
+                        className={`px-3 py-2 rounded-xl text-xs font-medium font-body whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${tab === t ? 'bg-primary text-white' : 'bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark'}`}>
+                        {t}
+                        <span className={`text-[10px] font-bold rounded-full px-1.5 py-0.5 ${tab === t ? 'bg-neutral-card/20 text-white' : 'bg-neutral-light text-neutral-gray'}`}>{tabCount(staff, t)}</span>
+                    </button>
+                ))}
             </div>
 
             {/* Staff list */}
@@ -954,97 +1378,108 @@ export default function AdminStaffPage() {
                 ) : (
                     <>
                         {/* Table header */}
-                        <div className="hidden sm:grid grid-cols-[minmax(0,1.5fr)_100px_minmax(0,1fr)_minmax(0,1fr)_100px_140px] gap-3 px-5 py-2.5 border-b border-[#f0e8d8] text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">
-                            <span>Name</span>
-                            <span>Role</span>
-                            <span>Contact</span>
-                            <span>Branch</span>
-                            <span>Last Login</span>
-                            <span className="text-right">Actions</span>
+                        <div className="hidden md:grid grid-cols-[1fr_110px_minmax(0,1fr)_minmax(0,1fr)_80px] gap-4 px-4 py-3 border-b border-[#f0e8d8] bg-[#faf6f0]">
+                            {['Name', 'Role', 'Contact', 'Branch', 'Status'].map(h => (
+                                <span key={h} className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-wider">{h}</span>
+                            ))}
                         </div>
-                        {filtered.map((member, i) => (
+                        {paged.map((member, i) => (
                             <div key={member.id}
-                                className={`px-5 py-3.5 flex flex-col sm:grid sm:grid-cols-[minmax(0,1.5fr)_100px_minmax(0,1fr)_minmax(0,1fr)_100px_140px] gap-2 sm:gap-3 sm:items-center ${i < filtered.length - 1 ? 'border-b border-[#f0e8d8]' : ''} hover:bg-neutral-light/40 transition-colors`}>
+                                onClick={() => setSelectedStaff(member)}
+                                className={`group px-4 py-3.5 flex flex-col md:grid md:grid-cols-[1fr_110px_minmax(0,1fr)_minmax(0,1fr)_80px] gap-2 md:gap-4 md:items-center cursor-pointer ${i < paged.length - 1 ? 'border-b border-[#f0e8d8]' : ''} hover:bg-neutral-light/50 transition-colors`}>
 
-                                {/* Name + avatar + status */}
-                                <div className="flex items-center gap-2.5 min-w-0">
+                                {/* Name + avatar */}
+                                <div className="flex items-center gap-3 min-w-0">
                                     <AvatarCircle name={member.name} />
-                                    <div className="min-w-0">
-                                        <p className="text-text-dark text-sm font-semibold font-body truncate">{member.name}</p>
-                                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                                            {member.systemAccess === 'disabled' && member.status !== 'archived' && (
-                                                <span className="text-[10px] font-body bg-error/10 text-error px-2 py-0.5 rounded-full">No Access</span>
-                                            )}
-                                            {member.employmentStatus === 'on_leave' && (
-                                                <span className="text-[10px] font-body bg-warning/10 text-warning px-2 py-0.5 rounded-full">On Leave</span>
-                                            )}
-                                            {member.employmentStatus === 'resigned' && member.status !== 'archived' && (
-                                                <span className="text-[10px] font-body bg-error/10 text-error px-2 py-0.5 rounded-full">Resigned</span>
-                                            )}
-                                            {member.status === 'archived' && (
-                                                <span className="text-[10px] font-body bg-neutral-light text-neutral-gray px-2 py-0.5 rounded-full">Archived</span>
-                                            )}
-                                        </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-text-dark text-sm font-semibold font-body truncate group-hover:text-primary transition-colors">{member.name}</p>
+                                        <p className="text-neutral-gray text-[10px] font-body truncate md:hidden">{member.phone}</p>
                                     </div>
+                                    <CaretRightIcon size={14} className="text-neutral-gray/0 group-hover:text-neutral-gray/50 transition-colors shrink-0 md:hidden" />
                                 </div>
 
                                 {/* Role */}
-                                <div>
-                                    <RoleBadge role={member.role} />
-                                </div>
+                                <RoleBadge role={member.role} />
 
                                 {/* Contact */}
-                                <div className="min-w-0">
+                                <div className="min-w-0 hidden md:block">
                                     <p className="text-text-dark text-xs font-body truncate">{member.phone}</p>
-                                    <p className="text-neutral-gray text-[10px] font-body truncate">{member.email}</p>
+                                    {member.email && <p className="text-neutral-gray text-[10px] font-body truncate">{member.email}</p>}
                                 </div>
 
                                 {/* Branch */}
-                                <div className="min-w-0 flex items-center gap-1">
-                                    <BuildingsIcon size={11} weight="fill" className="text-neutral-gray shrink-0" />
+                                <div className="min-w-0 hidden md:flex items-center gap-1.5">
+                                    <BuildingsIcon size={12} weight="fill" className="text-neutral-gray/50 shrink-0" />
                                     <p className="text-neutral-gray text-xs font-body truncate">{branchDisplay(member.branch)}</p>
                                 </div>
 
-                                {/* Last Login */}
-                                <div className="flex items-center gap-1">
-                                    <ClockIcon size={11} weight="fill" className="text-neutral-gray shrink-0" />
-                                    <p className="text-neutral-gray text-[10px] font-body">{member.lastLogin}</p>
-                                </div>
-
-                                {/* Actions */}
-                                <div className="flex items-center justify-end shrink-0">
-                                    <ActionMenu items={(() => {
-                                        const actions: ActionMenuItem[] = [];
-                                        if (member.status !== 'archived') {
-                                            actions.push(
-                                                { icon: PencilSimpleIcon, label: 'Edit', onClick: () => setEditStaff(member), color: 'text-primary' },
-                                                { icon: LockSimpleIcon, label: 'Reset PW', onClick: () => requirePasswordReset(member), color: 'text-neutral-gray' },
-                                                { icon: SignOutIcon, label: 'Force Logout', onClick: () => forceLogout(member), color: 'text-neutral-gray' },
-                                            );
-                                            if (member.systemAccess === 'enabled') {
-                                                actions.push({ icon: ArchiveIcon, label: 'Suspend', onClick: () => suspend(member), color: 'text-warning' });
-                                            } else {
-                                                actions.push({ icon: ArrowCounterClockwiseIcon, label: 'Reinstate', onClick: () => reinstate(member), color: 'text-secondary' });
-                                            }
-                                            actions.push(
-                                                { icon: ArchiveIcon, label: 'Archive', onClick: () => archive(member), color: 'text-neutral-gray' },
-                                                { icon: TrashIcon, label: 'Delete', onClick: () => setDeleteStaff(member), color: 'text-error' },
-                                            );
-                                        } else {
-                                            actions.push(
-                                                { icon: ArrowCounterClockwiseIcon, label: 'Restore', onClick: () => reinstate(member), color: 'text-secondary' },
-                                                { icon: TrashIcon, label: 'Delete', onClick: () => setDeleteStaff(member), color: 'text-error' },
-                                            );
-                                        }
-                                        return actions;
-                                    })()}
-                                    />
+                                {/* Status */}
+                                <div className="hidden md:block">
+                                    {member.status === 'active' && (
+                                        <span className="inline-flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
+                                            <span className="text-secondary text-[10px] font-medium font-body">Active</span>
+                                        </span>
+                                    )}
+                                    {member.status === 'suspended' && (
+                                        <span className="inline-flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-error" />
+                                            <span className="text-error text-[10px] font-medium font-body">Suspended</span>
+                                        </span>
+                                    )}
+                                    {member.status === 'on_leave' && (
+                                        <span className="inline-flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-warning" />
+                                            <span className="text-warning text-[10px] font-medium font-body">On Leave</span>
+                                        </span>
+                                    )}
+                                    {member.status === 'terminated' && (
+                                        <span className="inline-flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-neutral-gray" />
+                                            <span className="text-neutral-gray text-[10px] font-medium font-body">Terminated</span>
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         ))}
                     </>
                 )}
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                    <p className="text-neutral-gray text-xs font-body">
+                        Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, filtered.length)} of {filtered.length}
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                        <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium font-body bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                            <CaretLeftIcon size={12} weight="bold" /> Prev
+                        </button>
+                        <span className="text-neutral-gray text-xs font-body px-2">Page {page} of {totalPages}</span>
+                        <button type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium font-body bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                            Next <CaretRightIcon size={12} weight="bold" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Detail drawer */}
+            {selectedStaff && (
+                <StaffDetailDrawer
+                    staff={selectedStaff}
+                    onClose={() => setSelectedStaff(null)}
+                    onEdit={s => setEditStaff(s)}
+                    onSuspend={suspend}
+                    onReinstate={reinstate}
+                    onTerminate={archive}
+                    onForceLogout={forceLogout}
+                    onResetPassword={requirePasswordReset}
+                    onDelete={s => setDeleteStaff(s)}
+                />
+            )}
 
             {/* Modals */}
             {editStaff !== null && (

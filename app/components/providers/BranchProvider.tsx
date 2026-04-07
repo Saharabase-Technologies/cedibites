@@ -19,6 +19,9 @@ export interface Branch {
     operatingHours: string;
     deliveryFee: number;
     isOpen: boolean;
+    isActive: boolean;
+    orderTypes: Record<string, { is_enabled: boolean }>;
+    paymentMethods: Record<string, { is_enabled: boolean }>;
     menuItemIds: string[]; // Legacy - will be deprecated
 }
 
@@ -73,6 +76,9 @@ function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
         deliveryFee,
         operatingHours,
         isOpen: apiBranch.is_open ?? apiBranch.is_active,
+        isActive: apiBranch.is_active,
+        orderTypes: apiBranch.order_types ?? {},
+        paymentMethods: apiBranch.payment_methods ?? {},
         menuItemIds: apiBranch.menu_items?.map(item => String(item.id)) ?? [],
     };
 }

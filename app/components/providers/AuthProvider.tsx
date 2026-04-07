@@ -14,6 +14,7 @@ export interface AuthUser {
     id?: number;
     name: string;
     phone: string;
+    email?: string;
     savedAddresses?: string[];
     createdAt: number;
 }
@@ -38,6 +39,7 @@ interface AuthContextType {
     sendOTP: (phone: string, email?: string) => Promise<{ success: boolean; error?: string }>;
     verifyOTP: (code: string) => Promise<{ success: boolean; error?: string }>;
     saveProfile: (name: string, phone: string) => Promise<{ success: boolean; error?: string }>;
+    updateProfile: (data: { name?: string; email?: string | null }) => Promise<{ success: boolean; error?: string }>;
 
     // Post-order quick save (from checkout)
     saveFromCheckout: (name: string, phone: string) => void;
@@ -54,6 +56,7 @@ function mapApiUserToAuthUser(apiUser: User): AuthUser {
         id: apiUser.id,
         name: apiUser.name,
         phone: apiUser.phone,
+        email: apiUser.email,
         savedAddresses: [],
         createdAt: new Date(apiUser.created_at).getTime(),
     };
@@ -300,6 +303,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, [queryClient]);
 
+    // ── Update profile (name, email) ─────────────────────────────────────────
+    const updateProfile = useCallback(async (data: { name?: string; email?: string | null }): Promise<{ success: boolean; error?: string }> => {
+        try {
+            const response = await authService.updateProfile(data);
+            const apiUser = response.data;
+            persistUser(mapApiUserToAuthUser(apiUser));
+            return { success: true };
+        } catch (error) {
+            const errorMessage = getErrorMessage(error);
+            return { success: false, error: errorMessage };
+        }
+    }, []);
+
     return (
         <AuthContext.Provider value={{
             user,
@@ -314,6 +330,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             sendOTP,
             verifyOTP,
             saveProfile,
+            updateProfile,
             saveFromCheckout,
             isLoading,
         }}>

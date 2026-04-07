@@ -56,7 +56,7 @@ export default function PartnerStaffPage() {
     const [roleFilter, setRoleFilter] = useState('all');
 
     const nonArchived = useMemo(
-        () => branchStaff.filter(s => s.status !== 'archived'),
+        () => branchStaff.filter(s => s.status !== 'terminated'),
         [branchStaff]
     );
 

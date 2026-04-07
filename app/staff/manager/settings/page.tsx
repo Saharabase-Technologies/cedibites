@@ -26,7 +26,7 @@ export interface DayHours {
 export interface BranchSettings {
     isOpen: boolean;
     orderTypes: { delivery: boolean; pickup: boolean; dineIn: boolean };
-    paymentMethods: { momo: boolean; cashDelivery: boolean; cashPickup: boolean };
+    paymentMethods: { momo: boolean; cashDelivery: boolean };
     hours: Record<DayKey, DayHours>;
 }
 
@@ -43,7 +43,7 @@ const DEFAULT_HOURS: Record<DayKey, DayHours> = {
 const DEFAULT_BRANCH: BranchSettings = {
     isOpen: true,
     orderTypes: { delivery: true, pickup: true, dineIn: false },
-    paymentMethods: { momo: true, cashDelivery: true, cashPickup: true },
+    paymentMethods: { momo: true, cashDelivery: true },
     hours: DEFAULT_HOURS,
 };
 
@@ -136,7 +136,6 @@ export default function MenuSettingsPage() {
             const paymentMethods = {
                 momo: apiBranch.payment_methods?.momo?.is_enabled ?? true,
                 cashDelivery: apiBranch.payment_methods?.cash_on_delivery?.is_enabled ?? true,
-                cashPickup: apiBranch.payment_methods?.cash_at_pickup?.is_enabled ?? true,
             };
             
             setBranch({
@@ -206,7 +205,6 @@ export default function MenuSettingsPage() {
             const paymentMethods = {
                 momo: { is_enabled: branch.paymentMethods.momo },
                 cash_on_delivery: { is_enabled: branch.paymentMethods.cashDelivery },
-                cash_at_pickup: { is_enabled: branch.paymentMethods.cashPickup },
             };
 
             await branchService.updateBranch(branchId, {
@@ -333,7 +331,6 @@ export default function MenuSettingsPage() {
                             {([
                                 { key: 'momo',         label: 'Mobile Money (MoMo)' },
                                 { key: 'cashDelivery', label: 'Cash on Delivery'    },
-                                { key: 'cashPickup',   label: 'Cash on Pickup'      },
                             ] as { key: keyof BranchSettings['paymentMethods']; label: string }[]).map(({ key, label }, i, arr) => (
                                 <div key={key} className={`flex items-center justify-between px-4 py-3.5 ${i < arr.length - 1 ? 'border-b border-brown-light/10' : ''}`}>
                                     <span className="text-sm font-body text-text-dark">{label}</span>

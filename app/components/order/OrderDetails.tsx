@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { CaretDownIcon, CaretUpIcon, ReceiptIcon } from '@phosphor-icons/react';
+import { CaretDownIcon, CaretUpIcon, ReceiptIcon, TagIcon } from '@phosphor-icons/react';
 import type { Order } from '@/types/order';
 import { formatPrice, getPaymentLabel } from '@/types/order';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
@@ -96,6 +96,27 @@ export default function OrderDetails({ order }: OrderDetailsProps) {
                                 <span className="text-neutral-gray">Delivery Fee</span>
                                 <span className="text-text-dark dark:text-text-light">
                                     {formatPrice(order.deliveryFee)}
+                                </span>
+                            </div>
+                        )}
+
+                        {(order.serviceCharge ?? 0) > 0 && (
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="text-neutral-gray">Service Charge</span>
+                                <span className="text-text-dark dark:text-text-light">
+                                    {formatPrice(order.serviceCharge!)}
+                                </span>
+                            </div>
+                        )}
+
+                        {order.discount > 0 && (
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="flex items-center gap-1.5 text-secondary">
+                                    <TagIcon size={14} weight="fill" />
+                                    {order.promoCode || 'Discount'}
+                                </span>
+                                <span className="text-secondary font-semibold">
+                                    -{formatPrice(order.discount)}
                                 </span>
                             </div>
                         )}

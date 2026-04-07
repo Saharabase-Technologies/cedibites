@@ -128,7 +128,7 @@ export default function PartnerDashboardPage() {
     const completedToday = todayOrders.filter(o => ['delivered', 'completed'].includes(o.status)).length;
     const cancelledToday = todayOrders.filter(o => o.status === 'cancelled').length;
 
-    const nonArchived = branchStaff.filter(s => s.status !== 'archived');
+    const nonArchived = branchStaff.filter(s => s.status !== 'terminated');
     const activeStaff = nonArchived.filter(s => s.systemAccess === 'enabled').length;
 
     const dateStr = new Date().toLocaleDateString('en-GH', {

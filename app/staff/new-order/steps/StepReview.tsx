@@ -31,7 +31,6 @@ const PAYMENT_OPTIONS: {
 }[] = [
         { id: 'mobile_money',      label: 'Mobile Money',     sub: 'MTN, Telecel, AirtelTigo',   icon: DeviceMobileIcon },
         { id: 'cash',      label: 'Cash on Delivery', sub: 'Paid when delivered',         icon: MoneyIcon,    only: 'delivery' },
-        { id: 'cash',      label: 'Cash at Pickup',   sub: 'Paid at branch',              icon: HandCoinsIcon, only: 'pickup' },
         { id: 'no_charge', label: 'No Charge',        sub: 'Staff meal — not billed',     icon: ProhibitIcon },
     ];
 

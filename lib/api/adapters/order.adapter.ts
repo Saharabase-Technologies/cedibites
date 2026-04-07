@@ -1,7 +1,7 @@
 import type { Order, OrderItem, Payment } from '@/types/api';
 
 export type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone' | 'Past Order';
-export type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash at Pickup' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
+export type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
 
 export interface AdminOrderItem {
   name: string;
@@ -60,8 +60,7 @@ const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
   mobile_money: 'Mobile Money',
   cash_delivery: 'Cash on Delivery',
   cash_on_delivery: 'Cash on Delivery',
-  cash_pickup: 'Cash at Pickup',
-  cash_at_pickup: 'Cash at Pickup',
+  cash_pickup: 'Cash on Delivery',
   cash: 'Cash',
   card: 'Card',
   wallet: 'Wallet',

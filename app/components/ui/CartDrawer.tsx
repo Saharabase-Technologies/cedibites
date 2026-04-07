@@ -145,6 +145,55 @@ export default function CartDrawer() {
                             </button>
                         )}
 
+                        {/* Branch unavailable warning */}
+                        {selectedBranch && (!selectedBranch.isActive || !selectedBranch.isOpen) && (
+                            <div className="mx-5 mt-3 flex items-start gap-3 bg-error/5 border border-error/20 rounded-2xl p-3.5">
+                                <WarningCircleIcon weight="fill" size={18} className="text-error shrink-0 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-error">
+                                        {!selectedBranch.isActive ? 'Branch is inactive' : 'Branch is closed'}
+                                    </p>
+                                    <p className="text-xs text-error/70 mt-0.5">
+                                        {!selectedBranch.isActive
+                                            ? 'This branch is not accepting orders right now.'
+                                            : 'This branch is currently closed. Check back during operating hours.'}
+                                    </p>
+                                    <button
+                                        onClick={() => setView('branch-select')}
+                                        className="mt-2 text-xs font-bold text-primary hover:underline"
+                                    >
+                                        Switch to another branch →
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Unavailable items warning */}
+                        {selectedBranch && items.length > 0 && (() => {
+                            const result = validateCartForBranch(selectedBranch.menuItemIds);
+                            if (result.unavailable.length === 0) return null;
+                            return (
+                                <div className="mx-5 mt-3 flex items-start gap-3 bg-warning/5 border border-warning/20 rounded-2xl p-3.5">
+                                    <WarningCircleIcon weight="fill" size={18} className="text-warning shrink-0 mt-0.5" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-bold text-text-dark dark:text-text-light">
+                                            {result.unavailable.length} item{result.unavailable.length !== 1 ? 's' : ''} unavailable here
+                                        </p>
+                                        <p className="text-xs text-neutral-gray mt-0.5">
+                                            {result.unavailable.map(ci => getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })).join(', ')}
+                                            {' '}— not on the {selectedBranch.name} menu.
+                                        </p>
+                                        <button
+                                            onClick={() => setView('branch-select')}
+                                            className="mt-2 text-xs font-bold text-primary hover:underline"
+                                        >
+                                            Switch branch for full availability →
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 flex flex-col gap-3">
                             {items.length === 0 ? <EmptyCart /> : (
                                 <>
@@ -165,7 +214,12 @@ export default function CartDrawer() {
                             )}
                         </div>
 
-                        {items.length > 0 && (
+                        {items.length > 0 && (() => {
+                            const branchUnavailable = selectedBranch && (!selectedBranch.isActive || !selectedBranch.isOpen);
+                            const hasUnavailableItems = selectedBranch && validateCartForBranch(selectedBranch.menuItemIds).unavailable.length > 0;
+                            const checkoutBlocked = branchUnavailable || hasUnavailableItems;
+
+                            return (
                             <div className="shrink-0 px-5 pb-6 pt-4 border-t border-neutral-gray/10 flex flex-col gap-4">
                                 <div className="flex flex-col gap-2">
                                     <div className="flex items-center justify-between text-sm">
@@ -178,6 +232,15 @@ export default function CartDrawer() {
                                         <span className="text-xl font-bold text-primary">{formatPrice(total)}</span>
                                     </div>
                                 </div>
+                                {checkoutBlocked ? (
+                                    <button
+                                        onClick={() => setView('branch-select')}
+                                        className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold px-6 py-4 rounded-2xl transition-all active:scale-[0.98]"
+                                    >
+                                        <StorefrontIcon weight="fill" size={18} />
+                                        <span>Switch Branch to Continue</span>
+                                    </button>
+                                ) : (
                                 <Link href="/checkout" onClick={closeCart} className="flex items-center justify-between bg-brown dark:bg-brand-dark hover:bg-brown-light text-white font-bold px-6 py-4 rounded-2xl transition-all active:scale-[0.98] group">
                                     <span>Checkout</span>
                                     <div className="flex items-center gap-2">
@@ -185,8 +248,10 @@ export default function CartDrawer() {
                                         <ArrowRightIcon weight="bold" size={18} className="group-hover:translate-x-1 transition-transform" />
                                     </div>
                                 </Link>
+                                )}
                             </div>
-                        )}
+                            );
+                        })()}
                     </>
                 )}
 
@@ -196,11 +261,12 @@ export default function CartDrawer() {
                         <p className="text-sm text-neutral-gray">Sorted by distance. Switching checks your cart for availability.</p>
                         {sortedBranches.map(branch => {
                             const isCurrent = branch.id === selectedBranch?.id;
+                            const isUnavailable = !branch.isOpen || !branch.isActive;
                             return (
-                                <button key={branch.id} onClick={() => handleBranchSelect(branch)} disabled={!branch.isOpen}
+                                <button key={branch.id} onClick={() => handleBranchSelect(branch)} disabled={isUnavailable}
                                     className={`w-full flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all
                                         ${isCurrent ? 'border-primary bg-primary/8' : 'border-neutral-gray/15 hover:border-primary/30'}
-                                        ${!branch.isOpen ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        ${isUnavailable ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5
                                         ${isCurrent ? 'bg-primary text-white' : 'bg-neutral-gray/15 text-neutral-gray'}`}>
@@ -212,7 +278,8 @@ export default function CartDrawer() {
                                                 {branch.name} Branch
                                             </p>
                                             {isCurrent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-white">Current</span>}
-                                            {!branch.isOpen && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-gray/20 text-neutral-gray">Closed</span>}
+                                            {!branch.isActive && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-error/15 text-error">Inactive</span>}
+                                            {branch.isActive && !branch.isOpen && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-gray/20 text-neutral-gray">Closed</span>}
                                         </div>
                                         <p className="text-xs text-neutral-gray mt-0.5 truncate">{branch.address}</p>
                                         <div className="flex items-center gap-2 mt-1.5 text-xs text-neutral-gray flex-wrap">
@@ -223,7 +290,7 @@ export default function CartDrawer() {
                                             <span>₵{branch.deliveryFee} delivery</span>
                                         </div>
                                     </div>
-                                    {!isCurrent && branch.isOpen && <CaretRightIcon size={16} className="text-neutral-gray shrink-0 mt-1" />}
+                                    {!isCurrent && !isUnavailable && <CaretRightIcon size={16} className="text-neutral-gray shrink-0 mt-1" />}
                                 </button>
                             );
                         })}

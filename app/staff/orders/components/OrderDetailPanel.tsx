@@ -132,7 +132,7 @@ export default function OrderDetailPanel() {
 
     const isCancelReq = order.status === 'cancel_requested';
     const isCallCenter = userRole === 'call_center';
-    const isManager = userRole === 'manager' || userRole === 'super_admin';
+    const isManager = userRole === 'manager' || userRole === 'admin' || userRole === 'tech_admin';
 
     const simpleNext = col?.nextStatus && !isCancelReq
         ? [{ status: col.nextStatus as OrderStatus, label: col.nextLabel! }, ...nexts.filter(s => s.status !== 'cancelled' && s.status !== 'cancel_requested')]

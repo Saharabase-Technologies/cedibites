@@ -37,7 +37,7 @@ import apiClient from '@/lib/api/client';
 
 type OrderStatus = 'received' | 'preparing' | 'ready' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'completed' | 'cancelled' | 'cancel_requested';
 type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone' | 'Past Order';
-type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash at Pickup' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
+type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
 type PaymentStatus = 'Paid' | 'Pending' | 'Failed' | 'Refunded' | 'No Charge';
 
 // ─── Config ───────────────────────────────────────────────────────────────────

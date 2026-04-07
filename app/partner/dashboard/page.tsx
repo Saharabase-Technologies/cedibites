@@ -122,7 +122,7 @@ export default function PartnerDashboardPage() {
     const cancelledToday = orderAnalytics?.orders_by_status?.['cancelled'] ?? 0;
 
     const { employees: branchStaff } = useEmployees({ branch_id: branchIdNum });
-    const nonArchived = branchStaff.filter(s => s.status !== 'archived');
+    const nonArchived = branchStaff.filter(s => s.status !== 'terminated');
     const activeStaff = nonArchived.filter(s => s.systemAccess === 'enabled').length;
 
     const dateStr = new Date().toLocaleDateString('en-GH', {
