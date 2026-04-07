@@ -132,13 +132,22 @@ export default function OrderDetailPanel() {
 
     const isCancelReq = order.status === 'cancel_requested';
     const isCallCenter = userRole === 'call_center';
-    const isManager = userRole === 'manager' || userRole === 'admin' || userRole === 'tech_admin';
-
-    const simpleNext = col?.nextStatus && !isCancelReq
-        ? [{ status: col.nextStatus as OrderStatus, label: col.nextLabel! }, ...nexts.filter(s => s.status !== 'cancelled' && s.status !== 'cancel_requested')]
-        : nexts.filter(s => s.status !== 'cancelled' && s.status !== 'cancel_requested');
-
+    const isAdmin = userRole === 'admin' || userRole === 'tech_admin';
+    const isTechAdmin = userRole === 'tech_admin';
     const isDone = isDoneStatus(order.status);
+
+    // Build status-update buttons: only tech_admin sees cancel-related options
+    const baseNext = col?.nextStatus && !isCancelReq
+        ? [{ status: col.nextStatus as OrderStatus, label: col.nextLabel! }, ...nexts]
+        : [...nexts];
+
+    const simpleNext = isTechAdmin
+        ? [
+            ...baseNext,
+            ...(!isDone && !isCancelReq ? [{ status: 'cancel_requested' as OrderStatus, label: 'Cancel Requested' }] : []),
+            ...(!isDone ? [{ status: 'cancelled' as OrderStatus, label: 'Cancelled' }] : []),
+          ]
+        : baseNext.filter(s => s.status !== 'cancelled' && s.status !== 'cancel_requested');
     const isRefundable = (order.status === 'delivered' || order.status === 'completed') && !refundDone;
 
     const onClose = () => {
@@ -328,8 +337,8 @@ export default function OrderDetailPanel() {
                         </div>
                     )}
 
-                    {/* ── Cancel requested: manager approve/reject ── */}
-                    {isCancelReq && isManager && (
+                    {/* ── Cancel requested: admin approve/reject ── */}
+                    {isCancelReq && isAdmin && (
                         <div className="flex flex-col gap-2 mt-auto pt-2">
                             <p className="text-neutral-gray text-xs font-body">Cancellation awaiting your decision:</p>
                             <button
@@ -355,17 +364,24 @@ export default function OrderDetailPanel() {
                     {!isDone && !isCancelReq && !isCallCenter && (
                         <div className="flex flex-col gap-2 mt-auto pt-2">
                             <p className="text-neutral-gray text-xs font-body">Move order to:</p>
-                            {simpleNext.map(next => (
-                                <button
-                                    key={next.status}
-                                    type="button"
-                                    onClick={() => { handleAdvance(order.id, next.status); onClose(); }}
-                                    className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-brand-darker font-semibold font-body py-3.5 rounded-full text-sm transition-colors cursor-pointer"
-                                >
-                                    <CheckCircleIcon size={16} weight="fill" />
-                                    {next.label}
-                                </button>
-                            ))}
+                            {simpleNext.map(next => {
+                                const isCancelStatus = next.status === 'cancelled' || next.status === 'cancel_requested';
+                                return (
+                                    <button
+                                        key={next.status}
+                                        type="button"
+                                        onClick={() => { handleAdvance(order.id, next.status); onClose(); }}
+                                        className={`w-full flex items-center justify-center gap-2 font-semibold font-body py-3.5 rounded-full text-sm transition-colors cursor-pointer ${
+                                            isCancelStatus
+                                                ? 'border border-error/30 hover:bg-error/10 text-error'
+                                                : 'bg-primary hover:bg-primary-hover text-brand-darker'
+                                        }`}
+                                    >
+                                        {isCancelStatus ? <WarningCircleIcon size={16} weight="fill" /> : <CheckCircleIcon size={16} weight="fill" />}
+                                        {next.label}
+                                    </button>
+                                );
+                            })}
                             <button
                                 type="button"
                                 onClick={() => setShowCancel(true)}
