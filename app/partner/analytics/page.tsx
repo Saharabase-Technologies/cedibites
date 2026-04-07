@@ -12,6 +12,7 @@ import {
     ArrowUpIcon,
     ArrowDownIcon,
     SpinnerIcon,
+    WarningIcon,
 } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import {
@@ -33,7 +34,7 @@ type Period = Exclude<AnalyticsPeriod, 'custom'>;
 
 const DAYS  = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const SOURCE_COLORS = ['#e49925', '#6c833f', '#c8a87a', '#1976d2', '#e91e63', '#3f51b5'];
+const SOURCE_COLORS = ['#e49925', '#6c833f', '#c8a87a', '#1976d2', '#e91e63', '#3f51b5', '#ff9800', '#009688', '#795548', '#607d8b', '#8bc34a', '#673ab7'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -499,7 +500,7 @@ export default function PartnerAnalyticsPage() {
 
     const [period, setPeriod] = useState<Period>('today');
 
-    const { sales, orders, customers, isLoading } = useAnalytics(period, branchId);
+    const { sales, orders, customers, isLoading, error: analyticsError } = useAnalytics(period, branchId);
     const { data: orderSources } = useOrderSourceAnalytics(period, branchId);
     const { data: topItems } = useTopItemsAnalytics(period, branchId, 5);
     const { data: bottomItems } = useBottomItemsAnalytics(period, branchId, 3);
@@ -519,10 +520,30 @@ export default function PartnerAnalyticsPage() {
         return orders.total_orders > 0 ? Math.round((c / orders.total_orders) * 1000) / 10 : 0;
     }, [orders]);
 
+    if (!branchId) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
+                <WarningIcon size={32} weight="fill" className="text-warning" />
+                <p className="text-text-dark text-sm font-body font-semibold">No branch assigned</p>
+                <p className="text-neutral-gray text-xs font-body text-center">Your account is not assigned to any branch. Contact an administrator.</p>
+            </div>
+        );
+    }
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[50vh]">
                 <SpinnerIcon size={32} className="text-primary animate-spin" />
+            </div>
+        );
+    }
+
+    if (analyticsError) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
+                <WarningIcon size={32} weight="fill" className="text-error" />
+                <p className="text-text-dark text-sm font-body font-semibold">Unable to load analytics</p>
+                <p className="text-neutral-gray text-xs font-body text-center">Please check your connection and try again.</p>
             </div>
         );
     }
@@ -557,7 +578,7 @@ export default function PartnerAnalyticsPage() {
             {/* KPI row */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
                 <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue" value={formatGHS(sales?.total_sales ?? 0)} accent />
-                <KpiCard icon={ReceiptIcon} label="Orders" value={String(sales?.total_orders ?? orders?.total_orders ?? 0)} />
+                <KpiCard icon={ReceiptIcon} label="Orders" value={String(sales?.total_orders ?? 0)} />
                 <KpiCard icon={TrendUpIcon} label="Avg. Order" value={formatGHS(sales?.average_order_value ?? 0)} />
                 <KpiCard icon={CheckCircleIcon} label="Fulfilment" value={`${fulfilmentPct}%`} />
                 <KpiCard icon={XCircleIcon} label="Cancellations" value={`${cancelledPct}%`}

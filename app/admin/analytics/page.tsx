@@ -53,13 +53,13 @@ function KpiCard({ label, value, sub, trend, accent = false, icon: Icon }: {
 }) {
     const up = (trend ?? 0) >= 0;
     return (
-        <div className={`rounded-2xl px-5 py-4 flex flex-col gap-2 ${accent ? 'bg-primary' : 'bg-neutral-card border border-[#f0e8d8]'}`}>
+        <div className={`rounded-2xl px-6 py-4 flex flex-col gap-2 min-w-0 ${accent ? 'bg-primary' : 'bg-neutral-card border border-[#f0e8d8]'}`}>
             <div className="flex items-center gap-2">
                 <Icon size={13} weight="fill" className={accent ? 'text-white/70' : 'text-neutral-gray'} />
                 <span className={`text-[10px] font-bold font-body uppercase tracking-widest ${accent ? 'text-white/80' : 'text-neutral-gray'}`}>{label}</span>
             </div>
-            <p className={`text-2xl font-bold font-body leading-none ${accent ? 'text-white' : 'text-text-dark'}`}>{value}</p>
-            {sub && <p className={`text-xs font-body ${accent ? 'text-white/70' : 'text-neutral-gray'}`}>{sub}</p>}
+            <p className={`text-lg sm:text-xl lg:text-2xl font-bold font-body leading-none whitespace-nowrap ${accent ? 'text-white' : 'text-text-dark'}`}>{value}</p>
+            {sub && <p className={`text-xs font-body whitespace-nowrap ${accent ? 'text-white/70' : 'text-neutral-gray'}`}>{sub}</p>}
             {trend !== undefined && (
                 <div className="flex items-center gap-1">
                     {up ? <ArrowUpIcon size={11} weight="bold" className={accent ? 'text-white/70' : 'text-secondary'} />
@@ -88,69 +88,78 @@ function SectionTitle({ title, sub }: { title: string; sub?: string }) {
     );
 }
 
-// ─── Revenue chart (from API sales_by_day) ─────────────────────────────────────
+// ─── Revenue chart (aggregated by day of week) ─────────────────────────────────
 
 function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total: number; orders: number }> }) {
     const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
-    const dayLabels = useMemo(() => {
-        if (!salesByDay?.length) return DAYS;
-        return salesByDay.map((d) => {
-            const date = new Date(d.date);
-            return DAYS[(date.getDay() + 6) % 7] ?? date.toLocaleDateString('en-GB', { weekday: 'short' });
-        });
+    // Aggregate revenue & orders by day of week (Mon=0 … Sun=6)
+    const { dayTotals, dayOrders } = useMemo(() => {
+        const totals = Array(7).fill(0) as number[];
+        const orders = Array(7).fill(0) as number[];
+        if (salesByDay?.length) {
+            for (const d of salesByDay) {
+                const idx = (new Date(d.date).getDay() + 6) % 7; // 0=Mon…6=Sun
+                totals[idx] += Number(d.total);
+                orders[idx] += d.orders;
+            }
+        }
+        return { dayTotals: totals, dayOrders: orders };
     }, [salesByDay]);
-    const values = useMemo(() => salesByDay?.map((d) => Number(d.total)) ?? [], [salesByDay]);
-    const orderCounts = useMemo(() => salesByDay?.map((d) => d.orders) ?? [], [salesByDay]);
-    const maxVal = values.length ? Math.max(...values, 1) : 1;
-    const labels = salesByDay?.length ? dayLabels : DAYS;
+
+    const maxVal = Math.max(...dayTotals, 1);
+    const hasData = dayTotals.some(v => v > 0);
 
     return (
         <Card>
-            <SectionTitle title="Daily Revenue — All Branches" sub={salesByDay?.length ? `${salesByDay.length}-day view` : '7-day view'} />
-            <div className="flex items-end gap-2 h-36">
-                {labels.map((day, di) => {
-                    const val = values[di] ?? 0;
-                    const orders = orderCounts[di] ?? 0;
-                    const h = Math.round((val / maxVal) * 112) || 4;
-                    const isHovered = hoveredIdx === di;
-                    return (
-                        <div
-                            key={`${day}-${di}`}
-                            className="flex-1 flex flex-col items-center gap-1 relative group"
-                            onMouseEnter={() => setHoveredIdx(di)}
-                            onMouseLeave={() => setHoveredIdx(null)}
-                        >
-                            {/* Tooltip */}
-                            {isHovered && val > 0 && (
-                                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 bg-text-dark text-white rounded-lg px-2.5 py-1.5 text-[10px] font-body whitespace-nowrap shadow-lg pointer-events-none">
-                                    <p className="font-bold">{formatGHS(val)}</p>
-                                    <p className="text-white/70">{orders} order{orders !== 1 ? 's' : ''}</p>
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-text-dark" />
-                                </div>
-                            )}
-                            {/* Value label above short bars */}
-                            {val > 0 && h < 20 && (
-                                <span className="text-[8px] font-bold text-primary leading-none select-none">
-                                    {val >= 1000 ? `${(val / 1000).toFixed(1)}k` : Math.round(val)}
-                                </span>
-                            )}
+            <SectionTitle title="Revenue by Day of Week" sub="Aggregated from selected period" />
+            {!hasData ? (
+                <div className="flex items-center justify-center h-36 text-neutral-gray text-sm">No data for selected period</div>
+            ) : (
+                <div className="flex items-end gap-2 h-36">
+                    {DAYS.map((day, di) => {
+                        const val = dayTotals[di];
+                        const orders = dayOrders[di];
+                        const h = Math.round((val / maxVal) * 112) || 4;
+                        const isHovered = hoveredIdx === di;
+                        return (
                             <div
-                                className={`w-full rounded-sm transition-all duration-200 flex items-end justify-center pb-0.5 ${isHovered ? 'bg-primary' : 'bg-primary/70'}`}
-                                style={{ height: Math.max(h, 4), minHeight: 4 }}
+                                key={day}
+                                className="flex-1 flex flex-col items-center gap-1 relative group"
+                                onMouseEnter={() => setHoveredIdx(di)}
+                                onMouseLeave={() => setHoveredIdx(null)}
                             >
-                                {/* Value label inside tall bars */}
-                                {val > 0 && h >= 20 && (
-                                    <span className="text-[8px] font-bold text-white leading-none select-none">
+                                {/* Tooltip */}
+                                {isHovered && val > 0 && (
+                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 bg-text-dark text-white rounded-lg px-2.5 py-1.5 text-[10px] font-body whitespace-nowrap shadow-lg pointer-events-none">
+                                        <p className="font-bold">{formatGHS(val)}</p>
+                                        <p className="text-white/70">{orders} order{orders !== 1 ? 's' : ''}</p>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-text-dark" />
+                                    </div>
+                                )}
+                                {/* Value label above short bars */}
+                                {val > 0 && h < 20 && (
+                                    <span className="text-[8px] font-bold text-primary leading-none select-none">
                                         {val >= 1000 ? `${(val / 1000).toFixed(1)}k` : Math.round(val)}
                                     </span>
                                 )}
+                                <div
+                                    className={`w-full rounded-sm transition-all duration-200 flex items-end justify-center pb-0.5 ${isHovered ? 'bg-primary' : 'bg-primary/70'}`}
+                                    style={{ height: Math.max(h, 4), minHeight: 4 }}
+                                >
+                                    {/* Value label inside tall bars */}
+                                    {val > 0 && h >= 20 && (
+                                        <span className="text-[8px] font-bold text-white leading-none select-none">
+                                            {val >= 1000 ? `${(val / 1000).toFixed(1)}k` : Math.round(val)}
+                                        </span>
+                                    )}
+                                </div>
+                                <span className="text-[9px] text-neutral-gray font-body">{day}</span>
                             </div>
-                            <span className="text-[9px] text-neutral-gray font-body">{day}</span>
-                        </div>
-                    );
-                })}
-            </div>
+                        );
+                    })}
+                </div>
+            )}
         </Card>
     );
 }
@@ -1126,7 +1135,7 @@ export default function AdminAnalyticsPage() {
             )}
 
             {/* KPI row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
+            <div className="flex flex-wrap gap-3 mb-5">
                 <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue" value={isLoading ? '…' : formatGHS(sales?.total_sales ?? 0)} accent />
                 <KpiCard icon={ReceiptIcon} label="Orders" value={isLoading ? '…' : String(sales?.total_orders ?? orders?.total_orders ?? 0)} />
                 <KpiCard icon={TrendUpIcon} label="Avg. Order" value={isLoading ? '…' : formatGHS(sales?.average_order_value ?? 0)} />
