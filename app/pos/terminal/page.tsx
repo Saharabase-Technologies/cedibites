@@ -378,7 +378,7 @@ export default function POSTerminalPage() {
             </button>
           )}
           <button
-            onClick={logout}
+            onClick={() => logout()}
             className="flex items-center gap-2 text-sm font-semibold text-neutral-gray hover:text-error transition-colors"
           >
             <SignOutIcon weight="bold" size={16} />

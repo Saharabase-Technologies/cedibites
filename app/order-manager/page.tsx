@@ -298,7 +298,7 @@ export default function OrderManagerPage() {
             onClose={() => setIsBranchSwitcherOpen(false)}
           />
         )}
-        <SignOutDialog isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} onSignOut={logout} />
+        <SignOutDialog isOpen={isSignOutOpen} onCancel={() => setIsSignOutOpen(false)} onConfirm={logout} />
       </div>
     );
   }

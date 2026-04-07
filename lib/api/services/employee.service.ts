@@ -344,13 +344,13 @@ export const employeeService = {
   getNotes: async (employeeId: string): Promise<EmployeeNoteResponse[]> => {
     const response = await apiClient.get(`/admin/employees/${employeeId}/notes`);
     const outer = response as { data?: { data?: EmployeeNoteResponse[] } };
-    return outer?.data?.data ?? outer?.data ?? [];
+    return outer?.data?.data ?? (Array.isArray(outer?.data) ? outer.data : []);
   },
 
   addNote: async (employeeId: string, content: string): Promise<EmployeeNoteResponse> => {
     const response = await apiClient.post(`/admin/employees/${employeeId}/notes`, { content });
     const outer = response as { data?: { data?: EmployeeNoteResponse } };
-    return outer?.data?.data ?? outer?.data ?? (response as unknown as EmployeeNoteResponse);
+    return outer?.data?.data ?? (response as unknown as EmployeeNoteResponse);
   },
 
   deleteNote: async (employeeId: string, noteId: number): Promise<void> => {

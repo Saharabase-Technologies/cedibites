@@ -95,7 +95,7 @@ const ALL_FALSE: StaffPermissions = {
 
 const ALL_TRUE: StaffPermissions = Object.fromEntries(
     Object.keys(ALL_FALSE).map(k => [k, true])
-) as StaffPermissions;
+) as unknown as StaffPermissions;
 
 export function defaultPermissions(role: StaffRole): StaffPermissions {
     switch (role) {
