@@ -7,9 +7,29 @@ import {
     XIcon,
     ClockIcon,
     PhoneIcon,
+    SpinnerIcon,
+    WarningIcon,
 } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useEmployees } from '@/lib/api/hooks/useEmployees';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatRelativeTime(dateStr: string | null | undefined): string {
+    if (!dateStr) return 'Never';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return 'Never';
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60_000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-GH', { day: 'numeric', month: 'short' });
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -45,7 +65,7 @@ function initials(name: string) {
 export default function PartnerStaffPage() {
     const { staffUser } = useStaffAuth();
     const branchIdNum = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
-    const { employees: branchStaff, isLoading } = useEmployees({ branch_id: branchIdNum });
+    const { employees: branchStaff, isLoading, error } = useEmployees({ branch_id: branchIdNum });
 
     const [search, setSearch]       = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
@@ -75,6 +95,34 @@ export default function PartnerStaffPage() {
     }, [nonArchived, roleFilter, search]);
 
     const activeCount = nonArchived.filter(s => s.systemAccess === 'enabled').length;
+
+    if (!branchIdNum) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
+                <WarningIcon size={32} weight="fill" className="text-warning" />
+                <p className="text-text-dark text-sm font-body font-semibold">No branch assigned</p>
+                <p className="text-neutral-gray text-xs font-body text-center">Your account is not assigned to any branch. Contact an administrator.</p>
+            </div>
+        );
+    }
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[50vh]">
+                <SpinnerIcon size={32} className="text-primary animate-spin" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
+                <WarningIcon size={32} weight="fill" className="text-error" />
+                <p className="text-text-dark text-sm font-body font-semibold">Unable to load staff</p>
+                <p className="text-neutral-gray text-xs font-body text-center">Please check your connection and try again.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="px-4 md:px-8 py-6 max-w-4xl mx-auto">
@@ -127,7 +175,13 @@ export default function PartnerStaffPage() {
             {filtered.length === 0 ? (
                 <div className="py-16 text-center bg-neutral-card border border-[#f0e8d8] rounded-2xl">
                     <UsersThreeIcon size={28} weight="thin" className="text-neutral-gray/30 mx-auto mb-2" />
-                    <p className="text-neutral-gray text-sm font-body">No staff match your filters.</p>
+                    <p className="text-neutral-gray text-sm font-body">
+                        {search.trim()
+                            ? `No staff matching "${search}"`
+                            : roleFilter !== 'all'
+                                ? `No ${FILTER_LABELS[roleFilter] ?? roleFilter} staff in this branch`
+                                : 'No staff match your filters.'}
+                    </p>
                 </div>
             ) : (
                 <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden">
@@ -163,14 +217,17 @@ export default function PartnerStaffPage() {
                                     )}
                                     <span className="text-neutral-gray text-xs font-body flex items-center gap-1">
                                         <ClockIcon size={10} weight="fill" />
-                                        Last seen {member.lastLogin}
+                                        Last seen {formatRelativeTime(member.lastLogin)}
                                     </span>
                                 </div>
                             </div>
 
-                            {/* Online dot */}
-                            <div className="shrink-0">
-                                <span className={`w-2.5 h-2.5 rounded-full inline-block ${member.systemAccess === 'enabled' ? 'bg-secondary animate-pulse' : 'bg-neutral-gray/30'}`} />
+                            {/* Status indicator */}
+                            <div className="shrink-0 flex items-center gap-1.5">
+                                <span className={`w-2.5 h-2.5 rounded-full inline-block ${member.systemAccess === 'enabled' ? 'bg-secondary' : 'bg-neutral-gray/30'}`} />
+                                <span className={`text-[10px] font-body hidden sm:inline ${member.systemAccess === 'enabled' ? 'text-secondary' : 'text-neutral-gray/50'}`}>
+                                    {member.systemAccess === 'enabled' ? 'Active' : 'Inactive'}
+                                </span>
                             </div>
                         </div>
                     ))}
