@@ -89,8 +89,14 @@ export default function CancelOrderModal({
                         <div className="w-14 h-14 rounded-full bg-secondary/10 flex items-center justify-center">
                             <CheckCircleIcon size={32} weight="fill" className="text-secondary" />
                         </div>
-                        <p className={`text-base font-bold font-body ${titleColor}`}>Order Cancelled</p>
-                        <p className={`text-sm font-body ${subColor}`}>#{orderNumber} has been successfully cancelled.</p>
+                        <p className={`text-base font-bold font-body ${titleColor}`}>
+                            {context === 'staff' ? 'Cancellation Requested' : 'Order Cancelled'}
+                        </p>
+                        <p className={`text-sm font-body ${subColor}`}>
+                            {context === 'staff'
+                                ? `#${orderNumber} — a manager will review your request.`
+                                : `#${orderNumber} has been successfully cancelled.`}
+                        </p>
                     </div>
                 ) : (
                     <>
