@@ -293,7 +293,7 @@ function OrderDetailPanel({ order, onClose }: { order: AdminOrder; onClose: () =
             </aside>
             {showConfirm === 'cancel' && (
                 <CancelOrderModal orderNumber={order.id} theme="light" onCancel={() => setShowConfirm(null)}
-                    onConfirm={async (reason) => { await cancelOrder({ id: order.dbId, reason }); queryClient.invalidateQueries({ queryKey: ['employee-orders'] }); }} />
+                    onConfirm={async (reason) => { await cancelOrder({ id: order.dbId, reason }); queryClient.invalidateQueries({ queryKey: ['employee-orders'] }); toast.success('Order cancelled'); }} />
             )}
         </>
     );
