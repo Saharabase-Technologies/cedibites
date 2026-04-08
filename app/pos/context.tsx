@@ -298,7 +298,7 @@ export function POSProvider({ children }: POSProviderProps) {
         quantity: item.quantity,
         unitPrice: item.price,
         image: item.image,
-        sizeLabel: item.variantKey,
+        sizeLabel: item.name,
       })),
       subtotal: csSession.subtotal ?? apiOrder?.subtotal ?? cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
       deliveryFee: 0,
@@ -320,7 +320,7 @@ export function POSProvider({ children }: POSProviderProps) {
       },
       staffId: session?.staffId,
       staffName: session?.staffName,
-      placedAt: manualOpts?.recordedAt ? new Date(manualOpts.recordedAt).getTime() : Date.now(),
+      placedAt: manualOpts?.recordedAt ? new Date(manualOpts.recordedAt).getTime() : new Date(apiOrder?.created_at ?? csSession.created_at).getTime(),
       estimatedMinutes: 15,
       timeline: [],
       // Store session token for polling pending MoMo payments

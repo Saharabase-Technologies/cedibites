@@ -81,6 +81,48 @@ Items still needing attention.
 
 ---
 
+## [2026-04-08] Session: POS Receipt Item Name & Timestamp Fixes
+
+### Intent
+
+Fix two POS first-print receipt bugs: items showing machine keys instead of display names, and receipt timestamps being 1 hour off due to using the POS device's local clock instead of the server timestamp.
+
+### Changes Made
+
+| File                 | Change                                                                                                        | Reason                                                                                                                                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/pos/context.tsx` (line 301) | Changed `sizeLabel: item.variantKey` → `sizeLabel: item.name` in the receipt data mapping                     | Receipt displayed the option's machine key (e.g. "assorted") instead of the display/receipt name (e.g. "Assorted Jollof Rice"). The cart item's `name` field already contains the correct display name resolved from `size.displayName` (DB's `display_name` / Receipt Name field) in `getItemOptions()`. |
+| `app/pos/context.tsx` (line 323) | Changed `placedAt: Date.now()` → `placedAt: new Date(apiOrder?.created_at ?? csSession.created_at).getTime()` | Receipt time was 1 hour behind because `Date.now()` used the POS device's local clock (which was wrong). Now uses the server's `created_at` timestamp, making receipt time accurate regardless of device clock. |
+
+### Decisions
+
+- **Decision**: Use server timestamps over device clock for all time-sensitive displays
+  - **Rationale**: POS device clocks cannot be trusted — this device's system clock was set 1 hour ahead of actual UTC, causing `Date.now()` to return an incorrect timestamp
+- **Decision**: Use `item.name` as the receipt label source (not `item.variantKey`)
+  - **Rationale**: `POSCartItem.name` already carries the correct display name resolved from `size.displayName` in `getItemOptions()`. `variantKey` is the machine-readable key (e.g. "assorted"), not meant for customer-facing display.
+
+### Scope
+
+- **Affected**: Only the first-print receipt from POS (built from local cart data)
+- **Not affected**: Reprints from API — `mapApiOrderToOrder` already correctly resolves `display_name ?? option_label` from the order snapshot
+
+### Cross-Repo Impact
+
+No backend changes required. The `display_name` and `created_at` fields are already correctly stored and served by the API. This was purely a frontend mapping issue.
+
+### Current State
+
+- **POS receipts**: Item names now show correct display names (e.g. "Assorted Jollof Rice" instead of "assorted")
+- **POS receipt time**: Uses server `created_at` timestamp — accurate regardless of device clock drift
+- **Branch**: `menu-audit`
+
+### Pending / Follow-up
+
+- Audit other POS flows for any remaining usage of `Date.now()` where server timestamps should be preferred
+- Consider adding a general utility that always sources time from the server for POS displays
+
+---
+
 ## [2026-04-07] Session: Admin Orders Page — Source Badge, Override Status Logic, SMS Cleanup & Role Seeding
 
 ### Intent
