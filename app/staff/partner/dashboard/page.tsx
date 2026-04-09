@@ -118,7 +118,7 @@ export default function PartnerDashboardPage() {
     [branchOrders, startOfDay]);
 
     const todayRevenue = useMemo(() =>
-        todayOrders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.total, 0),
+        todayOrders.filter(o => o.status !== 'cancelled' && o.paymentMethod !== 'no_charge').reduce((s, o) => s + o.total, 0),
     [todayOrders]);
 
     const activeOrders = useMemo(() =>

@@ -179,12 +179,12 @@ export default function CancelOrderModal({
                             <button
                                 type="button"
                                 onClick={handleConfirm}
-                                disabled={isLoading || (!reason)}
+                                disabled={isLoading || succeeded || (!reason)}
                                 className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full bg-error hover:bg-error/80 text-white text-sm font-semibold font-body transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isLoading
-                                    ? <><SpinnerIcon size={14} className="animate-spin" /> Cancelling…</>
-                                    : 'Cancel Order'
+                                    ? <><SpinnerIcon size={14} className="animate-spin" /> {context === 'staff' ? 'Requesting…' : 'Cancelling…'}</>
+                                    : context === 'staff' ? 'Request Cancellation' : 'Cancel Order'
                                 }
                             </button>
                         </div>

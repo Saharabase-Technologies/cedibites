@@ -66,7 +66,7 @@ export default function SalesDashboardView() {
     () => drawerOrders.find(o => o.id === selectedOrderId) ?? null,
     [drawerOrders, selectedOrderId],
   );
-  const handleOrderClick = useCallback((id: string) => setSelectedOrderId(id), []);
+  const handleOrderClick = useCallback((dbId: number) => setSelectedOrderId(String(dbId)), []);
   const handleDrawerClose = useCallback(() => setSelectedOrderId(null), []);
 
   // Staff's own orders today (for personal stats on the dashboard)
@@ -168,7 +168,7 @@ export default function SalesDashboardView() {
             <button
               key={order.id}
               type="button"
-              onClick={() => handleOrderClick(order.id)}
+              onClick={() => handleOrderClick(order.dbId)}
               className="
                 bg-neutral-card dark:bg-brand-dark
                 border-brown-light/30 border rounded-2xl

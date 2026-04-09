@@ -59,7 +59,7 @@ export default function MySalesView() {
     const activeOrders = useMemo(() => myOrders.filter(o => o.status !== 'cancelled'), [myOrders]);
     const cancelledOrders = useMemo(() => myOrders.filter(o => o.status === 'cancelled'), [myOrders]);
     const completedOrders = useMemo(() => myOrders.filter(o => o.status === 'completed' || o.status === 'delivered'), [myOrders]);
-    const totalRevenue = useMemo(() => activeOrders.reduce((s, o) => s + o.total, 0), [activeOrders]);
+    const totalRevenue = useMemo(() => activeOrders.filter(o => o.paymentMethod !== 'no_charge').reduce((s, o) => s + o.total, 0), [activeOrders]);
 
     // Revenue breakdown by payment method
     const paymentBreakdown = useMemo(() => {

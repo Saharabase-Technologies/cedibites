@@ -109,7 +109,9 @@ export default function POSOrdersPage() {
   );
 
   const todayRevenue = useMemo(
-    () => todayOrders.reduce((s, o) => s + o.total, 0),
+    () => todayOrders
+      .filter(o => o.status !== 'cancelled' && o.paymentMethod !== 'no_charge')
+      .reduce((s, o) => s + o.total, 0),
     [todayOrders]
   );
 

@@ -81,6 +81,42 @@ Items still needing attention.
 
 ---
 
+## [2026-04-09] Session: Cancel Double-Fire Guard, Revenue Fix, Dashboard Drawer Fix
+
+### Intent
+
+Three bugs from live staff testing: (1) Cancel modal could potentially fire twice and showed wrong button text in staff context, (2) POS/orders revenue included cancelled and no_charge orders, (3) Dashboard active order click didn't open the detail drawer due to ID type mismatch.
+
+### Changes Made
+
+| File | Change | Reason |
+|------|--------|--------|
+| `app/components/ui/CancelOrderModal.tsx` | Confirm button text now context-aware ("Request Cancellation" for staff, "Cancel Order" otherwise). Loading text: "Requesting…" vs "Cancelling…". Added `succeeded` to disabled guard. | Prevents double-fire edge cases and matches staff workflow language |
+| `app/pos/orders/page.tsx` | Revenue now filters out `cancelled` status and `no_charge` payment method | Revenue was summing ALL orders including cancelled/no_charge |
+| `app/admin/dashboard/page.tsx` | Revenue KPI now excludes `no_charge` payment method orders (already excluded cancelled) | Consistent revenue definition across portals |
+| `app/staff/partner/dashboard/page.tsx` | Revenue now excludes `no_charge` payment method orders (already excluded cancelled) | Consistent revenue definition across portals |
+| `app/staff/my-sales/MySalesView.tsx` | Revenue now excludes `no_charge` payment method orders (already excluded cancelled) | Staff cash reconciliation shouldn't include no_charge |
+| `app/staff/dashboard/SalesDashboardView.tsx` | Changed `handleOrderClick` to accept `order.dbId` (numeric DB ID) instead of `order.id` (order number). Drawer now correctly finds matching order. | `AdminOrder.id` = order_number (e.g. "AC086"), `Order.id` = DB ID (e.g. "287") — mismatch prevented drawer from finding the order |
+
+### Decisions
+
+- **Decision**: Exclude `no_charge` from revenue across all portals, not just POS
+  - **Rationale**: No_charge orders represent comp/free orders — they shouldn't inflate revenue metrics anywhere. Applied consistently to admin dashboard, partner dashboard, staff my-sales, and POS orders.
+- **Decision**: Keep `cancel_requested` orders in revenue
+  - **Rationale**: Cancel_requested orders are still active (pending manager approval) and may still be fulfilled. Only fully cancelled orders should be excluded from revenue.
+
+### Current State
+
+- **Revenue**: Consistent definition across POS, Admin Dashboard, Partner Dashboard, Staff My Sales: sum of non-cancelled, non-no_charge orders.
+- **Cancel Modal**: Button reads "Request Cancellation" for staff, "Cancel Order" for customer/admin. Disabled after first click and after success.
+- **Dashboard Drawer**: Clicking an active order on the staff dashboard now correctly opens the OrderDrawer.
+
+### Cross-Repo Impact
+
+None — all frontend-only changes.
+
+---
+
 ## [2026-04-09] Session: Staff Portal — Cancel UX, Dashboard Drawer, Role Label
 
 ### Intent
