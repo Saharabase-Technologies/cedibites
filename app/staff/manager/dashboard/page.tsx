@@ -124,6 +124,7 @@ function DashboardOrderPanel({ order, onClose }: { order: AdminOrder; onClose: (
         out_for_delivery: { dot: 'bg-teal-600',     label: 'Out for Delivery' },
         delivered:        { dot: 'bg-secondary',    label: 'Delivered' },
         completed:        { dot: 'bg-secondary',    label: 'Completed' },
+        cancel_requested: { dot: 'bg-orange-400',   label: 'Cancel Requested' },
     };
 
     const ALLOWED_STATUSES = Object.keys(STATUS_STYLES);
@@ -231,6 +232,12 @@ function DashboardOrderPanel({ order, onClose }: { order: AdminOrder; onClose: (
                 </div>
                 <div className="border-t border-[#f0e8d8] p-4 flex flex-col gap-2.5">
                     <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Actions</p>
+                    {order.status === 'cancel_requested' && (
+                        <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl">
+                            <p className="text-xs font-bold text-orange-700 font-body">Cancel Requested</p>
+                            <p className="text-xs text-neutral-gray font-body italic">Waiting for admin approval</p>
+                        </div>
+                    )}
                     {showStatusPicker && (
                         <div className="bg-neutral-light rounded-xl p-3 flex flex-col gap-2">
                             <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Update Status</p>
@@ -250,7 +257,7 @@ function DashboardOrderPanel({ order, onClose }: { order: AdminOrder; onClose: (
                             className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer">
                             <ClockIcon size={13} weight="bold" className="text-primary" />Update Status
                         </button>
-                        {!isTerminal ? (
+                        {!isTerminal && order.status !== 'cancel_requested' ? (
                             <button type="button" onClick={() => setShowConfirm(true)} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-error/10 rounded-xl text-error text-xs font-medium font-body hover:bg-error/20 transition-colors cursor-pointer">
                                 <XCircleIcon size={13} weight="bold" />Request Cancel
                             </button>
@@ -280,7 +287,7 @@ export default function ManagerDashboardPage() {
     const { chartData } = useBranchRevenueChart(branchId, { period: 'week' });
     const { orders: rawOrders } = useEmployeeOrders({
         branch_id: branchId ?? undefined,
-        status: ['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery'],
+        status: ['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery', 'cancel_requested'],
         per_page: 5,
     });
 

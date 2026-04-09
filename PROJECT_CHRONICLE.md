@@ -81,6 +81,49 @@ Items still needing attention.
 
 ---
 
+## [2026-04-09] Session: Manager Dashboard & Shifts Bug Fixes
+
+### Intent
+
+Fix cancel request "double-fire" error on manager dashboard, correct overview KPI math for `cancel_requested` orders, and rework the manager Shifts page to match the improved MyShiftsView layout from the staff portal.
+
+### Changes Made
+
+| File | Change | Reason |
+|------|--------|--------|
+| `app/staff/manager/dashboard/page.tsx` | Added `cancel_requested` to `STATUS_STYLES` map (orange dot, "Cancel Requested" label). Added info block: "Cancel Requested — Waiting for admin approval" when order is in `cancel_requested` status. Changed cancel button condition from `!isTerminal` to `!isTerminal && order.status !== 'cancel_requested'`. | Orders in `cancel_requested` status still showed the "Request Cancel" button. Clicking it triggered a 422 error since the order was already in that status. This was NOT a double-click issue — it was a missing status check. |
+| `app/staff/manager/dashboard/page.tsx` | Added `'cancel_requested'` to the `useEmployeeOrders` status filter array. Was: `['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery']`. Now includes `'cancel_requested'`. | Active Orders KPI count was excluding orders pending cancellation approval, making the number seem wrong. |
+| `app/staff/manager/shifts/page.tsx` | Full rewrite (~480 lines) to match `MyShiftsView` pattern from `app/staff/my-shifts/MyShiftsView.tsx`. Both tabs (All Staff / My Shifts) now share the same visual pattern: active session hero card (green pulse, duration/orders/sales grid), Today's Summary cards (Sessions, Orders, Revenue), collapsible calendar (button in header), cleaner shift cards with SignIn→SignOut time flow. Extracted `ShiftCard` component. All Staff tab shows multi-staff active sessions hero with staff count and names. Improved `formatDuration` with safety checks. | Previous shifts page layout was dated and inconsistent with the already-redesigned MyShiftsView. Manager should see the same polished pattern. |
+
+### Decisions
+
+- **Decision**: `cancel_requested` is treated as an "active" order status for dashboard KPI purposes
+  - **Rationale**: Cancel-requested orders are still in-flight until admin approves/rejects. Excluding them from Active Orders misrepresents the workload.
+- **Decision**: Shifts calendar is collapsible by default (triggered via header button) rather than always showing
+  - **Rationale**: Cleaner initial view — staff open shifts to check current status, not browse the calendar. Matches the same pattern already shipped in `MyShiftsView`.
+- **Decision**: Extract `ShiftCard` component within the page
+  - **Rationale**: Both All Staff and My Shifts tabs render identical shift card layouts. Extracting avoids duplication without over-abstracting to a separate file.
+
+### Current State
+
+- **Manager Dashboard**: `cancel_requested` orders display correctly with orange status dot, info banner, and no duplicate cancel button. Active Orders KPI includes cancel-requested orders.
+- **Manager Shifts Page**: Visual parity with MyShiftsView — hero card, today's summary, collapsible calendar, unified shift cards across both tabs.
+- **Orders Page**: Already had the `cancel_requested` guard from a prior session — no changes needed.
+
+### Cross-Repo Impact
+
+| File (Backend repo) | Change | Impact |
+|------|--------|--------|
+| `app/Services/Analytics/AnalyticsService.php` | `getBranchRevenueChart()` now uses `startOfWeek(Carbon::SUNDAY)` / `endOfWeek(Carbon::SATURDAY)` | Fixes Sunday bar showing flat — business week starts Sunday, not Monday |
+| `app/Services/OrderManagementService.php` | Auto-assignment condition changed from `$status === 'accepted'` to `in_array($status, ['accepted', 'preparing'])` | Fixes Staff Sales showing empty — online orders skip `accepted` → `preparing` directly, so `assigned_employee_id` was never set. Fix applies forward only. |
+
+### Pending / Follow-up
+
+- Existing orders without `assigned_employee_id` are not retroactively fixed — staff sales for historical orders placed before this fix will still be missing
+- Consider a one-time migration to backfill `assigned_employee_id` for past orders if historical accuracy matters
+
+---
+
 ## [2026-04-09] Session: Cancel Double-Fire Guard, Revenue Fix, Dashboard Drawer Fix
 
 ### Intent

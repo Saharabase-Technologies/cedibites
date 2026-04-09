@@ -924,17 +924,45 @@ export default function POSTerminalPage() {
           onClose={() => setIsPendingDrawerOpen(false)}
           onSessionConfirmed={(cs) => {
             if (cs.order) {
+              // cs.order comes from OrderResource (snake_case JSON), not the frontend Order type
+              const o = cs.order as unknown as Record<string, unknown>;
+              const orderItems = (o.items ?? cs.items ?? []) as Record<string, unknown>[];
+              const branch = o.branch as Record<string, unknown> | undefined;
               setCompletedOrder({
-                id: cs.order.id,
-                orderCode: cs.order.order_number ?? '',
-                orderNumber: cs.order.order_number ?? '',
-                status: 'received',
+                id: String(o.id ?? ''),
+                orderCode: String(o.order_number ?? ''),
+                orderNumber: String(o.order_number ?? ''),
+                status: (o.status as string) ?? 'received',
+                source: (o.order_source as string) ?? 'pos',
+                fulfillmentType: (o.order_type as string) ?? 'dine_in',
+                paymentMethod: (o.payment_method as string) ?? cs.payment_method ?? 'cash',
                 paymentStatus: 'completed',
                 isPaid: true,
-                total: cs.total_amount ?? cs.order.total_amount,
-                items: (cs.items ?? []).map(i => ({ name: i.name, quantity: i.quantity, price: i.unit_price })),
-                contact: { name: cs.customer_name ?? '', phone: cs.customer_phone ?? '' },
-              } as unknown as Order);
+                total: Number(o.total_amount ?? cs.total_amount ?? 0),
+                subtotal: Number(o.subtotal ?? 0),
+                deliveryFee: Number(o.delivery_fee ?? 0),
+                discount: Number(o.discount ?? 0),
+                tax: 0,
+                items: orderItems.map((i) => ({
+                  id: String(i.id ?? ''),
+                  menuItemId: String(i.menu_item_id ?? ''),
+                  name: String((i.menu_item as Record<string, unknown> | undefined)?.name ?? i.name ?? (i.menu_item_snapshot as Record<string, unknown> | undefined)?.name ?? ''),
+                  quantity: Number(i.quantity ?? 0),
+                  unitPrice: Number(i.unit_price ?? 0),
+                })),
+                contact: {
+                  name: String(o.contact_name ?? cs.customer_name ?? ''),
+                  phone: String(o.contact_phone ?? cs.customer_phone ?? ''),
+                },
+                branch: {
+                  id: String(branch?.id ?? ''),
+                  name: String(branch?.name ?? ''),
+                  address: String(branch?.address ?? ''),
+                  phone: String(branch?.phone ?? ''),
+                  coordinates: { latitude: 0, longitude: 0 },
+                },
+                placedAt: Date.now(),
+              } as Order);
             }
           }}
         />
