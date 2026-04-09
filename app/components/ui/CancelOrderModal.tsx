@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { XIcon, ProhibitIcon, SpinnerIcon, CheckCircleIcon } from '@phosphor-icons/react';
 
 const REASON_PRESETS = [
@@ -62,6 +62,9 @@ export default function CancelOrderModal({
         ? 'bg-brand-dark border border-brown-light/20 text-text-light placeholder:text-neutral-gray/50 focus:border-error/40'
         : 'bg-neutral-light border border-[#f0e8d8] text-text-dark placeholder:text-neutral-gray focus:border-error/40';
 
+    // Synchronous guard to prevent double-submission from fast double-clicks
+    const submittingRef = useRef(false);
+
     // Auto-close after showing success state
     useEffect(() => {
         if (!succeeded) return;
@@ -70,6 +73,8 @@ export default function CancelOrderModal({
     }, [succeeded, onCancel]);
 
     async function handleConfirm() {
+        if (submittingRef.current) return;
+        submittingRef.current = true;
         setIsLoading(true);
         setErrorMsg(null);
         try {
@@ -78,6 +83,7 @@ export default function CancelOrderModal({
         } catch (err: any) {
             const msg = err?.response?.data?.message ?? err?.message ?? 'Something went wrong. Please try again.';
             setErrorMsg(msg);
+            submittingRef.current = false;
         } finally {
             setIsLoading(false);
         }
