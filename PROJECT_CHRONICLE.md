@@ -81,6 +81,194 @@ Items still needing attention.
 
 ---
 
+## [2026-04-09] Session: Branch Extended Access — After-Hours Staff System Access
+
+### Intent
+
+Add admin-controlled "Extended Access" toggles per branch so staff can continue using POS, Kitchen Display System (KDS), and Order Manager after the branch closes (e.g., for sales reconciliation). A second toggle allows placing new POS orders during extended access (for special/after-hours orders). Customers continue seeing the branch as closed.
+
+### Changes Made
+
+| File                                          | Change                                                                                                                                                                                                                                               | Reason                                           |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `types/api.ts`                                | Added `extended_staff_access`, `extended_order_access`, `staff_access_allowed` to `Branch` interface                                                                                                                                                 | TypeScript type matches API response             |
+| `app/components/providers/BranchProvider.tsx` | Added `extendedStaffAccess`, `extendedOrderAccess`, `staffAccessAllowed` to `Branch` interface and mapping from API                                                                                                                                  | Frontend data layer for extended access flags    |
+| `lib/api/services/branch.service.ts`          | Added `toggleExtendedStaffAccess()` and `toggleExtendedOrderAccess()` service methods                                                                                                                                                                | API client for admin toggle endpoints            |
+| `app/pos/terminal/page.tsx`                   | Updated branch-closed guard: now checks `staffAccessAllowed` — allows access when extended staff access is enabled even if branch is closed                                                                                                          | POS extended access bypass                       |
+| `app/kitchen/layout-client.tsx`               | Added full branch-closed gate with admin/extended access bypass. Uses `useBranch()` from BranchProvider. Shows dark-themed "Branch Closed" UI matching KDS aesthetics with Switch Branch and Sign Out options                                        | KDS had NO branch-closed gate before — now gated |
+| `app/order-manager/page.tsx`                  | Updated existing branch-closed guard to check `staffAccessAllowed`                                                                                                                                                                                   | Order Manager extended access bypass             |
+| `app/admin/settings/page.tsx`                 | Added new "Branch Access" tab with per-branch extended access toggle UI. Shows all active branches with Staff Access and Order Access toggles. Order Access is disabled/greyed when Staff Access is off. Invalidates branches query cache on toggle. | Admin control UI for extended access             |
+
+### Decisions
+
+- **Decision**: Two separate toggles (Staff Access + Order Access) instead of one
+  - **Rationale**: Restaurant business is dynamic — sometimes staff need access for reconciliation only (no new orders), other times they need to place special after-hours orders. Separate toggles give fine-grained control.
+- **Decision**: Extended access is a persistent per-branch flag, NOT tied to operating hours schedule
+  - **Rationale**: Unlike the existing `manual_override_open` (which is per-day and resets), extended access persists until admin explicitly turns it off.
+- **Decision**: Customers still see the branch as closed during extended access
+  - **Rationale**: `is_open` (customer-facing) is still computed from operating hours. `staff_access_allowed` is a separate computed field for staff systems only.
+
+### Cross-Repo Impact
+
+| File (API repo)                                          | Change                                                                                         | Impact on Frontend                                                         |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `database/migrations/2026_04_09_015228_*.php`            | Added `extended_staff_access` and `extended_order_access` boolean columns to `branches` table  | Frontend `Branch` type updated to match                                    |
+| `app/Models/Branch.php`                                  | Added `isStaffAccessAllowed()` and `isExtendedOrderAllowed()` methods                          | Business logic consumed via `BranchResource`                               |
+| `app/Http/Resources/BranchResource.php`                  | Added `extended_staff_access`, `extended_order_access`, `staff_access_allowed` to API response | Frontend `BranchProvider` maps these fields                                |
+| `app/Http/Controllers/Api/BranchController.php`          | Added toggle endpoints                                                                         | Frontend `branchService` calls these via admin routes                      |
+| `app/Http/Controllers/Api/CheckoutSessionController.php` | `posStore()` now checks `isCurrentlyOpen()` + `isExtendedOrderAllowed()` server-side           | POS orders blocked when branch closed unless extended order access enabled |
+| `routes/admin.php`                                       | Added `PATCH` routes for toggles under `manage_branches` permission                            | Frontend admin settings tab consumes these                                 |
+
+### Current State
+
+- **POS**: Gated — allows access when branch open, extended staff access on, or admin
+- **KDS**: Gated — same logic (NEW gate, didn't exist before)
+- **Order Manager**: Gated — same logic (existing gate updated)
+- **Admin Settings**: New "Branch Access" tab with per-branch toggles
+- **Customer-facing**: Unchanged — customers see branch as closed based on operating hours
+- **Branch**: `menu-audit`
+
+### Pending / Follow-up
+
+- Consider broadcasting a WebSocket event when extended access is toggled so POS/KDS/OM update in real-time without waiting for next branch query refetch
+- Consider adding an auto-disable mechanism (e.g., extended access expires after X hours) to prevent accidental overnight access
+- Frontend branch data refetches on 10-minute staleTime — staff may need to refresh browser after admin enables extended access (or wait up to 10 minutes)
+
+---
+
+## [2026-04-09] Session: Master Orchestrator Agent Creation
+
+### Intent
+
+Create a supreme coordination agent that can parse complex multi-domain prompts, decompose them into discrete tasks, route to the correct specialized agent(s), and ensure cross-cutting consistency across the entire CediBites platform (both repos, all 6+ portals).
+
+### Changes Made
+
+| File                                          | Change                                                                               | Reason                                                                    |
+| --------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `.github/agents/master-orchestrator.agent.md` | **NEW** — Created Master Orchestrator agent (custom `.agent.md` for VS Code Copilot) | Needed a central coordinator for 7 specialized agents spanning both repos |
+
+### Agent Details
+
+- **Type**: VS Code Copilot custom agent (`.agent.md`)
+- **Model**: Pinned to Claude Opus 4 (strongest reasoning for complex orchestration)
+- **Scope**: Both repos — `cedibites/` (frontend) and `cedibites_api/` (backend)
+- **Subordinate Agents**: Analytics Auditor, Order Auditor, IAM Auditor, Menu Auditor, UX Architect, Project Chronicle, Offline Explorer
+- **Invocability**: Can be invoked by users directly or as a subagent by other agents (escalation pattern)
+
+### Agent File Structure
+
+| Section                           | Content                                                                                                               |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| I — Agent Registry                | All 7 agents: domains, file locations, knowledge bases                                                                |
+| II — Orchestration Protocol       | 5-phase pipeline: Receive & Parse → Decompose & Plan → Delegate & Execute → Cross-Cut Reconciliation → Verify & Close |
+| III — System Mental Model         | Portal map, data flow architecture, critical cross-cutting flows                                                      |
+| IV — Decision-Making Authority    | What the orchestrator decides vs escalates to the developer                                                           |
+| V — Prompt Classification         | Single-agent, multi-agent, and ambiguous prompt routing patterns                                                      |
+| VI — Cross-Repo Change Management | Backend-first, frontend-first, and hotfix protocols                                                                   |
+| VII — Quality Gates               | Embedded engineering practices (SOLID, file size limits, backend/frontend/security rules)                             |
+| VIII — Communication Style        | Plan presentation, completion reporting, escalation templates                                                         |
+| IX — Non-Negotiable Constraints   | 10 hard rules                                                                                                         |
+| X — First Activation Protocol     | Session startup behavior                                                                                              |
+
+### Decisions
+
+- **Decision**: Pin to Claude Opus 4 model
+  - **Alternatives**: Default model, Claude Sonnet
+  - **Rationale**: Orchestration requires strong reasoning over complex multi-step plans with dependency awareness — Opus 4 is best suited
+- **Decision**: No subagent restrictions — can invoke any available agent
+  - **Alternatives**: Restrict to only the 7 registered agents
+  - **Rationale**: Flexibility for future agents and edge cases
+- **Decision**: Allow self-invocability (other agents can escalate to the orchestrator)
+  - **Rationale**: Enables agents to escalate cross-cutting concerns back to the coordinator
+- **Decision**: Embed critical engineering practices directly in Section VII rather than just referencing `Engineering-practices.instructions.md`
+  - **Alternatives**: Reference the file only
+  - **Rationale**: Ensures engineering rules are always in context during orchestration, even if the instructions file isn't auto-loaded
+
+### Cross-Repo Impact
+
+| File (API repo)                                              | Relationship                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `.github/instructions/Engineering-practices.instructions.md` | Key engineering rules are embedded in the orchestrator's Section VII      |
+| `AGENTS.md`                                                  | Backend agent definitions referenced by the orchestrator's agent registry |
+
+The orchestrator references backend engineering practices and backend agent files to coordinate cross-repo work.
+
+### Current State
+
+- **Master Orchestrator**: Fully defined and ready for use at `.github/agents/master-orchestrator.agent.md`
+- **Agent ecosystem**: 8 agents total (7 specialized + 1 orchestrator)
+- **Branch**: `menu-audit`
+
+### Pending / Follow-up
+
+- Test orchestrator with a complex multi-domain prompt to validate routing and sequencing
+- Consider adding a brief reference to the orchestrator in the other 7 agent files so they know they can escalate
+
+---
+
+## [2026-04-09] Session: Staff Pages Blank on Production — Backend Encrypted Cast Incident (No Frontend Changes)
+
+### Intent
+
+Investigate why both the admin staff page (`/admin/staff`) and partner/branch manager staff page (`/partner/staff`) showed "0 staff found" on the production app.
+
+### Investigation
+
+- IAM Auditor traced the full request chain: both pages use `useEmployees` hook → `employeeService.getEmployees()` → `GET /admin/employees?per_page=200`.
+- The production API (`api.cedibites.com`) was returning **500 Internal Server Error** on the employees endpoint.
+- Frontend code was completely correct — the issue was entirely a backend data integrity problem.
+
+### Root Cause (Backend)
+
+- 3 employee records in the production database had `ghana_card_id` stored as **plain text** (before the `encrypted` cast was added to the Employee model on April 7).
+- Laravel's `Crypt::decrypt()` threw `DecryptException` on plain-text values, crashing the entire paginated query.
+
+### Fix Applied (Backend — Production Database)
+
+- Plain-text Ghana Card IDs were nulled via SQL: `UPDATE employees SET ghana_card_id = NULL WHERE ghana_card_id NOT LIKE 'eyJ%'`
+- Staff pages immediately started loading again.
+
+### Changes Made
+
+No frontend code changes — the issue was entirely in the backend data layer.
+
+### Files Involved (Unmodified, But Relevant to Diagnosis)
+
+| File                                   | Role                                                               |
+| -------------------------------------- | ------------------------------------------------------------------ |
+| `lib/api/services/employee.service.ts` | `getEmployees()` call that received the 500 error                  |
+| `lib/api/hooks/useEmployees.ts`        | React Query hook wrapping the service — returned empty/error state |
+| `app/admin/staff/page.tsx`             | Consumed the hook, showed "0 staff found" due to error response    |
+| `app/partner/staff/page.tsx`           | Same symptom — consumed same hook                                  |
+
+### Cross-Repo Impact
+
+| File (API repo)           | Change                                              | Impact                                                      |
+| ------------------------- | --------------------------------------------------- | ----------------------------------------------------------- |
+| `app/Models/Employee.php` | `encrypted` cast on `ghana_card_id` (added April 7) | Caused `DecryptException` on pre-existing plain-text values |
+| Production DB             | 3 rows nulled (`ghana_card_id`)                     | Fix — staff endpoint returns 200 again                      |
+
+### Lessons Learned
+
+- When the backend adds `encrypted` casts to existing fields, a **data migration** must be deployed alongside it to encrypt pre-existing plain-text values.
+- The `encrypted` cast fails hard (500) — one bad row crashes the entire paginated listing.
+- Frontend error handling showed "0 staff found" instead of an error message — consider improving empty-state vs error-state differentiation in `useEmployees`.
+
+### Current State
+
+- **Admin staff page** (`/admin/staff`): Working — loads employees from production API
+- **Partner staff page** (`/partner/staff`): Working — same
+- **No code changes** — this was a backend data fix only
+- **Branch**: `menu-audit`
+
+### Pending / Follow-up
+
+- Consider improving error handling in `useEmployees` to distinguish between "no employees exist" and "API returned an error" — currently both show "0 staff found"
+- No frontend follow-ups from this session otherwise
+
+---
+
 ## [2026-04-08] Session: Branch Sync — No Frontend Changes
 
 ### Intent
@@ -93,11 +281,11 @@ No code changes in this session — the frontend was already up to date.
 
 ### Cross-Repo Impact
 
-| File (API repo) | Change | Impact on Frontend |
-|------|--------|--------|
-| `.github/workflows/deploy.yml` | Added `PermissionSeeder` and `RoleSeeder` to deploy pipeline | None — backend infrastructure only |
-| `app/Providers/ResponseMacroServiceProvider.php` | `success()` macro now supports optional `?string $message` | No frontend impact — response `data` key is unchanged; `message` key is additive |
-| `database/seeders/TechAdminSeeder.php` | Deleted | None — frontend never referenced this |
+| File (API repo)                                  | Change                                                       | Impact on Frontend                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `.github/workflows/deploy.yml`                   | Added `PermissionSeeder` and `RoleSeeder` to deploy pipeline | None — backend infrastructure only                                               |
+| `app/Providers/ResponseMacroServiceProvider.php` | `success()` macro now supports optional `?string $message`   | No frontend impact — response `data` key is unchanged; `message` key is additive |
+| `database/seeders/TechAdminSeeder.php`           | Deleted                                                      | None — frontend never referenced this                                            |
 
 ### Current State
 
@@ -118,10 +306,10 @@ Fix two POS first-print receipt bugs: items showing machine keys instead of disp
 
 ### Changes Made
 
-| File                 | Change                                                                                                        | Reason                                                                                                                                                                                                         |
-| -------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File                             | Change                                                                                                        | Reason                                                                                                                                                                                                                                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `app/pos/context.tsx` (line 301) | Changed `sizeLabel: item.variantKey` → `sizeLabel: item.name` in the receipt data mapping                     | Receipt displayed the option's machine key (e.g. "assorted") instead of the display/receipt name (e.g. "Assorted Jollof Rice"). The cart item's `name` field already contains the correct display name resolved from `size.displayName` (DB's `display_name` / Receipt Name field) in `getItemOptions()`. |
-| `app/pos/context.tsx` (line 323) | Changed `placedAt: Date.now()` → `placedAt: new Date(apiOrder?.created_at ?? csSession.created_at).getTime()` | Receipt time was 1 hour behind because `Date.now()` used the POS device's local clock (which was wrong). Now uses the server's `created_at` timestamp, making receipt time accurate regardless of device clock. |
+| `app/pos/context.tsx` (line 323) | Changed `placedAt: Date.now()` → `placedAt: new Date(apiOrder?.created_at ?? csSession.created_at).getTime()` | Receipt time was 1 hour behind because `Date.now()` used the POS device's local clock (which was wrong). Now uses the server's `created_at` timestamp, making receipt time accurate regardless of device clock.                                                                                           |
 
 ### Decisions
 

@@ -245,8 +245,8 @@ export default function OrderManagerPage() {
     );
   }
 
-  // Guard: branch is closed or inactive — admin/tech_admin bypass
-  if (!isAdmin && branchInfo && (!branchInfo.isActive || !branchInfo.isOpen)) {
+  // Guard: branch is closed or inactive — admin/tech_admin bypass, extended access bypass
+  if (!isAdmin && branchInfo && (!branchInfo.isActive || (!branchInfo.isOpen && !branchInfo.staffAccessAllowed))) {
     const isInactive = !branchInfo.isActive;
     return (
       <div className="min-h-dvh flex items-center justify-center bg-neutral-light p-6">

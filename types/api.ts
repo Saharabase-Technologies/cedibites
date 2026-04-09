@@ -50,6 +50,9 @@ export interface Branch {
   longitude: number;
   is_active: boolean;
   is_open?: boolean;
+  extended_staff_access?: boolean;
+  extended_order_access?: boolean;
+  staff_access_allowed?: boolean;
   operating_hours?: Record<string, {
     is_open: boolean;
     open_time: string | null;

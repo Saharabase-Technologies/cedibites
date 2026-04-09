@@ -21,13 +21,17 @@ import {
     ToggleRightIcon,
     ReceiptIcon,
     SpinnerIcon,
+    StorefrontIcon,
 } from '@phosphor-icons/react';
 import apiClient from '@/lib/api/client';
 import { toast } from '@/lib/utils/toast';
+import { useBranch } from '@/app/components/providers/BranchProvider';
+import { branchService } from '@/lib/api/services/branch.service';
+import { useQueryClient } from '@tanstack/react-query';
 
 // ─── Types / helpers ──────────────────────────────────────────────────────────
 
-type Tab = 'general' | 'orders' | 'payment' | 'sms' | 'delivery' | 'roles' | 'danger';
+type Tab = 'general' | 'orders' | 'payment' | 'sms' | 'delivery' | 'branches' | 'roles' | 'danger';
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
     return (
@@ -694,6 +698,149 @@ function RolesTab() {
     );
 }
 
+// ─── Tab: Branch Access ───────────────────────────────────────────────────────
+
+function BranchAccessTab() {
+    const { branches } = useBranch();
+    const queryClient = useQueryClient();
+    const [loading, setLoading] = useState<Record<string, boolean>>({});
+    const [localState, setLocalState] = useState<Record<string, { staff: boolean; order: boolean }>>({});
+
+    // Initialize local state from branch data
+    useEffect(() => {
+        const state: Record<string, { staff: boolean; order: boolean }> = {};
+        branches.forEach(b => {
+            state[b.id] = {
+                staff: b.extendedStaffAccess,
+                order: b.extendedOrderAccess,
+            };
+        });
+        setLocalState(state);
+    }, [branches]);
+
+    async function toggleStaffAccess(branchId: string) {
+        setLoading(prev => ({ ...prev, [`${branchId}-staff`]: true }));
+        try {
+            const result = await branchService.toggleExtendedStaffAccess(Number(branchId));
+            setLocalState(prev => ({
+                ...prev,
+                [branchId]: {
+                    staff: result.extended_staff_access,
+                    order: result.extended_order_access,
+                },
+            }));
+            const status = result.extended_staff_access ? 'enabled' : 'disabled';
+            toast.success(`Extended staff access ${status}`);
+            queryClient.invalidateQueries({ queryKey: ['branches'] });
+        } catch {
+            toast.error('Failed to toggle extended staff access');
+        } finally {
+            setLoading(prev => ({ ...prev, [`${branchId}-staff`]: false }));
+        }
+    }
+
+    async function toggleOrderAccess(branchId: string) {
+        setLoading(prev => ({ ...prev, [`${branchId}-order`]: true }));
+        try {
+            const result = await branchService.toggleExtendedOrderAccess(Number(branchId));
+            setLocalState(prev => ({
+                ...prev,
+                [branchId]: {
+                    staff: result.extended_staff_access,
+                    order: result.extended_order_access,
+                },
+            }));
+            const status = result.extended_order_access ? 'enabled' : 'disabled';
+            toast.success(`Extended order access ${status}`);
+            queryClient.invalidateQueries({ queryKey: ['branches'] });
+        } catch {
+            toast.error('Failed to toggle extended order access. Ensure staff access is enabled first.');
+        } finally {
+            setLoading(prev => ({ ...prev, [`${branchId}-order`]: false }));
+        }
+    }
+
+    const activeBranches = branches.filter(b => b.isActive);
+
+    return (
+        <div className="flex flex-col gap-5">
+            <Card>
+                <SectionHeader
+                    title="Branch Extended Access"
+                    sub="Allow staff to use POS, Kitchen Display, and Order Manager beyond scheduled operating hours. Customers will still see the branch as closed."
+                />
+                <div className="p-3 bg-primary/5 border border-primary/15 rounded-xl mb-4">
+                    <p className="text-text-dark text-xs font-body">
+                        <strong>Staff Access</strong> — Allows staff to view and manage orders on POS, KDS, and Order Manager when the branch is closed (e.g., for sales reconciliation).
+                    </p>
+                    <p className="text-text-dark text-xs font-body mt-1">
+                        <strong>Order Access</strong> — Additionally allows placing new orders via POS when the branch is closed (e.g., for special/after-hours orders). Requires Staff Access to be enabled.
+                    </p>
+                </div>
+            </Card>
+
+            {activeBranches.length === 0 ? (
+                <Card>
+                    <p className="text-neutral-gray text-sm font-body text-center py-4">No active branches found.</p>
+                </Card>
+            ) : (
+                activeBranches.map(branch => {
+                    const state = localState[branch.id] ?? { staff: false, order: false };
+                    const isStaffLoading = loading[`${branch.id}-staff`];
+                    const isOrderLoading = loading[`${branch.id}-order`];
+
+                    return (
+                        <Card key={branch.id}>
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                                        <StorefrontIcon size={16} weight="fill" className="text-primary" />
+                                    </div>
+                                    <div>
+                                        <p className="text-text-dark text-sm font-bold font-body">{branch.name}</p>
+                                        <p className="text-neutral-gray text-[10px] font-body">
+                                            {branch.isOpen
+                                                ? <span className="text-secondary">Currently Open</span>
+                                                : <span className="text-error">Currently Closed</span>
+                                            }
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-3 pl-10.5">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-text-dark text-xs font-medium font-body">Extended Staff Access</p>
+                                        <p className="text-neutral-gray text-[10px] font-body">POS, KDS, Order Manager access after hours</p>
+                                    </div>
+                                    {isStaffLoading ? (
+                                        <SpinnerIcon size={20} className="animate-spin text-primary" />
+                                    ) : (
+                                        <Toggle checked={state.staff} onChange={() => toggleStaffAccess(branch.id)} />
+                                    )}
+                                </div>
+
+                                <div className={`flex items-center justify-between ${!state.staff ? 'opacity-40 pointer-events-none' : ''}`}>
+                                    <div>
+                                        <p className="text-text-dark text-xs font-medium font-body">Extended Order Access</p>
+                                        <p className="text-neutral-gray text-[10px] font-body">Allow new POS orders while branch is closed</p>
+                                    </div>
+                                    {isOrderLoading ? (
+                                        <SpinnerIcon size={20} className="animate-spin text-primary" />
+                                    ) : (
+                                        <Toggle checked={state.order} onChange={() => toggleOrderAccess(branch.id)} />
+                                    )}
+                                </div>
+                            </div>
+                        </Card>
+                    );
+                })
+            )}
+        </div>
+    );
+}
+
 // ─── Tab: Danger Zone ─────────────────────────────────────────────────────────
 
 function DangerZoneTab() {
@@ -794,6 +941,7 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
     { key: 'payment',  label: 'Payment & Hubtel', icon: CreditCardIcon   },
     { key: 'sms',      label: 'SMS & Notifications', icon: ChatTextIcon  },
     { key: 'delivery', label: 'Delivery',         icon: TruckIcon        },
+    { key: 'branches', label: 'Branch Access',    icon: StorefrontIcon   },
     { key: 'roles',    label: 'Roles & Perms',    icon: ShieldIcon       },
     { key: 'danger',   label: 'Danger Zone',      icon: WarningCircleIcon},
 ];
@@ -832,6 +980,7 @@ export default function AdminSettingsPage() {
                     {tab === 'payment'  && <PaymentTab />}
                     {tab === 'sms'      && <SmsTab />}
                     {tab === 'delivery' && <DeliveryTab />}
+                    {tab === 'branches' && <BranchAccessTab />}
                     {tab === 'roles'    && <RolesTab />}
                     {tab === 'danger'   && <DangerZoneTab />}
                 </div>

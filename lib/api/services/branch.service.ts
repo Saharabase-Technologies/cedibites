@@ -140,6 +140,16 @@ export const branchService = {
     return extractData<{ message: string; is_open: boolean; day: string }>(response);
   },
 
+  toggleExtendedStaffAccess: async (id: number): Promise<{ extended_staff_access: boolean; extended_order_access: boolean }> => {
+    const response = await apiClient.patch(`/admin/branches/${id}/toggle-extended-staff-access`);
+    return extractData<{ extended_staff_access: boolean; extended_order_access: boolean }>(response);
+  },
+
+  toggleExtendedOrderAccess: async (id: number): Promise<{ extended_staff_access: boolean; extended_order_access: boolean }> => {
+    const response = await apiClient.patch(`/admin/branches/${id}/toggle-extended-order-access`);
+    return extractData<{ extended_staff_access: boolean; extended_order_access: boolean }>(response);
+  },
+
   getBranchStats: async (id: number): Promise<BranchStats> => {
     const response = await apiClient.get(`/manager/branches/${id}/stats`);
     return extractData<BranchStats>(response);

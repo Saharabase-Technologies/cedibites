@@ -1,9 +1,11 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLocation } from './LocationProvider';
 import { calculateDistance, estimateDeliveryTime } from '@/lib/utils/distance';
 import { useBranches } from '@/lib/api/hooks/useBranches';
+import { getEcho } from '@/lib/echo';
 import type { Branch as ApiBranch } from '@/types/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -20,6 +22,9 @@ export interface Branch {
     deliveryFee: number;
     isOpen: boolean;
     isActive: boolean;
+    extendedStaffAccess: boolean;
+    extendedOrderAccess: boolean;
+    staffAccessAllowed: boolean;
     orderTypes: Record<string, { is_enabled: boolean }>;
     paymentMethods: Record<string, { is_enabled: boolean }>;
     menuItemIds: string[]; // Legacy - will be deprecated
@@ -77,6 +82,9 @@ function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
         operatingHours,
         isOpen: apiBranch.is_open ?? apiBranch.is_active,
         isActive: apiBranch.is_active,
+        extendedStaffAccess: apiBranch.extended_staff_access ?? false,
+        extendedOrderAccess: apiBranch.extended_order_access ?? false,
+        staffAccessAllowed: apiBranch.staff_access_allowed ?? (apiBranch.is_open ?? apiBranch.is_active),
         orderTypes: apiBranch.order_types ?? {},
         paymentMethods: apiBranch.payment_methods ?? {},
         menuItemIds: apiBranch.menu_items?.map(item => String(item.id)) ?? [],
@@ -92,6 +100,27 @@ export function BranchProvider({ children }: { children: ReactNode }) {
 
     // Fetch branches from API
     const { branches: apiBranches, isLoading } = useBranches();
+    const queryClient = useQueryClient();
+
+    // Listen for real-time branch access updates via Reverb
+    useEffect(() => {
+        if (!selectedBranch) return;
+
+        const echo = getEcho();
+        if (!echo) return;
+
+        const channel = echo.private(`orders.branch.${selectedBranch.id}`);
+
+        channel.listen('.branch.access.updated', () => {
+            queryClient.invalidateQueries({ queryKey: ['branches'] });
+        });
+
+        return () => {
+            // Only stop listening for this event — don't leave the channel
+            // (other listeners like useOrderChannel may still be active)
+            channel.stopListening('.branch.access.updated');
+        };
+    }, [selectedBranch?.id, queryClient]);
 
     // Convert API branches to local format
     const branches = useMemo(() => {
