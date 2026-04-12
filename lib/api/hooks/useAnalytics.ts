@@ -14,6 +14,7 @@ import {
   type PaymentMethod,
   type DiscountUsageAnalytics,
   type CancellationReasonsAnalytics,
+  type AdminStaffSalesRow,
 } from '../services/analytics.service';
 
 export type AnalyticsPeriod = 'today' | 'yesterday' | 'week' | 'last_week' | 'month' | 'last_month' | '30d' | '90d' | 'lifetime' | 'custom';
@@ -223,6 +224,18 @@ export const useCancellationReasonsAnalytics = (period: AnalyticsPeriod = 'week'
   return useQuery({
     queryKey: ['analytics', 'cancellation-reasons', period, branchId, range.date_from, range.date_to],
     queryFn: () => analyticsService.getCancellationReasonsAnalytics(filters),
+    staleTime: 60 * 1000,
+  });
+};
+
+export const useAdminStaffSales = (period: AnalyticsPeriod = 'today', branchId?: number, customRange?: CustomRange) => {
+  const range = getDateRange(period, customRange);
+  const filters: AnalyticsFilters = { ...range };
+  if (branchId) filters.branch_id = branchId;
+
+  return useQuery({
+    queryKey: ['analytics', 'admin-staff-sales', period, branchId, range.date_from, range.date_to],
+    queryFn: () => analyticsService.getAdminStaffSales(filters),
     staleTime: 60 * 1000,
   });
 };

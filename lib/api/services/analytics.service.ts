@@ -153,6 +153,23 @@ export interface CancellationReasonsAnalytics {
   reasons: CancellationReason[];
 }
 
+export interface AdminStaffSalesRow {
+  employee_id: number;
+  staff_name: string;
+  total_orders: number;
+  momo_total: number;
+  momo_count: number;
+  cash_total: number;
+  cash_count: number;
+  manual_momo_total: number;
+  manual_momo_count: number;
+  no_charge_total: number;
+  no_charge_count: number;
+  card_total: number;
+  card_count: number;
+  total_revenue: number;
+}
+
 function extractData<T>(response: unknown): T {
   const r = response as { data?: T };
   return (r?.data ?? response) as T;
@@ -205,5 +222,9 @@ export const analyticsService = {
 
   getCancellationReasonsAnalytics: (filters?: AnalyticsFilters): Promise<CancellationReasonsAnalytics> => {
     return apiClient.get('/admin/analytics/cancellation-reasons', { params: filters }).then(extractData) as Promise<CancellationReasonsAnalytics>;
+  },
+
+  getAdminStaffSales: (filters?: AnalyticsFilters): Promise<AdminStaffSalesRow[]> => {
+    return apiClient.get('/admin/analytics/staff-sales', { params: filters }).then(extractData) as Promise<AdminStaffSalesRow[]>;
   },
 };

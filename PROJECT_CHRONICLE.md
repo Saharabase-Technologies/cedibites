@@ -81,6 +81,48 @@ Items still needing attention.
 
 ---
 
+## [2026-04-12] Session: Shifts & Staff Sales in Admin Staff Section
+
+### Intent
+
+Bring shift tracking and staff sales analytics into the Admin Staff section (`/admin/staff`), giving admins a centralized cross-branch view of staff activity alongside the existing directory. Previously these were only accessible from the Branch Manager portal.
+
+### Changes Made
+
+| File | Change | Reason |
+|------|--------|--------|
+| `app/admin/staff/layout.tsx` | Updated to render `StaffTabNav` above page content | Enable tab-based navigation within staff section |
+| `app/admin/staff/StaffTabNav.tsx` | New client component with Directory / Shifts / Staff Sales tabs using `usePathname` for active state | Admin needs to switch between staff views without leaving the section |
+| `app/admin/staff/shifts/page.tsx` | New admin shifts page with branch filter, staff search, calendar toggle, active sessions hero, and session list | Admins need cross-branch shift visibility — reuses `ShiftsCalendar` from manager |
+| `app/admin/staff/sales/page.tsx` | New admin staff sales page with period selector (7 options), branch filter, staff search, payment method breakdown cards | Admins need cross-branch sales breakdown — uses new admin analytics endpoint |
+| `lib/api/services/analytics.service.ts` | Added `AdminStaffSalesRow` interface and `getAdminStaffSales()` method calling `GET /admin/analytics/staff-sales` | Frontend contract for new admin endpoint |
+| `lib/api/hooks/useAnalytics.ts` | Added `useAdminStaffSales()` TanStack Query hook with period/branch filters | Data fetching for admin staff sales page |
+
+### Decisions
+
+- **Decision**: Use route-based tabs under `/admin/staff/` (Directory | Shifts | Sales) instead of putting data in the staff detail drawer
+  - **Rationale**: Shifts need a full calendar grid and sales need filterable tables — too cramped for a drawer. Dedicated pages with branch/search filters are the right primary surface.
+- **Decision**: Reuse `ShiftsCalendar` component from manager portal
+  - **Rationale**: Avoid duplication — same UX pattern, different data scoping (admin sees all branches)
+- **Decision**: Admin staff sales uses new `GET /admin/analytics/staff-sales` endpoint with date range + branch filters (not the manager's single-date endpoint)
+  - **Rationale**: Admin needs period-based views (today, week, month, etc.) across all branches, unlike the manager's single-branch/single-date view
+
+### Current State
+
+- `/admin/staff` — Directory tab (existing CRUD page, unchanged)
+- `/admin/staff/shifts` — Shifts tab with branch filter, staff search, calendar, active sessions
+- `/admin/staff/sales` — Staff Sales tab with period selector, branch filter, payment breakdown
+- Tab navigation visible on all three pages via shared layout
+
+### Cross-Repo Impact
+
+| File (Backend) | Change |
+|------|--------|
+| `AdminAnalyticsController.php` | Added `staffSales()` method |
+| `routes/admin.php` | Registered `GET admin/analytics/staff-sales` under `view_orders` permission |
+
+---
+
 ## [2026-04-12] Session: BM Staff Sales Fix + manual_momo Support
 
 ### Intent
