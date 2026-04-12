@@ -81,6 +81,48 @@ Items still needing attention.
 
 ---
 
+## [2026-04-12] Session: BM Staff Sales Fix + manual_momo Support
+
+### Intent
+
+Fix Branch Manager Staff Sales page (`/staff/manager/staff-sales`) showing "No sales recorded" despite having data, and add support for the `manual_momo` payment method as a distinct "Direct MoMo" category.
+
+### Changes Made
+
+| File | Change | Reason |
+|------|--------|--------|
+| `lib/api/services/branch.service.ts` | Added `manual_momo_total: number` and `manual_momo_count: number` to `StaffSalesRow` interface | Match new backend response shape after `manual_momo` was added as a standalone metric |
+| `app/staff/manager/staff-sales/page.tsx` | Added `manual_momo_total`/`manual_momo_count` to local `StaffSalesRow` interface | Match new backend response shape |
+| `app/staff/manager/staff-sales/page.tsx` | Added `HandCoinsIcon` import, "Direct MoMo" entry in `METHODS` array with orange-600 color | New payment method card in per-staff breakdown |
+| `app/staff/manager/staff-sales/page.tsx` | Updated `totals` reducer to include `manualMomo` accumulator | Grand totals need to sum manual_momo across all staff |
+| `app/staff/manager/staff-sales/page.tsx` | Added conditional Direct MoMo line in grand total footer | Shows Direct MoMo total only when > 0 |
+| `app/staff/manager/staff-sales/page.tsx` | Changed per-staff grid from `sm:grid-cols-4` to `sm:grid-cols-5` | 5 payment methods now (MoMo, Cash, Direct MoMo, No Charge, Card) |
+
+### Decisions
+
+- **Decision**: No changes needed to My Sales page (`MySalesView.tsx`)
+  - **Rationale**: `cash_on_delivery` is a branch payment setting key, not a payments DB value. The payments table stores `cash`. `manual_momo` already has a card in `PAYMENT_BREAKDOWN_CONFIG`.
+
+### Current State
+
+- **BM Staff Sales**: Page now correctly displays staff rows with per-method breakdowns including Direct MoMo
+- **Direct MoMo card**: Appears with orange `HandCoinsIcon`, only shown in grand total footer when > 0
+- **Grid layout**: 5-column grid accommodates all payment methods
+- **Deployed**: Committed and pushed to `main`
+
+### Cross-Repo Impact
+
+| File (Backend repo) | Change | Impact |
+|------|--------|--------|
+| `app/Services/Analytics/AnalyticsService.php` | Rewrote `getStaffSalesMetrics()` with explicit JOINs, table-prefixed filters, `payments.amount` SUMs, `manual_momo` columns, `cash_on_delivery` merged into `cash`, manual soft-delete check | Root cause fix for ambiguous column error; new response shape consumed by frontend |
+
+### Pending / Follow-up
+
+- My Sales page 200-order cap (deferred to future session)
+- Repository redirect warning on push (GitHub repo moved from somdarv to Saharabase-Technologies — cosmetic, pushes succeed)
+
+---
+
 ## [2026-04-12] Session: 13-Issue Audit Fix
 
 ### Intent
