@@ -390,6 +390,7 @@ export default function OrderManagerPage() {
                   key={order.id}
                   order={order}
                   isSelected={selectedOrder?.id === order.id}
+                  isAdmin={isAdmin}
                   onSelect={() => setSelectedOrder(order)}
                   onAction={() => handleAction(order)}
                   onApproveCancel={() => approveCancel(order.id)}
@@ -405,6 +406,7 @@ export default function OrderManagerPage() {
           <div className="hidden lg:block w-96 border-l border-brown-light/20 bg-neutral-card overflow-y-auto">
             <OrderDetailPanel
               order={selectedOrder}
+              isAdmin={isAdmin}
               onAction={() => handleAction(selectedOrder)}
               onApproveCancel={() => { approveCancel(selectedOrder.id); setSelectedOrder(null); }}
               onRejectCancel={() => { rejectCancel(selectedOrder); setSelectedOrder(null); }}
@@ -421,6 +423,7 @@ export default function OrderManagerPage() {
           <div className="absolute bottom-0 left-0 right-0 bg-neutral-card rounded-t-3xl max-h-[80vh] overflow-y-auto shadow-2xl">
             <OrderDetailPanel
               order={selectedOrder}
+              isAdmin={isAdmin}
               onAction={() => handleAction(selectedOrder)}
               onApproveCancel={() => { approveCancel(selectedOrder.id); setSelectedOrder(null); }}
               onRejectCancel={() => { rejectCancel(selectedOrder); setSelectedOrder(null); }}
@@ -452,13 +455,14 @@ export default function OrderManagerPage() {
 interface OrderCardProps {
   order: Order;
   isSelected: boolean;
+  isAdmin: boolean;
   onSelect: () => void;
   onAction: () => void;
   onApproveCancel: () => void;
   onRejectCancel: () => void;
 }
 
-function OrderCard({ order, isSelected, onSelect, onAction, onApproveCancel, onRejectCancel }: OrderCardProps) {
+function OrderCard({ order, isSelected, isAdmin, onSelect, onAction, onApproveCancel, onRejectCancel }: OrderCardProps) {
   const statusCfg = STATUS_CONFIG[order.status];
   const displayLabel = getDisplayLabel(order.status);
   const stripe = STATUS_STRIPE[order.status] ?? 'border-l-gray-300';
@@ -547,22 +551,28 @@ function OrderCard({ order, isSelected, onSelect, onAction, onApproveCancel, onR
           </span>
 
           {isCancelReq ? (
-            <div className="flex-1 flex gap-1.5">
-              <button
-                onClick={(e) => { e.stopPropagation(); onRejectCancel(); }}
-                className="flex-1 h-10 rounded-xl font-semibold text-xs flex items-center justify-center gap-1 active:scale-[0.95] transition-all font-body bg-neutral-light hover:bg-neutral-gray/10 text-neutral-gray border border-neutral-gray/20"
-              >
-                <XIcon className="w-3.5 h-3.5" weight="bold" />
-                Reject
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); onApproveCancel(); }}
-                className="flex-1 h-10 rounded-xl font-semibold text-xs flex items-center justify-center gap-1 active:scale-[0.95] transition-all font-body bg-error hover:bg-error/80 text-white"
-              >
-                <ProhibitIcon className="w-3.5 h-3.5" weight="bold" />
-                Approve
-              </button>
-            </div>
+            isAdmin ? (
+              <div className="flex-1 flex gap-1.5">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRejectCancel(); }}
+                  className="flex-1 h-10 rounded-xl font-semibold text-xs flex items-center justify-center gap-1 active:scale-[0.95] transition-all font-body bg-neutral-light hover:bg-neutral-gray/10 text-neutral-gray border border-neutral-gray/20"
+                >
+                  <XIcon className="w-3.5 h-3.5" weight="bold" />
+                  Reject
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onApproveCancel(); }}
+                  className="flex-1 h-10 rounded-xl font-semibold text-xs flex items-center justify-center gap-1 active:scale-[0.95] transition-all font-body bg-error hover:bg-error/80 text-white"
+                >
+                  <ProhibitIcon className="w-3.5 h-3.5" weight="bold" />
+                  Approve
+                </button>
+              </div>
+            ) : (
+              <span className="flex-1 text-xs text-orange-600 font-medium font-body text-center italic">
+                Awaiting admin approval
+              </span>
+            )
           ) : actionConfig ? (
             <button
               onClick={(e) => { e.stopPropagation(); onAction(); }}
@@ -582,13 +592,14 @@ function OrderCard({ order, isSelected, onSelect, onAction, onApproveCancel, onR
 
 interface OrderDetailPanelProps {
   order: Order;
+  isAdmin: boolean;
   onAction: () => void;
   onApproveCancel: () => void;
   onRejectCancel: () => void;
   onClose: () => void;
 }
 
-function OrderDetailPanel({ order, onAction, onApproveCancel, onRejectCancel, onClose }: OrderDetailPanelProps) {
+function OrderDetailPanel({ order, isAdmin, onAction, onApproveCancel, onRejectCancel, onClose }: OrderDetailPanelProps) {
   const statusCfg = STATUS_CONFIG[order.status];
   const displayLabel = getDisplayLabel(order.status);
   const TypeIcon = ORDER_TYPE_LABELS[order.fulfillmentType].icon;
@@ -710,22 +721,29 @@ function OrderDetailPanel({ order, onAction, onApproveCancel, onRejectCancel, on
       {/* Action footer */}
       <div className="shrink-0 p-4 border-t border-brown-light/20">
         {isCancelReq ? (
-          <div className="flex gap-2">
-            <button
-              onClick={onRejectCancel}
-              className="flex-1 h-14 rounded-2xl font-semibold text-base flex items-center justify-center gap-2 active:scale-[0.95] transition-all font-body bg-neutral-light hover:bg-neutral-gray/10 text-text-dark border border-brown-light/20"
-            >
-              <XIcon className="w-5 h-5" weight="bold" />
-              Reject
-            </button>
-            <button
-              onClick={onApproveCancel}
-              className="flex-1 h-14 rounded-2xl font-semibold text-base flex items-center justify-center gap-2 active:scale-[0.95] transition-all font-body bg-error hover:bg-error/80 text-white"
-            >
-              <ProhibitIcon className="w-5 h-5" weight="bold" />
-              Approve Cancel
-            </button>
-          </div>
+          isAdmin ? (
+            <div className="flex gap-2">
+              <button
+                onClick={onRejectCancel}
+                className="flex-1 h-14 rounded-2xl font-semibold text-base flex items-center justify-center gap-2 active:scale-[0.95] transition-all font-body bg-neutral-light hover:bg-neutral-gray/10 text-text-dark border border-brown-light/20"
+              >
+                <XIcon className="w-5 h-5" weight="bold" />
+                Reject
+              </button>
+              <button
+                onClick={onApproveCancel}
+                className="flex-1 h-14 rounded-2xl font-semibold text-base flex items-center justify-center gap-2 active:scale-[0.95] transition-all font-body bg-error hover:bg-error/80 text-white"
+              >
+                <ProhibitIcon className="w-5 h-5" weight="bold" />
+                Approve Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-2 h-14 rounded-2xl bg-orange-50 border border-orange-200">
+              <WarningCircleIcon className="w-5 h-5 text-orange-500" weight="fill" />
+              <span className="text-orange-700 text-sm font-semibold font-body">Awaiting admin approval</span>
+            </div>
+          )
         ) : actionConfig ? (
           <button
             onClick={onAction}
