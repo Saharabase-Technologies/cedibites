@@ -3,6 +3,10 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
+import { CancelRequestsBell } from './components/CancelRequestsBell';
+import { usePushNotifications } from '@/lib/hooks/usePushNotifications';
+import { useCancelRequestAlerts } from '@/lib/hooks/useCancelRequestAlerts';
+import { useBranches } from '@/lib/api/hooks/useBranches';
 import { useEffect } from 'react';
 import {
     SquaresFourIcon,
@@ -117,6 +121,23 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     const { staffUser, isLoading, logout } = useStaffAuth();
     const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
+    // Web Push + real-time cancel alerts
+    usePushNotifications();
+    const { branches } = useBranches();
+    const branchIds = (branches ?? []).map((b: { id: number }) => b.id);
+    useCancelRequestAlerts(branchIds);
+
+    // Navigate when a push notification is clicked (service worker message)
+    useEffect(() => {
+        function onSWMessage(event: MessageEvent) {
+            if (event.data?.type === 'PUSH_NOTIFICATION_CLICK' && event.data?.data?.url) {
+                router.push(event.data.data.url);
+            }
+        }
+        navigator.serviceWorker?.addEventListener('message', onSWMessage);
+        return () => navigator.serviceWorker?.removeEventListener('message', onSWMessage);
+    }, [router]);
+
     // Redirect to login if not authenticated or not authorized
     useEffect(() => {
         if (!isLoading) {
@@ -157,15 +178,18 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
             <aside className="hidden md:flex flex-col w-60 shrink-0 bg-neutral-card border-r border-[#f0e8d8] sticky top-0 h-screen">
 
                 {/* Logo + subtitle */}
-                <div className="flex items-center gap-2.5 px-4 py-5 border-b border-[#f0e8d8]">
-                    <Image src="/cblogo.webp" alt="CediBites" width={40} height={40} className="shrink-0" priority />
-                    <div>
-                        <p className="font-brand text-primary text-lg leading-none">CediBites</p>
-                        <p className="text-neutral-gray text-[10px] font-body mt-0.5 flex items-center gap-1">
-                            <ShieldCheckIcon size={10} weight="fill" className="text-primary/70" />
-                            Admin Console
-                        </p>
+                <div className="flex items-center justify-between px-4 py-5 border-b border-[#f0e8d8]">
+                    <div className="flex items-center gap-2.5">
+                        <Image src="/cblogo.webp" alt="CediBites" width={40} height={40} className="shrink-0" priority />
+                        <div>
+                            <p className="font-brand text-primary text-lg leading-none">CediBites</p>
+                            <p className="text-neutral-gray text-[10px] font-body mt-0.5 flex items-center gap-1">
+                                <ShieldCheckIcon size={10} weight="fill" className="text-primary/70" />
+                                Admin Console
+                            </p>
+                        </div>
                     </div>
+                    <CancelRequestsBell />
                 </div>
 
                 {/* Nav */}
@@ -256,6 +280,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                         <span className="text-neutral-gray text-xs font-body ml-1">Admin</span>
                     </div>
                     <div className="flex items-center gap-2">
+                        <CancelRequestsBell />
                         <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center">
                             <span className="text-primary text-[10px] font-bold font-body">
                                 {staffUser.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
