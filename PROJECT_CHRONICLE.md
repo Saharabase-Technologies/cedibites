@@ -81,6 +81,48 @@ Items still needing attention.
 
 ---
 
+## [2026-04-14] Session: Cancel Request Double-Fire Bug Fix
+
+### Intent
+
+Fix a bug where staff clicking "Request Cancellation" once on the manager orders page resulted in TWO API requests being sent — the first returning 500 (Internal Server Error), the second returning 422 ("Cannot request cancellation for an order with status 'cancel_requested'"). The order did transition correctly despite the error shown to the user.
+
+### Root Cause
+
+Two compounding bugs:
+
+1. **TanStack Query global retry on mutations**: `QueryProvider.tsx` had `retry: 1` configured for mutations. When the first cancel request returned 500, TanStack Query automatically retried it — causing the phantom "double click". Mutations are not idempotent and should never be auto-retried.
+2. **Backend non-atomic state change**: The `requestCancel()` method in `CancelRequestController.php` was NOT wrapped in a `DB::transaction()`. The `$order->update()` succeeded (committed to DB), but something after it (activity log or eager loading) threw an exception → 500. Since the status was already committed, the retry found the order already in `cancel_requested` status → 422.
+
+### Changes Made
+
+| File | Change | Reason |
+|------|--------|--------|
+| `app/components/providers/QueryProvider.tsx` | Changed mutations config from `retry: 1` to `retry: false` | Mutations change server state and must never be auto-retried. The retry was causing phantom double-fire on any mutation that returned a server error |
+
+### Decisions
+
+- **Decision**: Set `retry: false` for all mutations globally, not just cancel requests
+  - **Rationale**: ALL mutations are non-idempotent by nature (creating orders, updating statuses, processing payments). Auto-retrying any mutation risks duplicate side effects. This is a global safety fix.
+
+### Current State
+
+- **Mutations**: No longer auto-retried on failure — a single click produces exactly one API request regardless of the server response
+- **Cancel Request flow**: Works correctly end-to-end. The 500 error from the backend was the original trigger; the double-fire was a frontend amplification of that failure.
+
+### Cross-Repo Impact
+
+| File (Backend repo) | Change | Impact |
+|---------------------|--------|--------|
+| `app/Http/Controllers/Api/CancelRequestController.php` | `requestCancel()` and `rejectCancel()` wrapped in `DB::transaction()` | Ensures atomicity — if activity log or eager loading fails, the status change rolls back instead of leaving the order in an inconsistent state |
+
+### Pending / Follow-up
+
+- Investigate the original 500 error root cause in production Laravel logs (`storage/logs/laravel.log`) — likely from activity logging or eager loading failure in `requestCancel()`
+- Audit other controller methods for similar non-transactional state changes that could cause partial commits
+
+---
+
 ## [2026-04-12] Session: Shifts & Staff Sales in Admin Staff Section
 
 ### Intent
@@ -89,14 +131,14 @@ Bring shift tracking and staff sales analytics into the Admin Staff section (`/a
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
-| `app/admin/staff/layout.tsx` | Updated to render `StaffTabNav` above page content | Enable tab-based navigation within staff section |
-| `app/admin/staff/StaffTabNav.tsx` | New client component with Directory / Shifts / Staff Sales tabs using `usePathname` for active state | Admin needs to switch between staff views without leaving the section |
-| `app/admin/staff/shifts/page.tsx` | New admin shifts page with branch filter, staff search, calendar toggle, active sessions hero, and session list | Admins need cross-branch shift visibility — reuses `ShiftsCalendar` from manager |
-| `app/admin/staff/sales/page.tsx` | New admin staff sales page with period selector (7 options), branch filter, staff search, payment method breakdown cards | Admins need cross-branch sales breakdown — uses new admin analytics endpoint |
-| `lib/api/services/analytics.service.ts` | Added `AdminStaffSalesRow` interface and `getAdminStaffSales()` method calling `GET /admin/analytics/staff-sales` | Frontend contract for new admin endpoint |
-| `lib/api/hooks/useAnalytics.ts` | Added `useAdminStaffSales()` TanStack Query hook with period/branch filters | Data fetching for admin staff sales page |
+| File                                    | Change                                                                                                                   | Reason                                                                           |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `app/admin/staff/layout.tsx`            | Updated to render `StaffTabNav` above page content                                                                       | Enable tab-based navigation within staff section                                 |
+| `app/admin/staff/StaffTabNav.tsx`       | New client component with Directory / Shifts / Staff Sales tabs using `usePathname` for active state                     | Admin needs to switch between staff views without leaving the section            |
+| `app/admin/staff/shifts/page.tsx`       | New admin shifts page with branch filter, staff search, calendar toggle, active sessions hero, and session list          | Admins need cross-branch shift visibility — reuses `ShiftsCalendar` from manager |
+| `app/admin/staff/sales/page.tsx`        | New admin staff sales page with period selector (7 options), branch filter, staff search, payment method breakdown cards | Admins need cross-branch sales breakdown — uses new admin analytics endpoint     |
+| `lib/api/services/analytics.service.ts` | Added `AdminStaffSalesRow` interface and `getAdminStaffSales()` method calling `GET /admin/analytics/staff-sales`        | Frontend contract for new admin endpoint                                         |
+| `lib/api/hooks/useAnalytics.ts`         | Added `useAdminStaffSales()` TanStack Query hook with period/branch filters                                              | Data fetching for admin staff sales page                                         |
 
 ### Decisions
 
@@ -116,10 +158,10 @@ Bring shift tracking and staff sales analytics into the Admin Staff section (`/a
 
 ### Cross-Repo Impact
 
-| File (Backend) | Change |
-|------|--------|
-| `AdminAnalyticsController.php` | Added `staffSales()` method |
-| `routes/admin.php` | Registered `GET admin/analytics/staff-sales` under `view_orders` permission |
+| File (Backend)                 | Change                                                                      |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| `AdminAnalyticsController.php` | Added `staffSales()` method                                                 |
+| `routes/admin.php`             | Registered `GET admin/analytics/staff-sales` under `view_orders` permission |
 
 ---
 
@@ -131,14 +173,14 @@ Fix Branch Manager Staff Sales page (`/staff/manager/staff-sales`) showing "No s
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
-| `lib/api/services/branch.service.ts` | Added `manual_momo_total: number` and `manual_momo_count: number` to `StaffSalesRow` interface | Match new backend response shape after `manual_momo` was added as a standalone metric |
-| `app/staff/manager/staff-sales/page.tsx` | Added `manual_momo_total`/`manual_momo_count` to local `StaffSalesRow` interface | Match new backend response shape |
-| `app/staff/manager/staff-sales/page.tsx` | Added `HandCoinsIcon` import, "Direct MoMo" entry in `METHODS` array with orange-600 color | New payment method card in per-staff breakdown |
-| `app/staff/manager/staff-sales/page.tsx` | Updated `totals` reducer to include `manualMomo` accumulator | Grand totals need to sum manual_momo across all staff |
-| `app/staff/manager/staff-sales/page.tsx` | Added conditional Direct MoMo line in grand total footer | Shows Direct MoMo total only when > 0 |
-| `app/staff/manager/staff-sales/page.tsx` | Changed per-staff grid from `sm:grid-cols-4` to `sm:grid-cols-5` | 5 payment methods now (MoMo, Cash, Direct MoMo, No Charge, Card) |
+| File                                     | Change                                                                                         | Reason                                                                                |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `lib/api/services/branch.service.ts`     | Added `manual_momo_total: number` and `manual_momo_count: number` to `StaffSalesRow` interface | Match new backend response shape after `manual_momo` was added as a standalone metric |
+| `app/staff/manager/staff-sales/page.tsx` | Added `manual_momo_total`/`manual_momo_count` to local `StaffSalesRow` interface               | Match new backend response shape                                                      |
+| `app/staff/manager/staff-sales/page.tsx` | Added `HandCoinsIcon` import, "Direct MoMo" entry in `METHODS` array with orange-600 color     | New payment method card in per-staff breakdown                                        |
+| `app/staff/manager/staff-sales/page.tsx` | Updated `totals` reducer to include `manualMomo` accumulator                                   | Grand totals need to sum manual_momo across all staff                                 |
+| `app/staff/manager/staff-sales/page.tsx` | Added conditional Direct MoMo line in grand total footer                                       | Shows Direct MoMo total only when > 0                                                 |
+| `app/staff/manager/staff-sales/page.tsx` | Changed per-staff grid from `sm:grid-cols-4` to `sm:grid-cols-5`                               | 5 payment methods now (MoMo, Cash, Direct MoMo, No Charge, Card)                      |
 
 ### Decisions
 
@@ -154,8 +196,8 @@ Fix Branch Manager Staff Sales page (`/staff/manager/staff-sales`) showing "No s
 
 ### Cross-Repo Impact
 
-| File (Backend repo) | Change | Impact |
-|------|--------|--------|
+| File (Backend repo)                           | Change                                                                                                                                                                                       | Impact                                                                             |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `app/Services/Analytics/AnalyticsService.php` | Rewrote `getStaffSalesMetrics()` with explicit JOINs, table-prefixed filters, `payments.amount` SUMs, `manual_momo` columns, `cash_on_delivery` merged into `cash`, manual soft-delete check | Root cause fix for ambiguous column error; new response shape consumed by frontend |
 
 ### Pending / Follow-up
@@ -173,19 +215,19 @@ Fix and enhance analytics UI across admin, partner, and manager portals — corr
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
-| `app/admin/analytics/page.tsx` | Fixed corrupted WeeklyRevenueComparison (bar widths, heights, text positioning) | Chart bars and labels were misaligned after prior changes |
-| `app/admin/analytics/page.tsx` | Added "Last Week" period option | Users needed week-over-week comparison capability |
-| `app/admin/analytics/page.tsx` | Enhanced AvgItemsPerOrder with supporting stats (`single_item_orders_pct`, `multi_item_orders`, `max_items_in_order`) | Provides actionable context around the average |
-| `app/admin/analytics/page.tsx` | Dynamic order type donut chart (delivery, pickup, dine_in, etc. with label/pct/revenue) | Replaced static delivery vs pickup binary with dynamic breakdown from backend |
-| `app/admin/analytics/page.tsx` | Changed top customers title to "Top 5 Customers by Fulfilled Orders" | Reflects backend change to filter by completed/delivered orders only |
-| `app/partner/analytics/page.tsx` | Updated customer title to fulfilled orders, added dynamic order type split | Partner portal aligned with admin analytics changes |
-| `app/staff/manager/analytics/page.tsx` | Fixed custom filter button guard, increased pill sizing | Button was accessible when it shouldn't be; pills were too small on mobile |
-| `app/staff/manager/analytics/page.tsx` | Made FulfilmentRate and TopItemsCard period-aware | These cards were ignoring the selected period — now filter by date range |
-| `app/staff/manager/settings/page.tsx` | Added help tooltip explaining branch status toggle | BM needed guidance on what the toggle does (chosen over full documentation page) |
-| `lib/api/hooks/useAnalytics.ts` | Added `last_week` to `AnalyticsPeriod` type and `getDateRange()` | New period option for analytics hooks |
-| `lib/api/services/analytics.service.ts` | Updated `SalesAnalytics` and `DeliveryPickupAnalytics` types with new fields | TypeScript types match updated API response shape |
+| File                                    | Change                                                                                                                | Reason                                                                           |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `app/admin/analytics/page.tsx`          | Fixed corrupted WeeklyRevenueComparison (bar widths, heights, text positioning)                                       | Chart bars and labels were misaligned after prior changes                        |
+| `app/admin/analytics/page.tsx`          | Added "Last Week" period option                                                                                       | Users needed week-over-week comparison capability                                |
+| `app/admin/analytics/page.tsx`          | Enhanced AvgItemsPerOrder with supporting stats (`single_item_orders_pct`, `multi_item_orders`, `max_items_in_order`) | Provides actionable context around the average                                   |
+| `app/admin/analytics/page.tsx`          | Dynamic order type donut chart (delivery, pickup, dine_in, etc. with label/pct/revenue)                               | Replaced static delivery vs pickup binary with dynamic breakdown from backend    |
+| `app/admin/analytics/page.tsx`          | Changed top customers title to "Top 5 Customers by Fulfilled Orders"                                                  | Reflects backend change to filter by completed/delivered orders only             |
+| `app/partner/analytics/page.tsx`        | Updated customer title to fulfilled orders, added dynamic order type split                                            | Partner portal aligned with admin analytics changes                              |
+| `app/staff/manager/analytics/page.tsx`  | Fixed custom filter button guard, increased pill sizing                                                               | Button was accessible when it shouldn't be; pills were too small on mobile       |
+| `app/staff/manager/analytics/page.tsx`  | Made FulfilmentRate and TopItemsCard period-aware                                                                     | These cards were ignoring the selected period — now filter by date range         |
+| `app/staff/manager/settings/page.tsx`   | Added help tooltip explaining branch status toggle                                                                    | BM needed guidance on what the toggle does (chosen over full documentation page) |
+| `lib/api/hooks/useAnalytics.ts`         | Added `last_week` to `AnalyticsPeriod` type and `getDateRange()`                                                      | New period option for analytics hooks                                            |
+| `lib/api/services/analytics.service.ts` | Updated `SalesAnalytics` and `DeliveryPickupAnalytics` types with new fields                                          | TypeScript types match updated API response shape                                |
 
 ### Decisions
 
@@ -207,10 +249,10 @@ Fix and enhance analytics UI across admin, partner, and manager portals — corr
 
 ### Cross-Repo Impact
 
-| File (Backend repo) | Change | Impact |
-|------|--------|--------|
-| `app/Http/Controllers/Api/CustomerController.php` | PostgreSQL sort fix: `NULLS LAST` | Proper NULL handling for customer sort |
-| `app/Services/Analytics/AnalyticsService.php` | Separated cash/cash_on_delivery, dynamic order types, fulfilled customer filter, avg items stats, staff sales unassigned bucket | All new data fields consumed by updated frontend types and UI |
+| File (Backend repo)                               | Change                                                                                                                          | Impact                                                        |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `app/Http/Controllers/Api/CustomerController.php` | PostgreSQL sort fix: `NULLS LAST`                                                                                               | Proper NULL handling for customer sort                        |
+| `app/Services/Analytics/AnalyticsService.php`     | Separated cash/cash_on_delivery, dynamic order types, fulfilled customer filter, avg items stats, staff sales unassigned bucket | All new data fields consumed by updated frontend types and UI |
 
 ### Pending / Follow-up
 
@@ -227,19 +269,19 @@ Address 11+ production bugs/features reported from live testing across Admin Ana
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
-| `lib/api/hooks/useAnalytics.ts` | Added `'last_month'` and `'lifetime'` to `AnalyticsPeriod` type and `getDateRange()` switch (last_month = 1st–last of prev month, lifetime = 2024-01-01 to today) | Admin analytics lacked Last Month and Lifetime period options |
-| `app/admin/analytics/page.tsx` | Extended `Period` type and `PERIODS` array with Last Month + Lifetime. Changed top customers from "Top 10" to "Top 5" (title, `.slice(0,5)`, border logic `i < 4`) | Requested reduction and new period filters |
-| `app/staff/manager/dashboard/page.tsx` | Top items display changed from `item.name` to `getOrderItemLineLabel({ name: item.name, sizeLabel: item.size_label })` | Manager dashboard showed long condensed DB names instead of short receipt/display names |
-| `app/staff/manager/analytics/page.tsx` | **Major rewrite**: Added `ManagerPeriod` type (7 options: today/yesterday/week/last_week/month/last_month/custom), `MANAGER_PERIODS` array, `getManagerDateRange()`, custom date picker with validation (limited to current + last month), previous-period comparison for trends. New variables: `periodRevenue`, `periodOrderCount`, `avgOrderValuePeriod`, `fulfilmentRate`. Added period selector pill bar to JSX, custom date picker UI, dynamic KPI labels. Report generator now uses selected period range. | Manager analytics was hardcoded to "today" only — needed full date range filtering |
-| `app/components/providers/MenuDiscoveryProvider.tsx` | Added `is_available: true` to `useMenu()` call | Toggled-off menu items still appeared on customer site |
-| `app/pos/terminal/page.tsx` | Added `{ is_available: true }` to `useMenuItems()` call | Toggled-off items still appeared on POS terminal |
-| `app/staff/new-order/steps/StepMenu.tsx` | Added `{ is_available: true }` to `useMenuItems()` call | Staff new order showed unavailable items |
-| `app/staff/new-order/NewOrderFlow.tsx` | Added `{ is_available: true }` to `useMenuItems()` call | Staff new order flow showed unavailable items |
-| `app/staff/store/page.tsx` | Added `{ is_available: true }` to `useMenuItems()` call | Staff store showed unavailable items |
-| `app/staff/manager/settings/page.tsx` | Added `isEffectivelyOpen` computed from `is_active` AND current time vs today's operating hours. New `statusLabel` and `statusSub` with 3 states: open, closed (manual override), closed (outside hours). JSX updated to use computed status. | Branch status showed "Open" even when outside operating hours |
-| `app/globals.css` | Added global slim scrollbar styling: `scrollbar-width: thin` for Firefox, `::-webkit-scrollbar` (6px body, 5px children) with semi-transparent brown thumb matching design system. Applied to `body` and `*` selector. | Bold classic white scrollbar looked out of place — needed slim blended scrollbar |
+| File                                                 | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Reason                                                                                  |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `lib/api/hooks/useAnalytics.ts`                      | Added `'last_month'` and `'lifetime'` to `AnalyticsPeriod` type and `getDateRange()` switch (last_month = 1st–last of prev month, lifetime = 2024-01-01 to today)                                                                                                                                                                                                                                                                                                                                                 | Admin analytics lacked Last Month and Lifetime period options                           |
+| `app/admin/analytics/page.tsx`                       | Extended `Period` type and `PERIODS` array with Last Month + Lifetime. Changed top customers from "Top 10" to "Top 5" (title, `.slice(0,5)`, border logic `i < 4`)                                                                                                                                                                                                                                                                                                                                                | Requested reduction and new period filters                                              |
+| `app/staff/manager/dashboard/page.tsx`               | Top items display changed from `item.name` to `getOrderItemLineLabel({ name: item.name, sizeLabel: item.size_label })`                                                                                                                                                                                                                                                                                                                                                                                            | Manager dashboard showed long condensed DB names instead of short receipt/display names |
+| `app/staff/manager/analytics/page.tsx`               | **Major rewrite**: Added `ManagerPeriod` type (7 options: today/yesterday/week/last_week/month/last_month/custom), `MANAGER_PERIODS` array, `getManagerDateRange()`, custom date picker with validation (limited to current + last month), previous-period comparison for trends. New variables: `periodRevenue`, `periodOrderCount`, `avgOrderValuePeriod`, `fulfilmentRate`. Added period selector pill bar to JSX, custom date picker UI, dynamic KPI labels. Report generator now uses selected period range. | Manager analytics was hardcoded to "today" only — needed full date range filtering      |
+| `app/components/providers/MenuDiscoveryProvider.tsx` | Added `is_available: true` to `useMenu()` call                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Toggled-off menu items still appeared on customer site                                  |
+| `app/pos/terminal/page.tsx`                          | Added `{ is_available: true }` to `useMenuItems()` call                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Toggled-off items still appeared on POS terminal                                        |
+| `app/staff/new-order/steps/StepMenu.tsx`             | Added `{ is_available: true }` to `useMenuItems()` call                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Staff new order showed unavailable items                                                |
+| `app/staff/new-order/NewOrderFlow.tsx`               | Added `{ is_available: true }` to `useMenuItems()` call                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Staff new order flow showed unavailable items                                           |
+| `app/staff/store/page.tsx`                           | Added `{ is_available: true }` to `useMenuItems()` call                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Staff store showed unavailable items                                                    |
+| `app/staff/manager/settings/page.tsx`                | Added `isEffectivelyOpen` computed from `is_active` AND current time vs today's operating hours. New `statusLabel` and `statusSub` with 3 states: open, closed (manual override), closed (outside hours). JSX updated to use computed status.                                                                                                                                                                                                                                                                     | Branch status showed "Open" even when outside operating hours                           |
+| `app/globals.css`                                    | Added global slim scrollbar styling: `scrollbar-width: thin` for Firefox, `::-webkit-scrollbar` (6px body, 5px children) with semi-transparent brown thumb matching design system. Applied to `body` and `*` selector.                                                                                                                                                                                                                                                                                            | Bold classic white scrollbar looked out of place — needed slim blended scrollbar        |
 
 ### Decisions
 
@@ -265,11 +307,11 @@ Address 11+ production bugs/features reported from live testing across Admin Ana
 
 ### Cross-Repo Impact
 
-| File (Backend repo) | Change | Impact |
-|------|--------|--------|
-| `app/Services/Analytics/AnalyticsService.php` | `getCustomerMetrics()` eager-loads `user` + latest order, maps to arrays with resolved names | Admin analytics top customers now show names + order counts |
-| `app/Http/Controllers/Api/CustomerController.php` | Sort by spend uses `COALESCE(total_spend, 0) DESC` | NULL spend values no longer break sort order |
-| `app/Http/Controllers/Api/ShiftController.php` | `index()`, `getByDate()`, `getByStaff()` all allow Manager role to see shifts within their branch(es) | Manager shifts page shows all branch staff, not just own sessions |
+| File (Backend repo)                               | Change                                                                                                | Impact                                                            |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `app/Services/Analytics/AnalyticsService.php`     | `getCustomerMetrics()` eager-loads `user` + latest order, maps to arrays with resolved names          | Admin analytics top customers now show names + order counts       |
+| `app/Http/Controllers/Api/CustomerController.php` | Sort by spend uses `COALESCE(total_spend, 0) DESC`                                                    | NULL spend values no longer break sort order                      |
+| `app/Http/Controllers/Api/ShiftController.php`    | `index()`, `getByDate()`, `getByStaff()` all allow Manager role to see shifts within their branch(es) | Manager shifts page shows all branch staff, not just own sessions |
 
 ### Pending / Follow-up
 
@@ -290,9 +332,9 @@ With only 1 branch active, the branch card showed stale cached data (₵409/6 or
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
-| `lib/api/hooks/useBranches.ts` | Reduced `staleTime` from 10 minutes to 1 minute for both `useBranches` and `useBranch` hooks | Branch cards on the Branches page showed stale revenue/order counts vs other admin pages |
+| File                            | Change                                                                                                                                                                                                               | Reason                                                                                          |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `lib/api/hooks/useBranches.ts`  | Reduced `staleTime` from 10 minutes to 1 minute for both `useBranches` and `useBranch` hooks                                                                                                                         | Branch cards on the Branches page showed stale revenue/order counts vs other admin pages        |
 | `lib/api/hooks/useAnalytics.ts` | Reduced `staleTime` from 2 minutes to 1 minute for all 10 analytics hooks (sales, orders, customers, order-sources, top-items, bottom-items, category-revenue, branch-performance, delivery-pickup, payment-methods) | Analytics page data lagged behind dashboard by up to 1 minute, creating confusing discrepancies |
 
 ### Decisions
@@ -327,11 +369,11 @@ Fix cancel request "double-fire" error on manager dashboard, correct overview KP
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
-| `app/staff/manager/dashboard/page.tsx` | Added `cancel_requested` to `STATUS_STYLES` map (orange dot, "Cancel Requested" label). Added info block: "Cancel Requested — Waiting for admin approval" when order is in `cancel_requested` status. Changed cancel button condition from `!isTerminal` to `!isTerminal && order.status !== 'cancel_requested'`. | Orders in `cancel_requested` status still showed the "Request Cancel" button. Clicking it triggered a 422 error since the order was already in that status. This was NOT a double-click issue — it was a missing status check. |
-| `app/staff/manager/dashboard/page.tsx` | Added `'cancel_requested'` to the `useEmployeeOrders` status filter array. Was: `['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery']`. Now includes `'cancel_requested'`. | Active Orders KPI count was excluding orders pending cancellation approval, making the number seem wrong. |
-| `app/staff/manager/shifts/page.tsx` | Full rewrite (~480 lines) to match `MyShiftsView` pattern from `app/staff/my-shifts/MyShiftsView.tsx`. Both tabs (All Staff / My Shifts) now share the same visual pattern: active session hero card (green pulse, duration/orders/sales grid), Today's Summary cards (Sessions, Orders, Revenue), collapsible calendar (button in header), cleaner shift cards with SignIn→SignOut time flow. Extracted `ShiftCard` component. All Staff tab shows multi-staff active sessions hero with staff count and names. Improved `formatDuration` with safety checks. | Previous shifts page layout was dated and inconsistent with the already-redesigned MyShiftsView. Manager should see the same polished pattern. |
+| File                                   | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Reason                                                                                                                                                                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app/staff/manager/dashboard/page.tsx` | Added `cancel_requested` to `STATUS_STYLES` map (orange dot, "Cancel Requested" label). Added info block: "Cancel Requested — Waiting for admin approval" when order is in `cancel_requested` status. Changed cancel button condition from `!isTerminal` to `!isTerminal && order.status !== 'cancel_requested'`.                                                                                                                                                                                                                                              | Orders in `cancel_requested` status still showed the "Request Cancel" button. Clicking it triggered a 422 error since the order was already in that status. This was NOT a double-click issue — it was a missing status check. |
+| `app/staff/manager/dashboard/page.tsx` | Added `'cancel_requested'` to the `useEmployeeOrders` status filter array. Was: `['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery']`. Now includes `'cancel_requested'`.                                                                                                                                                                                                                                                                                                                                                               | Active Orders KPI count was excluding orders pending cancellation approval, making the number seem wrong.                                                                                                                      |
+| `app/staff/manager/shifts/page.tsx`    | Full rewrite (~480 lines) to match `MyShiftsView` pattern from `app/staff/my-shifts/MyShiftsView.tsx`. Both tabs (All Staff / My Shifts) now share the same visual pattern: active session hero card (green pulse, duration/orders/sales grid), Today's Summary cards (Sessions, Orders, Revenue), collapsible calendar (button in header), cleaner shift cards with SignIn→SignOut time flow. Extracted `ShiftCard` component. All Staff tab shows multi-staff active sessions hero with staff count and names. Improved `formatDuration` with safety checks. | Previous shifts page layout was dated and inconsistent with the already-redesigned MyShiftsView. Manager should see the same polished pattern.                                                                                 |
 
 ### Decisions
 
@@ -350,10 +392,10 @@ Fix cancel request "double-fire" error on manager dashboard, correct overview KP
 
 ### Cross-Repo Impact
 
-| File (Backend repo) | Change | Impact |
-|------|--------|--------|
-| `app/Services/Analytics/AnalyticsService.php` | `getBranchRevenueChart()` now uses `startOfWeek(Carbon::SUNDAY)` / `endOfWeek(Carbon::SATURDAY)` | Fixes Sunday bar showing flat — business week starts Sunday, not Monday |
-| `app/Services/OrderManagementService.php` | Auto-assignment condition changed from `$status === 'accepted'` to `in_array($status, ['accepted', 'preparing'])` | Fixes Staff Sales showing empty — online orders skip `accepted` → `preparing` directly, so `assigned_employee_id` was never set. Fix applies forward only. |
+| File (Backend repo)                           | Change                                                                                                            | Impact                                                                                                                                                     |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/Services/Analytics/AnalyticsService.php` | `getBranchRevenueChart()` now uses `startOfWeek(Carbon::SUNDAY)` / `endOfWeek(Carbon::SATURDAY)`                  | Fixes Sunday bar showing flat — business week starts Sunday, not Monday                                                                                    |
+| `app/Services/OrderManagementService.php`     | Auto-assignment condition changed from `$status === 'accepted'` to `in_array($status, ['accepted', 'preparing'])` | Fixes Staff Sales showing empty — online orders skip `accepted` → `preparing` directly, so `assigned_employee_id` was never set. Fix applies forward only. |
 
 ### Pending / Follow-up
 
@@ -370,14 +412,14 @@ Three bugs from live staff testing: (1) Cancel modal could potentially fire twic
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
-| `app/components/ui/CancelOrderModal.tsx` | Confirm button text now context-aware ("Request Cancellation" for staff, "Cancel Order" otherwise). Loading text: "Requesting…" vs "Cancelling…". Added `succeeded` to disabled guard. | Prevents double-fire edge cases and matches staff workflow language |
-| `app/pos/orders/page.tsx` | Revenue now filters out `cancelled` status and `no_charge` payment method | Revenue was summing ALL orders including cancelled/no_charge |
-| `app/admin/dashboard/page.tsx` | Revenue KPI now excludes `no_charge` payment method orders (already excluded cancelled) | Consistent revenue definition across portals |
-| `app/staff/partner/dashboard/page.tsx` | Revenue now excludes `no_charge` payment method orders (already excluded cancelled) | Consistent revenue definition across portals |
-| `app/staff/my-sales/MySalesView.tsx` | Revenue now excludes `no_charge` payment method orders (already excluded cancelled) | Staff cash reconciliation shouldn't include no_charge |
-| `app/staff/dashboard/SalesDashboardView.tsx` | Changed `handleOrderClick` to accept `order.dbId` (numeric DB ID) instead of `order.id` (order number). Drawer now correctly finds matching order. | `AdminOrder.id` = order_number (e.g. "AC086"), `Order.id` = DB ID (e.g. "287") — mismatch prevented drawer from finding the order |
+| File                                         | Change                                                                                                                                                                                 | Reason                                                                                                                            |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `app/components/ui/CancelOrderModal.tsx`     | Confirm button text now context-aware ("Request Cancellation" for staff, "Cancel Order" otherwise). Loading text: "Requesting…" vs "Cancelling…". Added `succeeded` to disabled guard. | Prevents double-fire edge cases and matches staff workflow language                                                               |
+| `app/pos/orders/page.tsx`                    | Revenue now filters out `cancelled` status and `no_charge` payment method                                                                                                              | Revenue was summing ALL orders including cancelled/no_charge                                                                      |
+| `app/admin/dashboard/page.tsx`               | Revenue KPI now excludes `no_charge` payment method orders (already excluded cancelled)                                                                                                | Consistent revenue definition across portals                                                                                      |
+| `app/staff/partner/dashboard/page.tsx`       | Revenue now excludes `no_charge` payment method orders (already excluded cancelled)                                                                                                    | Consistent revenue definition across portals                                                                                      |
+| `app/staff/my-sales/MySalesView.tsx`         | Revenue now excludes `no_charge` payment method orders (already excluded cancelled)                                                                                                    | Staff cash reconciliation shouldn't include no_charge                                                                             |
+| `app/staff/dashboard/SalesDashboardView.tsx` | Changed `handleOrderClick` to accept `order.dbId` (numeric DB ID) instead of `order.id` (order number). Drawer now correctly finds matching order.                                     | `AdminOrder.id` = order_number (e.g. "AC086"), `Order.id` = DB ID (e.g. "287") — mismatch prevented drawer from finding the order |
 
 ### Decisions
 
@@ -406,12 +448,12 @@ Three UX refinements from live staff testing at Ashaiman branch: (1) Staff shoul
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
-| `app/staff/sales/orders/page.tsx` | Changed cancel button text from "Cancel Order" to "Request Cancel" | Staff cannot directly cancel — they submit cancellation requests for manager approval |
-| `app/components/ui/CancelOrderModal.tsx` | Modal title is now conditional: "Request Cancellation" when `context === 'staff'`, "Cancel Order" otherwise | Reinforce that staff are requesting, not executing, cancellation |
+| File                                         | Change                                                                                                                                                                                                                | Reason                                                                                              |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `app/staff/sales/orders/page.tsx`            | Changed cancel button text from "Cancel Order" to "Request Cancel"                                                                                                                                                    | Staff cannot directly cancel — they submit cancellation requests for manager approval               |
+| `app/components/ui/CancelOrderModal.tsx`     | Modal title is now conditional: "Request Cancellation" when `context === 'staff'`, "Cancel Order" otherwise                                                                                                           | Reinforce that staff are requesting, not executing, cancellation                                    |
 | `app/staff/dashboard/SalesDashboardView.tsx` | Replaced `<Link>` wrappers on active order cards with `<button onClick>`. Added `OrderDrawer` (reused from My Sales) with `useState` for selected order ID, `mapApiOrderToOrder` for drawer-compatible Order mapping. | Eliminates unnecessary redirect — staff can view order details inline without leaving the dashboard |
-| `app/staff/layout-client.tsx` | Changed `employee` role label from `'Staff'` to `'Sales Staff'` | Better reflects the actual role designation in the CediBites system |
+| `app/staff/layout-client.tsx`                | Changed `employee` role label from `'Staff'` to `'Sales Staff'`                                                                                                                                                       | Better reflects the actual role designation in the CediBites system                                 |
 
 ### Decisions
 
@@ -446,13 +488,13 @@ Overhaul the Staff (Sales) portal to make the dashboard CTA route to POS instead
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
-| `app/staff/dashboard/SalesDashboardView.tsx` | CTA now opens POS Terminal (`/pos/terminal`, new tab) with `CashRegisterIcon`. Stats now show staff's own orders (Received, Preparing, My Orders Today) using `useOrderStore` + `getOrdersByFilter({ staffId })` instead of `useEmployeeOrderStats()` branch-wide counts. | Sales staff should go to POS, not call center flow. Stats should reflect the individual staff member's performance. |
-| `app/staff/my-sales/MySalesView.tsx` | Replaced "Items Sold" and "Avg. Order Value" stat cards with "Cancelled" (count of cancelled orders) and "Completed" (fulfilled orders count). Added **Revenue Breakdown** section — secondary cards for Cash Collected, POS MoMo, Direct MoMo, Card Payments, No Charge — only showing payment methods with activity. | Staff need to reconcile their cash/MoMo collected at end of shift. Payment breakdown enables staff + manager alignment. |
-| `app/staff/my-shifts/MyShiftsView.tsx` | Full redesign: Active session is now a hero card with Duration/Orders/Sales sub-stats. Today's Summary replaces lifetime stats. Calendar collapsed behind a date-picker button (toggled via header). Off-shift state shown explicitly. | Calendar dominated the page with no room for actionable daily context. Priority is "Am I clocked in? How's today going?" |
-| `app/staff/my-sales/components/SalesTable.tsx` | Table container changed from `border-brand-dark/50` with dark `bg-brown` header to `bg-neutral-card border-[#f0e8d8]` with neutral header matching analytics page. Border colors unified to `border-[#f0e8d8]`. | Align with analytics page table design system for visual consistency. |
-| `app/staff/my-sales/components/SalesRow.tsx` | Row borders updated to `border-[#f0e8d8]`, selection state softened to `bg-primary/10`, added `last:border-0`. | Match analytics table row styling. |
+| File                                           | Change                                                                                                                                                                                                                                                                                                                 | Reason                                                                                                                   |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `app/staff/dashboard/SalesDashboardView.tsx`   | CTA now opens POS Terminal (`/pos/terminal`, new tab) with `CashRegisterIcon`. Stats now show staff's own orders (Received, Preparing, My Orders Today) using `useOrderStore` + `getOrdersByFilter({ staffId })` instead of `useEmployeeOrderStats()` branch-wide counts.                                              | Sales staff should go to POS, not call center flow. Stats should reflect the individual staff member's performance.      |
+| `app/staff/my-sales/MySalesView.tsx`           | Replaced "Items Sold" and "Avg. Order Value" stat cards with "Cancelled" (count of cancelled orders) and "Completed" (fulfilled orders count). Added **Revenue Breakdown** section — secondary cards for Cash Collected, POS MoMo, Direct MoMo, Card Payments, No Charge — only showing payment methods with activity. | Staff need to reconcile their cash/MoMo collected at end of shift. Payment breakdown enables staff + manager alignment.  |
+| `app/staff/my-shifts/MyShiftsView.tsx`         | Full redesign: Active session is now a hero card with Duration/Orders/Sales sub-stats. Today's Summary replaces lifetime stats. Calendar collapsed behind a date-picker button (toggled via header). Off-shift state shown explicitly.                                                                                 | Calendar dominated the page with no room for actionable daily context. Priority is "Am I clocked in? How's today going?" |
+| `app/staff/my-sales/components/SalesTable.tsx` | Table container changed from `border-brand-dark/50` with dark `bg-brown` header to `bg-neutral-card border-[#f0e8d8]` with neutral header matching analytics page. Border colors unified to `border-[#f0e8d8]`.                                                                                                        | Align with analytics page table design system for visual consistency.                                                    |
+| `app/staff/my-sales/components/SalesRow.tsx`   | Row borders updated to `border-[#f0e8d8]`, selection state softened to `bg-primary/10`, added `last:border-0`.                                                                                                                                                                                                         | Match analytics table row styling.                                                                                       |
 
 ### Decisions
 
@@ -498,10 +540,10 @@ The Axios response interceptor in `lib/api/client.ts` catches all error response
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
-| `lib/api/client.ts` | Added `code?: string` as a 4th constructor parameter to the `ApiError` class. Updated both the 422 handler and the catch-all error handler to pass `(data as any).code` through to the `ApiError` constructor. | Preserve any `code` field from API error responses for downstream consumers |
-| `app/pos/terminal/page.tsx` | Updated `handlePaymentComplete` catch block to read `err.code` directly from the `ApiError` instance instead of `err.response.data.code` | After the interceptor transforms the response, `err.response.data` doesn't exist — must read from the `ApiError` instance directly |
+| File                        | Change                                                                                                                                                                                                         | Reason                                                                                                                             |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/api/client.ts`         | Added `code?: string` as a 4th constructor parameter to the `ApiError` class. Updated both the 422 handler and the catch-all error handler to pass `(data as any).code` through to the `ApiError` constructor. | Preserve any `code` field from API error responses for downstream consumers                                                        |
+| `app/pos/terminal/page.tsx` | Updated `handlePaymentComplete` catch block to read `err.code` directly from the `ApiError` instance instead of `err.response.data.code`                                                                       | After the interceptor transforms the response, `err.response.data` doesn't exist — must read from the `ApiError` instance directly |
 
 ### Decisions
 
@@ -539,29 +581,29 @@ Make branch extended access toggles propagate in real-time to all connected POS/
 
 ### Changes Made
 
-| File | Change | Reason |
-|------|--------|--------|
+| File                                          | Change                                                                                                                                                                                                                                                                                                                                                | Reason                                                                                                     |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `app/components/providers/BranchProvider.tsx` | Added `useQueryClient` import from TanStack Query and `getEcho` from echo. Added `useEffect` that listens for `.branch.access.updated` events on the staff's current branch channel (`orders.branch.{id}`). On event, invalidates `['branches']` query cache for instant re-fetch. Uses `channel.stopListening()` on cleanup (not `channel.leave()`). | Real-time branch data refresh when admin toggles extended access — no more waiting for 10-minute staleTime |
-| `app/pos/terminal/page.tsx` | Added `branchClosedNotice` state variable. Updated `handlePaymentComplete` catch block to detect `code === 'branch_closed'` from API response. Shows a modal with amber `ProhibitIcon`, "Order Not Allowed" title, API message, and "Got it" dismiss button. Non-branch-closed errors still show as toasts. | Clear, actionable feedback when POS order is rejected due to branch being closed |
+| `app/pos/terminal/page.tsx`                   | Added `branchClosedNotice` state variable. Updated `handlePaymentComplete` catch block to detect `code === 'branch_closed'` from API response. Shows a modal with amber `ProhibitIcon`, "Order Not Allowed" title, API message, and "Got it" dismiss button. Non-branch-closed errors still show as toasts.                                           | Clear, actionable feedback when POS order is rejected due to branch being closed                           |
 
 ### Decisions
 
 - **Decision**: Use `stopListening()` instead of `leave()` on channel cleanup
-    - **Alternatives**: Use `channel.leave()` which fully disconnects from the channel
-    - **Rationale**: `useOrderChannel` (in Kitchen/Order Manager) may also be listening on the same `orders.branch.{id}` channel. Calling `leave()` would disconnect both listeners. `stopListening('.branch.access.updated')` only removes this specific listener.
+  - **Alternatives**: Use `channel.leave()` which fully disconnects from the channel
+  - **Rationale**: `useOrderChannel` (in Kitchen/Order Manager) may also be listening on the same `orders.branch.{id}` channel. Calling `leave()` would disconnect both listeners. `stopListening('.branch.access.updated')` only removes this specific listener.
 - **Decision**: Modal over toast for branch-closed errors
-    - **Alternatives**: Toast notification, inline error banner
-    - **Rationale**: Branch closure is a deliberate access control decision that requires user acknowledgment, not a transient notification. A modal ensures the staff member reads the message and understands the next step (ask an admin).
+  - **Alternatives**: Toast notification, inline error banner
+  - **Rationale**: Branch closure is a deliberate access control decision that requires user acknowledgment, not a transient notification. A modal ensures the staff member reads the message and understands the next step (ask an admin).
 - **Decision**: Amber/warning color scheme for the modal instead of red/error
-    - **Rationale**: "Access not enabled" is informational/warning — it's not a system error or failure. Amber conveys "action required" rather than "something went wrong".
+  - **Rationale**: "Access not enabled" is informational/warning — it's not a system error or failure. Amber conveys "action required" rather than "something went wrong".
 
 ### Cross-Repo Impact
 
-| File (API repo) | Change | Impact |
-|------|--------|--------|
-| `app/Events/BranchAccessUpdatedEvent.php` | **NEW** — Broadcasts `.branch.access.updated` on `orders.branch.{id}` | Frontend `BranchProvider` listens for this event to invalidate branch cache |
-| `app/Http/Controllers/Api/BranchController.php` | Toggle methods dispatch `BranchAccessUpdatedEvent` | Triggers the WebSocket event that frontend consumes |
-| `app/Http/Controllers/Api/CheckoutSessionController.php` | `posStore()` returns `code: 'branch_closed'` on 422 | Frontend POS detects this code to show modal instead of generic toast |
+| File (API repo)                                          | Change                                                                | Impact                                                                      |
+| -------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `app/Events/BranchAccessUpdatedEvent.php`                | **NEW** — Broadcasts `.branch.access.updated` on `orders.branch.{id}` | Frontend `BranchProvider` listens for this event to invalidate branch cache |
+| `app/Http/Controllers/Api/BranchController.php`          | Toggle methods dispatch `BranchAccessUpdatedEvent`                    | Triggers the WebSocket event that frontend consumes                         |
+| `app/Http/Controllers/Api/CheckoutSessionController.php` | `posStore()` returns `code: 'branch_closed'` on 422                   | Frontend POS detects this code to show modal instead of generic toast       |
 
 ### Current State
 

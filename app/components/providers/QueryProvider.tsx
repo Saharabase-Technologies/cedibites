@@ -20,8 +20,8 @@ export function QueryProvider({ children }: { children: ReactNode }) {
             refetchOnMount: false,
           },
           mutations: {
-            // Retry failed mutations once
-            retry: 1,
+            // Never auto-retry mutations — they change state and are not idempotent
+            retry: false,
           },
         },
       })
