@@ -1,0 +1,21 @@
+{
+  "name": "CediBites — Authentic Ghanaian Food Delivery",
+  "short_name": "CediBites",
+  "description": "Order authentic Ghanaian dishes online, delivered fresh to your door across Ghana.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf6f0",
+  "theme_color": "#d4912a",
+  "icons": [
+    {
+      "src": "/cblogo.webp",
+      "sizes": "192x192",
+      "type": "image/webp"
+    },
+    {
+      "src": "/cblogo.webp",
+      "sizes": "512x512",
+      "type": "image/webp"
+    }
+  ]
+}

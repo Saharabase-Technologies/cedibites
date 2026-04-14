@@ -35,6 +35,7 @@ const abeezee = localFont({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://app.cedibites.com'),
+  manifest: '/manifest.json',
   title: {
     template: '%s | CediBites',
     default: 'CediBites — Authentic Ghanaian Food Delivery',
