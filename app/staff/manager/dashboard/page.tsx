@@ -253,10 +253,16 @@ function DashboardOrderPanel({ order, onClose }: { order: AdminOrder; onClose: (
                         </div>
                     )}
                     <div className="grid grid-cols-2 gap-2">
-                        <button type="button" onClick={() => setShowStatusPicker(v => !v)}
-                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer">
-                            <ClockIcon size={13} weight="bold" className="text-primary" />Update Status
-                        </button>
+                        {order.status === 'cancel_requested' ? (
+                            <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-neutral-gray text-xs font-medium font-body opacity-40 cursor-not-allowed">
+                                <ClockIcon size={13} weight="bold" />Update Status
+                            </div>
+                        ) : (
+                            <button type="button" onClick={() => setShowStatusPicker(v => !v)}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer">
+                                <ClockIcon size={13} weight="bold" className="text-primary" />Update Status
+                            </button>
+                        )}
                         {!isTerminal && order.status !== 'cancel_requested' ? (
                             <button type="button" onClick={() => setShowConfirm(true)} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-error/10 rounded-xl text-error text-xs font-medium font-body hover:bg-error/20 transition-colors cursor-pointer">
                                 <XCircleIcon size={13} weight="bold" />Request Cancel
