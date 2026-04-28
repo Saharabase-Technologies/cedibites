@@ -108,6 +108,35 @@ function getItemOptions(item: DisplayMenuItem): ItemOption[] {
   return [];
 }
 
+/**
+ * Search match logic:
+ * - If the item has named options (sizes/variants), match against the option
+ *   names/labels first. The item itself is included if any option matches.
+ * - If the item has no options (or only a "Regular" option that mirrors the
+ *   item name), fall back to matching against the item name.
+ */
+function itemMatchesSearch(item: DisplayMenuItem, query: string): boolean {
+  const q = query.toLowerCase().trim();
+  if (!q) {
+    return true;
+  }
+
+  const hasNamedOptions =
+    (item.sizes && item.sizes.length > 0) ||
+    (item.hasVariants && item.variants);
+
+  if (hasNamedOptions) {
+    const options = getItemOptions(item);
+    return options.some(
+      opt =>
+        opt.name.toLowerCase().includes(q) ||
+        opt.label.toLowerCase().includes(q)
+    );
+  }
+
+  return item.name.toLowerCase().includes(q);
+}
+
 export default function POSTerminalPage() {
   const router = useRouter();
   const {
@@ -252,8 +281,7 @@ export default function POSTerminalPage() {
       const matchesCategory = activeCategory === 'all'
         ? true
         : item.category === (menuCategories.find(c => c.id === activeCategory)?.name ?? activeCategory);
-      const matchesSearch = !searchQuery ||
-        item.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = !searchQuery || itemMatchesSearch(item, searchQuery);
       return matchesCategory && matchesSearch;
     });
   }, [branchMenuItems, activeCategory, searchQuery, menuCategories]);
@@ -261,9 +289,7 @@ export default function POSTerminalPage() {
   // When searching, ignore category filter
   const displayedItems = useMemo(() => {
     if (searchQuery) {
-      return branchMenuItems.filter(item =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      return branchMenuItems.filter(item => itemMatchesSearch(item, searchQuery));
     }
     return filteredItems;
   }, [searchQuery, branchMenuItems, filteredItems]);
