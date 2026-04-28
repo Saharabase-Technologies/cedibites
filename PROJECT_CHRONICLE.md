@@ -81,6 +81,34 @@ Items still needing attention.
 
 ---
 
+## [2026-04-28] Session: POS Search — Match Option Names First
+
+### Intent
+
+Improve POS terminal search ergonomics. For menu items that have sizes or variants (e.g. "Family Pizza", "Large Burger", "Plain"/"Assorted"), the search box should match against those **option names** first. Items without options should still match against the menu item name.
+
+### Changes
+
+- **`app/pos/terminal/page.tsx`** — Added `itemMatchesSearch(item, query)` helper:
+  - If the item has named options (`item.sizes` or `item.variants`), search matches against the generated option `name` and `label` fields (via existing `getItemOptions`).
+  - If the item has no options (only a "Regular" entry mirroring the item name), falls back to matching against `item.name`.
+- Both `filteredItems` and `displayedItems` memos now use the helper instead of inline `item.name.toLowerCase().includes(...)` checks.
+
+### Decisions
+
+- Reused the existing `getItemOptions` to derive option names so logic stays consistent with how the option picker renders them.
+- Searching by option label (e.g. typing "large") also matches, in addition to the full composed name (e.g. "Large Burger").
+
+### Files Modified
+
+- `app/pos/terminal/page.tsx`
+
+### Current State
+
+Typing "family" surfaces all items where any option name contains "family", regardless of the parent item's name. Items without options continue to match by item name as before.
+
+---
+
 ## [2026-04-14] Session: Cancel Request Double-Fire Bug Fix
 
 ### Intent

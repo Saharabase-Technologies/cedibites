@@ -286,13 +286,44 @@ export default function POSTerminalPage() {
     });
   }, [branchMenuItems, activeCategory, searchQuery, menuCategories]);
 
-  // When searching, ignore category filter
+  // When searching, ignore category filter and flatten items with multiple
+  // options into one card per matching option (so "assor" surfaces "Assorted
+  // Fried Rice", "Assorted Jollof Rice", etc. instead of the compound parent).
   const displayedItems = useMemo(() => {
     if (searchQuery) {
       return branchMenuItems.filter(item => itemMatchesSearch(item, searchQuery));
     }
     return filteredItems;
   }, [searchQuery, branchMenuItems, filteredItems]);
+
+  const searchOptionResults = useMemo(() => {
+    if (!searchQuery) return [];
+    const q = searchQuery.toLowerCase().trim();
+    const results: Array<{ item: DisplayMenuItem; option: ItemOption }> = [];
+    for (const item of branchMenuItems) {
+      const options = getItemOptions(item);
+      const hasNamedOptions =
+        (item.sizes && item.sizes.length > 0) ||
+        (item.hasVariants && item.variants);
+
+      if (hasNamedOptions) {
+        for (const option of options) {
+          if (
+            option.name.toLowerCase().includes(q) ||
+            option.label.toLowerCase().includes(q)
+          ) {
+            results.push({ item, option });
+          }
+        }
+      } else if (item.name.toLowerCase().includes(q)) {
+        // Items with no real options — show one card matching item name
+        if (options.length > 0) {
+          results.push({ item, option: options[0] });
+        }
+      }
+    }
+    return results;
+  }, [searchQuery, branchMenuItems]);
 
   const handleOptionAdd = useCallback((option: ItemOption) => {
     addToCart({
@@ -544,7 +575,46 @@ export default function POSTerminalPage() {
         {/* Menu Grid */}
         <div className="flex-1 overflow-y-auto p-4 pb-24 lg:pb-4">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {displayedItems.map(item => {
+            {searchQuery ? (
+              searchOptionResults.map(({ item, option }) => {
+                const cartQty = cart
+                  .filter(c =>
+                    c.menuItemId === option.menuItemId &&
+                    (option.sizeId !== undefined ? c.sizeId === option.sizeId : true) &&
+                    (option.variantKey !== undefined ? c.variantKey === option.variantKey : true)
+                  )
+                  .reduce((sum, c) => sum + c.quantity, 0);
+                const isSelected = cartQty > 0;
+                return (
+                  <button
+                    key={`${item.id}-${option.key}`}
+                    onClick={() => handleOptionAdd(option)}
+                    className={`
+                      rounded-2xl p-4 text-left shadow-sm min-h-22
+                      active:scale-[0.97] transition-all duration-100
+                      flex flex-col justify-between gap-2
+                      ${isSelected
+                        ? 'bg-primary/10 border-2 border-primary shadow-primary/10'
+                        : 'bg-white border border-neutral-gray/15 hover:border-primary/30 hover:shadow-md'
+                      }
+                    `}
+                  >
+                    <p className={`font-semibold text-base leading-snug line-clamp-2 ${isSelected ? 'text-primary' : 'text-text-dark'}`}>
+                      {option.name}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-primary font-bold text-base">{formatGHS(option.price)}</p>
+                      {isSelected && (
+                        <span className="min-w-6 h-6 px-1.5 rounded-full bg-primary text-brown text-xs font-bold flex items-center justify-center">
+                          {cartQty}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })
+            ) : (
+              displayedItems.map(item => {
               const cartQty = getItemCartQty(item);
               const isSelected = cartQty > 0;
               const hasOptions = (item.sizes?.length ?? 0) > 1 || !!item.variants;
@@ -583,10 +653,11 @@ export default function POSTerminalPage() {
                   </div>
                 </button>
               );
-            })}
+              })
+            )}
           </div>
 
-          {displayedItems.length === 0 && (
+          {((searchQuery && searchOptionResults.length === 0) || (!searchQuery && displayedItems.length === 0)) && (
             <div className="flex flex-col items-center justify-center py-16 text-neutral-gray">
               <MagnifyingGlassIcon className="w-12 h-12 mb-4 opacity-40" />
               <p>No items found</p>
