@@ -16,3 +16,4 @@ export {
   Toggle,
   PrimaryButton,
 } from './FormPrimitives';
+export { POStatusBadge } from './POStatusBadge';

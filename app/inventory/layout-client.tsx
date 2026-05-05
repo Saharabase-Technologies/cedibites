@@ -18,6 +18,8 @@ import {
   SignOutIcon,
   WarehouseIcon,
   SlidersIcon,
+  ReceiptIcon,
+  ClipboardIcon,
 } from '@phosphor-icons/react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
@@ -34,6 +36,12 @@ const OPERATIONS_NAV: NavItem[] = [
   { href: '/inventory/wastage',       label: 'Wastage',       icon: TrashIcon           },
   { href: '/inventory/daily-closing', label: 'Daily Closing', icon: CalendarCheckIcon   },
   { href: '/inventory/reports',       label: 'Reports',       icon: ChartBarIcon        },
+];
+
+/** Purchasing — Warehouse Manager + Purchasing Clerk workflows. */
+const PURCHASING_NAV: NavItem[] = [
+  { href: '/inventory/purchase-orders', label: 'Purchase Orders', icon: ClipboardIcon },
+  { href: '/inventory/purchases',       label: 'Purchases',       icon: ReceiptIcon   },
 ];
 
 /** Product master data — less frequent. */
@@ -180,6 +188,9 @@ function Sidebar({
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 flex flex-col gap-2 overflow-y-auto">
         <NavSection items={OPERATIONS_NAV} pathname={pathname} />
+        <div className="border-t border-[#f0e8d8] pt-1">
+          <NavSection label="Purchasing" items={PURCHASING_NAV} pathname={pathname} />
+        </div>
         <div className="border-t border-[#f0e8d8] pt-1">
           <NavSection label="Catalog" items={CATALOG_NAV} pathname={pathname} />
         </div>

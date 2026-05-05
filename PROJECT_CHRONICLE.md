@@ -81,6 +81,50 @@ Items still needing attention.
 
 ---
 
+## [2026-05-05] Session: IMS Chunk 1 — Purchase Order Data Layer (mock-backed)
+
+### Intent
+
+Audit existing IMS frontend, lock the Warehouse Manager portal scope (including a new **Purchase Order** workflow between WarehouseManager and PurchasingClerk), and ship the entire data layer (types + mocks + services + hooks) for POs and Purchases without touching the backend.
+
+### Changes Made
+
+| File | Change | Reason |
+|------|--------|--------|
+| `types/inventory.ts` | Appended PO + Purchase types: `PurchaseOrderStatus` (7 states), `PurchaseOrderItem`, `PurchaseOrder`, `Purchase`, `PurchaseItem` + all payload + filter shapes | Single source of truth for all PO-related shapes |
+| `lib/constants/inventory.constants.ts` | Created — `PO_APPROVAL_THRESHOLD = 10_000`, `WASTAGE_THRESHOLD_DEFAULT = 500` | Centralised IMS thresholds; PO ≥ ₵10K requires Admin approval |
+| `lib/api/mocks/inventory.mock.ts` | Added `MOCK_PURCHASE_ORDERS` (6 entries — one per status) + `MOCK_PURCHASES` (3 entries incl. urgent_buy) | Enables full UI build without backend; covers every status branch |
+| `lib/api/services/inventory/purchaseOrders.service.ts` | Created — list/detail/create/update/submit/approve/cancel/close. Reads work in mock mode; writes throw `"not implemented in mock mode yet"` | Service layer ready for both mock + real backend; mock writes deliberately fail to keep UI honest |
+| `lib/api/services/inventory/purchases.service.ts` | Created — list/detail/record | Receipt recording surface |
+| `lib/api/hooks/inventory/usePurchaseOrders.ts` | Created — 8 hooks: `usePurchaseOrders`, `usePurchaseOrder`, `useCreate/Update/Submit/Approve/Cancel/ClosePurchaseOrder` | TanStack Query layer with proper invalidation on `['inventory', 'purchase-orders']` |
+| `lib/api/hooks/inventory/usePurchases.ts` | Created — `usePurchases`, `usePurchase`, `useRecordPurchase` (cross-invalidates POs) | Recording a purchase updates parent PO's `received_qty`, so cache invalidates both trees |
+
+### Decisions (all journaled to `cedibites_api/docs/JOURNAL.md` 2026-05-05)
+
+- **Decision**: PO is in scope for the Warehouse Manager portal MVP (originally deferred). **Rationale**: Closes the loop between WM and PurchasingClerk; without it the clerk has no authoritative document to receive against.
+- **Decision**: Strict mode by default — purchases must be against an open PO. `urgent_buy` flag overrides for emergency buys (still recorded). **Rationale**: Discipline for normal flow, escape hatch for reality.
+- **Decision**: Only `WarehouseManager` can author POs. `PurchasingClerk` only records purchases against existing POs. **Rationale**: Separation of duties; clerk executes, manager authorises.
+- **Decision**: PO approval threshold = ₵10,000. Above → requires Admin approval before `submit → sent`. **Rationale**: Mirrors wastage threshold pattern; gives admins financial gate without micromanaging small POs.
+- **Decision**: Build frontend WM portal first, defer ALL PO backend work. **Rationale**: Lets us iterate UX with real users on mock data; backend ships once flows are validated.
+- **Decision**: Sidebar/IA stays as currently structured — Purchasing section to be added under Operations. **Rationale**: No nav restructure needed; PO + Purchases naturally sit beside Transfers/Requisitions.
+
+### Current State
+
+- Branch: `feature/ims` (commit `db3c37d`)
+- Mock mode default-ON (`NEXT_PUBLIC_IMS_MOCK=true`); `npm run dev` running clean
+- Test creds (backend seeded): `warehouse@cedibites.test` / `password` (WHM0001), `purchasing@cedibites.test` / `password` (PCK0001)
+- TypeScript clean across all 7 new/modified files
+- Hooks ready to be consumed by UI in Chunk 2
+
+### Pending / Follow-up
+
+- **Chunk 2 (next)**: PO list page + PO detail page (read-only) + reusable `<POStatusBadge>` + sidebar entry for "Purchasing"
+- **Chunk 3**: PO create/edit form (multi-line item editor with live total + threshold warning)
+- **Chunk 4+**: Purchase recording flow, transfers/requisitions/wastage/daily closing scaffolds
+- **Backend (deferred)**: PO migration + model + service + controller + permissions (`purchase-orders.create/approve/cancel/close`, `purchases.record`)
+
+---
+
 ## [2026-05-05] Session: IMS Architecture Lock + Scribe Agent
 
 ### Intent
