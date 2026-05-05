@@ -445,3 +445,160 @@ export interface AssignImsRolePayload {
   user_id: number;
   role: ImsRole;
 }
+
+// ─── Purchase Orders ─────────────────────────────────────────────────────────
+//
+// Locked decisions (see docs/JOURNAL.md, 2026-05-05):
+//   • Strict mode: every Purchase MUST tie to a PO.
+//   • Single override: `urgent_buy=true` on a Purchase lets PurchasingClerk
+//     record an ad-hoc receipt without a PO. Reason required. Flagged in reports.
+//   • Only WarehouseManager creates POs. Clerk only executes (records purchases).
+//   • Approval threshold (default ₵10,000): POs above this need Admin approval
+//     before status can move from `draft → sent`.
+//   • Status machine: draft → sent → partially_received → received → closed
+//     plus `cancelled` from any pre-receipt state with required reason.
+
+export type PurchaseOrderStatus =
+  | 'draft'
+  | 'pending_approval'
+  | 'sent'
+  | 'partially_received'
+  | 'received'
+  | 'closed'
+  | 'cancelled';
+
+export interface PurchaseOrderItem {
+  id: number;
+  item_id: number;
+  item: Pick<InventoryItem, 'id' | 'sku' | 'name' | 'base_unit'>;
+  ordered_qty: number;
+  received_qty: number;
+  unit: Pick<InventoryUnit, 'id' | 'symbol'>;
+  estimated_unit_cost: number;
+  line_total: number;
+}
+
+export interface PurchaseOrder {
+  id: number;
+  reference: string;
+  supplier_id: number;
+  supplier: Pick<InventorySupplier, 'id' | 'code' | 'name' | 'phone'>;
+  destination_location_id: number;
+  destination_location: Pick<InventoryLocation, 'id' | 'code' | 'name' | 'type'>;
+  status: PurchaseOrderStatus;
+  requires_approval: boolean;
+  expected_delivery_date: string | null;
+  notes: string | null;
+  cancel_reason: string | null;
+  created_by_id: number;
+  created_by: { id: number; name: string };
+  approved_by_id: number | null;
+  approved_by: { id: number; name: string } | null;
+  approved_at: string | null;
+  cancelled_by_id: number | null;
+  cancelled_by: { id: number; name: string } | null;
+  cancelled_at: string | null;
+  items: PurchaseOrderItem[];
+  estimated_total: number;
+  actual_total: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PurchaseOrderItemPayload {
+  item_id: number;
+  ordered_qty: number;
+  estimated_unit_cost: number;
+}
+
+export interface CreatePurchaseOrderPayload {
+  supplier_id: number;
+  destination_location_id: number;
+  expected_delivery_date?: string;
+  notes?: string;
+  items: PurchaseOrderItemPayload[];
+}
+
+export interface UpdatePurchaseOrderPayload extends Partial<CreatePurchaseOrderPayload> {}
+
+export interface ApprovePurchaseOrderPayload {
+  notes?: string;
+}
+
+export interface CancelPurchaseOrderPayload {
+  reason: string;
+}
+
+export interface PurchaseOrderFilters {
+  search?: string;
+  status?: PurchaseOrderStatus;
+  supplier_id?: number;
+  destination_location_id?: number;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  per_page?: number;
+}
+
+// ─── Purchases (actual receipts) ─────────────────────────────────────────────
+
+export interface PurchaseItem {
+  id: number;
+  item_id: number;
+  item: Pick<InventoryItem, 'id' | 'sku' | 'name' | 'base_unit'>;
+  purchase_order_item_id: number | null;
+  received_qty: number;
+  unit: Pick<InventoryUnit, 'id' | 'symbol'>;
+  unit_cost_paid: number;
+  line_total: number;
+}
+
+export interface Purchase {
+  id: number;
+  reference: string;
+  purchase_order_id: number | null;
+  purchase_order: Pick<PurchaseOrder, 'id' | 'reference'> | null;
+  supplier_id: number;
+  supplier: Pick<InventorySupplier, 'id' | 'code' | 'name'>;
+  destination_location_id: number;
+  destination_location: Pick<InventoryLocation, 'id' | 'name'>;
+  is_urgent_buy: boolean;
+  urgent_buy_reason: string | null;
+  invoice_number: string | null;
+  notes: string | null;
+  recorded_by_id: number;
+  recorded_by: { id: number; name: string };
+  items: PurchaseItem[];
+  total_paid: number;
+  received_at: string;
+  created_at: string;
+}
+
+export interface RecordPurchaseItemPayload {
+  item_id: number;
+  purchase_order_item_id?: number;
+  received_qty: number;
+  unit_cost_paid: number;
+}
+
+export interface RecordPurchasePayload {
+  purchase_order_id?: number;
+  supplier_id: number;
+  destination_location_id: number;
+  is_urgent_buy?: boolean;
+  urgent_buy_reason?: string;
+  invoice_number?: string;
+  notes?: string;
+  received_at: string;
+  items: RecordPurchaseItemPayload[];
+}
+
+export interface PurchaseFilters {
+  search?: string;
+  supplier_id?: number;
+  is_urgent_buy?: boolean;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  per_page?: number;
+}

@@ -26,6 +26,8 @@ import type {
   InventoryTransfer,
   InventorySettings,
   ImsStaffAssignment,
+  PurchaseOrder,
+  Purchase,
 } from '@/types/inventory';
 
 // ─── Units ────────────────────────────────────────────────────────────────────
@@ -352,4 +354,262 @@ export const MOCK_IMS_SETTINGS: InventorySettings = {
 export const MOCK_IMS_STAFF: ImsStaffAssignment[] = [
   { id: 1, user_id: 3, name: 'Kofi Mensah',  email: 'kofi@cedibites.com',  phone: '0244111000', ims_role: 'warehouse_manager', assigned_at: '2026-01-15T00:00:00Z' },
   { id: 2, user_id: 7, name: 'Abena Darko',  email: 'abena@cedibites.com', phone: '0277222333', ims_role: 'purchasing_clerk',  assigned_at: '2026-02-01T00:00:00Z' },
+];
+
+// ─── Purchase Orders ──────────────────────────────────────────────────────────
+//
+// Mix of statuses so list views can show every state without needing
+// mutations. Items reference real MOCK_ITEMS and MOCK_SUPPLIERS.
+
+const WH = MOCK_LOCATIONS[0]; // Mother Kitchen — Spintex
+const ACCRA_MEAT = MOCK_SUPPLIERS[0];
+const TEMA_VEG = MOCK_SUPPLIERS[1];
+const GOLDEN_OIL = MOCK_SUPPLIERS[2];
+const COOL_DRINKS = MOCK_SUPPLIERS[3];
+const NORTH_RICE = MOCK_SUPPLIERS[4];
+
+const WAREHOUSE_MGR = { id: 3, name: 'Kofi Mensah' };
+const PURCHASING_CLERK = { id: 7, name: 'Abena Darko' };
+const ADMIN = { id: 1, name: 'Platform Admin' };
+
+const item = (id: number) => {
+  const i = MOCK_ITEMS.find((x) => x.id === id);
+  if (!i) throw new Error(`MOCK_ITEMS missing id ${id}`);
+  return { id: i.id, sku: i.sku, name: i.name, base_unit: i.base_unit };
+};
+
+export const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
+  // 1 — sent, large order, approved (above threshold)
+  {
+    id: 1,
+    reference: 'PO-2026-0001',
+    supplier_id: ACCRA_MEAT.id,
+    supplier: { id: ACCRA_MEAT.id, code: ACCRA_MEAT.code, name: ACCRA_MEAT.name, phone: ACCRA_MEAT.phone },
+    destination_location_id: WH.id,
+    destination_location: { id: WH.id, code: WH.code, name: WH.name, type: WH.type },
+    status: 'sent',
+    requires_approval: true,
+    expected_delivery_date: '2026-05-08',
+    notes: 'Weekly meat restock for Spintex mother kitchen.',
+    cancel_reason: null,
+    created_by_id: WAREHOUSE_MGR.id, created_by: WAREHOUSE_MGR,
+    approved_by_id: ADMIN.id, approved_by: ADMIN, approved_at: '2026-05-04T09:30:00Z',
+    cancelled_by_id: null, cancelled_by: null, cancelled_at: null,
+    items: [
+      { id: 1, item_id: 1,  item: item(1),  ordered_qty: 200, received_qty: 0, unit: { id: 1, symbol: 'kg' }, estimated_unit_cost: 42.50, line_total: 8500 },
+      { id: 2, item_id: 2,  item: item(2),  ordered_qty: 80,  received_qty: 0, unit: { id: 1, symbol: 'kg' }, estimated_unit_cost: 58.00, line_total: 4640 },
+      { id: 3, item_id: 32, item: item(32), ordered_qty: 30,  received_qty: 0, unit: { id: 5, symbol: 'pc' }, estimated_unit_cost: 95.00, line_total: 2850 },
+    ],
+    estimated_total: 15990,
+    actual_total: 0,
+    created_at: '2026-05-04T08:00:00Z',
+    updated_at: '2026-05-04T09:30:00Z',
+  },
+
+  // 2 — partially_received
+  {
+    id: 2,
+    reference: 'PO-2026-0002',
+    supplier_id: TEMA_VEG.id,
+    supplier: { id: TEMA_VEG.id, code: TEMA_VEG.code, name: TEMA_VEG.name, phone: TEMA_VEG.phone },
+    destination_location_id: WH.id,
+    destination_location: { id: WH.id, code: WH.code, name: WH.name, type: WH.type },
+    status: 'partially_received',
+    requires_approval: false,
+    expected_delivery_date: '2026-05-05',
+    notes: 'Daily fresh vegetables.',
+    cancel_reason: null,
+    created_by_id: WAREHOUSE_MGR.id, created_by: WAREHOUSE_MGR,
+    approved_by_id: null, approved_by: null, approved_at: null,
+    cancelled_by_id: null, cancelled_by: null, cancelled_at: null,
+    items: [
+      { id: 4, item_id: 6,  item: item(6),  ordered_qty: 40, received_qty: 40, unit: { id: 1, symbol: 'kg' }, estimated_unit_cost: 4.50,  line_total: 180 },
+      { id: 5, item_id: 7,  item: item(7),  ordered_qty: 30, received_qty: 30, unit: { id: 1, symbol: 'kg' }, estimated_unit_cost: 3.80,  line_total: 114 },
+      { id: 6, item_id: 21, item: item(21), ordered_qty: 25, received_qty: 10, unit: { id: 1, symbol: 'kg' }, estimated_unit_cost: 3.20,  line_total: 80 },
+      { id: 7, item_id: 22, item: item(22), ordered_qty: 15, received_qty: 0,  unit: { id: 1, symbol: 'kg' }, estimated_unit_cost: 4.00,  line_total: 60 },
+    ],
+    estimated_total: 434,
+    actual_total: 326,
+    created_at: '2026-05-04T07:30:00Z',
+    updated_at: '2026-05-05T08:15:00Z',
+  },
+
+  // 3 — received (closed automatically when fully received? No — closed is manual)
+  {
+    id: 3,
+    reference: 'PO-2026-0003',
+    supplier_id: GOLDEN_OIL.id,
+    supplier: { id: GOLDEN_OIL.id, code: GOLDEN_OIL.code, name: GOLDEN_OIL.name, phone: GOLDEN_OIL.phone },
+    destination_location_id: WH.id,
+    destination_location: { id: WH.id, code: WH.code, name: WH.name, type: WH.type },
+    status: 'received',
+    requires_approval: false,
+    expected_delivery_date: '2026-05-03',
+    notes: null,
+    cancel_reason: null,
+    created_by_id: WAREHOUSE_MGR.id, created_by: WAREHOUSE_MGR,
+    approved_by_id: null, approved_by: null, approved_at: null,
+    cancelled_by_id: null, cancelled_by: null, cancelled_at: null,
+    items: [
+      { id: 8, item_id: 9,  item: item(9),  ordered_qty: 50, received_qty: 50, unit: { id: 3, symbol: 'L' }, estimated_unit_cost: 18.00, line_total: 900 },
+      { id: 9, item_id: 10, item: item(10), ordered_qty: 80, received_qty: 80, unit: { id: 3, symbol: 'L' }, estimated_unit_cost: 14.50, line_total: 1160 },
+    ],
+    estimated_total: 2060,
+    actual_total: 2090,
+    created_at: '2026-05-02T10:00:00Z',
+    updated_at: '2026-05-03T14:20:00Z',
+  },
+
+  // 4 — draft (small order, no approval required)
+  {
+    id: 4,
+    reference: 'PO-2026-0004',
+    supplier_id: COOL_DRINKS.id,
+    supplier: { id: COOL_DRINKS.id, code: COOL_DRINKS.code, name: COOL_DRINKS.name, phone: COOL_DRINKS.phone },
+    destination_location_id: WH.id,
+    destination_location: { id: WH.id, code: WH.code, name: WH.name, type: WH.type },
+    status: 'draft',
+    requires_approval: false,
+    expected_delivery_date: '2026-05-09',
+    notes: 'Top-up beverages.',
+    cancel_reason: null,
+    created_by_id: WAREHOUSE_MGR.id, created_by: WAREHOUSE_MGR,
+    approved_by_id: null, approved_by: null, approved_at: null,
+    cancelled_by_id: null, cancelled_by: null, cancelled_at: null,
+    items: [
+      { id: 10, item_id: 13, item: item(13), ordered_qty: 12, received_qty: 0, unit: { id: 7, symbol: 'ctn' }, estimated_unit_cost: 85.00, line_total: 1020 },
+      { id: 11, item_id: 14, item: item(14), ordered_qty: 20, received_qty: 0, unit: { id: 7, symbol: 'ctn' }, estimated_unit_cost: 28.00, line_total: 560 },
+    ],
+    estimated_total: 1580,
+    actual_total: 0,
+    created_at: '2026-05-05T07:00:00Z',
+    updated_at: '2026-05-05T07:00:00Z',
+  },
+
+  // 5 — pending_approval (above threshold)
+  {
+    id: 5,
+    reference: 'PO-2026-0005',
+    supplier_id: NORTH_RICE.id,
+    supplier: { id: NORTH_RICE.id, code: NORTH_RICE.code, name: NORTH_RICE.name, phone: NORTH_RICE.phone },
+    destination_location_id: WH.id,
+    destination_location: { id: WH.id, code: WH.code, name: WH.name, type: WH.type },
+    status: 'pending_approval',
+    requires_approval: true,
+    expected_delivery_date: '2026-05-12',
+    notes: 'Quarterly bulk rice order from Tamale.',
+    cancel_reason: null,
+    created_by_id: WAREHOUSE_MGR.id, created_by: WAREHOUSE_MGR,
+    approved_by_id: null, approved_by: null, approved_at: null,
+    cancelled_by_id: null, cancelled_by: null, cancelled_at: null,
+    items: [
+      { id: 12, item_id: 4, item: item(4), ordered_qty: 600,  received_qty: 0, unit: { id: 1, symbol: 'kg' }, estimated_unit_cost: 8.80, line_total: 5280 },
+      { id: 13, item_id: 5, item: item(5), ordered_qty: 1200, received_qty: 0, unit: { id: 1, symbol: 'kg' }, estimated_unit_cost: 6.20, line_total: 7440 },
+    ],
+    estimated_total: 12720,
+    actual_total: 0,
+    created_at: '2026-05-05T06:30:00Z',
+    updated_at: '2026-05-05T06:30:00Z',
+  },
+
+  // 6 — cancelled
+  {
+    id: 6,
+    reference: 'PO-2026-0006',
+    supplier_id: ACCRA_MEAT.id,
+    supplier: { id: ACCRA_MEAT.id, code: ACCRA_MEAT.code, name: ACCRA_MEAT.name, phone: ACCRA_MEAT.phone },
+    destination_location_id: WH.id,
+    destination_location: { id: WH.id, code: WH.code, name: WH.name, type: WH.type },
+    status: 'cancelled',
+    requires_approval: false,
+    expected_delivery_date: '2026-05-01',
+    notes: 'Original beef order.',
+    cancel_reason: 'Supplier out of stock — re-issued under PO-2026-0007.',
+    created_by_id: WAREHOUSE_MGR.id, created_by: WAREHOUSE_MGR,
+    approved_by_id: null, approved_by: null, approved_at: null,
+    cancelled_by_id: WAREHOUSE_MGR.id, cancelled_by: WAREHOUSE_MGR, cancelled_at: '2026-04-30T11:00:00Z',
+    items: [
+      { id: 14, item_id: 26, item: item(26), ordered_qty: 30, received_qty: 0, unit: { id: 1, symbol: 'kg' }, estimated_unit_cost: 65.00, line_total: 1950 },
+    ],
+    estimated_total: 1950,
+    actual_total: 0,
+    created_at: '2026-04-29T10:00:00Z',
+    updated_at: '2026-04-30T11:00:00Z',
+  },
+];
+
+// ─── Purchases (actual receipts) ──────────────────────────────────────────────
+
+export const MOCK_PURCHASES: Purchase[] = [
+  // Receipt against PO-2026-0003 (received in full)
+  {
+    id: 1,
+    reference: 'RCP-2026-0001',
+    purchase_order_id: 3,
+    purchase_order: { id: 3, reference: 'PO-2026-0003' },
+    supplier_id: GOLDEN_OIL.id,
+    supplier: { id: GOLDEN_OIL.id, code: GOLDEN_OIL.code, name: GOLDEN_OIL.name },
+    destination_location_id: WH.id,
+    destination_location: { id: WH.id, name: WH.name },
+    is_urgent_buy: false,
+    urgent_buy_reason: null,
+    invoice_number: 'GFO-INV-44512',
+    notes: 'Full delivery, slightly above estimated cost on palm oil.',
+    recorded_by_id: PURCHASING_CLERK.id, recorded_by: PURCHASING_CLERK,
+    items: [
+      { id: 1, item_id: 9,  item: item(9),  purchase_order_item_id: 8, received_qty: 50, unit: { id: 3, symbol: 'L' }, unit_cost_paid: 18.50, line_total: 925 },
+      { id: 2, item_id: 10, item: item(10), purchase_order_item_id: 9, received_qty: 80, unit: { id: 3, symbol: 'L' }, unit_cost_paid: 14.50, line_total: 1160 },
+    ],
+    total_paid: 2085,
+    received_at: '2026-05-03T14:00:00Z',
+    created_at: '2026-05-03T14:20:00Z',
+  },
+
+  // First partial against PO-2026-0002
+  {
+    id: 2,
+    reference: 'RCP-2026-0002',
+    purchase_order_id: 2,
+    purchase_order: { id: 2, reference: 'PO-2026-0002' },
+    supplier_id: TEMA_VEG.id,
+    supplier: { id: TEMA_VEG.id, code: TEMA_VEG.code, name: TEMA_VEG.name },
+    destination_location_id: WH.id,
+    destination_location: { id: WH.id, name: WH.name },
+    is_urgent_buy: false,
+    urgent_buy_reason: null,
+    invoice_number: 'TVF-2026-0512',
+    notes: 'Tomatoes + onions full; cabbage and carrots delayed.',
+    recorded_by_id: PURCHASING_CLERK.id, recorded_by: PURCHASING_CLERK,
+    items: [
+      { id: 3, item_id: 6,  item: item(6),  purchase_order_item_id: 4, received_qty: 40, unit: { id: 1, symbol: 'kg' }, unit_cost_paid: 4.50, line_total: 180 },
+      { id: 4, item_id: 7,  item: item(7),  purchase_order_item_id: 5, received_qty: 30, unit: { id: 1, symbol: 'kg' }, unit_cost_paid: 3.80, line_total: 114 },
+      { id: 5, item_id: 21, item: item(21), purchase_order_item_id: 6, received_qty: 10, unit: { id: 1, symbol: 'kg' }, unit_cost_paid: 3.20, line_total: 32 },
+    ],
+    total_paid: 326,
+    received_at: '2026-05-05T08:00:00Z',
+    created_at: '2026-05-05T08:15:00Z',
+  },
+
+  // Urgent buy — no PO
+  {
+    id: 3,
+    reference: 'RCP-2026-0003',
+    purchase_order_id: null,
+    purchase_order: null,
+    supplier_id: TEMA_VEG.id,
+    supplier: { id: TEMA_VEG.id, code: TEMA_VEG.code, name: TEMA_VEG.name },
+    destination_location_id: WH.id,
+    destination_location: { id: WH.id, name: WH.name },
+    is_urgent_buy: true,
+    urgent_buy_reason: 'Ran out of scotch bonnet during morning prep — bought from market.',
+    invoice_number: null,
+    notes: 'Cash purchase from Madina market.',
+    recorded_by_id: PURCHASING_CLERK.id, recorded_by: PURCHASING_CLERK,
+    items: [
+      { id: 6, item_id: 16, item: item(16), purchase_order_item_id: null, received_qty: 5, unit: { id: 1, symbol: 'kg' }, unit_cost_paid: 18.00, line_total: 90 },
+    ],
+    total_paid: 90,
+    received_at: '2026-05-04T07:45:00Z',
+    created_at: '2026-05-04T07:50:00Z',
+  },
 ];
