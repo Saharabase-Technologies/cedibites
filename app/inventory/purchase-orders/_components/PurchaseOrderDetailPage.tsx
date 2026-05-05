@@ -174,7 +174,8 @@ function ActionBar({ po, onCancel }: { po: PurchaseOrder; onCancel: () => void }
   };
 
   return (
-    <div cEdit && (
+    <div className="flex items-center gap-2 flex-wrap">
+      {canEdit && (
         <Link
           href={`/inventory/purchase-orders/${po.id}/edit`}
           className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold font-body min-h-11 transition-colors cursor-pointer shadow-sm bg-neutral-light text-text-dark hover:bg-neutral-light/70 border border-[#f0e8d8]"
@@ -183,7 +184,6 @@ function ActionBar({ po, onCancel }: { po: PurchaseOrder; onCancel: () => void }
           Edit
         </Link>
       )}
-      {canlassName="flex items-center gap-2 flex-wrap">
       {canSubmit && (
         <ActionButton
           tone="primary"

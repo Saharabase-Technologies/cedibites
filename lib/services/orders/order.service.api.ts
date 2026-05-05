@@ -37,8 +37,10 @@ export class ApiOrderService implements OrderService {
         else if (pathname.startsWith('/order-manager')) {
           endpoint = '/employee/orders';
         }
-        // Customer routes (home, menu, checkout, etc.) don't load orders
-        else if (!pathname.startsWith('/staff') &&
+        // Only the surfaces below need the order store. Inventory portal,
+        // login screens, and customer routes must NOT trigger /employee/orders.
+        else if (!pathname.startsWith('/staff/manager') &&
+                 !pathname.startsWith('/staff/sales') &&
                  !pathname.startsWith('/admin') &&
                  !pathname.startsWith('/partner') &&
                  !pathname.startsWith('/pos')) {

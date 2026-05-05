@@ -77,7 +77,7 @@ export function ensureGuestSessionId(): string {
 function isStaffRoute(): boolean {
   if (typeof window === 'undefined') return false;
   const p = window.location.pathname;
-  return p.startsWith('/staff') || p.startsWith('/admin') || p.startsWith('/partner') || p.startsWith('/pos') || p.startsWith('/order-manager') || p.startsWith('/kitchen');
+  return p.startsWith('/staff') || p.startsWith('/admin') || p.startsWith('/partner') || p.startsWith('/pos') || p.startsWith('/order-manager') || p.startsWith('/kitchen') || p.startsWith('/inventory');
 }
 
 // Request interceptor - use the token that matches the current route, no fallbacks
@@ -132,7 +132,8 @@ apiClient.interceptors.response.use(
           pathname.startsWith('/partner') ||
           pathname.startsWith('/pos') ||
           pathname.startsWith('/kitchen') ||
-          pathname.startsWith('/order-manager');
+          pathname.startsWith('/order-manager') ||
+          pathname.startsWith('/inventory');
 
         if (isStaffRoute && usedStaffToken) {
           // Only redirect when the request actually used the staff token —

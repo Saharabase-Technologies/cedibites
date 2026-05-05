@@ -171,12 +171,13 @@ export function useStaffAuth() {
 /** Where to redirect after login, based on permissions. */
 export function permissionsHomeRoute(permissions: string[]): string {
     const has = (p: string) => permissions.includes(p);
-    if (has('access_admin_panel'))    return '/admin/dashboard';
-    if (has('access_manager_portal')) return '/staff/manager/dashboard';
-    if (has('access_partner_portal')) return '/partner/dashboard';
-    if (has('access_sales_portal'))   return '/staff/sales/dashboard';
-    if (has('access_kitchen'))        return '/kitchen/display';
-    if (has('access_order_manager'))  return '/order-manager';
+    if (has('access_admin_panel'))      return '/admin/dashboard';
+    if (has('access_manager_portal'))   return '/staff/manager/dashboard';
+    if (has('access_partner_portal'))   return '/partner/dashboard';
+    if (has('access_sales_portal'))     return '/staff/sales/dashboard';
+    if (has('access_inventory_portal')) return '/inventory/dashboard';
+    if (has('access_kitchen'))          return '/kitchen/display';
+    if (has('access_order_manager'))    return '/order-manager';
     return '/staff/login';
 }
 
