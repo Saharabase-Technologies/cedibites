@@ -128,10 +128,7 @@ export function PurchaseOrdersPage() {
         action={{
           label: 'New PO',
           icon: <PlusIcon size={16} weight="bold" />,
-          onClick: () =>
-            window.alert(
-              'Create PO — coming in Chunk 3.\n\nThe form will let you build a multi-line order with live total + auto threshold detection (₵10,000+ requires Admin approval).',
-            ),
+          onClick: () => router.push('/inventory/purchase-orders/new'),
         }}
       />
 

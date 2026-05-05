@@ -9,6 +9,7 @@ import {
   XCircleIcon,
   ArchiveIcon,
   PaperPlaneTiltIcon,
+  PencilSimpleIcon,
   TruckIcon,
   MapPinIcon,
   CalendarIcon,
@@ -157,6 +158,7 @@ function ActionBar({ po, onCancel }: { po: PurchaseOrder; onCancel: () => void }
   const approve = useApprovePurchaseOrder();
   const close   = useClosePurchaseOrder();
 
+  const canEdit    = po.status === 'draft';
   const canSubmit  = po.status === 'draft';
   const canApprove = po.status === 'pending_approval';
   const canCancel  = ['draft', 'pending_approval', 'sent'].includes(po.status);
@@ -172,7 +174,16 @@ function ActionBar({ po, onCancel }: { po: PurchaseOrder; onCancel: () => void }
   };
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div cEdit && (
+        <Link
+          href={`/inventory/purchase-orders/${po.id}/edit`}
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold font-body min-h-11 transition-colors cursor-pointer shadow-sm bg-neutral-light text-text-dark hover:bg-neutral-light/70 border border-[#f0e8d8]"
+        >
+          <PencilSimpleIcon size={14} weight="bold" />
+          Edit
+        </Link>
+      )}
+      {canlassName="flex items-center gap-2 flex-wrap">
       {canSubmit && (
         <ActionButton
           tone="primary"
