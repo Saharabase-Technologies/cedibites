@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - beta
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy to beta (e.g. feature/ims)'
+        required: true
+        default: 'beta'
 
 jobs:
   deploy:
@@ -16,8 +22,15 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -e
             cd /var/www/beta/nextjs/cedibites
-            git pull origin beta
+            DEPLOY_BRANCH="${{ github.event.inputs.branch || 'beta' }}"
+            git fetch origin "$DEPLOY_BRANCH"
+            git reset --hard "origin/$DEPLOY_BRANCH"
             npm ci
             npm run build
             pm2 restart cedibites-beta-frontend
+
+            # Health check — confirm PM2 process is online
+            sleep 3
+            pm2 show cedibites-beta-frontend | grep -q "online" && echo "Deploy OK" || (echo "Deploy FAILED: process not online" && exit 1)

@@ -81,19 +81,70 @@ Items still needing attention.
 
 ---
 
+## [2026-05-05] Session: IMS Architecture Lock + Scribe Agent
+
+### Intent
+
+1. Lock all architectural decisions for the Inventory Management System (IMS) before any code is written — frontend concerns captured.
+2. Create a workspace-wide atomic decision ledger (the **Scribe** agent) that persists every locked decision so agents read it at activation.
+
+### Changes Made
+
+| File                                                      | Change                                                                                                | Reason                                                                             |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `.github/instructions/ims-considerations.instructions.md` | Created — frontend mirror of IMS guardrails                                                           | Ensures frontend agents (UX Architect, etc.) honour the same constraints           |
+| `.github/instructions/code-quality.instructions.md`       | Created — frontend code-quality rules (file caps, page/component/hook discipline, forbidden patterns) | Enforces thin pages, single-concern hooks, no `any`, no inline styles              |
+| `.github/agents/inventory-auditor.agent.md`               | Created — Inventory Auditor frontend specialist                                                       | Dedicated agent for IMS portal UI work                                             |
+| `.github/agents/scribe.agent.md`                          | Created — thin frontend mirror pointing to backend agent spec                                         | Scribe operates from `cedibites_api/`; frontend mirror ensures VS Code picks it up |
+| `.github/agents/master-orchestrator.agent.md`             | Updated — added Scribe to agent registry table, file locations table, and KB references               | Orchestrator now routes journal-worthy turns to the Scribe                         |
+
+### IMS Frontend Architecture (Locked)
+
+- Portal at `app/inventory/` — own `layout.tsx`, own sidebar, lazy-loaded. Entry tile from staff/admin dashboard.
+- Route group isolation: IMS bundle must not inflate POS / customer / staff bundles.
+- Types in `types/inventory.ts`. Hooks in `lib/api/hooks/inventory/`. Services in `lib/api/services/inventory/`.
+- Feature-flag gating via `/api/me/features` (`inventory.enabled`). Hide entry tiles + redirect on direct nav when off.
+- Tablet-first (≥ 768px). Touch targets ≥ 44px. Operator vocabulary in all non-report screens.
+
+### Decisions
+
+- **Decision**: Scribe is a new agent, not merged into Project Chronicle.
+  - **Rationale**: Different cadences; different edit scopes. Chronicle = session narrative. Scribe = atomic decision ledger ≤6 lines per entry.
+- **Decision**: Scribe journal lives in `cedibites_api/docs/JOURNAL.md` (workspace-wide; single file).
+  - **Rationale**: Avoids synchronisation overhead of two journal files in a multi-root workspace.
+- **IMS decisions**: 19 locked — see `cedibites_api/docs/JOURNAL.md` and `cedibites_api/docs/inventory/architecture.md`.
+
+### Current State
+
+- IMS: architecture locked. Zero IMS frontend code written.
+- `app/inventory/` route group does not yet exist.
+- `feature/ims` branch not yet cut — blocked on DevOps audit.
+
+### Pending / Follow-up
+
+- DevOps audit (beta↔main) — gates branch cut.
+- Phase 0 UX work: inventory portal shell (`app/inventory/layout.tsx`), entry tile in staff/admin dashboard.
+- IAM Auditor to register `Purchasing Clerk` and `Warehouse Manager` roles + permissions in Phase 0.
+
+---
+
 ## [2026-05-01] Session: Audit Log Action List Cleanup (cancellation events surfaced)
 
 ### Intent
+
 Investigator was looking for a specific order in the audit log and couldn't filter by cancellation. Two problems:
+
 1. The `Action Type` dropdown listed events that the backend never emits (`pos_login`, `menu_config_updated`, `'Guest cart claimed'`, generic `created`/`deleted`).
 2. It was missing the entire cancellation flow (`cancel_requested`, `cancel_approved`, `cancel_rejected`, `cancelled`) plus several real events from EmployeeAuth, Customer, Platform, and Shifts controllers.
 
 ### Changes Made
-| File | Change | Reason |
-|------|--------|--------|
+
+| File                       | Change                                                                                                                                                                                                             | Reason                                                                                                                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `app/admin/audit/page.tsx` | Replaced `EVENT_LABELS` with the exact set of events emitted by the backend (cross-checked against every `->event('...')` call in `cedibites_api`); added `EVENT_GROUPS` for `<optgroup>` grouping in the dropdown | Investigators can now pinpoint cancellation requests, approvals, rejections, direct cancels, refunds, and all real auth/shift/customer/platform events. Dead options removed. |
 
 ### Real backend events now surfaced (grouped)
+
 - **Orders**: `status_changed`, `cancel_requested`, `cancel_approved`, `cancel_rejected`, `cancelled`, `refunded`
 - **Staff**: `staff_login`, `staff_login_failed`, `staff_logout`, `force_logout`, `password_reset_required`, `role_changed`
 - **Shifts**: `shift_started`, `shift_ended`
@@ -101,17 +152,20 @@ Investigator was looking for a specific order in the audit log and couldn't filt
 - **System**: `updated`, `job_retried`, `cache_cleared`, `maintenance_toggled`, `admin_created`, `admin_revoked`, `password_reset`, `passwords_viewed`, `password_viewed`, `passcode_changed`, `passcode_failed`
 
 ### Decisions
+
 - **Decision**: Cross-check against `grep -r "->event('"` in the backend rather than guess.
   - **Rationale**: Listing fictional events teaches users to distrust the filter. Listing real ones teaches them to trust it.
 - **Decision**: Group via `<optgroup>` instead of separate dropdowns.
   - **Rationale**: Single control, scannable structure, native browser behaviour. No new state to manage.
-- **Decision**: Did NOT remove `EVENT_LABELS` keys that aren't in `EVENT_GROUPS` — kept the labels map complete so the *table rows* still render friendly action labels even for events not in the filter list (defensive).
+- **Decision**: Did NOT remove `EVENT_LABELS` keys that aren't in `EVENT_GROUPS` — kept the labels map complete so the _table rows_ still render friendly action labels even for events not in the filter list (defensive).
 
 ### Verification
+
 - Confirmed cancellation events use `activity('orders')->performedOn($order)` in `CancelRequestController` → so they correctly surface under the existing "order" entity filter as well.
 - `npm run build` passes.
 
 ### Pending / Follow-up
+
 - None. Investigator can now find the missing order's cancellation history.
 
 ---
@@ -119,27 +173,30 @@ Investigator was looking for a specific order in the audit log and couldn't filt
 ## [2026-05-01] Session: Audit Log Custom Filters + Order Period Summary Strip
 
 ### Changes Made
-| File | Change | Reason |
-|------|--------|--------|
-| `app/components/ui/OrderPeriodSummary.tsx` | New shared component | Three pills (Valid · Issues · Total) with breakdown sub-line; designed to sit above tables without competing for attention |
-| `lib/api/hooks/useEmployeeOrders.ts` | Added `useEmployeeOrdersPeriodSummary(params)` | React Query hook mirroring the orders filter scope; strips pagination, refetches every 30s |
-| `lib/api/services/order.service.ts` | Added `getEmployeeOrdersPeriodSummary` | Calls `GET /employee/orders/summary` |
-| `lib/api/hooks/useActivityLogs.ts` | Added `useActivityLogCausers` | Powers the new "filter by user" dropdown on audit page |
-| `lib/api/services/activityLog.service.ts` | Added `getActivityLogCausers` | Calls `GET /admin/activity-logs/causers` |
-| `types/api.ts` | Added `OrderPeriodSummary` interface | Shared shape for new endpoint |
-| `app/admin/audit/page.tsx` | Added custom date pickers (when `Custom` preset selected), Action Type dropdown, User (Causer) dropdown, "Clear all filters" link | Enables pinpoint filtering without backend changes — backend already accepted these params |
-| `app/admin/orders/page.tsx` | Wired `OrderPeriodSummary` under header subtitle, label = current `datePreset` | Per-scope quality summary |
-| `app/staff/manager/orders/page.tsx` | Same | Same |
-| `app/partner/orders/page.tsx` | Wired with all-time scope (page has no date filter) | Same |
-| `app/staff/sales/orders/page.tsx` | Wired with `Today` label | Same |
-| `app/pos/orders/page.tsx` | Wired in `countsOnly` mode for tighter mobile header | Same |
+
+| File                                       | Change                                                                                                                            | Reason                                                                                                                     |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `app/components/ui/OrderPeriodSummary.tsx` | New shared component                                                                                                              | Three pills (Valid · Issues · Total) with breakdown sub-line; designed to sit above tables without competing for attention |
+| `lib/api/hooks/useEmployeeOrders.ts`       | Added `useEmployeeOrdersPeriodSummary(params)`                                                                                    | React Query hook mirroring the orders filter scope; strips pagination, refetches every 30s                                 |
+| `lib/api/services/order.service.ts`        | Added `getEmployeeOrdersPeriodSummary`                                                                                            | Calls `GET /employee/orders/summary`                                                                                       |
+| `lib/api/hooks/useActivityLogs.ts`         | Added `useActivityLogCausers`                                                                                                     | Powers the new "filter by user" dropdown on audit page                                                                     |
+| `lib/api/services/activityLog.service.ts`  | Added `getActivityLogCausers`                                                                                                     | Calls `GET /admin/activity-logs/causers`                                                                                   |
+| `types/api.ts`                             | Added `OrderPeriodSummary` interface                                                                                              | Shared shape for new endpoint                                                                                              |
+| `app/admin/audit/page.tsx`                 | Added custom date pickers (when `Custom` preset selected), Action Type dropdown, User (Causer) dropdown, "Clear all filters" link | Enables pinpoint filtering without backend changes — backend already accepted these params                                 |
+| `app/admin/orders/page.tsx`                | Wired `OrderPeriodSummary` under header subtitle, label = current `datePreset`                                                    | Per-scope quality summary                                                                                                  |
+| `app/staff/manager/orders/page.tsx`        | Same                                                                                                                              | Same                                                                                                                       |
+| `app/partner/orders/page.tsx`              | Wired with all-time scope (page has no date filter)                                                                               | Same                                                                                                                       |
+| `app/staff/sales/orders/page.tsx`          | Wired with `Today` label                                                                                                          | Same                                                                                                                       |
+| `app/pos/orders/page.tsx`                  | Wired in `countsOnly` mode for tighter mobile header                                                                              | Same                                                                                                                       |
 
 ### Pages Skipped (Intentional)
+
 - `app/staff/orders/OrdersView.tsx` — kanban-style realtime view, different fetch shape; bolting on a server summary risked breakage.
 - `app/staff/partner/orders/page.tsx` — uses in-memory `useOrderStore`, not a server-fetched paginated list.
 - `app/(customer)/orders/page.tsx` — personal context (own orders); summary doesn't apply.
 
 ### Decisions
+
 - **Decision**: Mirror `AnalyticsService` semantics in the new summary endpoint.
   - **Rationale**: Numbers shown next to a table must match the dashboards or trust collapses. "Valid" = `status != cancelled` AND has payment with `payment_status = completed`; "Issues" = cancelled + failed + refunded counts combined.
 - **Decision**: Reuse the existing `getBranchOrders()` filter pipeline server-side rather than duplicate filter parsing.
@@ -150,11 +207,13 @@ Investigator was looking for a specific order in the audit log and couldn't filt
   - **Rationale**: Keeps the dropdown short and contextually relevant — only shows users who actually acted in the visible time window.
 
 ### Current State
+
 - `npm run build` passes cleanly across all 96 routes.
 - All TS types resolve, no lint errors.
 - `OrderPeriodSummary` reusable across any orders table; supports `countsOnly` and custom `label` props for adaptation per surface.
 
 ### Pending / Follow-up
+
 - Consider extending the summary strip to `staff/orders` (kanban) and `staff/partner/orders` (store-driven) in a follow-up — would need adapters since they don't use `useEmployeeOrders`.
 - Could add CSV export of the summary for compliance trail.
 
