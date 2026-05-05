@@ -81,6 +81,46 @@ Items still needing attention.
 
 ---
 
+## [2026-05-05] Session: IMS Auth Routing Fix — WM Login + Order Bootstrap
+
+### Intent
+
+Warehouse manager login was failing silently — 204 success but no post-login redirect, plus spurious 403 on `/employee/orders`. Root cause: three frontend routing oversights:
+1. `permissionsHomeRoute()` had no `access_inventory_portal` branch → WM bounced back to /staff/login
+2. `OrderStoreProvider` mounted globally, fired on `staff-login` event regardless of portal → 403 for WM (lacks `view_orders` permission by design)
+3. `isStaffRoute()` didn't include `/inventory` → staff token not attached to IMS API calls
+
+### Changes Made
+
+| File | Change | Reason |
+|------|--------|--------|
+| `app/components/providers/StaffAuthProvider.tsx` | Added `access_inventory_portal` branch to `permissionsHomeRoute()` → `/inventory/dashboard` | WM now redirects to warehouse manager portal after login instead of bouncing back to login page |
+| `lib/services/orders/order.service.api.ts` | Narrowed route check in `getAll()` to skip `/staff/login` + `/staff/change-password` + `/inventory` | Prevents spurious order fetch on inventory portal & auth screens; orders only load where needed |
+| `lib/api/client.ts` | Added `/inventory` to `isStaffRoute()` (2 locations: request interceptor + 401 handler) | IMS API calls now receive staff auth token correctly |
+| `app/inventory/purchase-orders/_components/PurchaseOrderDetailPage.tsx` | Fixed JSX corruption (return JSX had mangled `<div cEdit` instead of `<div className>`...) | Parse error fixed; dev server recovered |
+
+### Commits
+
+- `7d29081` — `fix(ims/auth): route warehouse manager to inventory portal + skip orders bootstrap`
+
+### Decisions
+
+- **No backend permission changes**: warehouse_manager correctly lacks `view_orders` (least privilege). The 403 was expected — the bug was the UI triggering it unnecessarily.
+- **Portal clarity**: `/inventory` IS the warehouse manager portal (gated by `access_inventory_portal`). Not a separate admin area; WM post-login goes here, not somewhere else.
+
+### Current State
+
+- Warehouse manager login now routes correctly to `/inventory/dashboard`
+- Order bootstrap doesn't fire on IMS portal or login screens
+- IMS API calls receive staff token attachment
+- All auth fixes tested & committed
+
+### Pending / Follow-up
+
+None — ready for WM login testing.
+
+---
+
 ## [2026-05-05] Session: IMS Chunks 3 + 4 — PO Form + Purchases UI (mock-backed)
 
 ### Intent
