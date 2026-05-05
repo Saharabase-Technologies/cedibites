@@ -81,7 +81,65 @@ Items still needing attention.
 
 ---
 
-## [2026-05-05] Session: IMS Chunk 1 — Purchase Order Data Layer (mock-backed)
+## [2026-05-05] Session: IMS Chunks 3 + 4 — PO Form + Purchases UI (mock-backed)
+
+### Intent
+
+Pick up from Chunk 2 (PO read-only UI shipped) and finish the Purchasing surface end-to-end on the frontend: build the PO create/edit form, then build the full Purchases section (list, detail, record-purchase form with dual-mode against-PO / urgent-buy entry). Keep all writes mock-throwing; UI catches and surfaces via `window.alert` so the screens are demoable today and backend wiring is a drop-in later.
+
+### Changes Made
+
+| File | Change | Reason |
+|------|--------|--------|
+| `app/inventory/purchase-orders/_components/PurchaseOrderForm.tsx` | New shared create/edit form | Multi-line PO builder with supplier + warehouse-only destination + expected delivery + notes + repeating items rows. Live estimated total, admin-approval threshold banner at ₵10,000+. Edit mode hydrates state from the PO and refuses any status other than `draft` (renders an EditLocked panel). |
+| `app/inventory/purchase-orders/new/page.tsx` | New server wrapper | Renders `<PurchaseOrderForm mode="create" />`. |
+| `app/inventory/purchase-orders/[id]/edit/page.tsx` | New server wrapper | Next 16 async params; renders `<PurchaseOrderForm mode="edit" id={…} />`. |
+| `app/inventory/purchase-orders/_components/PurchaseOrdersPage.tsx` | "New PO" CTA → `router.push('/inventory/purchase-orders/new')` | Replaces the placeholder window.alert from Chunk 2. |
+| `app/inventory/purchase-orders/_components/PurchaseOrderDetailPage.tsx` | Added Edit action | Visible only when `status === 'draft'`; routes to `/inventory/purchase-orders/{id}/edit`. |
+| `app/inventory/purchases/page.tsx` | Replaced ComingSoon stub | Now a server wrapper rendering `<PurchasesPage />`. |
+| `app/inventory/purchases/_components/PurchasesPage.tsx` | New list page | Search + supplier filter + urgent-buy toggle. DataTable cols: Reference / Source (PO ref or Urgent badge) / Supplier / Destination / Items / Recorded by / Total paid. Row click → detail. |
+| `app/inventory/purchases/[id]/page.tsx` | New server wrapper | Async params → `<PurchaseDetailPage id={…} />`. |
+| `app/inventory/purchases/_components/PurchaseDetailPage.tsx` | New detail page | Header with urgent badge, urgent-buy reason banner, linked-PO link, four meta cards, items table, notes, recorded-by footer. |
+| `app/inventory/purchases/new/page.tsx` | New server wrapper | Renders `<RecordPurchaseForm />`. |
+| `app/inventory/purchases/_components/RecordPurchaseForm.tsx` | New record-purchase form | Dual-mode segmented toggle: **Against PO** (PO dropdown filtered to sent + partially-received; on selection auto-prefills supplier/destination + one line per PO item with received_qty defaulted to outstanding amount and unit_cost_paid defaulted to estimated unit cost; supplier/destination/item picker locked) or **Urgent buy** (manual fields, urgent_buy_reason required). Common fields: invoice_number, received_at (datetime-local, defaults to now), notes, live total paid. |
+| `app/inventory/purchases/utils.ts` | New formatter re-exports | `formatGHS` / `formatShortDate` / `formatDateTime` shared with PO screens. |
+
+### Commits
+
+- `914df9b` — `feat(ims/po): chunk 3 - PO create + edit form`
+- `e5143df` — `feat(ims/purchases): chunk 4 - purchases list, detail, record form`
+
+### Decisions
+
+- **Form pattern reuse across both chunks**
+  - **Rationale**: Identical line-item builder shape (item picker + qty + unit cost = live line total, add/remove rows, validity-derived can-submit). Both forms share `_components/FormPrimitives` (`FormField`, `Select`, `TextInput`, `Textarea`, `PrimaryButton`) and follow the catalog screen's container conventions.
+- **Edit-mode guard at the form, not at the route**
+  - **Rationale**: Status check needs the fetched PO. Routing-level guards would require a server-side fetch path we haven't built. The form fetches via `usePurchaseOrder`, gates editing to `status === 'draft'`, and shows a clear `EditLocked` panel for everything else.
+- **Record-purchase locks supplier/destination/items when a PO is selected**
+  - **Rationale**: An "against PO" receipt against the wrong supplier or with extra items would be a data-integrity bug. The form prefills from the PO and locks those fields; the clerk only adjusts received qty + unit cost paid. Switching modes resets state.
+- **`received_at` defaults to "now"**
+  - **Rationale**: Removes friction in the high-frequency clerk workflow. Datetime-local input is editable for late entries.
+- **Mock-mode behaviour preserved exactly**
+  - **Rationale**: Writes throw `"not implemented in mock mode yet"`; forms catch and call `window.alert(msg)`. Backend wiring later just removes the throw — zero UI rework.
+
+### Current State
+
+The Purchasing portal is **fully navigable** in mock mode end-to-end:
+
+- `/inventory/purchase-orders` — list, filter, click into any PO, **create new PO** (form), **edit any draft PO** (form), submit/approve/cancel/close (mock-alerts).
+- `/inventory/purchases` — list, filter, click into any purchase, **record new purchase** in either Against-PO or Urgent-buy mode (form, mock-alerts on submit).
+- All routes lazy-loaded under `app/inventory/`, sidebar "Purchasing" group from Chunk 2 is fully wired.
+- Zero new TS errors introduced. Pre-existing TS errors in unrelated areas (admin staff page StaffRole map, layout-client SignOutDialog prop, mock recipe ingredient unit shape) untouched — those are domain-agent picks.
+
+### Pending / Follow-up
+
+- Backend `feature/ims` work for PO + Purchase tables/endpoints/policies (entirely deferred until UI is reviewed and approved).
+- Once backend lands, swap mock services to real HTTP calls and remove the `window.alert` mock-mode catches.
+- Inventory Auditor (frontend) should review the form UX one more time before backend handoff.
+
+---
+
+
 
 ### Intent
 
