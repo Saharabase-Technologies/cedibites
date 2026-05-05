@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useAnalytics, useOrderSourceAnalytics, useTopItemsAnalytics, useBottomItemsAnalytics, useCategoryRevenueAnalytics, useBranchPerformanceAnalytics, useDeliveryPickupAnalytics, usePaymentMethodAnalytics, useDiscountUsageAnalytics, useCancellationReasonsAnalytics } from '@/lib/api/hooks/useAnalytics';
+import { useAnalytics, useOrderSourceAnalytics, useTopItemsAnalytics, useBottomItemsAnalytics, useCategoryRevenueAnalytics, useBranchPerformanceAnalytics, useDeliveryPickupAnalytics, usePaymentMethodAnalytics } from '@/lib/api/hooks/useAnalytics';
 import { useSearchParams } from 'next/navigation';
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import { toast } from '@/lib/utils/toast';
@@ -29,13 +28,13 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Period = 'today' | 'yesterday' | 'week' | 'last_week' | 'month' | 'last_month' | '30d' | '90d' | 'lifetime' | 'custom';
+type Period = 'today' | 'yesterday' | 'week' | 'month' | '30d' | '90d' | 'custom';
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 
 const BRANCH_COLORS = ['#e49925', '#6c833f', '#c8a87a'];
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const HOURS = ['7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22'];
 
@@ -100,7 +99,7 @@ function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total
         const orders = Array(7).fill(0) as number[];
         if (salesByDay?.length) {
             for (const d of salesByDay) {
-                const idx = new Date(d.date).getDay(); // 0=Sun … 6=Sat
+                const idx = (new Date(d.date).getDay() + 6) % 7; // 0=Mon…6=Sun
                 totals[idx] += Number(d.total);
                 orders[idx] += d.orders;
             }
@@ -161,151 +160,6 @@ function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total
                     })}
                 </div>
             )}
-        </Card>
-    );
-}
-
-// ─── Weekly revenue comparison ────────────────────────────────────────────────
-
-function mapSalesByDayToWeekBars(salesByDay?: Array<{ date: string; total: number }>): number[] {
-    const bars = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
-    if (!salesByDay?.length) return bars;
-    for (const d of salesByDay) {
-        const date = new Date(d.date);
-        const idx = date.getDay(); // 0=Sun … 6=Sat
-        bars[idx] = (bars[idx] ?? 0) + Number(d.total);
-    }
-    return bars;
-}
-
-function WeeklyRevenueComparison({
-    weekRevenue,
-    lastWeekRevenue,
-    todayIdx,
-}: {
-    weekRevenue: number[];
-    lastWeekRevenue: number[];
-    todayIdx: number;
-}) {
-    const [hovered, setHovered] = useState<number | null>(null);
-    const max = Math.max(...weekRevenue, ...lastWeekRevenue, 1);
-
-    return (
-        <Card>
-            <SectionTitle title="Revenue vs Last Week" sub="Daily comparison — hover for details" />
-            <div className="flex items-end gap-2 h-48">
-                {DAYS.map((day, i) => {
-                    const thisVal = weekRevenue[i] ?? 0;
-                    const lastVal = lastWeekRevenue[i] ?? 0;
-                    const thisH  = Math.round((thisVal / max) * 168);
-                    const lastH  = Math.round((lastVal / max) * 168);
-                    const isToday = i === todayIdx;
-                    const diff   = lastVal > 0 ? Math.round(((thisVal - lastVal) / lastVal) * 100) : 0;
-                    const formatLabel = (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v).toString();
-                    return (
-                        <div
-                            key={day}
-                            className="flex-1 flex flex-col items-center gap-1 relative"
-                            onMouseEnter={() => setHovered(i)}
-                            onMouseLeave={() => setHovered(null)}
-                        >
-                            {hovered === i && (
-                                <div className="absolute bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 bg-neutral-card border border-brown-light/20 rounded-xl px-3 py-2 z-10 whitespace-nowrap text-[11px] text-text-dark shadow-lg">
-                                    <p className="font-bold mb-1">{day}</p>
-                                    <p>This: <span className="text-primary font-semibold">₵{(weekRevenue[i] ?? 0).toLocaleString()}</span></p>
-                                    <p>Last: <span className="text-neutral-gray">₵{(lastWeekRevenue[i] ?? 0).toLocaleString()}</span></p>
-                                    <p className={`font-semibold ${diff >= 0 ? 'text-secondary' : 'text-error'}`}>
-                                        {diff >= 0 ? '↑' : '↓'} {Math.abs(diff)}%
-                                    </p>
-                                </div>
-                            )}
-
-                            <div className="flex items-end gap-1 w-full justify-center" style={{ height: 168 }}>
-                                {/* Last week bar */}
-                                <div
-                                    className="flex-1 max-w-5.5 rounded-md bg-brown-light/30 flex items-end justify-center pb-1"
-                                    style={{ height: Math.max(lastH, 18) }}
-                                    title={`Last ${day}: ₵${lastVal.toLocaleString()}`}
-                                >
-                                    {lastVal > 0 && (
-                                        <span className="text-[10px] font-bold text-text-dark/70 leading-none select-none [writing-mode:vertical-rl] rotate-180">
-                                            {formatLabel(lastVal)}
-                                        </span>
-                                    )}
-                                </div>
-                                {/* This week bar */}
-                                <div
-                                    className="flex-1 max-w-5.5 rounded-md flex items-end justify-center pb-1"
-                                    style={{ height: Math.max(thisH, 18), background: isToday ? '#e49925' : '#c8a87a' }}
-                                    title={`This ${day}: ₵${thisVal.toLocaleString()}`}
-                                >
-                                    {thisVal > 0 && (
-                                        <span className="text-[10px] font-bold text-white leading-none select-none [writing-mode:vertical-rl] rotate-180">
-                                            {formatLabel(thisVal)}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            <span className={`text-[10px] font-body ${isToday ? 'text-primary font-bold' : 'text-neutral-gray'}`}>{day}</span>
-                        </div>
-                    );
-                })}
-            </div>
-            <div className="flex gap-4 mt-3">
-                <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-sm bg-primary" />
-                    <span className="text-[11px] text-neutral-gray font-body">This week</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-sm bg-brown-light/30" />
-                    <span className="text-[11px] text-neutral-gray font-body">Last week</span>
-                </div>
-            </div>
-        </Card>
-    );
-}
-
-// ─── Avg prep time ────────────────────────────────────────────────────────────
-
-function PrepTimeTrend({ avgPrepTime }: { avgPrepTime?: number }) {
-    const TARGET = 12;
-    const MAX    = 20;
-    const currentPrepTime = avgPrepTime ?? 0;
-    const hasPrepData = avgPrepTime !== undefined && avgPrepTime > 0;
-    
-    return (
-        <Card>
-            <SectionTitle title="Avg. Prep Time Today" sub={`Target: ${TARGET} mins`} />
-            <div className="flex items-end gap-4" style={{ height: 80 }}>
-                <div className="flex-1 flex flex-col items-center gap-1">
-                    <span
-                        className="text-[10px] font-bold font-body"
-                        style={{ color: currentPrepTime > TARGET ? '#d32f2f' : '#6c833f' }}
-                    >
-                        {Math.round(currentPrepTime)}m
-                    </span>
-                    <div
-                        className="w-full rounded-sm"
-                        style={{
-                            height: Math.round((Math.min(currentPrepTime, MAX) / MAX) * 72),
-                            background: currentPrepTime > TARGET ? '#d32f2f' : '#6c833f',
-                            transition: 'height 0.3s ease',
-                        }}
-                    />
-                    <span className="text-[9px] font-body text-primary font-bold">Current</span>
-                </div>
-            </div>
-            <div className="mt-3 px-3 py-2 bg-neutral-gray/10 rounded-xl flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
-                <p className="text-[11px] text-neutral-gray font-body">
-                    {hasPrepData ? (
-                        <>Current avg: <span className="text-text-dark font-semibold">{Math.round(avgPrepTime)} mins</span></>
-                    ) : (
-                        <>No prep-time data yet for today.</>
-                    )}
-                </p>
-            </div>
         </Card>
     );
 }
@@ -653,37 +507,34 @@ function BranchPerformanceTable({ branchPerformance }: { branchPerformance?: Arr
 
 function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
     topCustomers?: Array<{ name?: string; orders_count?: number; total_spend?: number; user?: { name?: string }; }>;
-    deliveryPickup?: { delivery_pct: number; pickup_pct: number; types?: Array<{ type: string; label: string; pct: number; revenue: number }> };
-    paymentMethods?: Array<{ label: string; pct: number; amount?: number; count?: number }>;
+    deliveryPickup?: { delivery_pct: number; pickup_pct: number };
+    paymentMethods?: Array<{ label: string; pct: number }>;
 }) {
-    const ORDER_TYPE_COLORS = ['#e49925', '#6c833f', '#c8a87a', '#1976d2', '#8b7f70'];
-    const types = deliveryPickup?.types ?? [
-        { type: 'delivery', label: 'Delivery', pct: deliveryPickup?.delivery_pct ?? 0, revenue: 0 },
-        { type: 'pickup', label: 'Pickup', pct: deliveryPickup?.pickup_pct ?? 0, revenue: 0 },
-    ];
+    const deliveryPct = deliveryPickup?.delivery_pct ?? 0;
+    const pickupPct = deliveryPickup?.pickup_pct ?? 0;
     const circumference = 2 * Math.PI * 28;
-    let dashOffset = 0;
+    const delDash = (deliveryPct / 100) * circumference;
 
     const paymentData = paymentMethods || [];
     const paymentColors = ['#e49925', '#c8a87a', '#8b7f70'];
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Top 5 customers */}
+            {/* Top 10 customers */}
             <Card>
-                <SectionTitle title="Top 5 Customers by Fulfilled Orders" />
+                <SectionTitle title="Top 10 Customers by Orders" />
                 {!topCustomers || topCustomers.length === 0 ? (
                     <div className="flex items-center justify-center h-32 text-neutral-gray text-sm">
                         No customer data available
                     </div>
                 ) : (
                     <div className="flex flex-col gap-0">
-                        {topCustomers.slice(0, 5).map((c, i) => {
+                        {topCustomers.slice(0, 10).map((c, i) => {
                             const name = (c as { user?: { name?: string }; name?: string }).user?.name ?? (c as { name?: string }).name ?? '—';
                             const orders = (c as { orders_count?: number }).orders_count ?? 0;
                             const spend = (c as { total_spend?: number }).total_spend ?? 0;
                             return (
-                                <div key={name + i} className={`flex items-center gap-3 py-2.5 ${i < 4 ? 'border-b border-[#f0e8d8]' : ''}`}>
+                                <div key={name + i} className={`flex items-center gap-3 py-2.5 ${i < 9 ? 'border-b border-[#f0e8d8]' : ''}`}>
                                     <span className="text-neutral-gray/50 text-[10px] font-bold font-body w-4 shrink-0">{i + 1}</span>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-text-dark text-xs font-semibold font-body truncate">{name}</p>
@@ -700,44 +551,40 @@ function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
             <div className="flex flex-col gap-3">
                 {/* Delivery vs pickup */}
                 <Card>
-                    <SectionTitle title="Order Type Split" />
-                    {types.every(t => t.pct === 0) ? (
+                    <SectionTitle title="Delivery vs Pickup Split" />
+                    {deliveryPct === 0 && pickupPct === 0 ? (
                         <div className="flex items-center justify-center h-20 text-neutral-gray text-sm">
-                            No order type data available
+                            No delivery/pickup data available
                         </div>
                     ) : (
                         <div className="flex items-center gap-5">
                             <div className="relative w-20 h-20 shrink-0">
                                 <svg width="80" height="80" viewBox="0 0 80 80">
                                     <circle cx="40" cy="40" r="28" fill="none" stroke="#f0e8d8" strokeWidth="12" />
-                                    {types.map((t, i) => {
-                                        const dash = (t.pct / 100) * circumference;
-                                        const seg = (
-                                            <circle key={t.type} cx="40" cy="40" r="28" fill="none" stroke={ORDER_TYPE_COLORS[i] || '#ccc'} strokeWidth="12"
-                                                strokeDasharray={`${dash} ${circumference}`}
-                                                strokeDashoffset={-dashOffset}
-                                                strokeLinecap="round" transform="rotate(-90 40 40)" />
-                                        );
-                                        dashOffset += dash;
-                                        return seg;
-                                    })}
+                                    <circle cx="40" cy="40" r="28" fill="none" stroke="#e49925" strokeWidth="12"
+                                        strokeDasharray={`${delDash} ${circumference}`}
+                                        strokeLinecap="round" transform="rotate(-90 40 40)" />
+                                    <circle cx="40" cy="40" r="28" fill="none" stroke="#6c833f" strokeWidth="12"
+                                        strokeDasharray={`${(pickupPct / 100) * circumference} ${circumference}`}
+                                        strokeDashoffset={-delDash}
+                                        strokeLinecap="round" transform="rotate(-90 40 40)" />
                                 </svg>
                                 <div className="absolute inset-0 flex items-center justify-center">
-                                    <span className="text-xs font-bold font-body text-primary">{types[0]?.pct ?? 0}%</span>
+                                    <span className="text-xs font-bold font-body text-primary">{deliveryPct}%</span>
                                 </div>
                             </div>
                             <div className="flex flex-col gap-2 flex-1">
-                                {types.map((row, i) => (
-                                    <div key={row.type}>
+                                {[{ label: 'Delivery', pct: deliveryPct, color: '#e49925' }, { label: 'Pickup', pct: pickupPct, color: '#6c833f' }].map(row => (
+                                    <div key={row.label}>
                                         <div className="flex justify-between mb-1">
                                             <div className="flex items-center gap-1.5">
-                                                <div className="w-2 h-2 rounded-full" style={{ background: ORDER_TYPE_COLORS[i] || '#ccc' }} />
+                                                <div className="w-2 h-2 rounded-full" style={{ background: row.color }} />
                                                 <span className="text-xs font-body text-text-dark">{row.label}</span>
                                             </div>
                                             <span className="text-xs font-bold font-body text-text-dark">{row.pct}%</span>
                                         </div>
                                         <div className="h-1 bg-neutral-gray/15 rounded-full overflow-hidden">
-                                            <div className="h-full rounded-full" style={{ width: `${row.pct}%`, background: ORDER_TYPE_COLORS[i] || '#ccc', transition: 'width 0.4s ease' }} />
+                                            <div className="h-full rounded-full" style={{ width: `${row.pct}%`, background: row.color, transition: 'width 0.4s ease' }} />
                                         </div>
                                     </div>
                                 ))}
@@ -757,17 +604,12 @@ function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
                         <div className="flex flex-col gap-2">
                             {paymentData.map((row, i) => (
                                 <div key={row.label}>
-                                    <div className="flex justify-between mb-1 gap-2">
-                                        <div className="flex items-center gap-1.5 min-w-0">
-                                            <div className="w-2 h-2 rounded-full shrink-0" style={{ background: paymentColors[i] || '#ccc' }} />
-                                            <span className="text-xs font-body text-text-dark truncate">{row.label}</span>
+                                    <div className="flex justify-between mb-1">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-2 h-2 rounded-full" style={{ background: paymentColors[i] || '#ccc' }} />
+                                            <span className="text-xs font-body text-text-dark">{row.label}</span>
                                         </div>
-                                        <div className="flex items-baseline gap-2 shrink-0">
-                                            {typeof row.amount === 'number' && row.amount > 0 && (
-                                                <span className="text-xs font-semibold font-body text-text-dark">{formatGHS(row.amount)}</span>
-                                            )}
-                                            <span className="text-xs font-bold font-body text-neutral-gray tabular-nums">{row.pct}%</span>
-                                        </div>
+                                        <span className="text-xs font-bold font-body text-text-dark">{row.pct}%</span>
                                     </div>
                                     <div className="h-1.5 bg-neutral-gray/15 rounded-full overflow-hidden">
                                         <div className="h-full rounded-full" style={{ width: `${row.pct}%`, background: paymentColors[i] || '#ccc', transition: 'width 0.4s ease' }} />
@@ -848,7 +690,7 @@ function OrdersByDayOfWeek({ salesByDay }: { salesByDay?: Array<{ date: string; 
         const counts = Array(7).fill(0) as number[];
         if (salesByDay?.length) {
             for (const { date, orders } of salesByDay) {
-                const idx = new Date(date).getDay(); // 0=Sun … 6=Sat
+                const idx = (new Date(date).getDay() + 6) % 7; // 0=Mon…6=Sun
                 counts[idx] += orders;
             }
         }
@@ -877,7 +719,7 @@ function OrdersByDayOfWeek({ salesByDay }: { salesByDay?: Array<{ date: string; 
                                 )}
                                 <div className="w-full rounded-sm bg-primary/70 hover:bg-primary transition-colors flex items-end justify-center pb-0.5" style={{ height: h, minHeight: 3 }}>
                                     {val > 0 && h >= 18 && (
-                                    <span className="text-[9px] font-bold text-white leading-none select-none">{val}</span>
+                                        <span className="text-[7px] font-bold text-white leading-none select-none">{val}</span>
                                     )}
                                 </div>
                                 <span className="text-[9px] text-neutral-gray font-body">{day}</span>
@@ -892,31 +734,15 @@ function OrdersByDayOfWeek({ salesByDay }: { salesByDay?: Array<{ date: string; 
 
 // ─── Avg Items Per Order (UI-only) ────────────────────────────────────────────
 
-function AvgItemsPerOrder({ avgItems, singleItemPct, multiItemOrders, maxItemsInOrder }: { avgItems?: number; singleItemPct?: number; multiItemOrders?: number; maxItemsInOrder?: number }) {
+function AvgItemsPerOrder({ avgItems }: { avgItems?: number }) {
     return (
         <Card>
-            <div className="mb-3">
+            <div className="mb-4">
                 <p className="text-text-dark text-sm font-bold font-body">Avg. Items per Order</p>
                 <p className="text-[10px] font-body mt-0.5 text-neutral-gray">Items per completed order</p>
             </div>
             {avgItems !== undefined ? (
-                <div className="space-y-3">
-                    <p className="text-3xl font-bold text-primary font-body">{avgItems.toFixed(1)}</p>
-                    <div className="space-y-2 pt-2 border-t border-[#f0e8d8]">
-                        <div className="flex justify-between text-xs font-body">
-                            <span className="text-neutral-gray">Single-item orders</span>
-                            <span className="text-text-dark font-medium">{singleItemPct ?? 0}%</span>
-                        </div>
-                        <div className="flex justify-between text-xs font-body">
-                            <span className="text-neutral-gray">Multi-item orders</span>
-                            <span className="text-text-dark font-medium">{multiItemOrders ?? 0}</span>
-                        </div>
-                        <div className="flex justify-between text-xs font-body">
-                            <span className="text-neutral-gray">Max items in one order</span>
-                            <span className="text-text-dark font-medium">{maxItemsInOrder ?? 0}</span>
-                        </div>
-                    </div>
-                </div>
+                <p className="text-3xl font-bold text-primary font-body">{avgItems.toFixed(1)}</p>
             ) : (
                 <div className="flex items-center justify-center h-16 text-neutral-gray text-sm font-body opacity-50">No data</div>
             )}
@@ -924,77 +750,30 @@ function AvgItemsPerOrder({ avgItems, singleItemPct, multiItemOrders, maxItemsIn
     );
 }
 
-// ─── Discount Usage ───────────────────────────────────────────────────────────
+// ─── Discount Usage (UI-only) ─────────────────────────────────────────────────
 
-function DiscountUsage({ data }: { data?: import('@/lib/api/services/analytics.service').DiscountUsageAnalytics }) {
+function DiscountUsage() {
     return (
         <Card>
             <div className="mb-4">
                 <p className="text-text-dark text-sm font-bold font-body">Discount Usage</p>
-                <p className="text-[10px] font-body mt-0.5 text-neutral-gray">Orders with discounts applied</p>
+                <p className="text-[10px] font-body mt-0.5 text-neutral-gray">Pending backend endpoint</p>
             </div>
-            {data ? (
-                <div className="space-y-3">
-                    <div className="flex items-baseline justify-between">
-                        <p className="text-3xl font-bold text-primary font-body">{data.discount_rate}%</p>
-                        <p className="text-xs text-neutral-gray font-body">{data.discounted_orders} / {data.total_orders} orders</p>
-                    </div>
-                    <div className="flex justify-between text-xs font-body">
-                        <span className="text-neutral-gray">Total given</span>
-                        <span className="text-text-dark font-medium">GH₵{data.total_discount_given.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-xs font-body">
-                        <span className="text-neutral-gray">Avg per order</span>
-                        <span className="text-text-dark font-medium">GH₵{data.avg_discount_per_order.toLocaleString()}</span>
-                    </div>
-                    {data.promos.length > 0 && (
-                        <div className="pt-2 border-t border-[#f0e8d8]">
-                            <p className="text-[10px] text-neutral-gray font-body mb-1.5">Top promos</p>
-                            {data.promos.slice(0, 3).map(p => (
-                                <div key={p.promo_id} className="flex justify-between text-xs font-body py-0.5">
-                                    <span className="text-text-dark truncate mr-2">{p.promo_name}</span>
-                                    <span className="text-neutral-gray whitespace-nowrap">{p.usage_count}× · GH₵{p.total_discount.toLocaleString()}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <div className="flex items-center justify-center h-16 text-neutral-gray text-sm font-body opacity-50">No data</div>
-            )}
+            <div className="flex items-center justify-center h-16 text-neutral-gray text-sm font-body opacity-50">Coming soon</div>
         </Card>
     );
 }
 
-// ─── Cancellation Reasons ────────────────────────────────────────────────────
+// ─── Cancellation Reasons (UI-only) ──────────────────────────────────────────
 
-function CancellationReasons({ data }: { data?: import('@/lib/api/services/analytics.service').CancellationReasonsAnalytics }) {
+function CancellationReasons() {
     return (
         <Card>
             <div className="mb-4">
                 <p className="text-text-dark text-sm font-bold font-body">Cancellation Reasons</p>
-                <p className="text-[10px] font-body mt-0.5 text-neutral-gray">Why orders were cancelled</p>
+                <p className="text-[10px] font-body mt-0.5 text-neutral-gray">Pending backend endpoint</p>
             </div>
-            {data && data.total_cancelled > 0 ? (
-                <div className="space-y-2">
-                    <p className="text-xs text-neutral-gray font-body">{data.total_cancelled} cancelled order{data.total_cancelled !== 1 ? 's' : ''}</p>
-                    {data.reasons.map(r => (
-                        <div key={r.reason} className="space-y-1">
-                            <div className="flex justify-between text-xs font-body">
-                                <span className="text-text-dark">{r.reason}</span>
-                                <span className="text-neutral-gray">{r.count} ({r.pct}%)</span>
-                            </div>
-                            <div className="w-full bg-[#f0e8d8] rounded-full h-1.5">
-                                <div className="bg-primary rounded-full h-1.5" style={{ width: `${r.pct}%` }} />
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <div className="flex items-center justify-center h-16 text-neutral-gray text-sm font-body opacity-50">
-                    {data ? 'No cancellations' : 'No data'}
-                </div>
-            )}
+            <div className="flex items-center justify-center h-16 text-neutral-gray text-sm font-body opacity-50">Coming soon</div>
         </Card>
     );
 }
@@ -1127,12 +906,9 @@ const PERIODS: { key: Period; label: string }[] = [
     { key: 'today', label: 'Today' },
     { key: 'yesterday', label: 'Yesterday' },
     { key: 'week', label: 'This Week' },
-    { key: 'last_week', label: 'Last Week' },
     { key: 'month', label: 'This Month' },
-    { key: 'last_month', label: 'Last Month' },
     { key: '30d', label: 'Last 30 Days' },
     { key: '90d', label: 'Last 90 Days' },
-    { key: 'lifetime', label: 'Lifetime' },
     { key: 'custom', label: 'Custom' },
 ];
 
@@ -1171,31 +947,6 @@ export default function AdminAnalyticsPage() {
     const { data: branchPerformance } = useBranchPerformanceAnalytics(period, branchId, customRange);
     const { data: deliveryPickup } = useDeliveryPickupAnalytics(period, branchId, customRange);
     const { data: paymentMethods } = usePaymentMethodAnalytics(period, branchId, customRange);
-    const { data: discountUsage } = useDiscountUsageAnalytics(period, branchId, customRange);
-    const { data: cancellationReasons } = useCancellationReasonsAnalytics(period, branchId, customRange);
-
-    // Weekly revenue comparison data
-    const { sales: weekSales } = useAnalytics('week', branchId);
-    const lastWeekRange = useMemo(() => {
-        // Prior calendar week: last Sun … last Sat.
-        const now = new Date();
-        const lastSat = new Date(now);
-        lastSat.setDate(lastSat.getDate() - lastSat.getDay() - 1);
-        const lastSun = new Date(lastSat);
-        lastSun.setDate(lastSun.getDate() - 6);
-        return { date_from: lastSun.toISOString().slice(0, 10), date_to: lastSat.toISOString().slice(0, 10) };
-    }, []);
-    const { data: lastWeekSales } = useQuery({
-        queryKey: ['analytics', 'sales', 'last-week', branchId],
-        queryFn: () => analyticsService.getSalesAnalytics({ ...lastWeekRange, branch_id: branchId }),
-        staleTime: 2 * 60 * 1000,
-    });
-    const weekRevenue = useMemo(() => mapSalesByDayToWeekBars(weekSales?.sales_by_day), [weekSales?.sales_by_day]);
-    const lastWeekRevenue = useMemo(() => mapSalesByDayToWeekBars(lastWeekSales?.sales_by_day), [lastWeekSales?.sales_by_day]);
-    const TODAY_IDX = new Date().getDay(); // 0=Sun … 6=Sat
-
-    // Today's analytics for prep time
-    const { orders: todayOrderAnalytics } = useAnalytics('today', branchId);
 
     const fulfilmentPct = useMemo(() => {
         if (!orders?.orders_by_status || !orders?.total_orders) return 0;
@@ -1406,12 +1157,6 @@ export default function AdminAnalyticsPage() {
                 <PeakHoursHeatmap ordersByHour={orders?.orders_by_hour} />
             </div>
 
-            {/* Revenue comparison + Prep time */}
-            <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-3 mb-3">
-                <WeeklyRevenueComparison weekRevenue={weekRevenue} lastWeekRevenue={lastWeekRevenue} todayIdx={TODAY_IDX} />
-                <PrepTimeTrend avgPrepTime={todayOrderAnalytics?.average_prep_time ?? undefined} />
-            </div>
-
             {/* Source + category */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                 <OrderSourceChart orderSources={orderSources} />
@@ -1454,9 +1199,9 @@ export default function AdminAnalyticsPage() {
 
             {/* Avg items / discounts / cancellations */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-                <AvgItemsPerOrder avgItems={sales?.avg_items_per_order} singleItemPct={sales?.single_item_orders_pct} multiItemOrders={sales?.multi_item_orders} maxItemsInOrder={sales?.max_items_in_order} />
-                <DiscountUsage data={discountUsage} />
-                <CancellationReasons data={cancellationReasons} />
+                <AvgItemsPerOrder avgItems={sales?.avg_items_per_order} />
+                <DiscountUsage />
+                <CancellationReasons />
             </div>
 
             {/* Report generation modal */}
