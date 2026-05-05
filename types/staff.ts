@@ -6,7 +6,9 @@ export type StaffRole =
     | 'call_center'
     | 'sales_staff'
     | 'kitchen'
-    | 'rider';
+    | 'rider'
+    | 'warehouse_manager'
+    | 'purchasing_clerk';
 
 /** Maps 1:1 with backend EmployeeStatus enum values. */
 export type StaffStatus = 'active' | 'on_leave' | 'suspended' | 'terminated';
@@ -43,7 +45,8 @@ export interface StaffPermissions {
     canAccessPartnerPortal: boolean;
     canAccessPOS:     boolean;
     canAccessKitchen: boolean;
-    canAccessOrderManager: boolean;
+    canAccessOrderManager:   boolean;
+    canAccessInventoryPortal: boolean;
     // Feature flags
     canManageShifts:  boolean;
     canManageSettings: boolean;
@@ -90,6 +93,7 @@ const ALL_FALSE: StaffPermissions = {
     canViewReports: false, canViewActivityLog: false,
     canAccessAdminPanel: false, canAccessManagerPortal: false, canAccessSalesPortal: false,
     canAccessPartnerPortal: false, canAccessPOS: false, canAccessKitchen: false, canAccessOrderManager: false,
+    canAccessInventoryPortal: false,
     canManageShifts: false, canManageSettings: false, canViewMyShifts: false, canViewMySales: false,
 };
 
@@ -156,6 +160,21 @@ export function defaultPermissions(role: StaffRole): StaffPermissions {
                 canViewCustomers: true,
                 canAccessOrderManager: true,
             };
+        case 'warehouse_manager':
+            return {
+                ...ALL_FALSE,
+                canViewOrders: true,
+                canViewMenu: true,
+                canViewReports: true,
+                canAccessInventoryPortal: true,
+            };
+        case 'purchasing_clerk':
+            return {
+                ...ALL_FALSE,
+                canViewOrders: true,
+                canViewMenu: true,
+                canAccessInventoryPortal: true,
+            };
     }
 }
 
@@ -167,8 +186,10 @@ export function roleDisplayName(role: StaffRole): string {
         manager:        'Branch Manager',
         call_center:    'Call Center',
         sales_staff:    'Sales Staff',
-        kitchen:        'Kitchen Staff',
-        rider:          'Rider',
+        kitchen:           'Kitchen Staff',
+        rider:             'Rider',
+        warehouse_manager: 'Warehouse Manager',
+        purchasing_clerk:  'Purchasing Clerk',
     };
     return map[role];
 }

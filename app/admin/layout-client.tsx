@@ -30,6 +30,7 @@ import {
     WarningCircleIcon,
     UsersIcon,
     KeyIcon,
+    WarehouseIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
@@ -94,9 +95,10 @@ function isNavActive(pathname: string, href: string) {
 }
 
 const ADMIN_DISPLAYS = [
-    { href: '/pos/terminal',  label: 'POS Terminal',    icon: CashRegisterIcon,  external: true },
-    { href: '/kitchen/display', label: 'Kitchen Display', icon: MonitorIcon, external: true },
-    { href: '/order-manager', label: 'Order Manager',   icon: ClipboardTextIcon, external: true },
+    { href: '/pos/terminal',       label: 'POS Terminal',    icon: CashRegisterIcon,  external: true },
+    { href: '/kitchen/display',    label: 'Kitchen Display', icon: MonitorIcon,        external: true },
+    { href: '/order-manager',      label: 'Order Manager',   icon: ClipboardTextIcon, external: true },
+    { href: '/inventory/dashboard', label: 'Inventory',       icon: WarehouseIcon,      external: false },
 ];
 
 const PLATFORM_NAV = [
