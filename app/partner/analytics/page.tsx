@@ -125,16 +125,16 @@ function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total
                                     </div>
                                 )}
                                 <div
-                                    className={`w-full rounded-sm transition-all duration-200 flex items-end justify-center pb-0.5 ${isHovered ? 'bg-primary' : 'bg-primary/70'}`}
+                                    className={`w-full rounded-md transition-all duration-200 flex items-end justify-center pb-1 ${isHovered ? 'bg-primary' : 'bg-primary/75'}`}
                                     style={{ height: Math.max(h, 4), minHeight: 4 }}
                                 >
-                                    {val > 0 && h >= 20 && (
-                                        <span className="text-[8px] font-bold text-white leading-none select-none">
-                                            {val >= 1000 ? `${(val / 1000).toFixed(1)}k` : Math.round(val)}
+                                    {val > 0 && h >= 18 && (
+                                        <span className="text-[11px] font-bold text-white leading-none select-none">
+                                            {val >= 1000 ? `${(val / 1000).toFixed(1)}k` : Math.round(val).toLocaleString('en-GH')}
                                         </span>
                                     )}
                                 </div>
-                                <span className="text-[9px] text-neutral-gray font-body">{day}</span>
+                                <span className="text-[10px] text-neutral-gray font-semibold font-body">{day}</span>
                             </div>
                         );
                     })}
@@ -245,13 +245,14 @@ function PeakHoursHeatmap({ ordersByHour }: { ordersByHour?: Array<{ hour: numbe
     const max = Math.max(...data, 1);
 
     function cellBg(val: number) {
-        if (max === 0) return '#f5ede0';
+        if (max === 0 || val === 0) return '#f6efe2';
+        // Wider, more distinct ramp so close-together values still read differently.
         const i = val / max;
-        if (i < 0.15) return '#f5ede0';
-        if (i < 0.30) return '#f0dbb8';
-        if (i < 0.50) return '#e8b86a';
-        if (i < 0.70) return '#e4a030';
-        return '#e49925';
+        if (i < 0.20) return '#fbe1b0';
+        if (i < 0.40) return '#f4c074';
+        if (i < 0.60) return '#ec9f3c';
+        if (i < 0.80) return '#dd8214';
+        return '#b96807';
     }
 
     const hasData = ordersByHour && ordersByHour.length > 0;
@@ -267,7 +268,7 @@ function PeakHoursHeatmap({ ordersByHour }: { ordersByHour?: Array<{ hour: numbe
                         <div key={h} className="flex-1 flex flex-col items-center gap-1">
                             <div className="w-full rounded-sm flex items-center justify-center"
                                 style={{ height: 44, background: cellBg(data[i]), transition: 'background 0.3s ease' }}>
-                                <span className="text-[8px] font-bold font-body" style={{ color: data[i] / max > 0.5 ? '#5c3d00' : '#9a8878' }}>{data[i]}</span>
+                                <span className="text-[9px] font-bold font-body" style={{ color: data[i] === 0 ? '#bcae9a' : (data[i] / max > 0.6 ? '#ffffff' : '#5c3d00') }}>{data[i]}</span>
                             </div>
                             <span className="text-[8px] text-neutral-gray font-body" style={{ transform: 'rotate(-45deg)', display: 'block', marginTop: 4 }}>{h}</span>
                         </div>
@@ -440,17 +441,17 @@ function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* Top 10 customers */}
             <Card>
-                <SectionTitle title="Top 10 Customers by Fulfilled Orders" />
+                <SectionTitle title="Top 5 Customers by Fulfilled Orders" />
                 {!topCustomers || topCustomers.length === 0 ? (
                     <div className="flex items-center justify-center h-32 text-neutral-gray text-sm">No customer data available</div>
                 ) : (
                     <div className="flex flex-col gap-0">
-                        {topCustomers.slice(0, 10).map((c, i) => {
+                        {topCustomers.slice(0, 5).map((c, i) => {
                             const name = c.user?.name ?? c.name ?? '—';
                             const orders = c.orders_count ?? 0;
                             const spend = c.total_spend ?? 0;
                             return (
-                                <div key={name + i} className={`flex items-center gap-3 py-2.5 ${i < 9 ? 'border-b border-[#f0e8d8]' : ''}`}>
+                                <div key={name + i} className={`flex items-center gap-3 py-2.5 ${i < 4 ? 'border-b border-[#f0e8d8]' : ''}`}>
                                     <span className="text-neutral-gray/50 text-[10px] font-bold font-body w-4 shrink-0">{i + 1}</span>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-text-dark text-xs font-semibold font-body truncate">{name}</p>
@@ -553,8 +554,10 @@ export default function PartnerAnalyticsPage() {
     });
     const range = period === 'custom' ? customRange : undefined;
 
+    const trendBucket = period === '90d' ? 'month' : undefined;
+
     const { sales, orders, customers, isLoading, error: analyticsError } = useAnalytics(period, undefined, range, branchIds);
-    const { data: trend } = useRevenueTrend(period, undefined, undefined, range, branchIds);
+    const { data: trend } = useRevenueTrend(period, undefined, trendBucket, range, branchIds);
     const { data: orderSources } = useOrderSourceAnalytics(period, undefined, range, branchIds);
     const { data: topItems } = useTopItemsAnalytics(period, undefined, 5, range, branchIds);
     const { data: bottomItems } = useBottomItemsAnalytics(period, undefined, 3, range, branchIds);
@@ -642,7 +645,7 @@ export default function PartnerAnalyticsPage() {
 
             {/* Growth trajectory */}
             <div className="mb-3">
-                <GrowthTrendCard trend={trend} />
+                <GrowthTrendCard trend={trend} period={period} />
             </div>
 
             {/* Revenue by day-of-week + heatmap */}

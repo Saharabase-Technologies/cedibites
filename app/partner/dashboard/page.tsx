@@ -122,8 +122,11 @@ export default function PartnerDashboardPage() {
     });
     const range = period === 'custom' ? customRange : undefined;
 
+    // Force monthly buckets for the 90-day view so the trend reads as months, not week numbers.
+    const trendBucket = period === '90d' ? 'month' : undefined;
+
     const { data: comparison, isLoading: cmpLoading, error: cmpError } = useSalesComparison(period, undefined, range, branchIds);
-    const { data: trend, isLoading: trendLoading } = useRevenueTrend(period, undefined, undefined, range, branchIds);
+    const { data: trend, isLoading: trendLoading } = useRevenueTrend(period, undefined, trendBucket, range, branchIds);
     const { orders: orderAnalytics } = useAnalytics(period, undefined, range, branchIds);
     const showPortfolio = isAll && hasMultiple;
     const { data: branchPerf } = useBranchPerformanceAnalytics(period, undefined, range, showPortfolio ? branchIds : undefined);
@@ -176,8 +179,8 @@ export default function PartnerDashboardPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
                 <div>
-                    <h1 className="text-text-dark text-2xl font-bold font-body">
-                        {greeting()}, {staffUser?.name?.split(' ')[0] ?? 'Partner'}
+                    <h1 className="text-text-dark text-[26px] md:text-2xl font-extrabold font-body leading-tight">
+                        {greeting()}, <span className="text-primary">{staffUser?.name?.split(' ')[0] ?? 'Partner'}</span>
                     </h1>
                     <p className="text-neutral-gray text-sm font-body mt-1 flex items-center gap-2">
                         {dateStr}
@@ -208,7 +211,7 @@ export default function PartnerDashboardPage() {
 
             {/* Growth trajectory */}
             <div className="mb-6">
-                <GrowthTrendCard trend={trend} />
+                <GrowthTrendCard trend={trend} period={period} />
             </div>
 
             {/* Portfolio (multi-branch only) */}

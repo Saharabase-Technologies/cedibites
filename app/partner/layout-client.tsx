@@ -210,16 +210,18 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
             <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
 
                 {/* Mobile top bar */}
-                <header className="md:hidden flex items-center justify-between px-4 py-3 bg-neutral-card border-b border-[#f0e8d8] sticky top-0 z-30">
-                    <div className="flex items-center gap-2">
-                        <Image src="/cblogo.webp" alt="CediBites" width={24} height={24} />
-                        <span className="font-brand text-primary text-base">CediBites</span>
-                        <span className="text-neutral-gray text-xs font-body ml-1">Partner</span>
+                <header className="md:hidden flex items-center justify-between px-4 py-3.5 bg-neutral-card border-b border-[#f0e8d8] sticky top-0 z-30">
+                    <div className="flex items-center gap-2.5">
+                        <Image src="/cblogo.webp" alt="CediBites" width={36} height={36} priority className="shrink-0" />
+                        <div className="leading-none">
+                            <span className="font-brand text-primary text-2xl">CediBites</span>
+                            <span className="block text-neutral-gray text-[10px] font-body font-bold uppercase tracking-widest mt-0.5">Partner Portal</span>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-neutral-gray text-xs font-body hidden sm:block">{scopeLabel}</span>
-                        <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center">
-                            <span className="text-primary text-[10px] font-bold font-body">{initials}</span>
+                        <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center">
+                            <span className="text-primary text-xs font-bold font-body">{initials}</span>
                         </div>
                     </div>
                 </header>

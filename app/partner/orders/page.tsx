@@ -10,9 +10,9 @@ import {
     MapPinIcon,
     CaretDownIcon,
     CaretUpIcon,
-    FunnelIcon,
     FilePdfIcon,
     FileCsvIcon,
+    DownloadSimpleIcon,
     SpinnerIcon,
     WarningIcon,
 } from '@phosphor-icons/react';
@@ -20,28 +20,9 @@ import { usePartnerScope } from '@/app/components/providers/PartnerScopeProvider
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
 import { getDateRange, type AnalyticsPeriod } from '@/lib/api/hooks/useAnalytics';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
-import { formatPrice, type OrderStatus, type Order } from '@/types/order';
+import { formatPrice, type Order } from '@/types/order';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import PeriodFilter, { PERIOD_LABELS, type CustomRange } from '@/app/components/analytics/PeriodFilter';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const STATUS_FILTERS: { label: string; value: string }[] = [
-    { label: 'All',       value: 'all'       },
-    { label: 'Active',    value: 'active'    },
-    { label: 'Completed', value: 'done'      },
-    { label: 'Cancelled', value: 'cancelled' },
-];
-
-const ACTIVE_STATUSES: OrderStatus[] = ['received', 'accepted', 'preparing', 'ready', 'out_for_delivery', 'ready_for_pickup'];
-const DONE_STATUSES: OrderStatus[]   = ['delivered', 'completed'];
-
-function matchesFilter(status: OrderStatus, filter: string): boolean {
-    if (filter === 'all')       return true;
-    if (filter === 'active')    return ACTIVE_STATUSES.includes(status);
-    if (filter === 'done')      return DONE_STATUSES.includes(status);
-    return status === filter;
-}
 
 // ─── Export helpers ─────────────────────────────────────────────────────────────
 
@@ -134,6 +115,65 @@ async function exportOrdersPdf(orders: Order[], branchName: string, periodLabel:
     doc.save(`cedibites-orders-${slug(periodLabel)}.pdf`);
 }
 
+// ─── Export menu (collapses CSV/PDF) ──────────────────────────────────────────
+
+function ExportMenu({ onCsv, onPdf, disabled }: { onCsv: () => void; onPdf: () => void; disabled: boolean }) {
+    const [open, setOpen] = useState(false);
+    return (
+        <div className="relative">
+            <button
+                type="button"
+                onClick={() => setOpen(o => !o)}
+                disabled={disabled}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#f0e8d8] bg-neutral-card text-text-dark/80 text-xs font-semibold font-body hover:border-primary/40 hover:text-primary transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+                <DownloadSimpleIcon size={15} weight="bold" /> Export
+                <CaretDownIcon size={11} weight="bold" className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+            {open && !disabled && (
+                <>
+                    <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} aria-hidden="true" />
+                    <div className="absolute right-0 top-full mt-1.5 z-30 bg-neutral-card border border-[#f0e8d8] rounded-xl shadow-lg overflow-hidden py-1 w-36">
+                        <button type="button" onClick={() => { onCsv(); setOpen(false); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs font-semibold font-body text-text-dark/80 hover:bg-neutral-light transition-colors cursor-pointer">
+                            <FileCsvIcon size={15} weight="bold" className="text-secondary" /> CSV
+                        </button>
+                        <button type="button" onClick={() => { onPdf(); setOpen(false); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs font-semibold font-body text-text-dark/80 hover:bg-neutral-light transition-colors cursor-pointer">
+                            <FilePdfIcon size={15} weight="bold" className="text-error" /> PDF
+                        </button>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+// ─── Pagination bar (used at top and bottom) ──────────────────────────────────
+
+function PaginationBar({ page, totalPages, total, pageSize, onPrev, onNext }: {
+    page: number; totalPages: number; total: number; pageSize: number; onPrev: () => void; onNext: () => void;
+}) {
+    return (
+        <div className="flex items-center justify-between px-1">
+            <span className="text-neutral-gray text-xs font-body">
+                Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} of {total}
+            </span>
+            <div className="flex items-center gap-2">
+                <button type="button" disabled={page === 0} onClick={onPrev}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold font-body border border-[#f0e8d8] bg-neutral-card text-neutral-gray hover:text-text-dark disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+                    Previous
+                </button>
+                <span className="text-xs font-body text-neutral-gray">{page + 1} / {totalPages}</span>
+                <button type="button" disabled={page >= totalPages - 1} onClick={onNext}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold font-body border border-[#f0e8d8] bg-neutral-card text-neutral-gray hover:text-text-dark disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+                    Next
+                </button>
+            </div>
+        </div>
+    );
+}
+
 // ─── Order row (expandable) ───────────────────────────────────────────────────
 
 function OrderRow({ order, isLast }: { order: Order; isLast: boolean }) {
@@ -143,22 +183,30 @@ function OrderRow({ order, isLast }: { order: Order; isLast: boolean }) {
     return (
         <>
             <div
-                className={`px-5 py-3.5 flex flex-col md:grid md:grid-cols-[2fr_1fr_1fr_auto] gap-2 md:gap-4 md:items-center cursor-pointer hover:bg-neutral-light/60 transition-colors ${!isLast ? 'border-b border-[#f0e8d8]' : ''}`}
+                className={`px-5 py-3 flex flex-col md:grid md:grid-cols-[1.8fr_1.3fr_0.7fr_1fr_1fr_auto] gap-1.5 md:gap-4 md:items-center cursor-pointer hover:bg-neutral-light/60 transition-colors ${!isLast ? 'border-b border-[#f0e8d8]' : ''}`}
                 onClick={() => setOpen(o => !o)}
             >
                 <div className="min-w-0">
                     <p className="text-text-dark text-sm font-semibold font-body truncate">{order.contact.name}</p>
                     <p className="text-neutral-gray text-xs font-body">#{order.orderNumber}</p>
                 </div>
+                <span className="text-neutral-gray text-xs font-body truncate">
+                    <span className="md:hidden text-neutral-gray/60">Phone: </span>
+                    {order.contact.phone ?? '—'}
+                </span>
                 <span className="text-neutral-gray text-xs font-body">
                     <span className="md:hidden text-neutral-gray/60">Items: </span>
-                    {itemCount} item{itemCount !== 1 ? 's' : ''}
+                    {itemCount}
+                </span>
+                <span className="text-neutral-gray text-xs font-body capitalize truncate">
+                    <span className="md:hidden text-neutral-gray/60">Type: </span>
+                    {order.fulfillmentType ? order.fulfillmentType.replace('_', ' ') : '—'}
                 </span>
                 <span className="text-text-dark text-sm font-bold font-body">
                     <span className="md:hidden text-neutral-gray/60 text-xs font-normal">Total: </span>
                     {formatPrice(order.total)}
                 </span>
-                <span className="shrink-0 text-neutral-gray">
+                <span className="shrink-0 text-neutral-gray hidden md:inline">
                     {open ? <CaretUpIcon size={14} weight="bold" /> : <CaretDownIcon size={14} weight="bold" />}
                 </span>
             </div>
@@ -234,29 +282,26 @@ export default function PartnerOrdersPage() {
     [apiOrders]);
 
     const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
     const [page, setPage] = useState(0);
     const PAGE_SIZE = 15;
 
+    // All orders for the period (including completed and cancelled) — one list.
     const filtered = useMemo(() => {
-        let list = branchOrders.filter(o => matchesFilter(o.status as OrderStatus, statusFilter));
-        if (search.trim()) {
-            const q = search.toLowerCase();
-            list = list.filter(o =>
-                o.contact.name.toLowerCase().includes(q) ||
-                o.orderNumber.toLowerCase().includes(q) ||
-                (o.contact.phone ?? '').toLowerCase().includes(q) ||
-                (o.contact.address ?? '').toLowerCase().includes(q)
-            );
-        }
-        return list;
-    }, [branchOrders, statusFilter, search]);
+        if (!search.trim()) return branchOrders;
+        const q = search.toLowerCase();
+        return branchOrders.filter(o =>
+            o.contact.name.toLowerCase().includes(q) ||
+            o.orderNumber.toLowerCase().includes(q) ||
+            (o.contact.phone ?? '').toLowerCase().includes(q) ||
+            (o.contact.address ?? '').toLowerCase().includes(q)
+        );
+    }, [branchOrders, search]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-    // Reset page when filters change
-    useEffect(() => { setPage(0); }, [statusFilter, search, period]);
+    // Reset page when search/period changes
+    useEffect(() => { setPage(0); }, [search, period]);
 
     // Period gross (excludes cancelled) for the ledger header.
     const periodGross = useMemo(
@@ -294,7 +339,7 @@ export default function PartnerOrdersPage() {
     }
 
     return (
-        <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
+        <div className="px-4 md:px-8 py-6 w-full">
 
             {/* Header */}
             <div className="flex flex-col gap-4 mb-5">
@@ -308,24 +353,11 @@ export default function PartnerOrdersPage() {
                             {scopeLabel} · {branchOrders.length} order{branchOrders.length !== 1 ? 's' : ''} · <span className="text-text-dark font-semibold">{formatPrice(periodGross)}</span> gross
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => exportOrdersCsv(filtered, periodLabel)}
-                            disabled={filtered.length === 0}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#f0e8d8] bg-neutral-card text-text-dark/80 text-xs font-semibold font-body hover:border-primary/40 hover:text-primary transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                            <FileCsvIcon size={15} weight="bold" /> CSV
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => exportOrdersPdf(filtered, scopeLabel, periodLabel)}
-                            disabled={filtered.length === 0}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#f0e8d8] bg-neutral-card text-text-dark/80 text-xs font-semibold font-body hover:border-primary/40 hover:text-primary transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                            <FilePdfIcon size={15} weight="bold" /> PDF
-                        </button>
-                    </div>
+                    <ExportMenu
+                        onCsv={() => exportOrdersCsv(filtered, periodLabel)}
+                        onPdf={() => exportOrdersPdf(filtered, scopeLabel, periodLabel)}
+                        disabled={filtered.length === 0}
+                    />
                 </div>
 
                 {/* Period selector */}
@@ -337,8 +369,8 @@ export default function PartnerOrdersPage() {
                 />
             </div>
 
-            {/* Search + filter */}
-            <div className="flex flex-col sm:flex-row gap-3 mb-5">
+            {/* Search + top pagination */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
                 <div className="relative flex-1">
                     <MagnifyingGlassIcon size={15} weight="bold" className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray" />
                     <input
@@ -354,31 +386,26 @@ export default function PartnerOrdersPage() {
                         </button>
                     )}
                 </div>
-                <div className="flex items-center gap-1 bg-neutral-card border border-[#f0e8d8] rounded-xl p-1">
-                    <FunnelIcon size={14} weight="bold" className="text-neutral-gray ml-2 shrink-0" />
-                    {STATUS_FILTERS.map(f => (
-                        <button
-                            key={f.value}
-                            type="button"
-                            onClick={() => setStatusFilter(f.value)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-body transition-all cursor-pointer ${statusFilter === f.value ? 'bg-primary text-white' : 'text-neutral-gray hover:text-text-dark'}`}
-                        >
-                            {f.label}
-                        </button>
-                    ))}
-                </div>
+                {filtered.length > PAGE_SIZE && (
+                    <div className="shrink-0">
+                        <PaginationBar
+                            page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE}
+                            onPrev={() => setPage(p => p - 1)} onNext={() => setPage(p => p + 1)}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* List */}
             {filtered.length === 0 ? (
                 <div className="py-16 text-center bg-neutral-card border border-[#f0e8d8] rounded-2xl">
                     <ListIcon size={28} weight="thin" className="text-neutral-gray/30 mx-auto mb-2" />
-                    <p className="text-neutral-gray text-sm font-body">No orders match your filters.</p>
+                    <p className="text-neutral-gray text-sm font-body">{search ? 'No orders match your search.' : 'No orders in this period.'}</p>
                 </div>
             ) : (
                 <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden">
-                    <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_auto] gap-4 px-5 py-3 border-b border-[#f0e8d8] bg-[#faf6f0]">
-                        {['Customer', 'Items', 'Amount', ''].map((h, i) => (
+                    <div className="hidden md:grid grid-cols-[1.8fr_1.3fr_0.7fr_1fr_1fr_auto] gap-4 px-5 py-3 border-b border-[#f0e8d8] bg-[#faf6f0]">
+                        {['Customer', 'Phone', 'Items', 'Type', 'Amount', ''].map((h, i) => (
                             <span key={i} className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-wider">{h}</span>
                         ))}
                     </div>
@@ -388,31 +415,13 @@ export default function PartnerOrdersPage() {
                 </div>
             )}
 
-            {/* Pagination */}
+            {/* Bottom pagination */}
             {filtered.length > PAGE_SIZE && (
-                <div className="flex items-center justify-between mt-4 px-1">
-                    <span className="text-neutral-gray text-xs font-body">
-                        Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
-                    </span>
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            disabled={page === 0}
-                            onClick={() => setPage(p => p - 1)}
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold font-body border border-[#f0e8d8] bg-neutral-card text-neutral-gray hover:text-text-dark disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                        >
-                            Previous
-                        </button>
-                        <span className="text-xs font-body text-neutral-gray">{page + 1} / {totalPages}</span>
-                        <button
-                            type="button"
-                            disabled={page >= totalPages - 1}
-                            onClick={() => setPage(p => p + 1)}
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold font-body border border-[#f0e8d8] bg-neutral-card text-neutral-gray hover:text-text-dark disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                        >
-                            Next
-                        </button>
-                    </div>
+                <div className="mt-4">
+                    <PaginationBar
+                        page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE}
+                        onPrev={() => setPage(p => p - 1)} onNext={() => setPage(p => p + 1)}
+                    />
                 </div>
             )}
         </div>

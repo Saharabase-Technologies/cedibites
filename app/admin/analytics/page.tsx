@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
-import { useAnalytics, useOrderSourceAnalytics, useTopItemsAnalytics, useBottomItemsAnalytics, useCategoryRevenueAnalytics, useBranchPerformanceAnalytics, useDeliveryPickupAnalytics, usePaymentMethodAnalytics } from '@/lib/api/hooks/useAnalytics';
+import { useAnalytics, useRevenueTrend, useOrderSourceAnalytics, useTopItemsAnalytics, useBottomItemsAnalytics, useCategoryRevenueAnalytics, useBranchPerformanceAnalytics, useDeliveryPickupAnalytics, usePaymentMethodAnalytics } from '@/lib/api/hooks/useAnalytics';
+import GrowthTrendCard from '@/app/components/analytics/GrowthTrendCard';
 import { useSearchParams } from 'next/navigation';
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import { toast } from '@/lib/utils/toast';
@@ -929,6 +930,10 @@ export default function AdminAnalyticsPage() {
 
     const { sales, orders, customers, isLoading } = useAnalytics(period, branchId, customRange);
 
+    // Growth trajectory — force monthly buckets on the 90-day view.
+    const trendBucket = period === '90d' ? 'month' : undefined;
+    const { data: revenueTrend } = useRevenueTrend(period, branchId, trendBucket, customRange);
+
     // Additional analytics hooks
     const { data: orderSources } = useOrderSourceAnalytics(period, branchId, customRange);
     const { data: topItems } = useTopItemsAnalytics(period, branchId, 10, customRange);
@@ -1123,6 +1128,11 @@ export default function AdminAnalyticsPage() {
                     value={isLoading ? '…' : String(sales?.no_charge_count ?? 0)}
                     sub={sales?.no_charge_amount ? formatGHS(sales.no_charge_amount) + ' waived' : undefined}
                 />
+            </div>
+
+            {/* Growth trajectory */}
+            <div className="mb-3">
+                <GrowthTrendCard trend={revenueTrend} period={period} />
             </div>
 
             {/* Revenue + heatmap */}

@@ -223,7 +223,8 @@ export function isDoneStatus(status: OrderStatus): boolean {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-export const formatPrice = (p: number) => `₵${p.toFixed(2)}`;
+export const formatPrice = (p: number) =>
+    `₵${Number(p ?? 0).toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export function timeAgo(ts: number): string {
     const d = Date.now() - ts;

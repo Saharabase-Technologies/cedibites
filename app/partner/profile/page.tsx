@@ -11,7 +11,6 @@ import {
     WarningCircleIcon,
     SpinnerIcon,
 } from '@phosphor-icons/react';
-import Input from '@/app/components/base/Input';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { usePartnerScope } from '@/app/components/providers/PartnerScopeProvider';
 import { staffService } from '@/lib/api/services/staff.service';
@@ -20,6 +19,30 @@ import { staffService } from '@/lib/api/services/staff.service';
 
 function initials(name: string) {
     return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+}
+
+/**
+ * Light-only password field. The shared base Input applies `dark:` variants that
+ * pick up the device's dark mode — wrong on this always-light portal — so the
+ * partner portal uses its own field with fixed light styling.
+ */
+function PasswordField({ label, value, onChange, placeholder, helper, autoComplete }: {
+    label: string; value: string; onChange: (v: string) => void; placeholder?: string; helper?: string; autoComplete?: string;
+}) {
+    return (
+        <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium font-body text-text-dark">{label}</label>
+            <input
+                type="password"
+                value={value}
+                onChange={e => onChange(e.target.value)}
+                placeholder={placeholder}
+                autoComplete={autoComplete}
+                className="w-full px-4 py-3 rounded-xl border border-[#f0e8d8] bg-neutral-light text-text-dark font-body text-sm placeholder:text-neutral-gray focus:outline-none focus:border-primary transition-colors"
+            />
+            {helper && <p className="text-xs font-body text-neutral-gray px-1">{helper}</p>}
+        </div>
+    );
 }
 
 function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
@@ -129,36 +152,27 @@ export default function PartnerProfilePage() {
                             </div>
                         )}
 
-                        <Input
-                            type="password"
+                        <PasswordField
                             label="Current password"
                             value={current}
                             onChange={v => { setCurrent(v); setError(undefined); }}
                             placeholder="Enter current password"
                             autoComplete="current-password"
-                            clearable={false}
-                            required
                         />
-                        <Input
-                            type="password"
+                        <PasswordField
                             label="New password"
                             value={next}
                             onChange={v => { setNext(v); setError(undefined); }}
                             placeholder="At least 8 characters"
-                            helperText="Use at least 8 characters."
+                            helper="Use at least 8 characters."
                             autoComplete="new-password"
-                            clearable={false}
-                            required
                         />
-                        <Input
-                            type="password"
+                        <PasswordField
                             label="Confirm new password"
                             value={confirm}
                             onChange={v => { setConfirm(v); setError(undefined); }}
                             placeholder="Re-enter new password"
                             autoComplete="new-password"
-                            clearable={false}
-                            required
                         />
 
                         <button
