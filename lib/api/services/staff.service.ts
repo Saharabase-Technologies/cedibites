@@ -24,6 +24,14 @@ export interface StaffLoginResponse {
   user: StaffUser;
 }
 
+export interface IdentifierCheck {
+  exists: boolean;
+  name?: string;
+  channels: { email: boolean; phone: boolean };
+  emailHint?: string | null;
+  phoneHint?: string | null;
+}
+
 const STAFF_TOKEN_KEY = 'cedibites_staff_token';
 
 export function getStaffToken(): string | null {
@@ -70,6 +78,25 @@ export const staffService = {
   },
 
   /**
+   * Check whether an active staff account exists for an identifier, and which
+   * channels (email / SMS) a password reset can be delivered through.
+   * Powers the two-step login screen.
+   */
+  checkIdentifier: async (identifier: string): Promise<IdentifierCheck> => {
+    const response = await apiClient.post('/employee/check-identifier', {
+      identifier: identifier.trim(),
+    }) as unknown as { data?: IdentifierCheck } | IdentifierCheck;
+    const data = ('data' in response && response.data) ? response.data : (response as IdentifierCheck);
+    return {
+      exists: !!data?.exists,
+      name: data?.name,
+      channels: data?.channels ?? { email: false, phone: false },
+      emailHint: data?.emailHint ?? null,
+      phoneHint: data?.phoneHint ?? null,
+    };
+  },
+
+  /**
    * Change password and clear the must_reset_password flag.
    */
   changePassword: async (currentPassword: string, password: string): Promise<void> => {
@@ -109,19 +136,22 @@ export const staffService = {
   },
 
   /**
-   * Reset password using a token received via SMS/email.
+   * Reset password using either a link token or a 6-digit OTP received via
+   * email/SMS. Provide exactly one of `token` or `otp`.
    */
-  resetPassword: async (
-    token: string,
-    identifier: string,
-    password: string,
-    password_confirmation: string,
-  ): Promise<void> => {
+  resetPassword: async (params: {
+    identifier: string;
+    password: string;
+    password_confirmation: string;
+    token?: string;
+    otp?: string;
+  }): Promise<void> => {
     await apiClient.post('/employee/reset-password', {
-      token,
-      identifier: identifier.trim(),
-      password,
-      password_confirmation,
+      identifier: params.identifier.trim(),
+      password: params.password,
+      password_confirmation: params.password_confirmation,
+      ...(params.token ? { token: params.token } : {}),
+      ...(params.otp ? { otp: params.otp } : {}),
     });
   },
 };

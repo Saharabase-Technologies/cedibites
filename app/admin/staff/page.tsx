@@ -1162,6 +1162,7 @@ export default function AdminStaffPage() {
     const [editStaff, setEditStaff] = useState<StaffMember | null | 'new'>(null);
     const [deleteStaff, setDeleteStaff] = useState<StaffMember | null>(null);
     const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
+    const [revealCreds, setRevealCreds] = useState<{ name: string; identifier: string; password: string } | null>(null);
 
     const PER_PAGE = 10;
     const TABS: FilterTab[] = ['All', 'Admin', 'Branch Partner', 'Branch Manager', 'Sales Staff', 'Call Center', 'Support Staff', 'Suspended', 'Terminated'];
@@ -1188,10 +1189,11 @@ export default function AdminStaffPage() {
     async function saveStaff(s: StaffMember) {
         const branchIds = s.branchIds ?? [];
         const isNew = isNewStaffId(s.id);
+        let generatedPassword: string | null = null;
         try {
             if (isNew) {
                 if (branchIds.length === 0) throw new Error('Select at least one branch.');
-                await employeeService.createEmployee({
+                const created = await employeeService.createEmployee({
                     name: s.name,
                     email: s.email || null,
                     phone: s.phone,
@@ -1212,6 +1214,7 @@ export default function AdminStaffPage() {
                     // Individual permissions
                     permissions: mapPermissionsToBackend(s.permissions),
                 });
+                generatedPassword = created.generatedPassword;
             } else {
                 await employeeService.updateEmployee(s.id, {
                     name: s.name,
@@ -1237,6 +1240,9 @@ export default function AdminStaffPage() {
             setStaff(Array.isArray(result.data) ? result.data : []);
             setEditStaff(null);
             toast.success(isNew ? `${s.name} has been added successfully` : `${s.name} has been updated successfully`);
+            if (isNew && generatedPassword) {
+                setRevealCreds({ name: s.name, identifier: s.email || s.phone, password: generatedPassword });
+            }
         } catch (err: unknown) {
             let msg = 'Failed to save. Please try again.';
             if (err && typeof err === 'object' && 'response' in err) {
@@ -1487,6 +1493,46 @@ export default function AdminStaffPage() {
             )}
             {deleteStaff && (
                 <ConfirmDeleteModal staff={deleteStaff} onConfirm={() => deleteStaffFn(deleteStaff)} onCancel={() => setDeleteStaff(null)} />
+            )}
+
+            {/* One-time credential reveal (auto-generated passwords) */}
+            {revealCreds && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setRevealCreds(null)}>
+                    <div className="bg-neutral-card rounded-2xl w-full max-w-md p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-2 mb-1">
+                            <ShieldCheckIcon size={20} weight="fill" className="text-primary" />
+                            <h3 className="text-text-dark text-lg font-bold font-body">Account created</h3>
+                        </div>
+                        <p className="text-neutral-gray text-sm font-body mb-4">
+                            A welcome email was sent to <span className="font-semibold text-text-dark">{revealCreds.name}</span>. Share these credentials confidentially — this password won&apos;t be shown again.
+                        </p>
+                        <div className="flex flex-col gap-2 mb-5">
+                            <div className="flex items-center justify-between gap-3 bg-neutral-light border border-[#f0e8d8] rounded-xl px-3 py-2.5">
+                                <div className="min-w-0">
+                                    <p className="text-neutral-gray text-[10px] font-bold uppercase tracking-wider font-body">Login</p>
+                                    <p className="text-text-dark text-sm font-body font-medium truncate">{revealCreds.identifier}</p>
+                                </div>
+                                <button type="button" onClick={() => { navigator.clipboard?.writeText(revealCreds.identifier); toast.success('Login copied'); }}
+                                    className="text-primary text-xs font-semibold font-body hover:underline shrink-0 cursor-pointer">Copy</button>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 bg-neutral-light border border-[#f0e8d8] rounded-xl px-3 py-2.5">
+                                <div className="min-w-0">
+                                    <p className="text-neutral-gray text-[10px] font-bold uppercase tracking-wider font-body">Temporary password</p>
+                                    <p className="text-text-dark text-sm font-body font-bold tracking-wide truncate">{revealCreds.password}</p>
+                                </div>
+                                <button type="button" onClick={() => { navigator.clipboard?.writeText(revealCreds.password); toast.success('Password copied'); }}
+                                    className="text-primary text-xs font-semibold font-body hover:underline shrink-0 cursor-pointer">Copy</button>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button type="button"
+                                onClick={() => { navigator.clipboard?.writeText(`Login: ${revealCreds.identifier}\nPassword: ${revealCreds.password}`); toast.success('Credentials copied'); }}
+                                className="px-4 py-2 rounded-xl border border-[#f0e8d8] text-text-dark/80 text-sm font-semibold font-body hover:border-primary/40 transition-colors cursor-pointer">Copy both</button>
+                            <button type="button" onClick={() => setRevealCreds(null)}
+                                className="px-4 py-2 rounded-xl bg-primary text-white text-sm font-semibold font-body hover:bg-primary-hover transition-colors cursor-pointer">Done</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

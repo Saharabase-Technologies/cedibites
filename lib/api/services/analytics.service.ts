@@ -4,6 +4,34 @@ export interface AnalyticsFilters {
   date_from?: string;
   date_to?: string;
   branch_id?: number;
+  /** Aggregate across multiple branches (partner portal "all assigned branches"). */
+  branch_ids?: number[];
+}
+
+export type TrendBucket = 'day' | 'week' | 'month';
+
+export interface SalesComparisonMetrics {
+  revenue: number;
+  orders: number;
+  aov: number;
+}
+
+export interface SalesComparison {
+  current: SalesComparisonMetrics;
+  previous: SalesComparisonMetrics | null;
+  delta: { revenue: number | null; orders: number | null; aov: number | null } | null;
+  previous_range: { date_from: string; date_to: string } | null;
+}
+
+export interface RevenueTrendPoint {
+  period: string;
+  revenue: number;
+  orders: number;
+}
+
+export interface RevenueTrend {
+  bucket: TrendBucket;
+  series: RevenueTrendPoint[];
 }
 
 export interface SalesByDay {
@@ -97,6 +125,7 @@ export interface CategoryRevenue {
 }
 
 export interface BranchPerformance {
+  id: number;
   name: string;
   rev: number;
   orders: number;
@@ -184,6 +213,14 @@ export const analyticsService = {
 
   getOrderAnalytics: (filters?: AnalyticsFilters): Promise<OrderAnalytics> => {
     return apiClient.get('/admin/analytics/orders', { params: filters }).then(extractData) as Promise<OrderAnalytics>;
+  },
+
+  getSalesComparison: (filters?: AnalyticsFilters): Promise<SalesComparison> => {
+    return apiClient.get('/admin/analytics/sales-comparison', { params: filters }).then(extractData) as Promise<SalesComparison>;
+  },
+
+  getRevenueTrend: (filters?: AnalyticsFilters & { bucket?: TrendBucket }): Promise<RevenueTrend> => {
+    return apiClient.get('/admin/analytics/revenue-trend', { params: filters }).then(extractData) as Promise<RevenueTrend>;
   },
 
   getCustomerAnalytics: (filters?: Pick<AnalyticsFilters, 'date_from' | 'date_to'>): Promise<CustomerAnalytics> => {

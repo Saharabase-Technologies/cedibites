@@ -9,7 +9,8 @@ import { exportElementToPdf } from '@/lib/utils/exportPdf';
 import { buildReportHtml, printReport, generateCsv, type ReportData, type ReportMeta, type ItemSoldRow } from '@/lib/utils/reportGenerator';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { analyticsService } from '@/lib/api/services/analytics.service';
-import { getDateRange } from '@/lib/api/hooks/useAnalytics';
+import { getDateRange, type AnalyticsPeriod } from '@/lib/api/hooks/useAnalytics';
+import PeriodFilter, { PERIOD_LABELS, type CustomRange } from '@/app/components/analytics/PeriodFilter';
 import {
     CalendarIcon,
     CurrencyCircleDollarIcon,
@@ -28,7 +29,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Period = 'today' | 'yesterday' | 'week' | 'month' | '30d' | '90d' | 'custom';
+type Period = AnalyticsPeriod;
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 
@@ -902,16 +903,6 @@ function ProductSummaryCard({ items }: { items?: ProductItem[] }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-const PERIODS: { key: Period; label: string }[] = [
-    { key: 'today', label: 'Today' },
-    { key: 'yesterday', label: 'Yesterday' },
-    { key: 'week', label: 'This Week' },
-    { key: 'month', label: 'This Month' },
-    { key: '30d', label: 'Last 30 Days' },
-    { key: '90d', label: 'Last 90 Days' },
-    { key: 'custom', label: 'Custom' },
-];
-
 export default function AdminAnalyticsPage() {
     const exportRef = useRef<HTMLDivElement>(null);
     const searchParams = useSearchParams();
@@ -985,7 +976,7 @@ export default function AdminAnalyticsPage() {
         setIsGenerating(true);
         try {
             const range = getDateRange(period, customRange ?? undefined);
-            const periodLabel = PERIODS.find(p => p.key === period)?.label ?? period;
+            const periodLabel = PERIOD_LABELS[period] ?? period;
             const branchName = branchId ? `Branch #${branchId}` : 'All Branches';
             const dateRange = `${range.date_from} – ${range.date_to}`;
             const generatedAt = new Date().toLocaleString('en-GH', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -1108,31 +1099,14 @@ export default function AdminAnalyticsPage() {
                 </div>
             </div>
 
-            {/* Period tabs */}
-            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 mb-6">
-                {PERIODS.map(p => (
-                    <button key={p.key} type="button" onClick={() => setPeriod(p.key)}
-                        className={`px-3 py-2 rounded-xl text-sm font-medium font-body whitespace-nowrap transition-all cursor-pointer ${period === p.key ? 'bg-primary text-white' : 'bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark'}`}>
-                        {p.label}
-                    </button>
-                ))}
-            </div>
-            {period === 'custom' && (
-                <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                    <input
-                        type="date"
-                        value={customDateFrom}
-                        onChange={(event) => setCustomDateFrom(event.target.value)}
-                        className="px-3 py-2 rounded-xl border border-[#f0e8d8] bg-neutral-card text-sm font-body text-text-dark focus:outline-none focus:border-primary/40"
-                    />
-                    <input
-                        type="date"
-                        value={customDateTo}
-                        onChange={(event) => setCustomDateTo(event.target.value)}
-                        className="px-3 py-2 rounded-xl border border-[#f0e8d8] bg-neutral-card text-sm font-body text-text-dark focus:outline-none focus:border-primary/40"
-                    />
-                </div>
-            )}
+            {/* Period filter */}
+            <PeriodFilter
+                value={period}
+                onChange={setPeriod}
+                customRange={{ date_from: customDateFrom, date_to: customDateTo }}
+                onCustomRangeChange={(r: CustomRange) => { setCustomDateFrom(r.date_from); setCustomDateTo(r.date_to); }}
+                className="mb-6"
+            />
 
             {/* KPI row */}
             <div className="flex flex-wrap gap-3 mb-5">
@@ -1210,7 +1184,7 @@ export default function AdminAnalyticsPage() {
                     <div className="bg-neutral-card rounded-2xl border border-[#f0e8d8] w-full max-w-sm p-6 shadow-xl" onClick={e => e.stopPropagation()}>
                         <h2 className="text-text-dark text-base font-bold font-body mb-1">Generate Report</h2>
                         <p className="text-neutral-gray text-xs font-body mb-5">
-                            {PERIODS.find(p => p.key === period)?.label} &nbsp;·&nbsp; {branchId ? `Branch #${branchId}` : 'All Branches'}
+                            {PERIOD_LABELS[period]} &nbsp;·&nbsp; {branchId ? `Branch #${branchId}` : 'All Branches'}
                         </p>
 
                         <p className="text-text-dark text-xs font-semibold font-body mb-2">Format</p>

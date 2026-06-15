@@ -70,6 +70,20 @@ export interface ActiveSession {
   session_started: string;
 }
 
+export interface CreateUserPayload {
+  name: string;
+  phone: string;
+  email?: string;
+  role: string;
+  branch_ids: number[];
+  password_mode: 'auto' | 'custom' | 'prompt';
+  password?: string;
+  /** Required when role is 'tech_admin' — the new admin's 6-digit passcode. */
+  new_passcode?: string;
+  /** The caller's vault passcode (gates the request). */
+  passcode: string;
+}
+
 export interface StaffPassword {
   id: number;
   user_id: number;
@@ -128,6 +142,10 @@ export const platformService = {
 
   createAdmin: (employeeId: number, newPasscode: string, callerPasscode: string): Promise<{ message: string }> =>
     apiClient.post('/platform/admins', { employee_id: employeeId, new_passcode: newPasscode, passcode: callerPasscode }),
+
+  // Create a brand-new user (any role) — passcode-gated
+  createUser: (payload: CreateUserPayload): Promise<{ message: string; name?: string; employee_no?: string; role?: string; generated_password: string | null }> =>
+    apiClient.post('/platform/create-user', payload),
 
   revokeAdmin: (userId: number, passcode: string): Promise<{ message: string }> =>
     apiClient.delete(`/platform/admins/${userId}`, { data: { passcode } }),

@@ -15,6 +15,9 @@ import {
   type DiscountUsageAnalytics,
   type CancellationReasonsAnalytics,
   type AdminStaffSalesRow,
+  type SalesComparison,
+  type RevenueTrend,
+  type TrendBucket,
 } from '../services/analytics.service';
 
 export type AnalyticsPeriod = 'today' | 'yesterday' | 'week' | 'last_week' | 'month' | 'last_month' | '30d' | '90d' | 'lifetime' | 'custom';
@@ -85,25 +88,48 @@ export function getDateRange(period: AnalyticsPeriod, customRange?: CustomRange)
   }
 }
 
-export const useAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+/**
+ * Build the analytics filter set, scoping to a single branch (branchId) or a
+ * set of branches (branchIds — the partner portal's "all assigned branches").
+ * branchIds takes precedence when non-empty.
+ */
+function buildFilters(
+  period: AnalyticsPeriod,
+  customRange?: CustomRange,
+  branchId?: number,
+  branchIds?: number[],
+): AnalyticsFilters {
+  const filters: AnalyticsFilters = { ...getDateRange(period, customRange) };
+  if (branchIds && branchIds.length > 0) filters.branch_ids = branchIds;
+  else if (branchId) filters.branch_id = branchId;
+  return filters;
+}
+
+/** Stable query-key fragment for the current branch scope. */
+function branchKey(branchId?: number, branchIds?: number[]): string | number | undefined {
+  if (branchIds && branchIds.length > 0) return branchIds.join(',');
+  return branchId;
+}
+
+export const useAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);
-  const filters: AnalyticsFilters = { ...range };
-  if (branchId) filters.branch_id = branchId;
+  const filters = buildFilters(period, customRange, branchId, branchIds);
+  const bKey = branchKey(branchId, branchIds);
 
   const salesQuery = useQuery({
-    queryKey: ['analytics', 'sales', period, branchId, range.date_from, range.date_to],
+    queryKey: ['analytics', 'sales', period, bKey, range.date_from, range.date_to],
     queryFn: () => analyticsService.getSalesAnalytics(filters),
     staleTime: 60 * 1000,
   });
 
   const ordersQuery = useQuery({
-    queryKey: ['analytics', 'orders', period, branchId, range.date_from, range.date_to],
+    queryKey: ['analytics', 'orders', period, bKey, range.date_from, range.date_to],
     queryFn: () => analyticsService.getOrderAnalytics(filters),
     staleTime: 60 * 1000,
   });
 
   const customersQuery = useQuery({
-    queryKey: ['analytics', 'customers', period, branchId, range.date_from, range.date_to],
+    queryKey: ['analytics', 'customers', period, bKey, range.date_from, range.date_to],
     queryFn: () => analyticsService.getCustomerAnalytics(filters),
     staleTime: 60 * 1000,
   });
@@ -122,121 +148,136 @@ export const useAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number
   };
 };
 
-export const useOrderSourceAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+/** Period-over-period comparison (revenue / orders / AOV with % deltas). */
+export const useSalesComparison = (period: AnalyticsPeriod = 'month', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);
-  const filters: AnalyticsFilters = { ...range };
-  if (branchId) filters.branch_id = branchId;
+  const filters = buildFilters(period, customRange, branchId, branchIds);
+
+  return useQuery<SalesComparison>({
+    queryKey: ['analytics', 'sales-comparison', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
+    queryFn: () => analyticsService.getSalesComparison(filters),
+    staleTime: 60 * 1000,
+  });
+};
+
+/** Bucketed revenue trend (day / week / month, auto-selected by range length). */
+export const useRevenueTrend = (period: AnalyticsPeriod = 'month', branchId?: number, bucket?: TrendBucket, customRange?: CustomRange, branchIds?: number[]) => {
+  const range = getDateRange(period, customRange);
+  const filters: AnalyticsFilters & { bucket?: TrendBucket } = { ...buildFilters(period, customRange, branchId, branchIds) };
+  if (bucket) filters.bucket = bucket;
+
+  return useQuery<RevenueTrend>({
+    queryKey: ['analytics', 'revenue-trend', period, branchKey(branchId, branchIds), bucket ?? 'auto', range.date_from, range.date_to],
+    queryFn: () => analyticsService.getRevenueTrend(filters),
+    staleTime: 60 * 1000,
+  });
+};
+
+export const useOrderSourceAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
+  const range = getDateRange(period, customRange);
+  const filters = buildFilters(period, customRange, branchId, branchIds);
 
   return useQuery({
-    queryKey: ['analytics', 'order-sources', period, branchId, range.date_from, range.date_to],
+    queryKey: ['analytics', 'order-sources', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
     queryFn: () => analyticsService.getOrderSourceAnalytics(filters),
     staleTime: 60 * 1000,
   });
 };
 
-export const useTopItemsAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, limit = 10, customRange?: CustomRange) => {
+export const useTopItemsAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, limit = 10, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);
-  const filters: AnalyticsFilters & { limit?: number } = { ...range, limit };
-  if (branchId) filters.branch_id = branchId;
+  const filters: AnalyticsFilters & { limit?: number } = { ...buildFilters(period, customRange, branchId, branchIds), limit };
 
   return useQuery({
-    queryKey: ['analytics', 'top-items', period, branchId, limit, range.date_from, range.date_to],
+    queryKey: ['analytics', 'top-items', period, branchKey(branchId, branchIds), limit, range.date_from, range.date_to],
     queryFn: () => analyticsService.getTopItemsAnalytics(filters),
     staleTime: 60 * 1000,
   });
 };
 
-export const useBottomItemsAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, limit = 5, customRange?: CustomRange) => {
+export const useBottomItemsAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, limit = 5, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);
-  const filters: AnalyticsFilters & { limit?: number } = { ...range, limit };
-  if (branchId) filters.branch_id = branchId;
+  const filters: AnalyticsFilters & { limit?: number } = { ...buildFilters(period, customRange, branchId, branchIds), limit };
 
   return useQuery({
-    queryKey: ['analytics', 'bottom-items', period, branchId, limit, range.date_from, range.date_to],
+    queryKey: ['analytics', 'bottom-items', period, branchKey(branchId, branchIds), limit, range.date_from, range.date_to],
     queryFn: () => analyticsService.getBottomItemsAnalytics(filters),
     staleTime: 60 * 1000,
   });
 };
 
-export const useCategoryRevenueAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+export const useCategoryRevenueAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);
-  const filters: AnalyticsFilters = { ...range };
-  if (branchId) filters.branch_id = branchId;
+  const filters = buildFilters(period, customRange, branchId, branchIds);
 
   return useQuery({
-    queryKey: ['analytics', 'category-revenue', period, branchId, range.date_from, range.date_to],
+    queryKey: ['analytics', 'category-revenue', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
     queryFn: () => analyticsService.getCategoryRevenueAnalytics(filters),
     staleTime: 60 * 1000,
   });
 };
 
-export const useBranchPerformanceAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+export const useBranchPerformanceAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);
-  const filters: AnalyticsFilters = { ...range };
-  if (branchId) filters.branch_id = branchId;
+  const filters = buildFilters(period, customRange, branchId, branchIds);
 
   return useQuery({
-    queryKey: ['analytics', 'branch-performance', period, branchId, range.date_from, range.date_to],
+    queryKey: ['analytics', 'branch-performance', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
     queryFn: () => analyticsService.getBranchPerformanceAnalytics(filters),
     staleTime: 60 * 1000,
   });
 };
 
-export const useDeliveryPickupAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+export const useDeliveryPickupAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);
-  const filters: AnalyticsFilters = { ...range };
-  if (branchId) filters.branch_id = branchId;
+  const filters = buildFilters(period, customRange, branchId, branchIds);
 
   return useQuery({
-    queryKey: ['analytics', 'delivery-pickup', period, branchId, range.date_from, range.date_to],
+    queryKey: ['analytics', 'delivery-pickup', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
     queryFn: () => analyticsService.getDeliveryPickupAnalytics(filters),
     staleTime: 60 * 1000,
   });
 };
 
-export const usePaymentMethodAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+export const usePaymentMethodAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);
-  const filters: AnalyticsFilters = { ...range };
-  if (branchId) filters.branch_id = branchId;
+  const filters = buildFilters(period, customRange, branchId, branchIds);
 
   return useQuery({
-    queryKey: ['analytics', 'payment-methods', period, branchId, range.date_from, range.date_to],
+    queryKey: ['analytics', 'payment-methods', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
     queryFn: () => analyticsService.getPaymentMethodAnalytics(filters),
     staleTime: 60 * 1000,
   });
 };
 
-export const useDiscountUsageAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+export const useDiscountUsageAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);
-  const filters: AnalyticsFilters = { ...range };
-  if (branchId) filters.branch_id = branchId;
+  const filters = buildFilters(period, customRange, branchId, branchIds);
 
   return useQuery({
-    queryKey: ['analytics', 'discount-usage', period, branchId, range.date_from, range.date_to],
+    queryKey: ['analytics', 'discount-usage', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
     queryFn: () => analyticsService.getDiscountUsageAnalytics(filters),
     staleTime: 60 * 1000,
   });
 };
 
-export const useCancellationReasonsAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange) => {
+export const useCancellationReasonsAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);
-  const filters: AnalyticsFilters = { ...range };
-  if (branchId) filters.branch_id = branchId;
+  const filters = buildFilters(period, customRange, branchId, branchIds);
 
   return useQuery({
-    queryKey: ['analytics', 'cancellation-reasons', period, branchId, range.date_from, range.date_to],
+    queryKey: ['analytics', 'cancellation-reasons', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
     queryFn: () => analyticsService.getCancellationReasonsAnalytics(filters),
     staleTime: 60 * 1000,
   });
 };
 
-export const useAdminStaffSales = (period: AnalyticsPeriod = 'today', branchId?: number, customRange?: CustomRange) => {
+export const useAdminStaffSales = (period: AnalyticsPeriod = 'today', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);
-  const filters: AnalyticsFilters = { ...range };
-  if (branchId) filters.branch_id = branchId;
+  const filters = buildFilters(period, customRange, branchId, branchIds);
 
   return useQuery({
-    queryKey: ['analytics', 'admin-staff-sales', period, branchId, range.date_from, range.date_to],
+    queryKey: ['analytics', 'admin-staff-sales', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
     queryFn: () => analyticsService.getAdminStaffSales(filters),
     staleTime: 60 * 1000,
   });

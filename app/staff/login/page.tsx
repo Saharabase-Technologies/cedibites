@@ -1,58 +1,41 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import {
     EnvelopeIcon,
+    PhoneIcon,
     LockKeyIcon,
     ArrowRightIcon,
+    ArrowLeftIcon,
     WarningCircleIcon,
     SpinnerIcon,
+    PencilSimpleIcon,
+    UserCircleIcon,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import Input from '@/app/components/base/Input';
+import StaffAuthShell, { authCardClass } from '@/app/components/auth/StaffAuthShell';
 import { useStaffAuth, permissionsHomeRoute } from '@/app/components/providers/StaffAuthProvider';
-import { staffService } from '@/lib/api/services/staff.service';
+import { staffService, type IdentifierCheck } from '@/lib/api/services/staff.service';
+import { ApiError } from '@/lib/api/client';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type LoginField = 'identifier' | 'password';
+type Step = 'identifier' | 'password';
 
-interface FormState {
-    identifier: string;
-    password: string;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function identifierLooksValid(value: string): boolean {
+    const v = value.trim();
+    if (!v) return false;
+    return v.includes('@') ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) : isValidGhanaPhone(v);
 }
 
-interface FormErrors {
-    identifier?: string;
-    password?: string;
-    global?: string;
-}
-
-// ─── Validation ───────────────────────────────────────────────────────────────
-
-function validate(form: FormState): FormErrors {
-    const errors: FormErrors = {};
-
-    if (!form.identifier.trim()) {
-        errors.identifier = 'Email or phone number is required';
-    } else {
-        const isEmail = form.identifier.includes('@');
-        const isPhone = isValidGhanaPhone(form.identifier);
-        if (!isEmail && !isPhone) {
-            errors.identifier = 'Enter a valid email or Ghanaian phone number';
-        }
-    }
-
-    if (!form.password) {
-        errors.password = 'Password is required';
-    } else if (form.password.length < 6) {
-        errors.password = 'Password must be at least 6 characters';
-    }
-
-    return errors;
+function normaliseIdentifier(value: string): string {
+    const v = value.trim();
+    return isValidGhanaPhone(v) ? normalizeGhanaPhone(v) : v;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -61,214 +44,256 @@ export default function StaffLoginPage() {
     const router = useRouter();
     const { login } = useStaffAuth();
 
-    const [form, setForm] = useState<FormState>({ identifier: '', password: '' });
-    const [errors, setErrors] = useState<FormErrors>({});
-    const [touched, setTouched] = useState<Set<LoginField>>(new Set());
+    const [step, setStep] = useState<Step>('identifier');
+    const [identifier, setIdentifier] = useState('');
+    const [password, setPassword] = useState('');
+    const [account, setAccount] = useState<IdentifierCheck | null>(null);
+
+    const [identifierError, setIdentifierError] = useState<string>();
+    const [passwordError, setPasswordError] = useState<string>();
+    const [globalError, setGlobalError] = useState<string>();
+
+    const [isChecking, setIsChecking] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
-    // ── Field change ──
-    const handleChange = useCallback((field: LoginField) => (value: string) => {
-        setForm(prev => ({ ...prev, [field]: value }));
-        if (touched.has(field)) {
-            setErrors(prev => ({ ...prev, [field]: undefined, global: undefined }));
+    const passwordRef = useRef<HTMLInputElement>(null);
+
+    // Focus the password field when the second step opens.
+    useEffect(() => {
+        if (step === 'password') {
+            const t = setTimeout(() => passwordRef.current?.focus(), 280);
+            return () => clearTimeout(t);
         }
-    }, [touched]);
+    }, [step]);
 
-    // ── Field blur — validate on leave ──
-    const handleBlur = useCallback((field: LoginField) => () => {
-        setTouched(prev => new Set(prev).add(field));
-        const fieldErrors = validate(form);
-        setErrors(prev => ({ ...prev, [field]: fieldErrors[field] }));
-    }, [form]);
+    const isEmail = identifier.includes('@');
 
-    // ── Submit ──
-    const submitForm = async () => {
-        setTouched(new Set(['identifier', 'password']));
-        const fieldErrors = validate(form);
+    // ── Step 1: verify the identifier exists, then advance ──
+    const continueToPassword = useCallback(async () => {
+        setGlobalError(undefined);
 
-        if (Object.keys(fieldErrors).length > 0) {
-            setErrors(fieldErrors);
+        if (!identifier.trim()) {
+            setIdentifierError('Email or phone number is required');
+            return;
+        }
+        if (!identifierLooksValid(identifier)) {
+            setIdentifierError('Enter a valid email or Ghanaian phone number');
+            return;
+        }
+
+        setIsChecking(true);
+        setIdentifierError(undefined);
+        try {
+            const result = await staffService.checkIdentifier(normaliseIdentifier(identifier));
+            if (!result.exists) {
+                setIdentifierError(
+                    `We couldn't find a staff account for this ${isEmail ? 'email' : 'phone number'}.`
+                );
+                return;
+            }
+            setAccount(result);
+            setStep('password');
+        } catch (err) {
+            // Don't hard-block on a flaky check — let them try the password anyway.
+            if (err instanceof ApiError && err.status === 429) {
+                setIdentifierError('Too many attempts. Please wait a moment and try again.');
+            } else {
+                setAccount(null);
+                setStep('password');
+            }
+        } finally {
+            setIsChecking(false);
+        }
+    }, [identifier, isEmail]);
+
+    // ── Step 2: submit credentials ──
+    const submitLogin = useCallback(async () => {
+        setGlobalError(undefined);
+
+        if (!password) {
+            setPasswordError('Password is required');
             return;
         }
 
         setIsLoading(true);
-        setErrors({});
-
+        setPasswordError(undefined);
         try {
-            const rawIdentifier = form.identifier.trim();
-            const identifier = isValidGhanaPhone(rawIdentifier)
-                ? normalizeGhanaPhone(rawIdentifier)
-                : rawIdentifier;
-            const { user } = await staffService.login(identifier, form.password);
+            const { user } = await staffService.login(normaliseIdentifier(identifier), password);
             login(user);
-            if (user.must_reset_password) {
-                router.replace('/staff/change-password');
-            } else {
-                router.replace(permissionsHomeRoute(user.permissions ?? []));
-            }
-
+            router.replace(
+                user.must_reset_password
+                    ? '/staff/change-password'
+                    : permissionsHomeRoute(user.permissions ?? [])
+            );
         } catch (err) {
-            setErrors({
-                global: err instanceof Error ? err.message : 'Something went wrong. Please try again.',
-            });
+            setGlobalError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [identifier, password, login, router]);
 
-    // ── Derived ──
-    const showIdentifierError = touched.has('identifier') && !!errors.identifier;
-    const showPasswordError = touched.has('password') && !!errors.password;
+    const backToIdentifier = useCallback(() => {
+        setStep('identifier');
+        setPassword('');
+        setPasswordError(undefined);
+        setGlobalError(undefined);
+    }, []);
 
     // ─────────────────────────────────────────────────────────────────────────
 
     return (
-        <div className="h-screen bg-neutral-light dark:bg-brand-darker flex flex-col items-center justify-center px-4 py-12">
+        <StaffAuthShell>
+            <div className={`${authCardClass} animate-scale-in overflow-hidden`}>
 
-            {/* Subtle background texture */}
-            <div
-                className="fixed inset-0 opacity-[0.03] pointer-events-none"
-                style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23e49925' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C%2Fg%3E%3C%2Fsvg%3E")`,
-                }}
-                aria-hidden="true"
-            />
-
-            <div className="relative w-full max-w-md">
-
-                {/* Logo block */}
-                <div className="flex flex-col items-center mb-10">
-                    <Image
-                        src="/cblogo.webp"
-                        alt="CediBites"
-                        width={72}
-                        height={72}
-                        className="mb-4"
-                        priority
-                    />
-                    <h1 className="text-primary text-3xl font-bold font-body tracking-tight">CediBites</h1>
-                    <p className="text-neutral-gray text-sm mt-1 font-body">Staff Portal</p>
+                {/* Heading */}
+                <div className="mb-7">
+                    <h2 className="text-2xl font-semibold tracking-tight text-text-dark dark:text-text-light">
+                        {step === 'identifier' ? 'Welcome back' : `Hi${account?.name ? `, ${account.name.split(' ')[0]}` : ''}`}
+                    </h2>
+                    <p className="mt-1 text-sm text-neutral-gray">
+                        {step === 'identifier'
+                            ? 'Sign in with the credentials your admin provided.'
+                            : 'Enter your password to continue.'}
+                    </p>
                 </div>
 
-                {/* Login card */}
-                <div className="dark:bg-brand-dark bg-white/75 rounded-3xl p-8 shadow border border-brown-light/20">
-
-                    <div className="mb-8">
-                        <h2 className="text-text-dark dark:text-text-light text-2xl font-semibold font-body tracking-tight">
-                            Welcome Back
-                        </h2>s
-                        <p className="text-neutral-gray text-sm mt-1 font-body">
-                            Sign in with the credentials your Admin Provided.
-                        </p>
+                {/* Global error banner */}
+                {globalError && (
+                    <div className="mb-6 flex items-start gap-3 rounded-2xl border border-error/30 bg-error/10 px-4 py-3 animate-fade-in-down">
+                        <WarningCircleIcon size={20} weight="fill" className="mt-0.5 shrink-0 text-error" />
+                        <p className="text-sm leading-snug text-error">{globalError}</p>
                     </div>
+                )}
 
-                    {/* Global error banner */}
-                    {errors.global && (
-                        <div className="mb-6 flex items-start gap-3 bg-error/10 border border-error/30 rounded-2xl px-4 py-3">
-                            <WarningCircleIcon size={20} weight="fill" className="text-error shrink-0 mt-0.5" />
-                            <p className="text-error text-sm font-body leading-snug">{errors.global}</p>
-                        </div>
-                    )}
-
-                    {/* Form */}
-                    <form onSubmit={e => { e.preventDefault(); submitForm(); }} noValidate className="flex flex-col gap-5">
-
-                        {/* Email / Phone */}
+                {/* ── Step 1: identifier ── */}
+                {step === 'identifier' && (
+                    <form
+                        onSubmit={e => { e.preventDefault(); continueToPassword(); }}
+                        noValidate
+                        className="flex flex-col gap-5 animate-slide-in-left"
+                    >
                         <div>
-                            <label
-                                htmlFor="identifier"
-                                className="block text-sm font-medium text-text-dark dark:text-neutral-light mb-1.5 font-body"
-                            >
+                            <label htmlFor="identifier" className="mb-1.5 block text-sm font-medium text-text-dark dark:text-neutral-light">
                                 Email or Phone <span className="text-primary" aria-hidden="true">*</span>
                             </label>
                             <Input
                                 id="identifier"
                                 name="identifier"
                                 type="text"
-                                placeholder="you@cedibites.com or 024 XXX XXXX"
-                                value={form.identifier}
-                                onChange={handleChange('identifier')}
-                                onBlur={handleBlur('identifier')}
-                                onEnter={submitForm}
-                                leftIcon={<EnvelopeIcon size={20} weight="bold" />}
-                                errorText={showIdentifierError ? errors.identifier : undefined}
+                                placeholder="you@cedibites.com or 024 000 0000"
+                                value={identifier}
+                                onChange={val => { setIdentifier(val); setIdentifierError(undefined); }}
+                                onEnter={continueToPassword}
+                                leftIcon={isEmail
+                                    ? <EnvelopeIcon size={20} weight="bold" />
+                                    : <PhoneIcon size={20} weight="bold" />}
+                                errorText={identifierError}
                                 autoComplete="username"
                                 required
                             />
                         </div>
 
-                        {/* Password */}
-                        <div>
-                            <label
-                                htmlFor="password"
-                                className="block text-sm font-medium text-text-dark dark:text-neutral-light mb-1.5 font-body"
+                        <button
+                            type="submit"
+                            disabled={isChecking}
+                            className="mt-1 flex w-full cursor-pointer items-center justify-center gap-3 rounded-full bg-primary px-6 py-4 text-base font-semibold text-brand-darker transition-all duration-150 hover:bg-primary-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {isChecking ? (
+                                <><SpinnerIcon size={20} weight="bold" className="animate-spin" /> Checking…</>
+                            ) : (
+                                <>Continue <ArrowRightIcon size={20} weight="bold" /></>
+                            )}
+                        </button>
+
+                        <div className="text-center">
+                            <Link
+                                href="/staff/forgot-password"
+                                className="text-xs text-neutral-gray transition-colors hover:text-primary"
                             >
+                                Forgot your password?
+                            </Link>
+                        </div>
+                    </form>
+                )}
+
+                {/* ── Step 2: password ── */}
+                {step === 'password' && (
+                    <form
+                        onSubmit={e => { e.preventDefault(); submitLogin(); }}
+                        noValidate
+                        className="flex flex-col gap-5 animate-slide-in-right"
+                    >
+                        {/* Identifier chip */}
+                        <button
+                            type="button"
+                            onClick={backToIdentifier}
+                            className="group flex w-full items-center gap-3 rounded-2xl border border-brown-light/20 bg-neutral-light/60 px-4 py-3 text-left transition-colors hover:border-primary/40 dark:bg-brand-darker/40"
+                        >
+                            <UserCircleIcon size={28} weight="duotone" className="shrink-0 text-primary" />
+                            <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-medium text-text-dark dark:text-text-light">
+                                    {account?.name ?? identifier}
+                                </span>
+                                {account?.name && (
+                                    <span className="block truncate text-xs text-neutral-gray">{identifier}</span>
+                                )}
+                            </span>
+                            <span className="flex items-center gap-1 text-xs font-medium text-neutral-gray transition-colors group-hover:text-primary">
+                                <PencilSimpleIcon size={14} weight="bold" /> Change
+                            </span>
+                        </button>
+
+                        <div>
+                            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-text-dark dark:text-neutral-light">
                                 Password <span className="text-primary" aria-hidden="true">*</span>
                             </label>
                             <Input
+                                ref={passwordRef}
                                 id="password"
                                 name="password"
                                 type="password"
                                 placeholder="Enter your password"
-                                value={form.password}
-                                onChange={handleChange('password')}
-                                onBlur={handleBlur('password')}
-                                onEnter={submitForm}
+                                value={password}
+                                onChange={val => { setPassword(val); setPasswordError(undefined); }}
+                                onEnter={submitLogin}
                                 leftIcon={<LockKeyIcon size={20} weight="bold" />}
-                                errorText={showPasswordError ? errors.password : undefined}
+                                errorText={passwordError}
                                 autoComplete="current-password"
                                 required
                             />
                         </div>
 
-                        {/* Forgot password */}
-                        <div className="text-right -mt-1">
+                        <div className="-mt-1 text-right">
                             <Link
                                 href="/staff/forgot-password"
-                                className="text-neutral-gray text-xs font-body hover:text-primary transition-colors"
+                                className="text-xs text-neutral-gray transition-colors hover:text-primary"
                             >
                                 Forgot your password?
                             </Link>
                         </div>
 
-                        {/* Submit */}
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="
-                mt-2 w-full flex items-center justify-center gap-3
-                bg-primary hover:bg-primary-hover
-                disabled:opacity-60 disabled:cursor-not-allowed
-                text-brand-darker font-semibold font-body
-                py-4 px-6 rounded-full
-                transition-all duration-150 active:scale-[0.98]
-                text-base cursor-pointer
-              "
+                            className="mt-1 flex w-full cursor-pointer items-center justify-center gap-3 rounded-full bg-primary px-6 py-4 text-base font-semibold text-brand-darker transition-all duration-150 hover:bg-primary-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {isLoading ? (
-                                <>
-                                    <SpinnerIcon size={20} weight="bold" className="animate-spin" />
-                                    Signing in...
-                                </>
+                                <><SpinnerIcon size={20} weight="bold" className="animate-spin" /> Signing in…</>
                             ) : (
-                                <>
-                                    Sign In
-                                    <ArrowRightIcon size={20} weight="bold" />
-                                </>
+                                <>Sign In <ArrowRightIcon size={20} weight="bold" /></>
                             )}
                         </button>
 
+                        <button
+                            type="button"
+                            onClick={backToIdentifier}
+                            className="mx-auto flex items-center gap-1 text-sm text-neutral-gray transition-colors hover:text-primary"
+                        >
+                            <ArrowLeftIcon size={14} weight="bold" /> Use a different account
+                        </button>
                     </form>
-
-
-                </div>
-
-                {/* Footer stamp */}
-                <p className="text-center text-neutral-gray/40 text-xs mt-6 font-body">
-                    CediBites &copy; {new Date().getFullYear()} &mdash; Internal Staff Portal
-                </p>
-
+                )}
             </div>
-        </div>
+        </StaffAuthShell>
     );
 }

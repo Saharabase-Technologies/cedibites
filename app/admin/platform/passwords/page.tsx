@@ -14,9 +14,26 @@ import {
     WarningCircleIcon,
     CaretLeftIcon,
     CaretRightIcon,
+    UserPlusIcon,
+    CheckCircleIcon,
+    XIcon,
 } from '@phosphor-icons/react';
 import { platformService, type StaffPassword } from '@/lib/api/services/platform.service';
+import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import { toast } from '@/lib/utils/toast';
+
+// ─── Creatable roles ──────────────────────────────────────────────────────────
+
+const ROLES: { value: string; label: string }[] = [
+    { value: 'branch_partner', label: 'Branch Partner' },
+    { value: 'admin',          label: 'Admin' },
+    { value: 'manager',        label: 'Manager' },
+    { value: 'sales_staff',    label: 'Sales Staff' },
+    { value: 'call_center',    label: 'Call Center' },
+    { value: 'kitchen',        label: 'Kitchen' },
+    { value: 'rider',          label: 'Rider' },
+    { value: 'tech_admin',     label: 'Tech Admin' },
+];
 
 // ─── Passcode Gate ────────────────────────────────────────────────────────────
 
@@ -229,6 +246,215 @@ function ResetPasswordModal({ employee, passcode, onClose, onReset }: {
     );
 }
 
+// ─── Create User Modal ────────────────────────────────────────────────────────
+
+function CreateUserModal({ passcode, branches, onClose, onCreated }: {
+    passcode: string;
+    branches: { id: number; name: string }[];
+    onClose: () => void;
+    onCreated: () => void;
+}) {
+    const [name, setName] = useState('');
+    const [phone, setPhone] = useState('');
+    const [email, setEmail] = useState('');
+    const [role, setRole] = useState('branch_partner');
+    const [branchIds, setBranchIds] = useState<number[]>([]);
+    const [pwMode, setPwMode] = useState<'auto' | 'custom'>('auto');
+    const [password, setPassword] = useState('');
+    const [newPasscode, setNewPasscode] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [result, setResult] = useState<{ name: string; employeeNo?: string; password: string | null } | null>(null);
+
+    const isTechAdmin = role === 'tech_admin';
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        toast.success('Copied to clipboard');
+    };
+
+    const toggleBranch = (id: number) =>
+        setBranchIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+
+    const validate = (): string | null => {
+        if (!name.trim()) return 'Name is required.';
+        if (!phone.trim()) return 'Phone number is required.';
+        if (!isTechAdmin && branchIds.length === 0) return 'Select at least one branch for this role.';
+        if (isTechAdmin && newPasscode.length !== 6) return 'Set a 6-digit passcode for the new admin.';
+        if (pwMode === 'custom' && password.length < 8) return 'Custom password must be at least 8 characters.';
+        return null;
+    };
+
+    const submit = async () => {
+        const v = validate();
+        if (v) { setError(v); return; }
+        setError('');
+        setLoading(true);
+        try {
+            const res = await platformService.createUser({
+                name: name.trim(),
+                phone: phone.trim(),
+                email: email.trim() || undefined,
+                role,
+                branch_ids: branchIds,
+                password_mode: pwMode,
+                password: pwMode === 'custom' ? password : undefined,
+                new_passcode: isTechAdmin ? newPasscode : undefined,
+                passcode,
+            });
+            setResult({ name: res.name ?? name, employeeNo: res.employee_no, password: res.generated_password });
+            toast.success(`${res.name ?? name} created`);
+            onCreated();
+        } catch (e) {
+            const msg = e && typeof e === 'object' && 'response' in e
+                ? (e as { response?: { data?: { message?: string } } }).response?.data?.message ?? ''
+                : '';
+            setError(msg || 'Failed to create user — check your passcode and the details.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#f0e8d8]">
+                    <h3 className="text-lg font-bold font-body text-text-dark flex items-center gap-2">
+                        <UserPlusIcon size={20} className="text-primary" />
+                        Create User
+                    </h3>
+                    <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-neutral-light text-neutral-gray cursor-pointer">
+                        <XIcon size={18} />
+                    </button>
+                </div>
+
+                {result ? (
+                    <div className="p-6 space-y-4 overflow-y-auto">
+                        <div className="flex items-center gap-2 text-success">
+                            <CheckCircleIcon size={22} weight="fill" />
+                            <p className="text-sm font-semibold font-body">{result.name} created{result.employeeNo ? ` · ${result.employeeNo}` : ''}</p>
+                        </div>
+                        {result.password ? (
+                            <div className="p-4 bg-success/5 border border-success/20 rounded-xl">
+                                <p className="text-sm font-body text-neutral-gray mb-1">Temporary Password</p>
+                                <div className="flex items-center gap-2">
+                                    <code className="text-xl font-mono text-text-dark flex-1 break-all">{result.password}</code>
+                                    <button type="button" onClick={() => copyToClipboard(result.password!)} className="p-2 rounded-lg hover:bg-neutral-light text-neutral-gray cursor-pointer" title="Copy">
+                                        <CopyIcon size={18} />
+                                    </button>
+                                </div>
+                                <p className="text-xs font-body text-neutral-gray mt-2">Share this confidentially. It is also retrievable in the vault below.</p>
+                            </div>
+                        ) : (
+                            <p className="text-xs font-body text-neutral-gray">Custom password set. It is retrievable in the vault below.</p>
+                        )}
+                        <button type="button" onClick={onClose} className="w-full px-4 py-3 rounded-xl bg-primary text-white text-base font-semibold font-body hover:bg-primary-dark transition-colors cursor-pointer">
+                            Done
+                        </button>
+                    </div>
+                ) : (
+                    <div className="p-6 space-y-4 overflow-y-auto">
+                        {error && (
+                            <div className="flex items-start gap-2 p-3 bg-error/5 border border-error/20 rounded-xl">
+                                <WarningCircleIcon size={16} className="text-error shrink-0 mt-0.5" />
+                                <p className="text-xs font-body text-error">{error}</p>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-xs font-medium font-body text-text-dark mb-1 block">Full Name</label>
+                                <input value={name} onChange={e => { setName(e.target.value); setError(''); }} placeholder="Jane Mensah"
+                                    className="w-full px-3 py-2.5 rounded-xl border border-[#f0e8d8] text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium font-body text-text-dark mb-1 block">Phone</label>
+                                <input value={phone} onChange={e => { setPhone(e.target.value); setError(''); }} placeholder="+233..."
+                                    className="w-full px-3 py-2.5 rounded-xl border border-[#f0e8d8] text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-medium font-body text-text-dark mb-1 block">Email <span className="text-neutral-gray font-normal">(optional)</span></label>
+                            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com"
+                                className="w-full px-3 py-2.5 rounded-xl border border-[#f0e8d8] text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-medium font-body text-text-dark mb-1 block">Role</label>
+                            <select value={role} onChange={e => { setRole(e.target.value); setError(''); }}
+                                className="w-full px-3 py-2.5 rounded-xl border border-[#f0e8d8] text-sm font-body bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer">
+                                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                            </select>
+                            <p className="text-[11px] font-body text-neutral-gray mt-1">Privileges follow the role&apos;s defaults.</p>
+                        </div>
+
+                        {/* Branches (not required for tech admin) */}
+                        <div>
+                            <label className="text-xs font-medium font-body text-text-dark mb-1 block">
+                                Branches {isTechAdmin && <span className="text-neutral-gray font-normal">(optional for Tech Admin)</span>}
+                            </label>
+                            {branches.length === 0 ? (
+                                <p className="text-xs font-body text-neutral-gray">No branches available.</p>
+                            ) : (
+                                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                                    {branches.map(b => {
+                                        const on = branchIds.includes(b.id);
+                                        return (
+                                            <button key={b.id} type="button" onClick={() => toggleBranch(b.id)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-body border transition-colors cursor-pointer ${on ? 'bg-primary text-white border-primary' : 'bg-white text-neutral-gray border-[#f0e8d8] hover:border-primary/40'}`}>
+                                                {b.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* New admin passcode */}
+                        {isTechAdmin && (
+                            <div>
+                                <label className="text-xs font-medium font-body text-text-dark mb-1 block">New Admin&apos;s 6-Digit Passcode</label>
+                                <input type="password" inputMode="numeric" maxLength={6} value={newPasscode}
+                                    onChange={e => setNewPasscode(e.target.value.replace(/\D/g, ''))} placeholder="000000"
+                                    className="w-full px-4 py-3 rounded-xl border border-[#f0e8d8] text-center text-lg font-mono tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                            </div>
+                        )}
+
+                        {/* Password mode */}
+                        <div>
+                            <label className="text-xs font-medium font-body text-text-dark mb-1.5 block">Login Password</label>
+                            <div className="flex gap-2 mb-2">
+                                {(['auto', 'custom'] as const).map(m => (
+                                    <button key={m} type="button" onClick={() => setPwMode(m)}
+                                        className={`flex-1 py-2 rounded-xl text-xs font-bold font-body cursor-pointer transition-colors ${pwMode === m ? 'bg-primary text-white' : 'bg-neutral-light text-neutral-gray border border-[#f0e8d8]'}`}>
+                                        {m === 'auto' ? 'Auto-Generate' : 'Custom'}
+                                    </button>
+                                ))}
+                            </div>
+                            {pwMode === 'custom' && (
+                                <input type="text" value={password} onChange={e => { setPassword(e.target.value); setError(''); }} placeholder="Min 8 characters"
+                                    className="w-full px-3 py-2.5 rounded-xl border border-[#f0e8d8] text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                            )}
+                        </div>
+
+                        <div className="flex gap-3 pt-1">
+                            <button type="button" onClick={onClose} disabled={loading}
+                                className="flex-1 px-4 py-3 rounded-xl border border-[#f0e8d8] text-sm font-medium font-body text-neutral-gray hover:bg-neutral-light transition-colors cursor-pointer">
+                                Cancel
+                            </button>
+                            <button type="button" onClick={submit} disabled={loading}
+                                className="flex-1 px-4 py-3 rounded-xl bg-primary text-white text-sm font-semibold font-body hover:bg-primary-dark transition-colors disabled:opacity-50 cursor-pointer">
+                                {loading ? <CircleNotchIcon size={18} className="animate-spin mx-auto" /> : 'Create User'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 // ─── Password Row ─────────────────────────────────────────────────────────────
 
 function PasswordRow({ emp, onReset }: { emp: StaffPassword; onReset: () => void }) {
@@ -325,6 +551,8 @@ export default function StaffPasswordsPage() {
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
     const [resetTarget, setResetTarget] = useState<StaffPassword | null>(null);
+    const [showCreate, setShowCreate] = useState(false);
+    const { branches } = useBranchesApi();
     const PAGE_SIZE = 15;
 
     const handleUnlock = async (code: string) => {
@@ -396,6 +624,14 @@ export default function StaffPasswordsPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setShowCreate(true)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold font-body hover:bg-primary-dark transition-colors cursor-pointer"
+                    >
+                        <UserPlusIcon size={16} weight="bold" />
+                        Create User
+                    </button>
                     <button
                         type="button"
                         onClick={() => setPasscode(null)}
@@ -510,6 +746,16 @@ export default function StaffPasswordsPage() {
                     passcode={passcode}
                     onClose={() => setResetTarget(null)}
                     onReset={handleRefresh}
+                />
+            )}
+
+            {/* Create user modal */}
+            {showCreate && passcode && (
+                <CreateUserModal
+                    passcode={passcode}
+                    branches={branches.map(b => ({ id: Number(b.id), name: b.name }))}
+                    onClose={() => setShowCreate(false)}
+                    onCreated={handleRefresh}
                 />
             )}
         </div>

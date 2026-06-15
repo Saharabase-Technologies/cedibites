@@ -273,7 +273,7 @@ export const employeeService = {
     }
   },
 
-  createEmployee: async (payload: CreateEmployeePayload): Promise<StaffMember> => {
+  createEmployee: async (payload: CreateEmployeePayload): Promise<{ employee: StaffMember; generatedPassword: string | null }> => {
     const response = await apiClient.post('/admin/employees', {
       name: payload.name,
       email: payload.email || null,
@@ -296,9 +296,11 @@ export const employeeService = {
       // Individual permissions
       ...(payload.permissions && { permissions: payload.permissions }),
     });
-    const outer = response as { data?: { data?: ApiEmployee } };
-    const api = outer?.data?.data ?? outer?.data ?? (response as unknown as ApiEmployee);
-    return apiEmployeeToStaffMember(api as ApiEmployee);
+    const outer = response as { data?: { data?: { employee?: ApiEmployee; generated_password?: string | null } } & { employee?: ApiEmployee; generated_password?: string | null } };
+    const payload2 = outer?.data?.data ?? outer?.data ?? (response as unknown as { employee?: ApiEmployee; generated_password?: string | null });
+    const api = (payload2?.employee ?? payload2) as ApiEmployee;
+    const generatedPassword = (payload2?.generated_password ?? null) as string | null;
+    return { employee: apiEmployeeToStaffMember(api), generatedPassword };
   },
 
   updateEmployee: async (id: string, payload: UpdateEmployeePayload): Promise<StaffMember> => {

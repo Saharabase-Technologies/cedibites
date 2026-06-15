@@ -7,14 +7,17 @@ import {
     SquaresFourIcon,
     ListIcon,
     BuildingsIcon,
-    UsersThreeIcon,
+    UserCircleIcon,
     ChartBarIcon,
     SignOutIcon,
     CaretRightIcon,
+    CaretDownIcon,
+    CheckIcon,
     ShieldCheckIcon,
 } from '@phosphor-icons/react';
 import { useState, useEffect } from 'react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { PartnerScopeProvider, usePartnerScope, type PartnerScope } from '@/app/components/providers/PartnerScopeProvider';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
@@ -23,8 +26,8 @@ const PARTNER_NAV = [
     { href: '/partner/dashboard', label: 'Dashboard',  icon: SquaresFourIcon },
     { href: '/partner/orders',    label: 'Orders',     icon: ListIcon        },
     { href: '/partner/branch',    label: 'My Branch',  icon: BuildingsIcon   },
-    { href: '/partner/staff',     label: 'Staff',      icon: UsersThreeIcon  },
     { href: '/partner/analytics', label: 'Analytics',  icon: ChartBarIcon    },
+    { href: '/partner/profile',   label: 'Profile',    icon: UserCircleIcon  },
 ];
 
 const BOTTOM_NAV = PARTNER_NAV; // All 5 in bottom nav
@@ -37,15 +40,15 @@ function SidebarLink({ href, label, icon: Icon, active }: {
     return (
         <Link
             href={href}
-            className={`group flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium font-body transition-all duration-150 ${
+            className={`group flex items-center gap-3 px-3 py-3 rounded-xl text-[13px] font-body transition-all duration-150 ${
                 active
-                    ? 'bg-[#fff8ec] text-primary px-3 border-l-[3px] border-primary ml-0 pl-2.25'
-                    : 'text-neutral-gray hover:bg-neutral-light hover:text-text-dark px-3'
+                    ? 'bg-primary text-white font-bold shadow-sm shadow-primary/25'
+                    : 'text-text-dark/80 font-semibold hover:bg-neutral-light hover:text-text-dark'
             }`}
         >
-            <Icon size={18} weight={active ? 'fill' : 'regular'} className="shrink-0" />
-            <span>{label}</span>
-            {active && <CaretRightIcon size={12} weight="bold" className="ml-auto opacity-40" />}
+            <Icon size={19} weight={active ? 'fill' : 'bold'} className="shrink-0" />
+            <span className="tracking-tight">{label}</span>
+            {active && <CaretRightIcon size={13} weight="bold" className="ml-auto text-white/70" />}
         </Link>
     );
 }
@@ -58,11 +61,73 @@ function BottomNavLink({ href, label, icon: Icon, active }: {
     return (
         <Link
             href={href}
-            className={`flex flex-col items-center gap-1 flex-1 py-2 text-xs font-medium font-body transition-colors ${active ? 'text-primary' : 'text-neutral-gray'}`}
+            className="flex flex-col items-center gap-1 flex-1 py-1.5"
         >
-            <Icon size={22} weight={active ? 'fill' : 'regular'} />
-            <span>{label}</span>
+            <span className={`flex items-center justify-center w-11 h-7 rounded-full transition-colors ${active ? 'bg-primary/12' : ''}`}>
+                <Icon size={21} weight={active ? 'fill' : 'bold'} className={active ? 'text-primary' : 'text-text-dark/55'} />
+            </span>
+            <span className={`text-[11px] font-body transition-colors ${active ? 'text-primary font-bold' : 'text-text-dark/60 font-semibold'}`}>{label}</span>
         </Link>
+    );
+}
+
+// ─── Branch scope switcher ────────────────────────────────────────────────────
+
+function ScopeSwitcher() {
+    const { branches, hasMultiple, scope, setScope, scopeLabel } = usePartnerScope();
+    const [open, setOpen] = useState(false);
+
+    if (branches.length === 0) return null;
+
+    // Single branch — static chip, no switching needed.
+    if (!hasMultiple) {
+        return (
+            <div className="mx-3 mt-3 flex items-center gap-2 px-3 py-2.5 bg-primary/10 rounded-xl border border-primary/20">
+                <BuildingsIcon size={14} weight="fill" className="text-primary shrink-0" />
+                <span className="text-primary text-[13px] font-bold font-body truncate">{scopeLabel}</span>
+            </div>
+        );
+    }
+
+    const options: { value: PartnerScope; label: string }[] = [
+        { value: 'all', label: 'All Branches' },
+        ...branches.map(b => ({ value: b.id as PartnerScope, label: b.name })),
+    ];
+
+    return (
+        <div className="relative mx-3 mt-3">
+            <button
+                type="button"
+                onClick={() => setOpen(o => !o)}
+                className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/10 rounded-xl border border-primary/20 hover:border-primary/40 transition-colors cursor-pointer"
+            >
+                <BuildingsIcon size={14} weight="fill" className="text-primary shrink-0" />
+                <span className="text-primary text-[13px] font-bold font-body truncate flex-1 text-left">{scopeLabel}</span>
+                <CaretDownIcon size={12} weight="bold" className={`text-primary/70 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+
+            {open && (
+                <>
+                    <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} aria-hidden="true" />
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-30 bg-neutral-card border border-[#f0e8d8] rounded-xl shadow-lg overflow-hidden py-1">
+                        {options.map(opt => {
+                            const active = opt.value === scope;
+                            return (
+                                <button
+                                    key={String(opt.value)}
+                                    type="button"
+                                    onClick={() => { setScope(opt.value); setOpen(false); }}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] font-body transition-colors cursor-pointer ${active ? 'text-primary font-semibold bg-primary/5' : 'text-text-dark/75 font-medium hover:bg-neutral-light'}`}
+                                >
+                                    <span className="truncate flex-1">{opt.label}</span>
+                                    {active && <CheckIcon size={13} weight="bold" className="text-primary shrink-0" />}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </>
+            )}
+        </div>
     );
 }
 
@@ -72,6 +137,7 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
     const { staffUser, isLoading, logout } = useStaffAuth();
+    const { scopeLabel } = usePartnerScope();
     const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
     useEffect(() => {
@@ -95,18 +161,15 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
                     <Image src="/cblogo.webp" alt="CediBites" width={40} height={40} className="shrink-0" priority />
                     <div>
                         <p className="font-brand text-primary text-lg leading-none">CediBites</p>
-                        <p className="text-neutral-gray text-[10px] font-body mt-0.5 flex items-center gap-1">
-                            <ShieldCheckIcon size={10} weight="fill" className="text-primary/70" />
+                        <p className="text-text-dark/70 text-[10px] font-body font-semibold uppercase tracking-wider mt-1 flex items-center gap-1">
+                            <ShieldCheckIcon size={11} weight="fill" className="text-primary" />
                             Partner Portal
                         </p>
                     </div>
                 </div>
 
-                {/* Branch chip */}
-                <div className="mx-3 mt-3 flex items-center gap-2 px-3 py-2 bg-primary/8 rounded-xl border border-primary/15">
-                    <BuildingsIcon size={13} weight="fill" className="text-primary shrink-0" />
-                    <span className="text-primary text-xs font-semibold font-body truncate">{staffUser.branches[0]?.name ?? ''}</span>
-                </div>
+                {/* Branch scope switcher */}
+                <ScopeSwitcher />
 
                 {/* Nav */}
                 <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5 overflow-y-auto">
@@ -128,14 +191,14 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
                             <span className="text-primary text-xs font-bold font-body">{initials}</span>
                         </div>
                         <div className="min-w-0">
-                            <p className="text-text-dark text-xs font-semibold font-body truncate">{staffUser.name}</p>
-                            <p className="text-neutral-gray text-[10px] font-body truncate">Branch Partner</p>
+                            <p className="text-text-dark text-[13px] font-bold font-body truncate">{staffUser.name}</p>
+                            <p className="text-neutral-gray text-[10px] font-semibold font-body uppercase tracking-wider truncate">Branch Partner</p>
                         </div>
                     </div>
                     <button
                         type="button"
                         onClick={() => setIsSignOutOpen(true)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-neutral-gray hover:text-error hover:bg-error/10 text-sm font-medium font-body transition-all cursor-pointer"
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-text-dark/70 hover:text-error hover:bg-error/10 text-[13px] font-semibold font-body transition-all cursor-pointer"
                     >
                         <SignOutIcon size={16} weight="regular" className="shrink-0" />
                         Sign Out
@@ -154,7 +217,7 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
                         <span className="text-neutral-gray text-xs font-body ml-1">Partner</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-neutral-gray text-xs font-body hidden sm:block">{staffUser.branches[0]?.name ?? ''}</span>
+                        <span className="text-neutral-gray text-xs font-body hidden sm:block">{scopeLabel}</span>
                         <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center">
                             <span className="text-primary text-[10px] font-bold font-body">{initials}</span>
                         </div>
@@ -193,7 +256,9 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
 export default function PartnerLayout({ children }: { children: React.ReactNode }) {
     return (
         <StaffAuthProvider>
-            <PartnerShell>{children}</PartnerShell>
+            <PartnerScopeProvider>
+                <PartnerShell>{children}</PartnerShell>
+            </PartnerScopeProvider>
         </StaffAuthProvider>
     );
 }

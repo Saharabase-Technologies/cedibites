@@ -116,8 +116,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
             bg-neutral-light dark:bg-brand-dark
             border-2 ${borderClass}
             rounded-full
-           text-text-dark dark:text-text-light
-            placeholder:text-neutral-gray
+           text-text-dark dark:text-text-light font-medium
+            placeholder:text-neutral-gray placeholder:font-normal
             transition-all duration-150 outline-none
             disabled:opacity-50 disabled:cursor-not-allowed
           `}

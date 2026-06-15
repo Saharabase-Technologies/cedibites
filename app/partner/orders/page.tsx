@@ -3,24 +3,26 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
     ListIcon,
+    ReceiptIcon,
     MagnifyingGlassIcon,
     XIcon,
-    ClockIcon,
     PhoneIcon,
     MapPinIcon,
     CaretDownIcon,
     CaretUpIcon,
     FunnelIcon,
+    FilePdfIcon,
+    FileCsvIcon,
     SpinnerIcon,
     WarningIcon,
 } from '@phosphor-icons/react';
-import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import { useEmployeeOrders, useEmployeeOrdersPeriodSummary } from '@/lib/api/hooks/useEmployeeOrders';
-import OrderPeriodSummary from '@/app/components/ui/OrderPeriodSummary';
+import { usePartnerScope } from '@/app/components/providers/PartnerScopeProvider';
+import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
+import { getDateRange, type AnalyticsPeriod } from '@/lib/api/hooks/useAnalytics';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
 import { formatPrice, type OrderStatus, type Order } from '@/types/order';
-import { STATUS_CONFIG } from '@/lib/constants/order.constants';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
+import PeriodFilter, { PERIOD_LABELS, type CustomRange } from '@/app/components/analytics/PeriodFilter';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -41,40 +43,107 @@ function matchesFilter(status: OrderStatus, filter: string): boolean {
     return status === filter;
 }
 
-function formatTime(ts: number) {
-    return new Date(ts).toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit' });
+// ─── Export helpers ─────────────────────────────────────────────────────────────
+
+function csvCell(v: unknown): string {
+    const s = String(v ?? '');
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function formatShortDate(ts: number) {
-    return new Date(ts).toLocaleDateString('en-GH', { day: 'numeric', month: 'short' });
+function downloadBlob(content: BlobPart, filename: string, type: string) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
-function isToday(ts: number) {
-    const d = new Date(ts); const t = new Date();
-    return d.getDate() === t.getDate() && d.getMonth() === t.getMonth() && d.getFullYear() === t.getFullYear();
+function slug(s: string): string {
+    return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'all';
 }
 
-// ─── Status dot ───────────────────────────────────────────────────────────────
+function exportOrdersCsv(orders: Order[], periodLabel: string) {
+    const headers = ['Order #', 'Date', 'Customer', 'Phone', 'Items', 'Status', 'Fulfilment', 'Payment', 'Total (GHS)'];
+    const rows = orders.map(o => [
+        o.orderNumber,
+        new Date(o.placedAt).toLocaleString('en-GH'),
+        o.contact.name,
+        o.contact.phone ?? '',
+        o.items.reduce((s, it) => s + it.quantity, 0),
+        o.status,
+        o.fulfillmentType ?? '',
+        o.paymentMethod ?? '',
+        o.total.toFixed(2),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
+    // BOM so Excel reads ₵/UTF-8 correctly
+    downloadBlob('﻿' + csv, `cedibites-orders-${slug(periodLabel)}.csv`, 'text/csv;charset=utf-8;');
+}
 
-function StatusDot({ status }: { status: string }) {
-    const cfg = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.received;
-    return (
-        <span className="inline-flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full shrink-0 ${cfg.dot} ${cfg.pulse ? 'animate-pulse' : ''}`} />
-            <span className="text-xs font-semibold font-body" style={{ color: cfg.textColor }}>{cfg.label}</span>
-        </span>
-    );
+async function exportOrdersPdf(orders: Order[], branchName: string, periodLabel: string) {
+    const { jsPDF } = await import('jspdf');
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const margin = 40;
+    const right = 555;
+    let y = margin;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CediBites — Order Statement', margin, y);
+    y += 22;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Branch: ${branchName}`, margin, y); y += 14;
+    doc.text(`Period: ${periodLabel}`, margin, y); y += 14;
+    doc.text(`Generated: ${new Date().toLocaleString('en-GH')}`, margin, y); y += 18;
+
+    const gross = orders.reduce((s, o) => (o.status === 'cancelled' ? s : s + o.total), 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${orders.length} orders   ·   Gross GHS ${gross.toFixed(2)}`, margin, y);
+    y += 18;
+
+    const pageH = doc.internal.pageSize.getHeight();
+    const drawHeader = () => {
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Order #', margin, y);
+        doc.text('Date', margin + 70, y);
+        doc.text('Customer', margin + 160, y);
+        doc.text('Status', margin + 300, y);
+        doc.text('Total', right, y, { align: 'right' });
+        y += 5;
+        doc.line(margin, y, right, y);
+        y += 12;
+        doc.setFont('helvetica', 'normal');
+    };
+    drawHeader();
+
+    for (const o of orders) {
+        if (y > pageH - margin) { doc.addPage(); y = margin; drawHeader(); }
+        doc.text(String(o.orderNumber), margin, y);
+        doc.text(new Date(o.placedAt).toLocaleDateString('en-GH', { day: '2-digit', month: 'short', year: '2-digit' }), margin + 70, y);
+        doc.text((o.contact.name ?? '').slice(0, 24), margin + 160, y);
+        doc.text(o.status.replace(/_/g, ' '), margin + 300, y);
+        doc.text(o.total.toFixed(2), right, y, { align: 'right' });
+        y += 15;
+    }
+
+    doc.save(`cedibites-orders-${slug(periodLabel)}.pdf`);
 }
 
 // ─── Order row (expandable) ───────────────────────────────────────────────────
 
 function OrderRow({ order, isLast }: { order: Order; isLast: boolean }) {
     const [open, setOpen] = useState(false);
+    const itemCount = order.items.reduce((s, it) => s + it.quantity, 0);
 
     return (
         <>
             <div
-                className={`px-5 py-3.5 flex flex-col md:grid md:grid-cols-[2fr_1fr_1.2fr_1fr_1fr_auto] gap-2 md:gap-4 md:items-center cursor-pointer hover:bg-neutral-light/60 transition-colors ${!isLast ? 'border-b border-[#f0e8d8]' : ''}`}
+                className={`px-5 py-3.5 flex flex-col md:grid md:grid-cols-[2fr_1fr_1fr_auto] gap-2 md:gap-4 md:items-center cursor-pointer hover:bg-neutral-light/60 transition-colors ${!isLast ? 'border-b border-[#f0e8d8]' : ''}`}
                 onClick={() => setOpen(o => !o)}
             >
                 <div className="min-w-0">
@@ -83,15 +152,7 @@ function OrderRow({ order, isLast }: { order: Order; isLast: boolean }) {
                 </div>
                 <span className="text-neutral-gray text-xs font-body">
                     <span className="md:hidden text-neutral-gray/60">Items: </span>
-                    {order.items.reduce((s, it) => s + it.quantity, 0)} item{order.items.reduce((s, it) => s + it.quantity, 0) !== 1 ? 's' : ''}
-                </span>
-                <div>
-                    <span className="md:hidden text-neutral-gray/60 text-xs font-body">Status: </span>
-                    <StatusDot status={order.status} />
-                </div>
-                <span className="text-neutral-gray text-xs font-body flex items-center gap-1">
-                    <ClockIcon size={11} weight="fill" />
-                    {isToday(order.placedAt) ? formatTime(order.placedAt) : formatShortDate(order.placedAt)}
+                    {itemCount} item{itemCount !== 1 ? 's' : ''}
                 </span>
                 <span className="text-text-dark text-sm font-bold font-body">
                     <span className="md:hidden text-neutral-gray/60 text-xs font-normal">Total: </span>
@@ -151,11 +212,22 @@ function OrderRow({ order, isLast }: { order: Order; isLast: boolean }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PartnerOrdersPage() {
-    const { staffUser } = useStaffAuth();
-    const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
+    const { branchId, primaryBranchId, scopeLabel } = usePartnerScope();
+    const singleBranchId = branchId ?? primaryBranchId;
 
-    const { orders: apiOrders, isLoading, error } = useEmployeeOrders({ branch_id: branchId, per_page: 100 });
-    const { summary: periodSummary, isLoading: summaryLoading } = useEmployeeOrdersPeriodSummary(branchId ? { branch_id: branchId } : undefined);
+    const [period, setPeriod] = useState<AnalyticsPeriod>('month');
+    const [customRange, setCustomRange] = useState<CustomRange>(() => {
+        const today = new Date().toISOString().slice(0, 10);
+        return { date_from: today, date_to: today };
+    });
+    const range = useMemo(() => getDateRange(period, period === 'custom' ? customRange : undefined), [period, customRange]);
+
+    const { orders: apiOrders, isLoading, error } = useEmployeeOrders({
+        branch_id: singleBranchId,
+        date_from: range.date_from,
+        date_to: range.date_to,
+        per_page: 200,
+    });
 
     const branchOrders = useMemo(() =>
         apiOrders.map(mapApiOrderToOrder).sort((a, b) => b.placedAt - a.placedAt),
@@ -184,11 +256,16 @@ export default function PartnerOrdersPage() {
     const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
     // Reset page when filters change
-    useEffect(() => { setPage(0); }, [statusFilter, search]);
+    useEffect(() => { setPage(0); }, [statusFilter, search, period]);
 
-    const activeCount = branchOrders.filter(o => ACTIVE_STATUSES.includes(o.status as OrderStatus)).length;
+    // Period gross (excludes cancelled) for the ledger header.
+    const periodGross = useMemo(
+        () => branchOrders.reduce((s, o) => (o.status === 'cancelled' ? s : s + o.total), 0),
+        [branchOrders]
+    );
+    const periodLabel = PERIOD_LABELS[period] ?? '';
 
-    if (!branchId) {
+    if (!primaryBranchId) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
                 <WarningIcon size={32} weight="fill" className="text-warning" />
@@ -220,19 +297,44 @@ export default function PartnerOrdersPage() {
         <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <ListIcon size={20} weight="fill" className="text-primary" />
-                        <h1 className="text-text-dark text-2xl font-bold font-body">Orders</h1>
+            <div className="flex flex-col gap-4 mb-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <ReceiptIcon size={20} weight="fill" className="text-primary" />
+                            <h1 className="text-text-dark text-2xl font-bold font-body">Order Ledger</h1>
+                        </div>
+                        <p className="text-neutral-gray text-sm font-body">
+                            {scopeLabel} · {branchOrders.length} order{branchOrders.length !== 1 ? 's' : ''} · <span className="text-text-dark font-semibold">{formatPrice(periodGross)}</span> gross
+                        </p>
                     </div>
-                    <p className="text-neutral-gray text-sm font-body">
-                        {branchOrders.length} total · {activeCount} active now
-                    </p>
-                    <div className="mt-2">
-                        <OrderPeriodSummary summary={periodSummary} isLoading={summaryLoading} label="All time" />
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => exportOrdersCsv(filtered, periodLabel)}
+                            disabled={filtered.length === 0}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#f0e8d8] bg-neutral-card text-text-dark/80 text-xs font-semibold font-body hover:border-primary/40 hover:text-primary transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            <FileCsvIcon size={15} weight="bold" /> CSV
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => exportOrdersPdf(filtered, scopeLabel, periodLabel)}
+                            disabled={filtered.length === 0}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#f0e8d8] bg-neutral-card text-text-dark/80 text-xs font-semibold font-body hover:border-primary/40 hover:text-primary transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            <FilePdfIcon size={15} weight="bold" /> PDF
+                        </button>
                     </div>
                 </div>
+
+                {/* Period selector */}
+                <PeriodFilter
+                    value={period}
+                    onChange={setPeriod}
+                    customRange={customRange}
+                    onCustomRangeChange={setCustomRange}
+                />
             </div>
 
             {/* Search + filter */}
@@ -275,8 +377,8 @@ export default function PartnerOrdersPage() {
                 </div>
             ) : (
                 <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden">
-                    <div className="hidden md:grid grid-cols-[2fr_1fr_1.2fr_1fr_1fr_auto] gap-4 px-5 py-3 border-b border-[#f0e8d8] bg-[#faf6f0]">
-                        {['Customer', 'Items', 'Status', 'Time', 'Amount', ''].map((h, i) => (
+                    <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_auto] gap-4 px-5 py-3 border-b border-[#f0e8d8] bg-[#faf6f0]">
+                        {['Customer', 'Items', 'Amount', ''].map((h, i) => (
                             <span key={i} className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-wider">{h}</span>
                         ))}
                     </div>

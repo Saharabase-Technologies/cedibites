@@ -14,9 +14,10 @@ import {
     SpinnerIcon,
     WarningIcon,
 } from '@phosphor-icons/react';
-import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { usePartnerScope } from '@/app/components/providers/PartnerScopeProvider';
 import {
     useAnalytics,
+    useRevenueTrend,
     useOrderSourceAnalytics,
     useTopItemsAnalytics,
     useBottomItemsAnalytics,
@@ -27,10 +28,10 @@ import {
 } from '@/lib/api/hooks/useAnalytics';
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
+import PeriodFilter, { type CustomRange } from '@/app/components/analytics/PeriodFilter';
+import GrowthTrendCard from '@/app/components/analytics/GrowthTrendCard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type Period = Exclude<AnalyticsPeriod, 'custom'>;
 
 const DAYS  = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -74,44 +75,48 @@ function SectionTitle({ title, sub }: { title: string; sub?: string }) {
     );
 }
 
-// ─── Revenue chart (from API sales_by_day) ───────────────────────────────────
+// ─── Revenue by day of week (aggregated from period) ─────────────────────────
 
-function RevenueChart({ salesByDay, branchName }: { salesByDay?: Array<{ date: string; total: number; orders: number }>; branchName: string }) {
+function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total: number; orders: number }> }) {
     const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
-    const dayLabels = useMemo(() => {
-        if (!salesByDay?.length) return DAYS;
-        return salesByDay.map((d) => {
-            const date = new Date(d.date);
-            return DAYS[(date.getDay() + 6) % 7] ?? date.toLocaleDateString('en-GB', { weekday: 'short' });
-        });
+    // Aggregate revenue & orders by day of week (Mon=0 … Sun=6).
+    const { dayTotals, dayOrders } = useMemo(() => {
+        const totals = Array(7).fill(0) as number[];
+        const orders = Array(7).fill(0) as number[];
+        if (salesByDay?.length) {
+            for (const d of salesByDay) {
+                const idx = (new Date(d.date).getDay() + 6) % 7;
+                totals[idx] += Number(d.total);
+                orders[idx] += d.orders;
+            }
+        }
+        return { dayTotals: totals, dayOrders: orders };
     }, [salesByDay]);
-    const values = useMemo(() => salesByDay?.map((d) => Number(d.total)) ?? [], [salesByDay]);
-    const orderCounts = useMemo(() => salesByDay?.map((d) => d.orders) ?? [], [salesByDay]);
-    const maxVal = values.length ? Math.max(...values, 1) : 1;
-    const weekTotal = values.reduce((a, b) => a + b, 0);
-    const labels = salesByDay?.length ? dayLabels : DAYS;
+
+    const maxVal = Math.max(...dayTotals, 1);
+    const total = dayTotals.reduce((a, b) => a + b, 0);
+    const hasData = dayTotals.some(v => v > 0);
 
     return (
         <Card>
             <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-                <div>
-                    <SectionTitle title={`Daily Revenue — ${branchName}`} sub={salesByDay?.length ? `${salesByDay.length}-day view` : '7-day view'} />
-                    <p className="text-primary text-sm font-bold font-body -mt-2">{formatGHS(weekTotal)} this period</p>
-                </div>
+                <SectionTitle title="Revenue by Day of Week" sub="Aggregated across the selected period" />
+                <p className="text-primary text-sm font-bold font-body">{formatGHS(total)}</p>
             </div>
-            {!salesByDay?.length ? (
-                <div className="flex items-center justify-center h-32 text-neutral-gray text-sm">No revenue data available</div>
+            {!hasData ? (
+                <div className="flex items-center justify-center h-36 text-neutral-gray text-sm">No revenue data available</div>
             ) : (
                 <div className="flex items-end gap-2 h-36">
-                    {labels.map((day, di) => {
-                        const val = values[di] ?? 0;
-                        const orders = orderCounts[di] ?? 0;
+                    {DAYS.map((day, di) => {
+                        const val = dayTotals[di] ?? 0;
+                        const orders = dayOrders[di] ?? 0;
                         const h = Math.round((val / maxVal) * 112) || 4;
                         const isHovered = hoveredIdx === di;
                         return (
-                            <div key={`${day}-${di}`} className="flex-1 flex flex-col items-center gap-1 relative group"
-                                onMouseEnter={() => setHoveredIdx(di)} onMouseLeave={() => setHoveredIdx(null)}>
+                            <div key={day} className="flex-1 flex flex-col items-center gap-1 relative group"
+                                onMouseEnter={() => setHoveredIdx(di)} onMouseLeave={() => setHoveredIdx(null)}
+                                onTouchStart={() => setHoveredIdx(di)}>
                                 {isHovered && val > 0 && (
                                     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 bg-text-dark text-white rounded-lg px-2.5 py-1.5 text-[10px] font-body whitespace-nowrap shadow-lg pointer-events-none">
                                         <p className="font-bold">{formatGHS(val)}</p>
@@ -133,6 +138,54 @@ function RevenueChart({ salesByDay, branchName }: { salesByDay?: Array<{ date: s
                             </div>
                         );
                     })}
+                </div>
+            )}
+        </Card>
+    );
+}
+
+// ─── New vs returning customers ──────────────────────────────────────────────
+
+function NewVsReturning({ newInPeriod, totalOrders }: { newInPeriod?: number; totalOrders?: number }) {
+    const newCount = newInPeriod ?? 0;
+    const orders = totalOrders ?? 0;
+    // Returning ≈ orders placed beyond the new-customer first orders (floor at 0).
+    const returning = Math.max(orders - newCount, 0);
+    const denom = newCount + returning;
+    const newPct = denom > 0 ? Math.round((newCount / denom) * 100) : 0;
+    const repeatPct = denom > 0 ? 100 - newPct : 0;
+
+    const rows = [
+        { label: 'New customers', value: newCount, pct: newPct, color: '#e49925' },
+        { label: 'Returning orders', value: returning, pct: repeatPct, color: '#6c833f' },
+    ];
+
+    return (
+        <Card>
+            <SectionTitle title="New vs Returning" sub="Customer mix in the selected period" />
+            {denom === 0 ? (
+                <div className="flex items-center justify-center h-20 text-neutral-gray text-sm">No customer activity yet</div>
+            ) : (
+                <div className="flex flex-col gap-3">
+                    <div className="flex h-3 rounded-full overflow-hidden bg-neutral-gray/15">
+                        <div style={{ width: `${newPct}%`, background: '#e49925' }} />
+                        <div style={{ width: `${repeatPct}%`, background: '#6c833f' }} />
+                    </div>
+                    {rows.map(r => (
+                        <div key={r.label} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ background: r.color }} />
+                                <span className="text-text-dark text-xs font-body">{r.label}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="text-text-dark text-xs font-semibold font-body">{r.value}</span>
+                                <span className="text-neutral-gray text-[10px] font-body w-8 text-right">{r.pct}%</span>
+                            </div>
+                        </div>
+                    ))}
+                    <p className="text-neutral-gray text-[11px] font-body pt-1 border-t border-[#f0e8d8]">
+                        Repeat rate <span className="text-secondary font-bold">{repeatPct}%</span> of orders came from returning customers.
+                    </p>
                 </div>
             )}
         </Card>
@@ -487,33 +540,27 @@ function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
     );
 }
 
-// ─── Period config ────────────────────────────────────────────────────────────
-
-const PERIODS: { key: Period; label: string }[] = [
-    { key: 'today',     label: 'Today'        },
-    { key: 'yesterday', label: 'Yesterday'    },
-    { key: 'week',      label: 'This Week'    },
-    { key: 'month',     label: 'This Month'   },
-    { key: '30d',       label: 'Last 30 Days' },
-    { key: '90d',       label: 'Last 90 Days' },
-];
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PartnerAnalyticsPage() {
-    const { staffUser } = useStaffAuth();
-    const branchName = staffUser?.branches[0]?.name ?? '';
-    const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
+    const { branchIds, primaryBranchId, scopeLabel } = usePartnerScope();
+    const branchName = scopeLabel;
 
-    const [period, setPeriod] = useState<Period>('today');
+    const [period, setPeriod] = useState<AnalyticsPeriod>('today');
+    const [customRange, setCustomRange] = useState<CustomRange>(() => {
+        const today = new Date().toISOString().slice(0, 10);
+        return { date_from: today, date_to: today };
+    });
+    const range = period === 'custom' ? customRange : undefined;
 
-    const { sales, orders, customers, isLoading, error: analyticsError } = useAnalytics(period, branchId);
-    const { data: orderSources } = useOrderSourceAnalytics(period, branchId);
-    const { data: topItems } = useTopItemsAnalytics(period, branchId, 5);
-    const { data: bottomItems } = useBottomItemsAnalytics(period, branchId, 3);
-    const { data: categoryRevenue } = useCategoryRevenueAnalytics(period, branchId);
-    const { data: deliveryPickup } = useDeliveryPickupAnalytics(period, branchId);
-    const { data: paymentMethods } = usePaymentMethodAnalytics(period, branchId);
+    const { sales, orders, customers, isLoading, error: analyticsError } = useAnalytics(period, undefined, range, branchIds);
+    const { data: trend } = useRevenueTrend(period, undefined, undefined, range, branchIds);
+    const { data: orderSources } = useOrderSourceAnalytics(period, undefined, range, branchIds);
+    const { data: topItems } = useTopItemsAnalytics(period, undefined, 5, range, branchIds);
+    const { data: bottomItems } = useBottomItemsAnalytics(period, undefined, 3, range, branchIds);
+    const { data: categoryRevenue } = useCategoryRevenueAnalytics(period, undefined, range, branchIds);
+    const { data: deliveryPickup } = useDeliveryPickupAnalytics(period, undefined, range, branchIds);
+    const { data: paymentMethods } = usePaymentMethodAnalytics(period, undefined, range, branchIds);
 
     const fulfilmentPct = useMemo(() => {
         if (!orders?.orders_by_status || !orders?.total_orders) return 0;
@@ -527,7 +574,7 @@ export default function PartnerAnalyticsPage() {
         return orders.total_orders > 0 ? Math.round((c / orders.total_orders) * 1000) / 10 : 0;
     }, [orders]);
 
-    if (!branchId) {
+    if (!primaryBranchId) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
                 <WarningIcon size={32} weight="fill" className="text-warning" />
@@ -572,15 +619,14 @@ export default function PartnerAnalyticsPage() {
                 </div>
             </div>
 
-            {/* Period tabs */}
-            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 mb-6">
-                {PERIODS.map(p => (
-                    <button key={p.key} type="button" onClick={() => setPeriod(p.key)}
-                        className={`px-3 py-2 rounded-xl text-sm font-medium font-body whitespace-nowrap transition-all cursor-pointer ${period === p.key ? 'bg-primary text-white' : 'bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark'}`}>
-                        {p.label}
-                    </button>
-                ))}
-            </div>
+            {/* Period filter */}
+            <PeriodFilter
+                value={period}
+                onChange={setPeriod}
+                customRange={customRange}
+                onCustomRangeChange={setCustomRange}
+                className="mb-6"
+            />
 
             {/* KPI row */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
@@ -594,9 +640,14 @@ export default function PartnerAnalyticsPage() {
                 <KpiCard icon={CurrencyCircleDollarIcon} label="Avg Items/Order" value={String(sales?.avg_items_per_order ?? '—')} />
             </div>
 
-            {/* Revenue chart + heatmap */}
+            {/* Growth trajectory */}
+            <div className="mb-3">
+                <GrowthTrendCard trend={trend} />
+            </div>
+
+            {/* Revenue by day-of-week + heatmap */}
             <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-3 mb-3">
-                <RevenueChart salesByDay={sales?.sales_by_day} branchName={branchName} />
+                <RevenueChart salesByDay={sales?.sales_by_day} />
                 <PeakHoursHeatmap ordersByHour={orders?.orders_by_hour} />
             </div>
 
@@ -610,6 +661,14 @@ export default function PartnerAnalyticsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                 <TopItemsCard items={topItems?.slice(0, 5)} title="Top 5 Items by Revenue" />
                 <TopItemsCard items={bottomItems} title="Slow Movers" />
+            </div>
+
+            {/* New vs returning */}
+            <div className="mb-3">
+                <NewVsReturning
+                    newInPeriod={customers?.new_customers_in_period ?? customers?.new_customers_30_days}
+                    totalOrders={sales?.total_orders ?? orders?.total_orders}
+                />
             </div>
 
             {/* Customer insights */}
