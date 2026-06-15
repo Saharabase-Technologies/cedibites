@@ -16,6 +16,25 @@ const SERIES: LineSeries[] = [
 
 const DEFAULT_ACTIVE = ['revenue', 'orders', 'aov'];
 
+/** Fill missing hours between the first and last active hour of a single day. */
+function densifyHourly(series: Array<{ period: string; revenue: number; orders: number }>) {
+    if (series.length === 0) return series;
+    const parsed = series.map(s => {
+        const [d, h] = s.period.split('T');
+        return { d, h: parseInt(h ?? '0', 10), revenue: s.revenue, orders: s.orders };
+    });
+    const date = parsed[0].d;
+    const minH = Math.min(...parsed.map(p => p.h));
+    const maxH = Math.max(...parsed.map(p => p.h));
+    const byHour = new Map(parsed.map(p => [p.h, p]));
+    const out: Array<{ period: string; revenue: number; orders: number }> = [];
+    for (let h = minH; h <= maxH; h++) {
+        const found = byHour.get(h);
+        out.push({ period: `${date}T${String(h).padStart(2, '0')}`, revenue: found?.revenue ?? 0, orders: found?.orders ?? 0 });
+    }
+    return out;
+}
+
 interface GrowthTrendCardProps {
     trend?: RevenueTrend;
     period?: AnalyticsPeriod;
@@ -34,7 +53,10 @@ export default function GrowthTrendCard({ trend, period, title = 'Growth Traject
     const bucket = trend?.bucket ?? 'day';
 
     const points = useMemo(() => {
-        const pts = trendToPoints(series, bucket, period);
+        // For an hourly (single-day) trend, fill the gaps so the line spans the
+        // active hours of the day continuously.
+        const raw = bucket === 'hour' ? densifyHourly(series) : series;
+        const pts = trendToPoints(raw, bucket, period);
         // Trailing moving-average of revenue → a smoothed "trend" line.
         const win = Math.max(3, Math.round(pts.length / 8));
         return pts.map((p, i): LinePoint => {
@@ -45,6 +67,24 @@ export default function GrowthTrendCard({ trend, period, title = 'Growth Traject
         });
     }, [series, bucket, period]);
     const total = useMemo(() => series.reduce((a, b) => a + b.revenue, 0), [series]);
+
+    // Lightweight forecast: linear-regression projection of next period's revenue.
+    const forecast = useMemo(() => {
+        if (bucket === 'hour') return null;
+        const rev = points.map(p => p.values.revenue);
+        const n = rev.length;
+        if (n < 4) return null;
+        const meanX = (n - 1) / 2;
+        const meanY = rev.reduce((a, b) => a + b, 0) / n;
+        let num = 0, den = 0;
+        for (let i = 0; i < n; i++) { num += (i - meanX) * (rev[i] - meanY); den += (i - meanX) ** 2; }
+        const slope = den ? num / den : 0;
+        const next = Math.max(0, meanY + slope * (n - meanX));
+        const last = rev[n - 1] || 0;
+        const pct = last > 0 ? Math.round(((next - last) / last) * 100) : null;
+        const word = bucket === 'month' ? 'month' : bucket === 'week' ? 'week' : 'day';
+        return { next, pct, word };
+    }, [points, bucket]);
 
     const spanCaption = useMemo(() => {
         if (points.length === 0) return '';
@@ -61,7 +101,8 @@ export default function GrowthTrendCard({ trend, period, title = 'Growth Traject
         return { best, worst: worst.i === best.i ? null : worst };
     }, [points]);
 
-    const isShort = points.length < 3;
+    // Hourly always uses the line (so a single day reads as an intraday curve).
+    const isShort = bucket !== 'hour' && points.length < 3;
     const maxRev = useMemo(() => Math.max(...points.map(p => p.values.revenue), 1), [points]);
 
     return (
@@ -109,6 +150,13 @@ export default function GrowthTrendCard({ trend, period, title = 'Growth Traject
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-error/10 text-error text-[11px] font-semibold font-body">
                             <ArrowDownIcon size={12} weight="bold" />
                             Slowest: {worst.p.fullLabel} · {formatPrice(worst.rev)}
+                        </span>
+                    )}
+                    {forecast && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-info/10 text-info text-[11px] font-semibold font-body">
+                            <TrendUpIcon size={12} weight="fill" />
+                            Projected next {forecast.word}: {formatPrice(forecast.next)}
+                            {forecast.pct !== null && <span className="opacity-70">({forecast.pct >= 0 ? '+' : ''}{forecast.pct}%)</span>}
                         </span>
                     )}
                 </div>

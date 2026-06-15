@@ -70,7 +70,15 @@ export function trendToPoints(
         let label = p;
         let fullLabel = p;
 
-        if (bucket === 'month') {
+        if (bucket === 'hour') {
+            const [datePart, hourPart] = p.split('T');
+            const h = parseInt(hourPart ?? '0', 10);
+            const hr12 = h % 12 === 0 ? 12 : h % 12;
+            const ampm = h < 12 ? 'AM' : 'PM';
+            label = `${hr12} ${ampm}`;
+            const d = new Date(datePart + 'T00:00:00');
+            fullLabel = Number.isNaN(d.getTime()) ? label : `${hr12}:00 ${ampm} · ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+        } else if (bucket === 'month') {
             const [y, m] = p.split('-');
             const name = MONTHS[parseInt(m, 10) - 1] ?? m;
             label = multiYear ? `${name} '${y.slice(2)}` : name;

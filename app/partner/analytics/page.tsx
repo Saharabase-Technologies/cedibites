@@ -376,11 +376,14 @@ function CategoryRevenue({ categoryRevenue }: { categoryRevenue?: Array<{ cat: s
 
 // ─── Customer insights ────────────────────────────────────────────────────────
 
-function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
-    topCustomers?: Array<{ name?: string; orders_count?: number; total_spend?: number; user?: { name?: string }; }>;
+function CustomerInsights({ byOrders, bySpending, deliveryPickup, paymentMethods }: {
+    byOrders?: Array<{ name?: string; orders_count?: number; total_spend?: number; user?: { name?: string }; }>;
+    bySpending?: Array<{ name?: string; orders_count?: number; total_spend?: number; user?: { name?: string }; }>;
     deliveryPickup?: { delivery_pct: number; pickup_pct: number; types?: Array<{ type: string; label: string; pct: number; revenue: number }> };
     paymentMethods?: Array<{ label: string; pct: number }>;
 }) {
+    const [custMode, setCustMode] = useState<'orders' | 'value'>('orders');
+    const topCustomers = (custMode === 'orders' ? byOrders : bySpending) ?? [];
     const ORDER_TYPE_COLORS = ['#e49925', '#6c833f', '#c8a87a', '#1976d2', '#8b7f70'];
     const types = deliveryPickup?.types ?? [
         { type: 'delivery', label: 'Delivery', pct: deliveryPickup?.delivery_pct ?? 0, revenue: 0 },
@@ -394,10 +397,20 @@ function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Top 10 customers */}
+            {/* Top 5 customers — by orders or by value */}
             <Card>
-                <SectionTitle title="Top 5 Customers by Fulfilled Orders" />
-                {!topCustomers || topCustomers.length === 0 ? (
+                <div className="flex items-center justify-between mb-4">
+                    <p className="text-text-dark text-sm font-bold font-body">Top 5 Customers</p>
+                    <div className="flex rounded-lg border border-[#f0e8d8] overflow-hidden text-[11px] font-semibold font-body">
+                        {(['orders', 'value'] as const).map(m => (
+                            <button key={m} type="button" onClick={() => setCustMode(m)}
+                                className={`px-2.5 py-1 cursor-pointer transition-colors ${custMode === m ? 'bg-primary text-white' : 'text-neutral-gray hover:text-text-dark'}`}>
+                                {m === 'orders' ? 'By Orders' : 'By Value'}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                {topCustomers.length === 0 ? (
                     <div className="flex items-center justify-center h-32 text-neutral-gray text-sm">No customer data available</div>
                 ) : (
                     <div className="flex flex-col gap-0">
@@ -410,9 +423,11 @@ function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
                                     <span className="text-neutral-gray/50 text-[10px] font-bold font-body w-4 shrink-0">{i + 1}</span>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-text-dark text-xs font-semibold font-body truncate">{name}</p>
-                                        <p className="text-neutral-gray text-[10px] font-body">{orders} orders</p>
+                                        <p className="text-neutral-gray text-[10px] font-body">{orders} orders · {formatGHS(spend)}</p>
                                     </div>
-                                    {spend > 0 && <span className="text-primary text-xs font-bold font-body shrink-0">{formatGHS(spend)}</span>}
+                                    <span className="text-primary text-xs font-bold font-body shrink-0">
+                                        {custMode === 'orders' ? `${orders} orders` : formatGHS(spend)}
+                                    </span>
                                 </div>
                             );
                         })}
@@ -509,7 +524,7 @@ export default function PartnerAnalyticsPage() {
     });
     const range = period === 'custom' ? customRange : undefined;
 
-    const trendBucket = period === '90d' ? 'month' : undefined;
+    const trendBucket = (period === 'today' || period === 'yesterday') ? 'hour' : period === '90d' ? 'month' : undefined;
 
     const { sales, orders, customers, isLoading, error: analyticsError } = useAnalytics(period, undefined, range, branchIds);
     const { data: trend } = useRevenueTrend(period, undefined, trendBucket, range, branchIds);
@@ -638,7 +653,8 @@ export default function PartnerAnalyticsPage() {
 
             {/* Customer insights */}
             <CustomerInsights
-                topCustomers={customers?.top_customers_by_orders ?? customers?.top_customers_by_spending}
+                byOrders={customers?.top_customers_by_orders}
+                bySpending={customers?.top_customers_by_spending}
                 deliveryPickup={deliveryPickup}
                 paymentMethods={paymentMethods}
             />

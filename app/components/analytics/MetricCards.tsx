@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { ChartPieIcon, CheckCircleIcon, UsersThreeIcon, CalendarBlankIcon } from '@phosphor-icons/react';
 import { formatPrice } from '@/types/order';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import type { RepeatCustomerMetrics, WeekdayHourCell } from '@/lib/api/services/analytics.service';
 
 function Card({ title, sub, icon: Icon, children }: { title: string; sub?: string; icon: React.ElementType; children: React.ReactNode }) {
@@ -23,7 +24,7 @@ function Card({ title, sub, icon: Icon, children }: { title: string; sub?: strin
 // ─── Revenue concentration ────────────────────────────────────────────────────
 
 export function RevenueConcentrationCard({ items, totalRevenue }: {
-    items?: Array<{ name: string; rev: number }>;
+    items?: Array<{ name: string; size_label?: string; rev: number }>;
     totalRevenue?: number;
 }) {
     const list = items ?? [];
@@ -53,9 +54,9 @@ export function RevenueConcentrationCard({ items, totalRevenue }: {
                         {top5.map((it, i) => {
                             const pct = total > 0 ? (it.rev / total) * 100 : 0;
                             return (
-                                <div key={it.name + i}>
+                                <div key={it.name + (it.size_label ?? '') + i}>
                                     <div className="flex justify-between text-xs font-body mb-1">
-                                        <span className="text-text-dark truncate pr-2">{i + 1}. {it.name}</span>
+                                        <span className="text-text-dark truncate pr-2">{i + 1}. {getOrderItemLineLabel({ name: it.name, sizeLabel: it.size_label })}</span>
                                         <span className="text-neutral-gray shrink-0">{formatPrice(it.rev)} · {Math.round(pct)}%</span>
                                     </div>
                                     <div className="h-1.5 bg-neutral-gray/15 rounded-full overflow-hidden">

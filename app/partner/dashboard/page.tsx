@@ -121,8 +121,8 @@ export default function PartnerDashboardPage() {
     });
     const range = period === 'custom' ? customRange : undefined;
 
-    // Force monthly buckets for the 90-day view so the trend reads as months, not week numbers.
-    const trendBucket = period === '90d' ? 'month' : undefined;
+    // Single-day views → hourly intraday line; 90-day → monthly buckets.
+    const trendBucket = (period === 'today' || period === 'yesterday') ? 'hour' : period === '90d' ? 'month' : undefined;
 
     const { data: comparison, isLoading: cmpLoading, error: cmpError } = useSalesComparison(period, undefined, range, branchIds);
     const { data: trend } = useRevenueTrend(period, undefined, trendBucket, range, branchIds);

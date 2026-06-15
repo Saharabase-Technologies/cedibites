@@ -509,11 +509,16 @@ function BranchPerformanceTable({ branchPerformance }: { branchPerformance?: Arr
 
 // ─── Customer insights ────────────────────────────────────────────────────────
 
-function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
-    topCustomers?: Array<{ name?: string; orders_count?: number; total_spend?: number; user?: { name?: string }; }>;
+type TopCustomer = { name?: string; orders_count?: number; total_spend?: number; user?: { name?: string } };
+
+function CustomerInsights({ byOrders, bySpending, deliveryPickup, paymentMethods }: {
+    byOrders?: TopCustomer[];
+    bySpending?: TopCustomer[];
     deliveryPickup?: { delivery_pct: number; pickup_pct: number };
     paymentMethods?: Array<{ label: string; pct: number }>;
 }) {
+    const [custMode, setCustMode] = useState<'orders' | 'value'>('orders');
+    const custList = (custMode === 'orders' ? byOrders : bySpending) ?? [];
     const deliveryPct = deliveryPickup?.delivery_pct ?? 0;
     const pickupPct = deliveryPickup?.pickup_pct ?? 0;
     const circumference = 2 * Math.PI * 28;
@@ -524,27 +529,39 @@ function CustomerInsights({ topCustomers, deliveryPickup, paymentMethods }: {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Top 10 customers */}
+            {/* Top 5 customers — by orders or by value */}
             <Card>
-                <SectionTitle title="Top 10 Customers by Orders" />
-                {!topCustomers || topCustomers.length === 0 ? (
+                <div className="flex items-center justify-between mb-4">
+                    <p className="text-text-dark text-sm font-bold font-body">Top 5 Customers</p>
+                    <div className="flex rounded-lg border border-[#f0e8d8] overflow-hidden text-[11px] font-semibold font-body">
+                        {(['orders', 'value'] as const).map(m => (
+                            <button key={m} type="button" onClick={() => setCustMode(m)}
+                                className={`px-2.5 py-1 cursor-pointer transition-colors ${custMode === m ? 'bg-primary text-white' : 'text-neutral-gray hover:text-text-dark'}`}>
+                                {m === 'orders' ? 'By Orders' : 'By Value'}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                {custList.length === 0 ? (
                     <div className="flex items-center justify-center h-32 text-neutral-gray text-sm">
                         No customer data available
                     </div>
                 ) : (
                     <div className="flex flex-col gap-0">
-                        {topCustomers.slice(0, 10).map((c, i) => {
-                            const name = (c as { user?: { name?: string }; name?: string }).user?.name ?? (c as { name?: string }).name ?? '—';
-                            const orders = (c as { orders_count?: number }).orders_count ?? 0;
-                            const spend = (c as { total_spend?: number }).total_spend ?? 0;
+                        {custList.slice(0, 5).map((c, i) => {
+                            const name = c.user?.name ?? c.name ?? '—';
+                            const orders = c.orders_count ?? 0;
+                            const spend = c.total_spend ?? 0;
                             return (
-                                <div key={name + i} className={`flex items-center gap-3 py-2.5 ${i < 9 ? 'border-b border-[#f0e8d8]' : ''}`}>
+                                <div key={name + i} className={`flex items-center gap-3 py-2.5 ${i < 4 ? 'border-b border-[#f0e8d8]' : ''}`}>
                                     <span className="text-neutral-gray/50 text-[10px] font-bold font-body w-4 shrink-0">{i + 1}</span>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-text-dark text-xs font-semibold font-body truncate">{name}</p>
-                                        <p className="text-neutral-gray text-[10px] font-body">{orders} orders</p>
+                                        <p className="text-neutral-gray text-[10px] font-body">{orders} orders · {formatGHS(spend)}</p>
                                     </div>
-                                    {spend > 0 && <span className="text-primary text-xs font-bold font-body shrink-0">{formatGHS(spend)}</span>}
+                                    <span className="text-primary text-xs font-bold font-body shrink-0">
+                                        {custMode === 'orders' ? `${orders} orders` : formatGHS(spend)}
+                                    </span>
                                 </div>
                             );
                         })}
@@ -933,7 +950,7 @@ export default function AdminAnalyticsPage() {
     const { sales, orders, customers, isLoading } = useAnalytics(period, branchId, customRange);
 
     // Growth trajectory — force monthly buckets on the 90-day view.
-    const trendBucket = period === '90d' ? 'month' : undefined;
+    const trendBucket = (period === 'today' || period === 'yesterday') ? 'hour' : period === '90d' ? 'month' : undefined;
     const { data: revenueTrend } = useRevenueTrend(period, branchId, trendBucket, customRange);
     const { data: repeatCustomers } = useRepeatCustomerAnalytics(period, branchId, customRange);
     const { data: weekdayHour } = useWeekdayHourAnalytics(period, branchId, customRange);
@@ -1188,7 +1205,8 @@ export default function AdminAnalyticsPage() {
 
             {/* Customer insights */}
             <CustomerInsights
-                topCustomers={customers?.top_customers_by_orders ?? customers?.top_customers_by_spending}
+                byOrders={customers?.top_customers_by_orders}
+                bySpending={customers?.top_customers_by_spending}
                 deliveryPickup={deliveryPickup}
                 paymentMethods={paymentMethods}
             />

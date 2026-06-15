@@ -8,7 +8,7 @@ export interface AnalyticsFilters {
   branch_ids?: number[];
 }
 
-export type TrendBucket = 'day' | 'week' | 'month';
+export type TrendBucket = 'hour' | 'day' | 'week' | 'month';
 
 export interface SalesComparisonMetrics {
   revenue: number;
