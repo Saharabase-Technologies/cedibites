@@ -18,6 +18,11 @@ import {
   type SalesComparison,
   type RevenueTrend,
   type TrendBucket,
+  type MenuCatalogItem,
+  type MenuComparison,
+  type ComparisonSubjectInput,
+  type RepeatCustomerMetrics,
+  type WeekdayHourMetrics,
 } from '../services/analytics.service';
 
 export type AnalyticsPeriod = 'today' | 'yesterday' | 'week' | 'last_week' | 'month' | 'last_month' | '30d' | '90d' | 'lifetime' | 'custom';
@@ -279,6 +284,56 @@ export const useAdminStaffSales = (period: AnalyticsPeriod = 'today', branchId?:
   return useQuery({
     queryKey: ['analytics', 'admin-staff-sales', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
     queryFn: () => analyticsService.getAdminStaffSales(filters),
+    staleTime: 60 * 1000,
+  });
+};
+
+/** Menu catalog (items + options) for the comparison picker. */
+export const useMenuCatalog = () =>
+  useQuery<MenuCatalogItem[]>({
+    queryKey: ['analytics', 'menu-catalog'],
+    queryFn: () => analyticsService.getMenuCatalog(),
+    staleTime: 10 * 60 * 1000,
+  });
+
+/** Menu comparison — aggregate sales for assembled subjects (item/option selectors). */
+export const useMenuComparison = (
+  subjects: ComparisonSubjectInput[],
+  period: AnalyticsPeriod = 'month',
+  branchId?: number,
+  customRange?: CustomRange,
+  branchIds?: number[],
+) => {
+  const range = getDateRange(period, customRange);
+  const filters = buildFilters(period, customRange, branchId, branchIds);
+  const hasSelectors = subjects.some(s => s.item_ids.length > 0 || s.option_ids.length > 0);
+
+  return useQuery<MenuComparison>({
+    queryKey: ['analytics', 'menu-comparison', period, branchKey(branchId, branchIds), range.date_from, range.date_to, JSON.stringify(subjects)],
+    queryFn: () => analyticsService.getMenuComparison(filters, subjects),
+    enabled: hasSelectors,
+    staleTime: 60 * 1000,
+  });
+};
+
+export const useRepeatCustomerAnalytics = (period: AnalyticsPeriod = 'month', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
+  const range = getDateRange(period, customRange);
+  const filters = buildFilters(period, customRange, branchId, branchIds);
+
+  return useQuery<RepeatCustomerMetrics>({
+    queryKey: ['analytics', 'repeat-customers', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
+    queryFn: () => analyticsService.getRepeatCustomerAnalytics(filters),
+    staleTime: 60 * 1000,
+  });
+};
+
+export const useWeekdayHourAnalytics = (period: AnalyticsPeriod = 'month', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
+  const range = getDateRange(period, customRange);
+  const filters = buildFilters(period, customRange, branchId, branchIds);
+
+  return useQuery<WeekdayHourMetrics>({
+    queryKey: ['analytics', 'weekday-hour', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
+    queryFn: () => analyticsService.getWeekdayHourAnalytics(filters),
     staleTime: 60 * 1000,
   });
 };

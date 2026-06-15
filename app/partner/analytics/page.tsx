@@ -24,12 +24,16 @@ import {
     useCategoryRevenueAnalytics,
     useDeliveryPickupAnalytics,
     usePaymentMethodAnalytics,
+    useRepeatCustomerAnalytics,
+    useWeekdayHourAnalytics,
     type AnalyticsPeriod,
 } from '@/lib/api/hooks/useAnalytics';
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import PeriodFilter, { type CustomRange } from '@/app/components/analytics/PeriodFilter';
 import GrowthTrendCard from '@/app/components/analytics/GrowthTrendCard';
+import MenuComparison from '@/app/components/analytics/MenuComparison';
+import { RevenueConcentrationCard, FulfilmentFunnelCard, RepeatCustomersCard, WeekdayHourHeatmap } from '@/app/components/analytics/MetricCards';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -138,54 +142,6 @@ function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total
                             </div>
                         );
                     })}
-                </div>
-            )}
-        </Card>
-    );
-}
-
-// ─── New vs returning customers ──────────────────────────────────────────────
-
-function NewVsReturning({ newInPeriod, totalOrders }: { newInPeriod?: number; totalOrders?: number }) {
-    const newCount = newInPeriod ?? 0;
-    const orders = totalOrders ?? 0;
-    // Returning ≈ orders placed beyond the new-customer first orders (floor at 0).
-    const returning = Math.max(orders - newCount, 0);
-    const denom = newCount + returning;
-    const newPct = denom > 0 ? Math.round((newCount / denom) * 100) : 0;
-    const repeatPct = denom > 0 ? 100 - newPct : 0;
-
-    const rows = [
-        { label: 'New customers', value: newCount, pct: newPct, color: '#e49925' },
-        { label: 'Returning orders', value: returning, pct: repeatPct, color: '#6c833f' },
-    ];
-
-    return (
-        <Card>
-            <SectionTitle title="New vs Returning" sub="Customer mix in the selected period" />
-            {denom === 0 ? (
-                <div className="flex items-center justify-center h-20 text-neutral-gray text-sm">No customer activity yet</div>
-            ) : (
-                <div className="flex flex-col gap-3">
-                    <div className="flex h-3 rounded-full overflow-hidden bg-neutral-gray/15">
-                        <div style={{ width: `${newPct}%`, background: '#e49925' }} />
-                        <div style={{ width: `${repeatPct}%`, background: '#6c833f' }} />
-                    </div>
-                    {rows.map(r => (
-                        <div key={r.label} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <span className="w-2.5 h-2.5 rounded-full" style={{ background: r.color }} />
-                                <span className="text-text-dark text-xs font-body">{r.label}</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <span className="text-text-dark text-xs font-semibold font-body">{r.value}</span>
-                                <span className="text-neutral-gray text-[10px] font-body w-8 text-right">{r.pct}%</span>
-                            </div>
-                        </div>
-                    ))}
-                    <p className="text-neutral-gray text-[11px] font-body pt-1 border-t border-[#f0e8d8]">
-                        Repeat rate <span className="text-secondary font-bold">{repeatPct}%</span> of orders came from returning customers.
-                    </p>
                 </div>
             )}
         </Card>
@@ -564,6 +520,8 @@ export default function PartnerAnalyticsPage() {
     const { data: categoryRevenue } = useCategoryRevenueAnalytics(period, undefined, range, branchIds);
     const { data: deliveryPickup } = useDeliveryPickupAnalytics(period, undefined, range, branchIds);
     const { data: paymentMethods } = usePaymentMethodAnalytics(period, undefined, range, branchIds);
+    const { data: repeatCustomers } = useRepeatCustomerAnalytics(period, undefined, range, branchIds);
+    const { data: weekdayHour } = useWeekdayHourAnalytics(period, undefined, range, branchIds);
 
     const fulfilmentPct = useMemo(() => {
         if (!orders?.orders_by_status || !orders?.total_orders) return 0;
@@ -654,6 +612,16 @@ export default function PartnerAnalyticsPage() {
                 <PeakHoursHeatmap ordersByHour={orders?.orders_by_hour} />
             </div>
 
+            {/* Busiest times (weekday × hour) */}
+            <div className="mb-3">
+                <WeekdayHourHeatmap cells={weekdayHour?.cells} />
+            </div>
+
+            {/* Menu comparison device */}
+            <div className="mb-3">
+                <MenuComparison period={period} customRange={range} branchIds={branchIds} />
+            </div>
+
             {/* Source + category */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                 <OrderSourceChart orderSources={orderSources} />
@@ -666,12 +634,15 @@ export default function PartnerAnalyticsPage() {
                 <TopItemsCard items={bottomItems} title="Slow Movers" />
             </div>
 
-            {/* New vs returning */}
+            {/* Concentration + outcomes */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <RevenueConcentrationCard items={topItems} totalRevenue={sales?.total_sales} />
+                <FulfilmentFunnelCard ordersByStatus={orders?.orders_by_status} totalOrders={orders?.total_orders} />
+            </div>
+
+            {/* Customer loyalty */}
             <div className="mb-3">
-                <NewVsReturning
-                    newInPeriod={customers?.new_customers_in_period ?? customers?.new_customers_30_days}
-                    totalOrders={sales?.total_orders ?? orders?.total_orders}
-                />
+                <RepeatCustomersCard data={repeatCustomers} />
             </div>
 
             {/* Customer insights */}

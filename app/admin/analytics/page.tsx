@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
-import { useAnalytics, useRevenueTrend, useOrderSourceAnalytics, useTopItemsAnalytics, useBottomItemsAnalytics, useCategoryRevenueAnalytics, useBranchPerformanceAnalytics, useDeliveryPickupAnalytics, usePaymentMethodAnalytics } from '@/lib/api/hooks/useAnalytics';
+import { useAnalytics, useRevenueTrend, useOrderSourceAnalytics, useTopItemsAnalytics, useBottomItemsAnalytics, useCategoryRevenueAnalytics, useBranchPerformanceAnalytics, useDeliveryPickupAnalytics, usePaymentMethodAnalytics, useRepeatCustomerAnalytics, useWeekdayHourAnalytics } from '@/lib/api/hooks/useAnalytics';
 import GrowthTrendCard from '@/app/components/analytics/GrowthTrendCard';
+import MenuComparison from '@/app/components/analytics/MenuComparison';
+import { RevenueConcentrationCard, FulfilmentFunnelCard, RepeatCustomersCard, WeekdayHourHeatmap } from '@/app/components/analytics/MetricCards';
 import { useSearchParams } from 'next/navigation';
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import { toast } from '@/lib/utils/toast';
@@ -933,6 +935,8 @@ export default function AdminAnalyticsPage() {
     // Growth trajectory — force monthly buckets on the 90-day view.
     const trendBucket = period === '90d' ? 'month' : undefined;
     const { data: revenueTrend } = useRevenueTrend(period, branchId, trendBucket, customRange);
+    const { data: repeatCustomers } = useRepeatCustomerAnalytics(period, branchId, customRange);
+    const { data: weekdayHour } = useWeekdayHourAnalytics(period, branchId, customRange);
 
     // Additional analytics hooks
     const { data: orderSources } = useOrderSourceAnalytics(period, branchId, customRange);
@@ -1153,6 +1157,23 @@ export default function AdminAnalyticsPage() {
                 <div className="flex flex-col gap-3">
                     <TopItemsCard items={bottomItems} title="Slow Movers (Last 7 Days)" />
                 </div>
+            </div>
+
+            {/* Concentration + outcomes */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <RevenueConcentrationCard items={topItems} totalRevenue={sales?.total_sales} />
+                <FulfilmentFunnelCard ordersByStatus={orders?.orders_by_status} totalOrders={orders?.total_orders} />
+            </div>
+
+            {/* Busiest times + loyalty */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-3 mb-3">
+                <WeekdayHourHeatmap cells={weekdayHour?.cells} />
+                <RepeatCustomersCard data={repeatCustomers} />
+            </div>
+
+            {/* Menu comparison device */}
+            <div className="mb-3">
+                <MenuComparison period={period} customRange={customRange ?? undefined} branchId={branchId} />
             </div>
 
             {/* Product summary */}

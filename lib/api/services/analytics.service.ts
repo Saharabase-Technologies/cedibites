@@ -201,6 +201,67 @@ export interface AdminStaffSalesRow {
   total_revenue: number;
 }
 
+// ─── Menu comparison ────────────────────────────────────────────────────────
+
+export interface MenuCatalogOption {
+  id: number;
+  label: string;
+}
+
+export interface MenuCatalogItem {
+  id: number;
+  name: string;
+  options: MenuCatalogOption[];
+}
+
+export interface ComparisonSubjectInput {
+  label?: string;
+  item_ids: number[];
+  option_ids: number[];
+}
+
+export interface ComparisonSeriesPoint {
+  date: string;
+  revenue: number;
+}
+
+export interface ComparisonSubject {
+  label: string;
+  revenue: number;
+  units: number;
+  orders: number;
+  aov: number;
+  avg_per_day: number;
+  max_day: ComparisonSeriesPoint | null;
+  min_day: ComparisonSeriesPoint | null;
+  series: ComparisonSeriesPoint[];
+}
+
+export interface MenuComparison {
+  range: { date_from: string; date_to: string; days: number };
+  subjects: ComparisonSubject[];
+}
+
+// ─── Repeat customers & weekday-hour ────────────────────────────────────────
+
+export interface RepeatCustomerMetrics {
+  active_customers: number;
+  repeat_customers: number;
+  new_customers: number;
+  repeat_rate: number;
+  avg_days_between_orders: number | null;
+}
+
+export interface WeekdayHourCell {
+  dow: number; // 0=Mon … 6=Sun
+  hour: number;
+  count: number;
+}
+
+export interface WeekdayHourMetrics {
+  cells: WeekdayHourCell[];
+}
+
 function extractData<T>(response: unknown): T {
   const r = response as { data?: T };
   return (r?.data ?? response) as T;
@@ -265,5 +326,21 @@ export const analyticsService = {
 
   getAdminStaffSales: (filters?: AnalyticsFilters): Promise<AdminStaffSalesRow[]> => {
     return apiClient.get('/admin/analytics/staff-sales', { params: filters }).then(extractData) as Promise<AdminStaffSalesRow[]>;
+  },
+
+  getMenuCatalog: (): Promise<MenuCatalogItem[]> => {
+    return apiClient.get('/admin/analytics/menu-catalog').then(extractData) as Promise<MenuCatalogItem[]>;
+  },
+
+  getMenuComparison: (filters: AnalyticsFilters, subjects: ComparisonSubjectInput[]): Promise<MenuComparison> => {
+    return apiClient.post('/admin/analytics/menu-comparison', { ...filters, subjects }).then(extractData) as Promise<MenuComparison>;
+  },
+
+  getRepeatCustomerAnalytics: (filters?: AnalyticsFilters): Promise<RepeatCustomerMetrics> => {
+    return apiClient.get('/admin/analytics/repeat-customers', { params: filters }).then(extractData) as Promise<RepeatCustomerMetrics>;
+  },
+
+  getWeekdayHourAnalytics: (filters?: AnalyticsFilters): Promise<WeekdayHourMetrics> => {
+    return apiClient.get('/admin/analytics/weekday-hour', { params: filters }).then(extractData) as Promise<WeekdayHourMetrics>;
   },
 };

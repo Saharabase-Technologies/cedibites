@@ -28,6 +28,12 @@ interface LineChartProps {
     height?: number;
     /** Which series start active (default: all). One must always stay on. */
     defaultActiveKeys?: string[];
+    /**
+     * When true, all series share one global y-scale (for like-for-like
+     * comparison, e.g. revenue vs revenue). Default false: each series is
+     * normalised to its own max (good for mixed metrics like ₵ vs counts).
+     */
+    sharedScale?: boolean;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -95,7 +101,7 @@ const MAX_TICKS = 7;
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
-export default function LineChart({ points, series, height = 240, defaultActiveKeys }: LineChartProps) {
+export default function LineChart({ points, series, height = 240, defaultActiveKeys, sharedScale = false }: LineChartProps) {
     const [active, setActive] = useState<Set<string>>(
         () => new Set(defaultActiveKeys ?? series.map(s => s.key)),
     );
@@ -127,9 +133,14 @@ export default function LineChart({ points, series, height = 240, defaultActiveK
     // regardless of magnitude (₵ vs order counts). Tooltip shows real values.
     const maxByKey = useMemo(() => {
         const m: Record<string, number> = {};
-        for (const s of series) m[s.key] = Math.max(...points.map(p => p.values[s.key] ?? 0), 1);
+        if (sharedScale) {
+            const globalMax = Math.max(...series.flatMap(s => points.map(p => p.values[s.key] ?? 0)), 1);
+            for (const s of series) m[s.key] = globalMax;
+        } else {
+            for (const s of series) m[s.key] = Math.max(...points.map(p => p.values[s.key] ?? 0), 1);
+        }
         return m;
-    }, [series, points]);
+    }, [series, points, sharedScale]);
 
     const yFor = (key: string, v: number) => plotBottom - (v / maxByKey[key]) * plotH;
     const yPct = (key: string, v: number) => (yFor(key, v) / height) * 100;

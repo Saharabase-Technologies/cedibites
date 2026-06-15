@@ -5,13 +5,16 @@ import { TrendUpIcon, ArrowUpIcon, ArrowDownIcon } from '@phosphor-icons/react';
 import { formatPrice } from '@/types/order';
 import type { RevenueTrend } from '@/lib/api/services/analytics.service';
 import type { AnalyticsPeriod } from '@/lib/api/hooks/useAnalytics';
-import LineChart, { trendToPoints, type LineSeries } from './LineChart';
+import LineChart, { trendToPoints, type LineSeries, type LinePoint } from './LineChart';
 
 const SERIES: LineSeries[] = [
-    { key: 'revenue', label: 'Revenue',    color: '#e49925', format: (v) => formatPrice(v) },
-    { key: 'orders',  label: 'Orders',     color: '#6c833f', format: (v) => `${Math.round(v).toLocaleString('en-GH')} order${Math.round(v) !== 1 ? 's' : ''}` },
-    { key: 'aov',     label: 'Avg. Order', color: '#1976d2', format: (v) => formatPrice(v) },
+    { key: 'revenue', label: 'Revenue',     color: '#e49925', format: (v) => formatPrice(v) },
+    { key: 'orders',  label: 'Orders',      color: '#6c833f', format: (v) => `${Math.round(v).toLocaleString('en-GH')} order${Math.round(v) !== 1 ? 's' : ''}` },
+    { key: 'aov',     label: 'Avg. Order',  color: '#1976d2', format: (v) => formatPrice(v) },
+    { key: 'ma',      label: 'Trend (avg)', color: '#8b7f70', format: (v) => formatPrice(v) },
 ];
+
+const DEFAULT_ACTIVE = ['revenue', 'orders', 'aov'];
 
 interface GrowthTrendCardProps {
     trend?: RevenueTrend;
@@ -30,7 +33,17 @@ export default function GrowthTrendCard({ trend, period, title = 'Growth Traject
     const series = trend?.series ?? [];
     const bucket = trend?.bucket ?? 'day';
 
-    const points = useMemo(() => trendToPoints(series, bucket, period), [series, bucket, period]);
+    const points = useMemo(() => {
+        const pts = trendToPoints(series, bucket, period);
+        // Trailing moving-average of revenue → a smoothed "trend" line.
+        const win = Math.max(3, Math.round(pts.length / 8));
+        return pts.map((p, i): LinePoint => {
+            const from = Math.max(0, i - win + 1);
+            const slice = pts.slice(from, i + 1);
+            const ma = slice.reduce((a, b) => a + b.values.revenue, 0) / slice.length;
+            return { ...p, values: { ...p.values, ma } };
+        });
+    }, [series, bucket, period]);
     const total = useMemo(() => series.reduce((a, b) => a + b.revenue, 0), [series]);
 
     const spanCaption = useMemo(() => {
@@ -83,7 +96,7 @@ export default function GrowthTrendCard({ trend, period, title = 'Growth Traject
                     })}
                 </div>
             ) : (
-                <LineChart points={points} series={SERIES} height={height} />
+                <LineChart points={points} series={SERIES} defaultActiveKeys={DEFAULT_ACTIVE} height={height} />
             )}
 
             {best && (
