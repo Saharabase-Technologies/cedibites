@@ -278,7 +278,7 @@ function CreateUserModal({ passcode, branches, onClose, onCreated }: {
 
     const validate = (): string | null => {
         if (!name.trim()) return 'Name is required.';
-        if (!phone.trim()) return 'Phone number is required.';
+        if (!phone.trim() && !email.trim()) return 'Provide an email or a phone number.';
         if (!isTechAdmin && branchIds.length === 0) return 'Select at least one branch for this role.';
         if (isTechAdmin && newPasscode.length !== 6) return 'Set a 6-digit passcode for the new admin.';
         if (pwMode === 'custom' && password.length < 8) return 'Custom password must be at least 8 characters.';
@@ -368,16 +368,17 @@ function CreateUserModal({ passcode, branches, onClose, onCreated }: {
                                     className="w-full px-3 py-2.5 rounded-xl border border-[#f0e8d8] text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
                             </div>
                             <div>
-                                <label className="text-xs font-medium font-body text-text-dark mb-1 block">Phone</label>
-                                <input value={phone} onChange={e => { setPhone(e.target.value); setError(''); }} placeholder="+233..."
+                                <label className="text-xs font-medium font-body text-text-dark mb-1 block">Phone <span className="text-neutral-gray font-normal">(optional)</span></label>
+                                <input value={phone} onChange={e => { setPhone(e.target.value); setError(''); }} placeholder="+233... or 0..."
                                     className="w-full px-3 py-2.5 rounded-xl border border-[#f0e8d8] text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
                             </div>
                         </div>
 
                         <div>
                             <label className="text-xs font-medium font-body text-text-dark mb-1 block">Email <span className="text-neutral-gray font-normal">(optional)</span></label>
-                            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com"
+                            <input type="email" value={email} onChange={e => { setEmail(e.target.value); setError(''); }} placeholder="jane@example.com"
                                 className="w-full px-3 py-2.5 rounded-xl border border-[#f0e8d8] text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                            <p className="text-[11px] font-body text-neutral-gray mt-1">Provide at least one of email or phone. Partners typically use email only.</p>
                         </div>
 
                         <div>

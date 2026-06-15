@@ -10,10 +10,12 @@ import {
     CheckCircleIcon,
     WarningCircleIcon,
     SpinnerIcon,
+    SignOutIcon,
 } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { usePartnerScope } from '@/app/components/providers/PartnerScopeProvider';
 import { staffService } from '@/lib/api/services/staff.service';
+import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -62,8 +64,9 @@ function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label:
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PartnerProfilePage() {
-    const { staffUser } = useStaffAuth();
+    const { staffUser, logout } = useStaffAuth();
     const { branches } = usePartnerScope();
+    const [signOutOpen, setSignOutOpen] = useState(false);
 
     const [current, setCurrent] = useState('');
     const [next, setNext] = useState('');
@@ -187,6 +190,22 @@ export default function PartnerProfilePage() {
                     </form>
                 </div>
             </div>
+
+            {/* Sign out — primary access point on mobile (sidebar is hidden there) */}
+            <button
+                type="button"
+                onClick={() => setSignOutOpen(true)}
+                className="mt-5 w-full flex items-center justify-center gap-2 rounded-2xl border border-error/30 bg-error/5 px-6 py-3.5 text-sm font-semibold font-body text-error hover:bg-error/10 transition-colors active:scale-[0.99] cursor-pointer"
+            >
+                <SignOutIcon size={18} weight="bold" />
+                Sign Out
+            </button>
+
+            <SignOutDialog
+                isOpen={signOutOpen}
+                onCancel={() => setSignOutOpen(false)}
+                onConfirm={() => logout()}
+            />
         </div>
     );
 }

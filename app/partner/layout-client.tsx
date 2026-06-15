@@ -160,7 +160,7 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
                 <div className="flex items-center gap-2.5 px-4 py-5 border-b border-[#f0e8d8]">
                     <Image src="/cblogo.webp" alt="CediBites" width={40} height={40} className="shrink-0" priority />
                     <div>
-                        <p className="font-brand text-primary text-lg leading-none">CediBites</p>
+                        <p className="font-brand text-primary text-2xl leading-none tracking-tight">CediBites</p>
                         <p className="text-text-dark/70 text-[10px] font-body font-semibold uppercase tracking-wider mt-1 flex items-center gap-1">
                             <ShieldCheckIcon size={11} weight="fill" className="text-primary" />
                             Partner Portal
@@ -214,8 +214,8 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
                     <div className="flex items-center gap-2.5">
                         <Image src="/cblogo.webp" alt="CediBites" width={36} height={36} priority className="shrink-0" />
                         <div className="leading-none">
-                            <span className="font-brand text-primary text-2xl">CediBites</span>
-                            <span className="block text-neutral-gray text-[10px] font-body font-bold uppercase tracking-widest mt-0.5">Partner Portal</span>
+                            <span className="font-brand text-primary text-[28px] leading-none tracking-tight">CediBites</span>
+                            <span className="block text-neutral-gray text-[10px] font-body font-bold uppercase tracking-widest mt-1">Partner Portal</span>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">

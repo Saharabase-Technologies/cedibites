@@ -183,32 +183,40 @@ function OrderRow({ order, isLast }: { order: Order; isLast: boolean }) {
     return (
         <>
             <div
-                className={`px-5 py-3 flex flex-col md:grid md:grid-cols-[1.8fr_1.3fr_0.7fr_1fr_1fr_auto] gap-1.5 md:gap-4 md:items-center cursor-pointer hover:bg-neutral-light/60 transition-colors ${!isLast ? 'border-b border-[#f0e8d8]' : ''}`}
+                className={`px-4 md:px-5 py-3 cursor-pointer hover:bg-neutral-light/60 transition-colors ${!isLast ? 'border-b border-[#f0e8d8]' : ''}`}
                 onClick={() => setOpen(o => !o)}
             >
-                <div className="min-w-0">
-                    <p className="text-text-dark text-sm font-semibold font-body truncate">{order.contact.name}</p>
-                    <p className="text-neutral-gray text-xs font-body">#{order.orderNumber}</p>
+                {/* Mobile: horizontal, full-width — name+total on top, meta inline below */}
+                <div className="md:hidden flex flex-col gap-1">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <p className="text-text-dark text-sm font-semibold font-body truncate">{order.contact.name}</p>
+                            <p className="text-neutral-gray text-[11px] font-body">#{order.orderNumber}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-text-dark text-sm font-bold font-body">{formatPrice(order.total)}</span>
+                            <span className="text-neutral-gray">{open ? <CaretUpIcon size={13} weight="bold" /> : <CaretDownIcon size={13} weight="bold" />}</span>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] font-body text-neutral-gray">
+                        <span>{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
+                        {order.fulfillmentType && <><span className="text-neutral-gray/40">·</span><span className="capitalize">{order.fulfillmentType.replace('_', ' ')}</span></>}
+                        {order.contact.phone && <><span className="text-neutral-gray/40">·</span><span className="truncate">{order.contact.phone}</span></>}
+                    </div>
                 </div>
-                <span className="text-neutral-gray text-xs font-body truncate">
-                    <span className="md:hidden text-neutral-gray/60">Phone: </span>
-                    {order.contact.phone ?? '—'}
-                </span>
-                <span className="text-neutral-gray text-xs font-body">
-                    <span className="md:hidden text-neutral-gray/60">Items: </span>
-                    {itemCount}
-                </span>
-                <span className="text-neutral-gray text-xs font-body capitalize truncate">
-                    <span className="md:hidden text-neutral-gray/60">Type: </span>
-                    {order.fulfillmentType ? order.fulfillmentType.replace('_', ' ') : '—'}
-                </span>
-                <span className="text-text-dark text-sm font-bold font-body">
-                    <span className="md:hidden text-neutral-gray/60 text-xs font-normal">Total: </span>
-                    {formatPrice(order.total)}
-                </span>
-                <span className="shrink-0 text-neutral-gray hidden md:inline">
-                    {open ? <CaretUpIcon size={14} weight="bold" /> : <CaretDownIcon size={14} weight="bold" />}
-                </span>
+
+                {/* Desktop: column grid */}
+                <div className="hidden md:grid md:grid-cols-[1.8fr_1.3fr_0.7fr_1fr_1fr_auto] gap-4 items-center">
+                    <div className="min-w-0">
+                        <p className="text-text-dark text-sm font-semibold font-body truncate">{order.contact.name}</p>
+                        <p className="text-neutral-gray text-xs font-body">#{order.orderNumber}</p>
+                    </div>
+                    <span className="text-neutral-gray text-xs font-body truncate">{order.contact.phone ?? '—'}</span>
+                    <span className="text-neutral-gray text-xs font-body">{itemCount}</span>
+                    <span className="text-neutral-gray text-xs font-body capitalize truncate">{order.fulfillmentType ? order.fulfillmentType.replace('_', ' ') : '—'}</span>
+                    <span className="text-text-dark text-sm font-bold font-body">{formatPrice(order.total)}</span>
+                    <span className="shrink-0 text-neutral-gray">{open ? <CaretUpIcon size={14} weight="bold" /> : <CaretDownIcon size={14} weight="bold" />}</span>
+                </div>
             </div>
 
             {open && (

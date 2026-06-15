@@ -12,7 +12,6 @@ import {
     BuildingsIcon,
     ChartBarIcon,
     CaretRightIcon,
-    SpinnerIcon,
     WarningIcon,
 } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
@@ -126,7 +125,7 @@ export default function PartnerDashboardPage() {
     const trendBucket = period === '90d' ? 'month' : undefined;
 
     const { data: comparison, isLoading: cmpLoading, error: cmpError } = useSalesComparison(period, undefined, range, branchIds);
-    const { data: trend, isLoading: trendLoading } = useRevenueTrend(period, undefined, trendBucket, range, branchIds);
+    const { data: trend } = useRevenueTrend(period, undefined, trendBucket, range, branchIds);
     const { orders: orderAnalytics } = useAnalytics(period, undefined, range, branchIds);
     const showPortfolio = isAll && hasMultiple;
     const { data: branchPerf } = useBranchPerformanceAnalytics(period, undefined, range, showPortfolio ? branchIds : undefined);
@@ -148,14 +147,6 @@ export default function PartnerDashboardPage() {
                 <WarningIcon size={32} weight="fill" className="text-warning" />
                 <p className="text-text-dark text-sm font-body font-semibold">No branch assigned</p>
                 <p className="text-neutral-gray text-xs font-body text-center">Your account is not assigned to any branch. Contact an administrator.</p>
-            </div>
-        );
-    }
-
-    if (cmpLoading || trendLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-[50vh]">
-                <SpinnerIcon size={32} className="text-primary animate-spin" />
             </div>
         );
     }
@@ -203,9 +194,9 @@ export default function PartnerDashboardPage() {
 
             {/* KPI strip */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue" value={formatPrice(cur?.revenue ?? 0)} delta={delta?.revenue} accent />
-                <KpiCard icon={ReceiptIcon} label="Orders" value={String(cur?.orders ?? 0)} delta={delta?.orders} />
-                <KpiCard icon={TrendUpIcon} label="Avg. Order" value={formatPrice(cur?.aov ?? 0)} delta={delta?.aov} />
+                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue" value={cmpLoading ? '…' : formatPrice(cur?.revenue ?? 0)} delta={delta?.revenue} accent />
+                <KpiCard icon={ReceiptIcon} label="Orders" value={cmpLoading ? '…' : String(cur?.orders ?? 0)} delta={delta?.orders} />
+                <KpiCard icon={TrendUpIcon} label="Avg. Order" value={cmpLoading ? '…' : formatPrice(cur?.aov ?? 0)} delta={delta?.aov} />
                 <KpiCard icon={CheckCircleIcon} label="Fulfilment" value={`${fulfilment}%`} sub={cancelled > 0 ? `${cancelled} cancelled` : undefined} />
             </div>
 

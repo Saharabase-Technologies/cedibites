@@ -11,7 +11,6 @@ import {
     XCircleIcon,
     ArrowUpIcon,
     ArrowDownIcon,
-    SpinnerIcon,
     WarningIcon,
 } from '@phosphor-icons/react';
 import { usePartnerScope } from '@/app/components/providers/PartnerScopeProvider';
@@ -545,14 +544,6 @@ export default function PartnerAnalyticsPage() {
         );
     }
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-[50vh]">
-                <SpinnerIcon size={32} className="text-primary animate-spin" />
-            </div>
-        );
-    }
-
     if (analyticsError) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
@@ -591,14 +582,14 @@ export default function PartnerAnalyticsPage() {
 
             {/* KPI row */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
-                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue" value={formatGHS(sales?.total_sales ?? 0)} accent />
-                <KpiCard icon={ReceiptIcon} label="Orders" value={String(sales?.total_orders ?? 0)} />
-                <KpiCard icon={TrendUpIcon} label="Avg. Order" value={formatGHS(sales?.average_order_value ?? 0)} />
-                <KpiCard icon={CheckCircleIcon} label="Fulfilment" value={`${fulfilmentPct}%`} />
-                <KpiCard icon={XCircleIcon} label="Cancellations" value={`${cancelledPct}%`}
+                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue" value={isLoading ? '…' : formatGHS(sales?.total_sales ?? 0)} accent />
+                <KpiCard icon={ReceiptIcon} label="Orders" value={isLoading ? '…' : String(sales?.total_orders ?? 0)} />
+                <KpiCard icon={TrendUpIcon} label="Avg. Order" value={isLoading ? '…' : formatGHS(sales?.average_order_value ?? 0)} />
+                <KpiCard icon={CheckCircleIcon} label="Fulfilment" value={isLoading ? '…' : `${fulfilmentPct}%`} />
+                <KpiCard icon={XCircleIcon} label="Cancellations" value={isLoading ? '…' : `${cancelledPct}%`}
                     sub={(() => { const n = orders?.orders_by_status?.['cancelled'] ?? 0; return n > 0 ? `${n} order${n !== 1 ? 's' : ''} cancelled` : undefined; })()}
                 />
-                <KpiCard icon={CurrencyCircleDollarIcon} label="Avg Items/Order" value={String(sales?.avg_items_per_order ?? '—')} />
+                <KpiCard icon={CurrencyCircleDollarIcon} label="Avg Items/Order" value={isLoading ? '…' : String(sales?.avg_items_per_order ?? '—')} />
             </div>
 
             {/* Growth trajectory */}
