@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import {
-    MagnifyingGlassIcon, XIcon, FunnelIcon, SlidersIcon,
+    XIcon, FunnelIcon, SlidersIcon,
     StorefrontIcon, MapPinIcon, CaretDownIcon, SparkleIcon,
     FireIcon, ArrowUpIcon, CheckIcon, ListIcon,
     SquaresFourIcon, ClockIcon, ArrowRightIcon, SpinnerGapIcon,
 } from '@phosphor-icons/react';
+import SearchField from '@/app/components/base/SearchField';
 import { useMenuDiscovery } from '@/app/components/providers/MenuDiscoveryProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useLocation } from '@/app/components/providers/LocationProvider';
@@ -15,7 +16,6 @@ import { useModal } from '@/app/components/providers/ModalProvider';
 import MenuItemCard from '@/app/components/ui/MenuItemCard';
 import ItemDetailModal from '@/app/components/ui/ItemDetailModal';
 import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryProvider';
-import Navbar from '../../components/layout/Navbar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type SortKey = 'default' | 'price_asc' | 'price_desc' | 'popular';
@@ -296,8 +296,6 @@ export default function MenuPage() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const clearSearch = () => { setSearchQuery(''); searchRef.current?.focus(); };
-    const [isFocused, setIsFocused] = useState(false);
 
 
     const isFiltered = searchQuery.trim() || selectedCategory;
@@ -309,7 +307,6 @@ export default function MenuPage() {
 
     return (
         <div className="min-h-screen bg-neutral-light dark:bg-brand-darker">
-            <Navbar />
             {/* ── Top bar ─────────────────────────────────────────────────── */}
             <div className="sticky top-20 w-full mt-20 z-20  bg-primary/10  dark:bg-brand-darker items-center backdrop-blur-md border-b border-neutral-gray/20">
 
@@ -321,28 +318,14 @@ export default function MenuPage() {
 
 
                     {/* Search */}
-                    <div className='relative w-full mt-  md:w-[40%] flex items-center'>
-                        <MagnifyingGlassIcon
-                            size={24}
-                            weight="bold"
-                            className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isFocused ? 'text-primary' : 'text-neutral-gray'}`}
-                        />
-                        <input
+                    <div className='w-full md:w-[40%]'>
+                        <SearchField
                             ref={searchRef}
-                            type="text"
-                            placeholder="Search dishes, drinks..."
                             value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            className="w-full pl-14 pr-4 md:pr-12 py-3 md:py-3 bg-neutral-light dark:bg-brand-dark border-2 border-neutral-gray/50 focus:border-2 focus:border-primary rounded-full text-text-dark dark:text-text-light placeholder:text-neutral-gray transition-all outline-none text-lg"
+                            onChange={setSearchQuery}
+                            placeholder="Search dishes, drinks..."
+                            size="lg"
                         />
-                        {searchQuery && (
-                            <button
-                                onClick={clearSearch}
-                                className="absolute cursor-pointer hover:bg-neutral-gray/10 right-4 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full dark:hover:bg-brand-dark transition-colors"
-                            >
-                                <XIcon size={20} weight="bold" />
-                            </button>
-                        )}
                     </div>
 
 

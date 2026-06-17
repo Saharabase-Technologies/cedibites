@@ -18,7 +18,6 @@ import {
     ArrowsClockwiseIcon,
     UserIcon,
 } from '@phosphor-icons/react';
-import Navbar from '../../components/layout/Navbar';
 import type { Order as ApiOrder, OrderStatus as ApiOrderStatus } from '@/types/api';
 
 // Status configuration matching API statuses
@@ -121,7 +120,6 @@ export default function OrderHistoryPage() {
 
     return (
         <div className="min-h-screen bg-neutral-light dark:bg-brand-darker">
-            <Navbar />
 
             {/* Main Content - pt-24 accounts for fixed Navbar */}
             <main className="w-[90%] md:w-[80%] lg:w-[70%] mx-auto pt-24 md:pt-28 pb-8 md:pb-12">

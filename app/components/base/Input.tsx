@@ -54,11 +54,13 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
   const hasError = !!errorText;
   const showClear = clearable && value && !isPassword;
 
-  const borderClass =
-    disabled ? 'border-neutral-gray/30' :
+  // Border only (no outer glow). Gold focus so an active field never reads
+  // as a red error. Error > focus > rest.
+  const fieldStateClass =
+    disabled ? 'border-border' :
       hasError ? 'border-error' :
-        isFocused ? 'border-primary' :
-          'border-neutral-gray/50';
+        isFocused ? 'border-tertiary' :
+          'border-border hover:border-fg/25';
 
   const handleClear = () => {
     onChange('');
@@ -71,7 +73,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
       {label && (
         <label
           htmlFor={id || name}
-          className={`text-sm font-medium ${disabled ? 'text-text-dark dark:text-text-light' : 'text-text-dark dark:text-text-light '}`}
+          className="text-sm font-semibold text-fg px-1"
         >
           {label}
           {required && <span className="text-error ml-1" aria-hidden="true">*</span>}
@@ -82,8 +84,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
 
         {leftIcon && (
           <span
-            className={`absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors
-              ${disabled ? 'text-neutral-gray/40' : hasError ? 'text-error' : isFocused ? 'text-primary' : 'text-neutral-gray'}`}
+            className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors
+              ${disabled ? 'text-fg-subtle/40' : hasError ? 'text-error' : isFocused ? 'text-tertiary' : 'text-fg-subtle'}`}
             aria-hidden="true"
           >
             {leftIcon}
@@ -110,15 +112,15 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
           }}
           aria-invalid={hasError}
           className={`
-            w-full py-3 md:py-4 text-base
-            ${leftIcon ? 'pl-14' : 'pl-5'}
-            ${showClear || isPassword ? 'pr-14' : 'pr-5'}
-            bg-neutral-light dark:bg-brand-dark
-            border-2 ${borderClass}
-            rounded-full
-           text-text-dark dark:text-text-light font-medium
-            placeholder:text-neutral-gray placeholder:font-normal
-            transition-all duration-150 outline-none
+            w-full py-2.5 md:py-3 text-[15px] md:text-base
+            ${leftIcon ? 'pl-11' : 'pl-4'}
+            ${showClear || isPassword ? 'pr-11' : 'pr-4'}
+            bg-surface-sunken
+            border ${fieldStateClass}
+            rounded-2xl
+            text-fg font-medium
+            placeholder:text-fg-subtle placeholder:font-normal
+            transition-colors duration-150 outline-none
             disabled:opacity-50 disabled:cursor-not-allowed
           `}
         />
@@ -128,12 +130,12 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
           <button
             type="button"
             onClick={() => setShowPassword(p => !p)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full text-neutral-gray hover:text-brown hover:bg-neutral-gray/10 transition-colors cursor-pointer"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-fg-subtle hover:text-fg hover:bg-fg/8 transition-colors"
             aria-label={showPassword ? 'Hide password' : 'Show password'}
           >
             {showPassword
-              ? <EyeSlashIcon size={20} weight="bold" />
-              : <EyeIcon size={20} weight="bold" />
+              ? <EyeSlashIcon size={18} weight="bold" />
+              : <EyeIcon size={18} weight="bold" />
             }
           </button>
         )}
@@ -143,16 +145,16 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
           <button
             type="button"
             onClick={handleClear}
-            className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full text-neutral-gray hover:text-brown hover:bg-neutral-gray/10 transition-colors cursor-pointer"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-fg-subtle hover:text-fg hover:bg-fg/8 transition-colors"
             aria-label="Clear input"
           >
-            <XIcon size={20} weight="bold" />
+            <XIcon size={18} weight="bold" />
           </button>
         )}
       </div>
 
       {(errorText || helperText) && (
-        <p className={`text-sm px-1 ${hasError ? 'text-error' : 'text-neutral-gray'}`}>
+        <p className={`text-xs px-1 ${hasError ? 'text-error' : 'text-fg-subtle'}`}>
           {errorText || helperText}
         </p>
       )}

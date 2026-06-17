@@ -139,15 +139,6 @@ export default function UniversalSearch({
         return () => document.removeEventListener('keydown', h);
     }, []);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchQuery(e.target.value);
-    };
-
-    const handleClear = () => {
-        setSearchQuery('');
-        inputRef.current?.focus();
-    };
-
     const handleItemSelect = (item: SearchableItem) => {
         addRecentSearch(item.name);
         setIsFocused(false);
@@ -176,36 +167,56 @@ export default function UniversalSearch({
     };
 
     return (
-        <div ref={containerRef} className="py-4 my-4 md:my-0 border-y border-neutral-gray/20 w-full relative">
+        <div ref={containerRef} className="w-full relative">
 
-            {/* Search input — unchanged styling */}
-            <div className="relative w-full">
+            {/* ── Hero search bar — leading icon · input · green Search CTA ── */}
+            <div
+                className={`flex items-center gap-1.5 rounded-2xl border bg-surface pl-3.5 pr-2 shadow-sm transition-colors duration-150
+                    ${isFocused ? 'border-tertiary' : 'border-border hover:border-fg/25'}`}
+            >
                 <MagnifyingGlassIcon
-                    size={24}
+                    size={22}
                     weight="bold"
-                    className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isFocused ? 'text-primary' : 'text-neutral-gray'}`}
+                    aria-hidden="true"
+                    className={`shrink-0 transition-colors ${isFocused ? 'text-tertiary' : 'text-fg-subtle'}`}
                 />
                 <input
                     ref={inputRef}
-                    type="text"
+                    type="search"
+                    inputMode="search"
+                    enterKeyHint="search"
+                    autoComplete="off"
+                    aria-label={placeholder}
                     placeholder={placeholder}
                     value={searchQuery}
-                    onChange={handleChange}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     onFocus={() => setIsFocused(true)}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') handleSubmit();
                         if (e.key === 'Escape') { setIsFocused(false); inputRef.current?.blur(); }
                     }}
-                    className="w-full pl-14 pr-4 md:pr-12 py-3 md:py-4 bg-neutral-light dark:bg-brand-dark border-2 border-neutral-gray/50 focus:border-2 focus:border-primary rounded-full text-text-dark dark:text-text-light placeholder:text-neutral-gray transition-all outline-none text-lg"
+                    className="flex-1 min-w-0 bg-transparent outline-none py-3.5 text-base md:text-lg font-medium text-fg
+                        placeholder:text-fg-subtle placeholder:font-normal [&::-webkit-search-cancel-button]:appearance-none"
                 />
                 {searchQuery && (
                     <button
-                        onClick={handleClear}
-                        className="absolute cursor-pointer hover:bg-neutral-gray/10 right-4 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full dark:hover:bg-brand-dark transition-colors"
+                        type="button"
+                        onClick={() => { setSearchQuery(''); inputRef.current?.focus(); }}
+                        aria-label="Clear search"
+                        className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-fg-subtle hover:text-fg hover:bg-fg/8 transition-colors"
                     >
-                        <XIcon size={20} weight="bold" />
+                        <XIcon size={17} weight="bold" />
                     </button>
                 )}
+                <button
+                    type="button"
+                    onClick={handleSubmit}
+                    aria-label="Search"
+                    className="cb-press shrink-0 inline-flex items-center gap-2 h-10 px-3.5 md:px-5 rounded-xl bg-secondary hover:bg-secondary-hover text-white font-bold text-sm"
+                >
+                    <MagnifyingGlassIcon size={17} weight="bold" />
+                    <span className="hidden sm:inline">Search</span>
+                </button>
             </div>
 
             {/* ── Dropdown panel ─────────────────────────────────────────────── */}

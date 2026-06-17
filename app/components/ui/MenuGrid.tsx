@@ -115,21 +115,21 @@ export default function MenuGrid() {
         <>
             {/* Show error state when menu fetch fails */}
             {error && allItems.length === 0 ? (
-                <section className="w-[95%] md:w-[80%] xl:w-[70%] mx-auto pb-8 mt-6">
+                <section className="max-w-5xl mx-auto px-3 md:px-6 pb-8 mt-6">
                     <ErrorState onRetry={retryFetch} />
                 </section>
             ) : (
                 <>
                     {/* Show loading state when fetching menu */}
                     {isSearching && allItems.length === 0 ? (
-                        <section className="w-[95%] md:w-[80%] xl:w-[70%] mx-auto pb-8 mt-6">
+                        <section className="max-w-5xl mx-auto px-3 md:px-6 pb-8 mt-6">
                             <LoadingState />
                         </section>
                     ) : (
                         <>
                             {/* Default: CediBites Mix */}
                             {!selectedCategory && !searchQuery.trim() && (
-                                <section className="w-[95%] md:w-[80%] xl:w-[70%] mx-auto pb-8 mt-6">
+                                <section className="max-w-5xl mx-auto px-3 md:px-6 pb-8 mt-6">
                                     <MixHeader />
                                     {grid(cediBitesMix)}
                                 </section>
@@ -137,7 +137,7 @@ export default function MenuGrid() {
 
                             {/* Smart category (Most Popular, Trending, Top Rated, etc.) */}
                             {activeSmartCategory && !searchQuery.trim() && (
-                                <section className="w-[95%] md:w-[80%] xl:w-[70%] mx-auto pb-8 mt-6">
+                                <section className="max-w-5xl mx-auto px-3 md:px-6 pb-8 mt-6">
                                     <SectionHeader label={activeSmartCategory.name} count={filteredItems.length} />
                                     {filteredItems.length === 0
                                         ? <EmptyState query="" category={activeSmartCategory.name} />
@@ -147,7 +147,7 @@ export default function MenuGrid() {
 
                             {/* Search or regular category */}
                             {(searchQuery.trim() || (selectedCategory && !activeSmartCategory)) && (
-                                <section className="w-[95%] md:w-[80%] xl:w-[70%] mx-auto pb-8 mt-6">
+                                <section className="max-w-5xl mx-auto px-3 md:px-6 pb-8 mt-6">
                                     <SectionHeader
                                         label={searchQuery.trim() ? `Results for "${searchQuery}"` : selectedCategory ?? ''}
                                         count={filteredItems.length}

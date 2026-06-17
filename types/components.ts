@@ -2,7 +2,10 @@
 export type Size = 'sm' | 'md' | 'lg' | 'xl';
 
 // Color variants
-export type Variant = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'neutral';
+export type Variant = 'primary' | 'secondary' | 'tertiary' | 'success' | 'warning' | 'error' | 'neutral';
+
+// Tone scale shared by Badge / Chip primitives
+export type Tone = 'primary' | 'secondary' | 'tertiary' | 'success' | 'warning' | 'error' | 'info' | 'neutral';
 
 // Common props that many components share
 export interface BaseComponentProps {

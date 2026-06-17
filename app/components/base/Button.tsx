@@ -20,12 +20,13 @@ const sizeClasses: Record<Size, string> = {
 };
 
 const variantClasses: Record<Variant, string> = {
-    primary: 'bg-primary hover:bg-primary-hover text-brand-darker',
-    secondary: 'bg-transparent dark:text-neutral-light dark:hover:bg-neutral-gray border hover:bg-brand-dark active:bg-brown-light hover:text-text-light text-text-dark',
+    primary: 'bg-primary hover:bg-primary-hover text-white',
+    secondary: 'bg-secondary hover:bg-secondary-hover text-white',
+    tertiary: 'bg-tertiary hover:bg-tertiary-hover text-brown',
     success: 'bg-success hover:bg-secondary-hover text-white',
-    warning: 'bg-warning hover:bg-primary-hover text-white',
+    warning: 'bg-warning hover:bg-tertiary-hover text-brown',
     error: 'bg-error hover:bg-red-600 text-white',
-    neutral: 'bg-transparent hover:bg-primary-hover/15 dark:hover:bg-primary-hover/10 text-text-dark dark:text-neutral-light',
+    neutral: 'bg-transparent border border-border hover:bg-fg/5 text-fg',
 };
 
 export default function Button({
@@ -41,8 +42,8 @@ export default function Button({
     type = 'button',
     ...props
 }: ButtonProps) {
-    const baseClasses = ' cursor-pointer font-semibold rounded-full transition-all duration-200 inline-flex items-center justify-center gap-2';
-    const disabledClasses = disabled || loading ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.2 active:translate-y-0';
+    const baseClasses = 'cb-press cursor-pointer font-semibold rounded-full inline-flex items-center justify-center gap-2 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg';
+    const disabledClasses = disabled || loading ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md hover:brightness-[1.03]';
     const widthClasses = fullWidth ? 'w-full' : '';
 
     return (
@@ -60,7 +61,10 @@ export default function Button({
             {...props}
         >
             {loading && (
-                <span className="animate-spin">⏳</span>
+                <svg className="animate-spin h-[1em] w-[1em]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+                </svg>
             )}
             {!loading && icon && iconPosition === 'left' && <span>{icon}</span>}
             {children}

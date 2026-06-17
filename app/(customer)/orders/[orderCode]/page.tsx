@@ -196,8 +196,6 @@ export default function OrderTrackingPage({ params }: PageProps) {
 
     return (
         <div className="min-h-screen bg-neutral-light dark:bg-brand-darker">
-            {/* <Navbar /> */}
-
             {/* Header */}
             <header className="bg-brand-dark border-b text-text-neutral-light border-neutral-gray/10 sticky top-0 z-30">
                 <div className="w-[90%] md:w-[80%] mx-auto py-4 flex items-center justify-between">

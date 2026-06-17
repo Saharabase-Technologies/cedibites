@@ -8,6 +8,7 @@ import { BranchProvider } from "./components/providers/BranchProvider";
 import { OrderStoreProvider } from "./components/providers/OrderStoreProvider";
 import { QueryProvider } from "./components/providers/QueryProvider";
 import { RouterInitializer } from "./components/providers/RouterInitializer";
+import { ThemeProvider } from "./components/providers/ThemeProvider";
 
 const caprasimo = Caprasimo({
   weight: '400',
@@ -85,22 +86,24 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${cabin.variable} ${manrope.variable} ${caprasimo.variable} bg-neutral-light dark:bg-brand-darker antialiased`}>
-      <body className={abeezee.variable} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={`${cabin.variable} ${manrope.variable} ${caprasimo.variable} bg-bg text-fg antialiased`}>
+      <body className={abeezee.variable}>
         <Script
           src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&loading=async`}
           strategy="afterInteractive"
         />
-        <QueryProvider>
-          <RouterInitializer />
-          <LocationProvider autoRequest={false}>
-            <BranchProvider>
-              <OrderStoreProvider>
-                {children}
-              </OrderStoreProvider>
-            </BranchProvider>
-          </LocationProvider>
-        </QueryProvider>
+        <ThemeProvider>
+          <QueryProvider>
+            <RouterInitializer />
+            <LocationProvider autoRequest={false}>
+              <BranchProvider>
+                <OrderStoreProvider>
+                  {children}
+                </OrderStoreProvider>
+              </BranchProvider>
+            </LocationProvider>
+          </QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

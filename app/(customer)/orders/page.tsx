@@ -14,7 +14,6 @@ import {
     CaretRightIcon,
 } from '@phosphor-icons/react';
 import Image from 'next/image';
-import Navbar from '../../components/layout/Navbar';
 
 export default function TrackOrderPage() {
     const router = useRouter();
@@ -46,9 +45,9 @@ export default function TrackOrderPage() {
     };
 
     return (
-        <div className="min-h-screen bg-neutral-light dark:bg-brand-darker">
+        <div className="min-h-screen bg-neutral-light dark:bg-brand-darker pt-18">
             {/* Header */}
-            <Navbar />   <header className="border-b border-neutral-gray/20 bg-white dark:bg-brand-dark">
+            <header className="border-b border-neutral-gray/20 bg-white dark:bg-brand-dark">
                 <div className="w-[90%] md:w-[80%] mx-auto py-4 flex items-center justify-between">
                     <button
                         onClick={() => router.push('/')}

@@ -63,7 +63,7 @@ export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) 
 
     return (
         <article
-            className="group cursor-pointer relative flex flex-col bg-neutral-light dark:bg-brown/75 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 will-change-transform"
+            className="group cursor-pointer relative flex flex-col bg-neutral-light dark:bg-brown/75 rounded-2xl overflow-hidden shadow-sm border border-transparent transition-all duration-200 hover:shadow-lg hover:border-primary/25"
             onClick={() => onOpenDetail?.(item)}
         >
             {/* Image */}
@@ -156,9 +156,10 @@ export default function MenuItemCard({ item, onOpenDetail }: MenuItemCardProps) 
                     </span>
                     <button
                         onClick={handleToggle}
-                        className={`w-8 h-8 cursor-pointer flex items-center justify-center rounded-full transition-all duration-200 active:scale-90
+                        style={inCart ? ({ '--cb-glow': 'var(--cb-green-500)' } as React.CSSProperties) : undefined}
+                        className={`w-8 h-8 cursor-pointer flex items-center justify-center rounded-full cb-press
                             ${inCart
-                                ? 'bg-secondary hover:bg-error text-white'
+                                ? 'bg-secondary hover:bg-error text-white animate-glow-pulse'
                                 : 'bg-primary hover:bg-primary-hover text-white'
                             }`}
                         aria-label={inCart ? `Remove ${item.name} from cart` : `Add ${item.name} to cart`}

@@ -1,47 +1,154 @@
 @import "tailwindcss";
 
-/* ============================================
-   CediBites Custom Colors - Tailwind 4
-   ============================================ */
+/* ════════════════════════════════════════════════════════════════════
+   CediBites Design System — Tailwind v4
+   Three layers:  primitives → semantic tokens → Tailwind utilities
+   Palette sampled from the FALAA DEALS flyer: Red (primary),
+   Green (accent), Gold (tertiary), near-white cream surfaces.
+   ════════════════════════════════════════════════════════════════════ */
 
+/* Dark mode is driven by a `.dark` class (toggled by next-themes),
+   not the prefers-color-scheme media query. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ────────────────────────────────────────────────────────────────────
+   LAYER 1 — PRIMITIVES  (raw hues, identical in light & dark)
+   ──────────────────────────────────────────────────────────────────── */
+:root {
+  /* Red — primary */
+  --cb-red-50:  #fbeae6;
+  --cb-red-100: #f6d3cc;
+  --cb-red-200: #eca89b;
+  --cb-red-300: #e08573;
+  --cb-red-400: #d85c47;
+  --cb-red-500: #ce3b2b;
+  --cb-red-600: #b83224;
+  --cb-red-700: #97271b;
+  --cb-red-800: #741d13;
+
+  /* Green — accent */
+  --cb-green-50:  #eff4de;
+  --cb-green-100: #e1ecc3;
+  --cb-green-200: #c8db97;
+  --cb-green-300: #aec76c;
+  --cb-green-400: #9db857;
+  --cb-green-500: #8fa84e;
+  --cb-green-600: #7a9243;
+  --cb-green-700: #5f7334;
+  --cb-green-800: #465626;
+
+  /* Gold — tertiary */
+  --cb-gold-50:  #fcefd3;
+  --cb-gold-100: #ffe2b5;
+  --cb-gold-200: #f8cd86;
+  --cb-gold-300: #f3b85a;
+  --cb-gold-400: #f1ab3e;
+  --cb-gold-500: #efa52e;
+  --cb-gold-600: #d2871a;
+  --cb-gold-700: #a86713;
+
+  /* Warm neutrals */
+  --cb-cream:      #fdfbf4;
+  --cb-cream-card: #fffdf8;
+  --cb-sand:       #f5efe2;
+  --cb-clay:       #8b7f70;
+  --cb-brown:      #372b1e;
+  --cb-brown-light:#7a5c41;
+  --cb-ink:        #1d1a16;
+  --cb-ink-deep:   #120f0d;
+  --cb-ink-raised: #262119;
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   LAYER 2 — SEMANTIC TOKENS  (flip between light & dark)
+   ──────────────────────────────────────────────────────────────────── */
+:root,
+.light {
+  --cb-bg:             var(--cb-cream);
+  --cb-surface:        var(--cb-cream-card);
+  --cb-surface-raised: #ffffff;
+  --cb-surface-sunken: var(--cb-sand);
+  --cb-fg:             #242424;
+  --cb-fg-muted:       #6b6256;
+  --cb-fg-subtle:      #8b7f70;
+  --cb-border:         rgba(55, 43, 30, 0.12);
+  --cb-divider:        rgba(55, 43, 30, 0.09);
+  --cb-overlay:        rgba(18, 15, 13, 0.55);
+  --cb-ring:           var(--cb-red-500);
+}
+
+.dark {
+  --cb-bg:             var(--cb-ink-deep);
+  --cb-surface:        var(--cb-ink);
+  --cb-surface-raised: var(--cb-ink-raised);
+  --cb-surface-sunken: #0c0a08;
+  --cb-fg:             #fbf6ed;
+  --cb-fg-muted:       #b9ae9d;
+  --cb-fg-subtle:      #8b7f70;
+  --cb-border:         rgba(251, 246, 237, 0.12);
+  --cb-divider:        rgba(251, 246, 237, 0.08);
+  --cb-overlay:        rgba(0, 0, 0, 0.65);
+  --cb-ring:           var(--cb-red-400);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   LAYER 3 — TAILWIND UTILITIES
+   ──────────────────────────────────────────────────────────────────── */
 @theme {
 
   /* Fonts */
   --font-family-brand: var(--font-caprasimo), cursive;
   --font-family-body: var(--font-manrope), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
+  /* Brand colors (constant in both themes) */
+  --color-primary:         var(--cb-red-500);
+  --color-primary-hover:   var(--cb-red-600);
+  --color-primary-light:   var(--cb-red-50);
 
-  /* Main Colors (Always the same in both themes) */
-  --color-primary: #e49925;
-  --color-primary-hover: #f1ab3e;
-  --color-primary-light: #ffe2b5;
+  --color-secondary:       var(--cb-green-500);
+  --color-secondary-hover: var(--cb-green-600);
+  --color-secondary-light: var(--cb-green-50);
 
-  --color-secondary: #6c833f;
-  --color-secondary-hover: #7b9549;
-  --color-secondary-light: #ddf3b3;
+  --color-tertiary:        var(--cb-gold-500);
+  --color-tertiary-hover:  var(--cb-gold-400);
+  --color-tertiary-light:  var(--cb-gold-100);
 
-  /* Neutral Colors */
-  --color-neutral-light: #fbf6ed;
-  --color-neutral-card: #fffbf3;
-  --color-neutral-gray: #8b7f70;
+  /* Neutral / brand-surface names (legacy — preserved) */
+  --color-neutral-light: var(--cb-cream);
+  --color-neutral-card:  var(--cb-cream-card);
+  --color-neutral-gray:  var(--cb-clay);
+  --color-brown:         var(--cb-brown);
+  --color-brown-light:   var(--cb-brown-light);
+  --color-brand-dark:    var(--cb-ink);
+  --color-brand-darker:  var(--cb-ink-deep);
 
-  /* Dark Colors */
-  --color-brown: #372b1e;
-  --color-brown-light: #7a5c41;
+  /* Text (legacy) */
+  --color-text-dark:  #242424;
+  --color-text-light: var(--cb-cream);
+  --color-text-gray:  #434343;
 
-  --color-brand-dark: #1d1a16;
-  --color-brand-darker: #120f0d;
+  /* Status */
+  --color-success: var(--cb-green-600);
+  --color-warning: var(--cb-gold-600);
+  --color-error:   #d32f2f;
+  --color-info:    #1976d2;
+}
 
-  /* Text Colors */
-  --color-text-dark: #242424;
-  --color-text-light: #fbf6ed;
-  --color-text-gray: #434343;
-
-  /* Status Colors */
-  --color-success: #6c833f;
-  --color-warning: #f9a61a;
-  --color-error: #d32f2f;
-  --color-info: #1976d2;
+/* Semantic utilities mapped to runtime vars — these flip with the
+   `.dark` class. Use `bg-bg`, `bg-surface`, `text-fg`, `text-fg-muted`,
+   `border-border`, etc. for theme-aware styling. */
+@theme inline {
+  --color-bg:             var(--cb-bg);
+  --color-surface:        var(--cb-surface);
+  --color-surface-raised: var(--cb-surface-raised);
+  --color-surface-sunken: var(--cb-surface-sunken);
+  --color-fg:             var(--cb-fg);
+  --color-fg-muted:       var(--cb-fg-muted);
+  --color-fg-subtle:      var(--cb-fg-subtle);
+  --color-border:         var(--cb-border);
+  --color-divider:        var(--cb-divider);
+  --color-overlay:        var(--cb-overlay);
+  --color-ring:           var(--cb-ring);
 }
 
 body {
@@ -49,9 +156,9 @@ body {
   font-family: var(--font-manrope), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   /* Manrope reads light at 400 — default body copy to 500. Headings use explicit bold weights. */
   font-weight: 500;
-  background-color: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  transition: background-color 0.2s ease, color 0.2s ease;
+  background-color: var(--cb-bg);
+  color: var(--cb-fg);
+  transition: background-color 0.25s ease, color 0.25s ease;
   line-height: 1.6;
   overflow-x: hidden;
   overflow-y: auto !important;
@@ -98,6 +205,15 @@ body::-webkit-scrollbar-thumb:hover {
 
 
 
+/* Tailwind v4 no longer sets cursor:pointer on buttons — restore it globally
+   for every enabled button / button-role element. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
 .bg-image {
   background-image: url('/bgpattern.webp');
   background-repeat: repeat;
@@ -106,6 +222,24 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 @layer utilities {
+
+  /* ── Uniform dividers (theme-aware) ── */
+  .divider {
+    border: 0;
+    height: 1px;
+    width: 100%;
+    background-color: var(--cb-divider);
+  }
+  .divider-vertical {
+    width: 1px;
+    align-self: stretch;
+    background-color: var(--cb-divider);
+  }
+
+  /* ── Safe-area insets (mobile bottom nav / standalone PWA) ── */
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-nav  { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
 
   /* Hide scrollbar for Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
@@ -157,14 +291,55 @@ body::-webkit-scrollbar-thumb:hover {
     50%      { transform: translateY(-8px); }
   }
 
+  /* ── Transform-free entrance/attention animations (opacity, color,
+        filter, box-shadow only — never translate, so layout can't shift) ── */
+  @keyframes cb-blur-in {
+    from { opacity: 0; filter: blur(7px); }
+    to   { opacity: 1; filter: blur(0); }
+  }
+  /* Expanding, fading ring — colored via --cb-glow (defaults to primary). */
+  @keyframes cb-glow-pulse {
+    0%   { box-shadow: 0 0 0 0   color-mix(in srgb, var(--cb-glow, var(--cb-red-500)) 50%, transparent); }
+    70%  { box-shadow: 0 0 0 7px color-mix(in srgb, var(--cb-glow, var(--cb-red-500)) 0%,  transparent); }
+    100% { box-shadow: 0 0 0 0   color-mix(in srgb, var(--cb-glow, var(--cb-red-500)) 0%,  transparent); }
+  }
+  /* Soft breathing glow for ambient liveliness. */
+  @keyframes cb-glow-breathe {
+    0%, 100% { box-shadow: 0 0 0 0   color-mix(in srgb, var(--cb-glow, var(--cb-gold-400)) 0%, transparent); }
+    50%      { box-shadow: 0 0 16px 2px color-mix(in srgb, var(--cb-glow, var(--cb-gold-400)) 35%, transparent); }
+  }
+
   .animate-fade-in       { animation: cb-fade-in 0.5s ease both; }
   .animate-fade-in-up    { animation: cb-fade-in-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-fade-in-down  { animation: cb-fade-in-down 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-scale-in      { animation: cb-scale-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-blur-in       { animation: cb-blur-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-slide-in-right{ animation: cb-slide-in-right 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-slide-in-left { animation: cb-slide-in-left 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-shake         { animation: cb-shake 0.4s ease both; }
   .animate-float         { animation: cb-float 6s ease-in-out infinite; }
+  .animate-glow-pulse    { animation: cb-glow-pulse 1.8s ease-out infinite; }
+  .animate-glow-breathe  { animation: cb-glow-breathe 3.2s ease-in-out infinite; }
+
+  /* ── Interaction helpers (transform-free) ── */
+  /* Tactile press: inner shadow + slight dim on :active. */
+  .cb-press {
+    transition: box-shadow 0.12s ease, filter 0.12s ease, background-color 0.2s ease, color 0.2s ease;
+  }
+  .cb-press:active {
+    box-shadow: inset 0 2px 7px rgba(0, 0, 0, 0.22);
+    filter: brightness(0.96);
+  }
+  /* Inner glow ring on hover/focus — colored via --cb-ring. */
+  .cb-inner-glow {
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .cb-inner-glow:hover,
+  .cb-inner-glow:focus-visible {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--cb-ring) 38%, transparent),
+      inset 0 0 20px color-mix(in srgb, var(--cb-ring) 12%, transparent);
+  }
 
   .anim-delay-75  { animation-delay: 75ms; }
   .anim-delay-150 { animation-delay: 150ms; }
@@ -176,12 +351,16 @@ body::-webkit-scrollbar-thumb:hover {
     .animate-fade-in-up,
     .animate-fade-in-down,
     .animate-scale-in,
+    .animate-blur-in,
     .animate-slide-in-right,
     .animate-slide-in-left,
     .animate-shake,
-    .animate-float {
+    .animate-float,
+    .animate-glow-pulse,
+    .animate-glow-breathe {
       animation: none !important;
     }
+    .cb-press:active { filter: none; box-shadow: none; }
   }
 }
 

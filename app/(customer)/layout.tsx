@@ -5,6 +5,10 @@ import { MenuDiscoveryProvider } from '../components/providers/MenuDiscoveryProv
 import { CartProvider } from '../components/providers/CartProvider';
 import LocationRequestModal from '../components/ui/LocationRequestModal';
 import BranchSelectorModal from '../components/ui/BranchSelectorModal';
+import BottomNav from '../components/layout/BottomNav';
+import Navbar from '../components/layout/Navbar';
+import CartDrawer from '../components/ui/CartDrawer';
+import AuthModal from '../components/ui/AuthModal';
 
 export const metadata: Metadata = {
   description: 'Browse and order authentic Ghanaian food from CediBites.',
@@ -74,7 +78,13 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                         <CartProvider>
                             <LocationRequestModal />
                             <BranchSelectorModal />
-                            {children}
+                            <Navbar />
+                            <div className="pb-nav md:pb-0">
+                                {children}
+                            </div>
+                            <BottomNav />
+                            <CartDrawer />
+                            <AuthModal />
                         </CartProvider>
                     </MenuDiscoveryProvider>
                 </AuthProvider>
