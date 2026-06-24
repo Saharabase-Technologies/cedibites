@@ -239,52 +239,6 @@ export default function AdminCustomersPage() {
 
     // Filtering and sorting is now fully server-side — no client-side filtering needed.
 
-    const buildExportRows = useCallback(() => {
-        const headers = ['Name', 'Phone', 'Email', 'Account Type', 'Status', 'Total Orders', 'Total Spend (GHS)', 'Avg Order Value (GHS)', 'Last Order', 'Join Date'];
-        const rows = customers.map((c) => [
-            c.name,
-            c.phone,
-            c.email ?? '',
-            c.accountType,
-            c.status,
-            String(c.totalOrders),
-            c.totalSpend.toFixed(2),
-            c.avgOrderValue.toFixed(2),
-            c.lastOrderDate,
-            c.joinDate,
-        ]);
-        return [headers, ...rows];
-    }, [customers]);
-
-    const handleExportCsv = useCallback(() => {
-        const allRows = buildExportRows();
-        const csv = allRows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `customers-${tab.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }, [buildExportRows, tab]);
-
-    const handleExportExcel = useCallback(() => {
-        const allRows = buildExportRows();
-        const esc = (v: string) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const tableHtml = allRows.map((r, ri) => {
-            const tag = ri === 0 ? 'th' : 'td';
-            return `<tr>${r.map((v) => `<${tag}>${esc(String(v))}</${tag}>`).join('')}</tr>`;
-        }).join('');
-        const xls = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Customers</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table>${tableHtml}</table></body></html>`;
-        const blob = new Blob(['\ufeff' + xls], { type: 'application/vnd.ms-excel;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `customers-${tab.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.xls`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }, [buildExportRows, tab]);
-
     // Export EVERY customer contact (name + phone) across the whole table — not
     // just the current page. Cleaning/normalising/dedupe happens server-side.
     const handleExportContacts = useCallback(async () => {
@@ -382,16 +336,6 @@ export default function AdminCustomersPage() {
                         className="flex items-center gap-2 px-4 py-2 bg-primary rounded-xl text-white text-sm font-medium font-body hover:bg-primary-hover transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                         <DownloadSimpleIcon size={15} weight="bold" />
                         {exportingContacts ? 'Exporting…' : 'Export Contacts'}
-                    </button>
-                    <button type="button" onClick={handleExportCsv} disabled={customers.length === 0}
-                        className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                        <DownloadSimpleIcon size={15} weight="bold" className="text-primary" />
-                        CSV
-                    </button>
-                    <button type="button" onClick={handleExportExcel} disabled={customers.length === 0}
-                        className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                        <DownloadSimpleIcon size={15} weight="bold" className="text-secondary" />
-                        Excel
                     </button>
                 </div>
             </div>
