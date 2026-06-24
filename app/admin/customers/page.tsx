@@ -209,6 +209,7 @@ export default function AdminCustomersPage() {
     const [search, setSearch] = useState('');
     const [sortBy, setSortBy] = useState<SortBy>('recent');
     const [page, setPage] = useState(1);
+    const [exportingContacts, setExportingContacts] = useState(false);
     const [selected, setSelected] = useState<DisplayCustomer | null>(null);
     const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; customer: DisplayCustomer | null; isLoading: boolean }>({
         isOpen: false,
@@ -284,6 +285,44 @@ export default function AdminCustomersPage() {
         URL.revokeObjectURL(url);
     }, [buildExportRows, tab]);
 
+    // Export EVERY customer contact (name + phone) across the whole table — not
+    // just the current page. Cleaning/normalising/dedupe happens server-side.
+    const handleExportContacts = useCallback(async () => {
+        setExportingContacts(true);
+        try {
+            const { data } = await customerService.exportContacts();
+            if (!data || data.length === 0) {
+                toast.error('No valid contacts to export.');
+                return;
+            }
+
+            // Wrap each cell as a quoted CSV field; double up internal quotes.
+            const cell = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+            // Force Excel/Sheets to treat the number as text via the ="…" trick,
+            // so +233245504367 never collapses into 2.33E+11 scientific notation.
+            const phoneCell = (p: string) => `"=""${String(p).replace(/"/g, '""')}"""`;
+
+            const lines = [
+                `${cell('Name')},${cell('Phone')}`,
+                ...data.map((c) => `${cell(c.name)},${phoneCell(c.phone)}`),
+            ];
+            const csv = lines.join('\r\n');
+
+            const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cedibites-contacts-${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast.success(`Exported ${data.length} contact${data.length === 1 ? '' : 's'}.`);
+        } catch (error: any) {
+            toast.error(error?.message || 'Failed to export contacts.');
+        } finally {
+            setExportingContacts(false);
+        }
+    }, []);
+
     const selectedWithOrders = useMemo(() => {
         if (!selected) return null;
         const api = apiCustomers.find((c) => c.id === selected.id);
@@ -339,6 +378,11 @@ export default function AdminCustomersPage() {
                     <p className="text-neutral-gray text-sm font-body mt-0.5">{meta?.total ?? customers.length} customers</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                    <button type="button" onClick={handleExportContacts} disabled={exportingContacts}
+                        className="flex items-center gap-2 px-4 py-2 bg-primary rounded-xl text-white text-sm font-medium font-body hover:bg-primary-hover transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                        <DownloadSimpleIcon size={15} weight="bold" />
+                        {exportingContacts ? 'Exporting…' : 'Export Contacts'}
+                    </button>
                     <button type="button" onClick={handleExportCsv} disabled={customers.length === 0}
                         className="flex items-center gap-2 px-4 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                         <DownloadSimpleIcon size={15} weight="bold" className="text-primary" />

@@ -18,6 +18,11 @@ export interface ApiCustomer {
   updated_at: string;
 }
 
+export interface ContactExportRow {
+  name: string;
+  phone: string;
+}
+
 export interface CustomersParams {
   is_guest?: boolean;
   status?: string;
@@ -30,6 +35,14 @@ export interface CustomersParams {
 export const customerService = {
   getCustomers: (params?: CustomersParams): Promise<PaginatedResponse<ApiCustomer>> => {
     return apiClient.get('/admin/customers', { params });
+  },
+
+  /**
+   * Export every customer contact (name + phone) across the whole table.
+   * Phones are cleaned, normalised to +233, validated and de-duplicated server-side.
+   */
+  exportContacts: (): Promise<{ data: ContactExportRow[] }> => {
+    return apiClient.get('/admin/customers/export-contacts');
   },
 
   getCustomer: (id: number): Promise<{ data: ApiCustomer }> => {
