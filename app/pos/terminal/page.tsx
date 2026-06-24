@@ -774,12 +774,21 @@ export default function POSTerminalPage() {
             <DeviceMobileIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
             <input
               type="tel"
-              placeholder="Phone number *"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="Phone number * (e.g. 0241234567)"
               value={customerPhone}
-              onChange={e => setCustomerPhone(e.target.value)}
-              className="w-full h-10 pl-9 pr-3 rounded-lg bg-neutral-light text-text-dark placeholder:text-neutral-gray/60 border border-neutral-gray/20 focus:border-primary/50 outline-none text-sm transition-colors"
+              onChange={e => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              className={`w-full h-10 pl-9 pr-3 rounded-lg bg-neutral-light text-text-dark placeholder:text-neutral-gray/60 border outline-none text-sm transition-colors ${
+                customerPhone && !isValidGhanaPhone(customerPhone)
+                  ? 'border-error/60 focus:border-error'
+                  : 'border-neutral-gray/20 focus:border-primary/50'
+              }`}
             />
           </div>
+          {customerPhone && !isValidGhanaPhone(customerPhone) && (
+            <p className="text-xs text-error pl-1">Enter a valid 10-digit phone number (e.g. 0241234567).</p>
+          )}
         </div>
 
         {/* Cart Items */}
@@ -910,7 +919,7 @@ export default function POSTerminalPage() {
 
           <button
             onClick={openPayment}
-            disabled={cart.length === 0 || !customerName.trim() || !customerPhone.trim()}
+            disabled={cart.length === 0 || !customerName.trim() || !isValidGhanaPhone(customerPhone)}
             className="
               w-full h-14 rounded-2xl font-semibold text-lg
               bg-primary text-brown
