@@ -47,8 +47,10 @@ interface POSContextValue {
   setCustomerPhone: (phone: string) => void;
   orderNotes: string;
   setOrderNotes: (notes: string) => void;
-  orderType: 'dine_in' | 'takeaway';
-  setOrderType: (type: 'dine_in' | 'takeaway') => void;
+  orderType: 'dine_in' | 'takeaway' | 'delivery';
+  setOrderType: (type: 'dine_in' | 'takeaway' | 'delivery') => void;
+  deliveryFee: number;
+  setDeliveryFee: (fee: number) => void;
 
   // Payment
   isPaymentOpen: boolean;
@@ -96,7 +98,8 @@ export function POSProvider({ children }: POSProviderProps) {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
-  const [orderType, setOrderType] = useState<'dine_in' | 'takeaway'>('dine_in');
+  const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery'>('dine_in');
+  const [deliveryFee, setDeliveryFee] = useState(0);
 
   // Payment modal
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -221,6 +224,7 @@ export function POSProvider({ children }: POSProviderProps) {
     setCustomerPhone('');
     setOrderNotes('');
     setOrderType('dine_in');
+    setDeliveryFee(0);
   }, []);
 
   // Payment actions
@@ -242,6 +246,9 @@ export function POSProvider({ children }: POSProviderProps) {
   ): Promise<Order> => {
     const branch = branches.find(b => b.id === session?.branchId);
 
+    // Delivery fee only applies to delivery orders
+    const effectiveDeliveryFee = orderType === 'delivery' && deliveryFee > 0 ? deliveryFee : 0;
+
     // Build API request for checkout session
     const sessionData = {
       branch_id: Number(session?.branchId),
@@ -261,6 +268,7 @@ export function POSProvider({ children }: POSProviderProps) {
       recorded_at: manualOpts?.recordedAt,
       customer_notes: orderNotes || undefined,
       discount: discount && discount > 0 ? discount : undefined,
+      delivery_fee: effectiveDeliveryFee > 0 ? effectiveDeliveryFee : undefined,
     };
 
     // 1. Create checkout session via API
@@ -301,11 +309,11 @@ export function POSProvider({ children }: POSProviderProps) {
         sizeLabel: item.name,
       })),
       subtotal: Number(csSession.subtotal ?? apiOrder?.subtotal ?? cart.reduce((sum, item) => sum + item.price * item.quantity, 0)),
-      deliveryFee: 0,
+      deliveryFee: Number(csSession.delivery_fee ?? apiOrder?.delivery_fee ?? effectiveDeliveryFee),
       discount: Number(discount ?? 0),
       tax: 0,
       serviceCharge: Number(csSession.service_charge ?? apiOrder?.service_charge ?? 0),
-      total: Number(csSession.total_amount ?? apiOrder?.total ?? cart.reduce((sum, item) => sum + item.price * item.quantity, 0) - (discount ?? 0)),
+      total: Number(csSession.total_amount ?? apiOrder?.total ?? cart.reduce((sum, item) => sum + item.price * item.quantity, 0) - (discount ?? 0) + effectiveDeliveryFee),
       amountPaid: amountPaid,
       momoNumber: momoNumber,
       contact: {
@@ -352,7 +360,7 @@ export function POSProvider({ children }: POSProviderProps) {
     if (isManualEntry) setIsManualEntry(false);
 
     return order;
-  }, [cart, customerName, customerPhone, orderNotes, orderType, session, branches, addLocalOrder, clearCart, staffUser, isManualEntry]);
+  }, [cart, customerName, customerPhone, orderNotes, orderType, deliveryFee, session, branches, addLocalOrder, clearCart, staffUser, isManualEntry]);
 
   const updateOrderStatus = useCallback((orderId: string, status: Order['status']) => {
     const timestamps: Partial<Pick<Order, 'acceptedAt' | 'startedAt' | 'readyAt' | 'completedAt'>> = {};
@@ -449,6 +457,8 @@ export function POSProvider({ children }: POSProviderProps) {
     setOrderNotes,
     orderType,
     setOrderType,
+    deliveryFee,
+    setDeliveryFee,
     isPaymentOpen,
     openPayment,
     closePayment,

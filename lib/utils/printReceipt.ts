@@ -123,7 +123,7 @@ function receiptHTML(order: Order, branch: ReceiptBranch, kind: ReceiptKind): st
   .items-table th { text-align: left; border-bottom: 1px solid #000; border-top: 1px solid #000; padding: 3px 2px; font-size: 11px; }
   .items-table th.qty, .items-table th.price, .items-table th.amount { text-align: right; }
   .items-table td { padding: 3px 2px; vertical-align: top; }
-  .item-name { font-size: 11px; word-break: break-word; }
+  .item-name { font-size: 12px; font-weight: 900; word-break: break-word; }
   .qty, .price, .amount { text-align: right; white-space: nowrap; }
   .totals-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 2px; }
   .totals-table td { padding: 2px 2px; }

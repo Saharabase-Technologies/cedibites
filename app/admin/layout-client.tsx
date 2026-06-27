@@ -37,23 +37,61 @@ import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
-const ADMIN_NAV = [
-    { href: '/admin/dashboard',  label: 'Dashboard',  icon: SquaresFourIcon           },
-    { href: '/admin/orders',     label: 'Orders',     icon: ListIcon                  },
-    { href: '/admin/branches',   label: 'Branches',   icon: BuildingsIcon             },
-    { href: '/admin/menu',       label: 'Menu',       icon: ForkKnifeIcon             },
-    { href: '/admin/staff',      label: 'Staff',      icon: UsersThreeIcon            },
-    { href: '/admin/customers',  label: 'Customers',  icon: UserCircleIcon            },
-    { href: '/admin/promos',        label: 'Promos',        icon: TagIcon                   },
-    { href: '/admin/transactions',  label: 'Transactions',  icon: ReceiptIcon               },
-    { href: '/admin/analytics',     label: 'Analytics',     icon: ChartBarIcon              },
-    { href: '/admin/settings',   label: 'Settings',   icon: GearSixIcon               },
-    { href: '/admin/audit',      label: 'Audit Log',  icon: ClockCounterClockwiseIcon },
+const ADMIN_GROUPS = [
+    {
+        title: 'Overview',
+        items: [
+            { href: '/admin/dashboard',  label: 'Dashboard',  icon: SquaresFourIcon },
+            { href: '/admin/analytics',  label: 'Analytics',  icon: ChartBarIcon    },
+        ],
+    },
+    {
+        title: 'Operations',
+        items: [
+            { href: '/admin/orders',        label: 'Orders',        icon: ListIcon    },
+            { href: '/admin/transactions',  label: 'Transactions',  icon: ReceiptIcon },
+        ],
+    },
+    {
+        title: 'Catalog',
+        items: [
+            { href: '/admin/menu',      label: 'Menu',      icon: ForkKnifeIcon },
+            { href: '/admin/promos',    label: 'Promos',    icon: TagIcon       },
+            { href: '/admin/branches',  label: 'Branches',  icon: BuildingsIcon },
+        ],
+    },
+    {
+        title: 'People',
+        items: [
+            { href: '/admin/customers',  label: 'Customers',  icon: UserCircleIcon },
+            { href: '/admin/staff',      label: 'Staff',      icon: UsersThreeIcon },
+        ],
+    },
 ];
+
+// Rendered after Displays, near the bottom of the sidebar.
+const SYSTEM_GROUP = {
+    title: 'System',
+    items: [
+        { href: '/admin/settings',  label: 'Settings',   icon: GearSixIcon               },
+        { href: '/admin/audit',     label: 'Audit Log',  icon: ClockCounterClockwiseIcon },
+    ],
+};
+
+const ADMIN_NAV = [...ADMIN_GROUPS.flatMap(g => g.items), ...SYSTEM_GROUP.items];
 
 const BOTTOM_NAV = ADMIN_NAV.filter(n =>
     ['/admin/dashboard', '/admin/orders', '/admin/branches', '/admin/menu', '/admin/settings'].includes(n.href)
 );
+
+// Active-state check, incl. Menu's sibling sub-routes (add-ons / tags)
+function isNavActive(pathname: string, href: string) {
+    return (
+        pathname === href ||
+        pathname.startsWith(href + '/') ||
+        (href === '/admin/menu' && (pathname === '/admin/menu-add-ons' || pathname === '/admin/menu-tags'))
+    );
+}
 
 const ADMIN_DISPLAYS = [
     { href: '/pos/terminal',  label: 'POS Terminal',    icon: CashRegisterIcon,  external: true },
@@ -194,21 +232,22 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
 
                 {/* Nav */}
                 <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5 overflow-y-auto">
-                    {ADMIN_NAV.map(item => (
-                        <SidebarLink
-                            key={item.href}
-                            href={item.href}
-                            label={item.label}
-                            icon={item.icon}
-                            active={
-                                pathname === item.href ||
-                                pathname.startsWith(item.href + '/') ||
-                                (item.href === '/admin/menu' && (
-                                    pathname === '/admin/menu-add-ons' ||
-                                    pathname === '/admin/menu-tags'
-                                ))
-                            }
-                        />
+                    {ADMIN_GROUPS.map((group, gi) => (
+                        <div key={group.title}>
+                            {gi > 0 && <div className="my-2 border-t border-[#f0e8d8]" />}
+                            <p className="text-[10px] font-body font-medium text-neutral-gray/60 uppercase tracking-wider px-3 pb-1">
+                                {group.title}
+                            </p>
+                            {group.items.map(item => (
+                                <SidebarLink
+                                    key={item.href}
+                                    href={item.href}
+                                    label={item.label}
+                                    icon={item.icon}
+                                    active={isNavActive(pathname, item.href)}
+                                />
+                            ))}
+                        </div>
                     ))}
 
                     <div className="my-2 border-t border-[#f0e8d8]" />
@@ -223,6 +262,20 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                             icon={item.icon}
                             active={false}
                             external={item.external}
+                        />
+                    ))}
+
+                    <div className="my-2 border-t border-[#f0e8d8]" />
+                    <p className="text-[10px] font-body font-medium text-neutral-gray/60 uppercase tracking-wider px-3 pb-1">
+                        {SYSTEM_GROUP.title}
+                    </p>
+                    {SYSTEM_GROUP.items.map(item => (
+                        <SidebarLink
+                            key={item.href}
+                            href={item.href}
+                            label={item.label}
+                            icon={item.icon}
+                            active={isNavActive(pathname, item.href)}
                         />
                     ))}
 

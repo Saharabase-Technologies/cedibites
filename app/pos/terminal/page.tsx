@@ -160,6 +160,8 @@ export default function POSTerminalPage() {
     setOrderNotes,
     orderType,
     setOrderType,
+    deliveryFee,
+    setDeliveryFee,
     isPaymentOpen,
     openPayment,
     closePayment,
@@ -362,6 +364,10 @@ export default function POSTerminalPage() {
 
   // Effective total after any promo discount
   const effectiveTotal = Math.max(0, cartTotal - promoDiscount);
+  // Delivery fee only counts on delivery orders
+  const currentDeliveryFee = orderType === 'delivery' ? deliveryFee : 0;
+  // Grand total the customer pays (items − discount + delivery)
+  const grandTotal = effectiveTotal + currentDeliveryFee;
 
   // Handle payment complete
   const handlePaymentComplete = async (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string }) => {
@@ -755,7 +761,42 @@ export default function POSTerminalPage() {
               Takeaway
             </button>
             )}
+            {(branchInfo?.orderTypes?.['delivery']?.is_enabled !== false) && (
+            <button
+              onClick={() => setOrderType('delivery')}
+              className={`
+                flex-1 py-2.5 rounded-xl font-medium text-sm
+                transition-all duration-150
+                ${orderType === 'delivery'
+                  ? 'bg-primary text-brown'
+                  : 'bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20'
+                }
+              `}
+            >
+              Delivery
+            </button>
+            )}
           </div>
+
+          {/* Delivery fee — editable, only for delivery orders */}
+          {orderType === 'delivery' && (
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-neutral-gray mb-1">Delivery fee</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray text-sm font-medium">₵</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.5"
+                  inputMode="decimal"
+                  value={deliveryFee === 0 ? '' : deliveryFee}
+                  onChange={e => setDeliveryFee(Math.max(0, parseFloat(e.target.value) || 0))}
+                  placeholder="0.00"
+                  className="w-full h-10 pl-7 pr-3 rounded-lg bg-neutral-light text-text-dark placeholder:text-neutral-gray/60 border border-neutral-gray/20 focus:border-primary/50 outline-none text-sm transition-colors"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Customer Info — always visible at top */}
@@ -873,23 +914,31 @@ export default function POSTerminalPage() {
 
         {/* Total & Pay Button */}
         <div className="shrink-0 p-4 border-t border-neutral-gray/20 bg-neutral-light">
-          {activePromo && promoDiscount > 0 ? (
+          {(promoDiscount > 0 || currentDeliveryFee > 0) ? (
             <>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-neutral-gray text-sm">Subtotal</span>
                 <span className="text-sm text-neutral-gray">{formatGHS(cartTotal)}</span>
               </div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="flex items-center gap-1.5 text-secondary text-sm">
-                  <TagIcon size={12} weight="fill" />
-                  {activePromo.name}
-                </span>
-                <span className="text-secondary text-sm font-semibold">-{formatGHS(promoDiscount)}</span>
-              </div>
+              {activePromo && promoDiscount > 0 && (
+                <div className="flex items-center justify-between mb-1">
+                  <span className="flex items-center gap-1.5 text-secondary text-sm">
+                    <TagIcon size={12} weight="fill" />
+                    {activePromo.name}
+                  </span>
+                  <span className="text-secondary text-sm font-semibold">-{formatGHS(promoDiscount)}</span>
+                </div>
+              )}
+              {currentDeliveryFee > 0 && (
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-neutral-gray text-sm">Delivery fee</span>
+                  <span className="text-sm text-neutral-gray">{formatGHS(currentDeliveryFee)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between mb-4">
                 <span className="text-neutral-gray font-medium">Total</span>
                 <span className="text-2xl font-bold text-primary">
-                  {formatGHS(effectiveTotal)}
+                  {formatGHS(grandTotal)}
                 </span>
               </div>
             </>
@@ -897,7 +946,7 @@ export default function POSTerminalPage() {
             <div className="flex items-center justify-between mb-4">
               <span className="text-neutral-gray">Total</span>
               <span className="text-2xl font-bold text-primary">
-                {formatGHS(effectiveTotal)}
+                {formatGHS(grandTotal)}
               </span>
             </div>
           )}
@@ -929,7 +978,7 @@ export default function POSTerminalPage() {
               flex items-center justify-center gap-2
             "
           >
-            Pay {formatGHS(effectiveTotal)}
+            Pay {formatGHS(grandTotal)}
             <CaretRightIcon className="w-5 h-5" />
           </button>
         </div>
@@ -953,7 +1002,7 @@ export default function POSTerminalPage() {
               {cartCount > 0 ? `${cartCount} item${cartCount !== 1 ? 's' : ''}` : 'Cart'}
             </span>
           </div>
-          <span>{cartCount > 0 ? formatGHS(effectiveTotal) : 'Empty'}</span>
+          <span>{cartCount > 0 ? formatGHS(grandTotal) : 'Empty'}</span>
         </button>
       </div>
 
@@ -974,7 +1023,7 @@ export default function POSTerminalPage() {
       {/* Payment Modal */}
       {isPaymentOpen && (
         <PaymentModal
-          total={effectiveTotal}
+          total={grandTotal}
           onClose={closePayment}
           onPayment={handlePaymentComplete}
           isManualEntry={isManualEntry}

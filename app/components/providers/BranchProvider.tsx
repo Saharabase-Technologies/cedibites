@@ -20,6 +20,7 @@ export interface Branch {
     deliveryRadius: number;
     operatingHours: string;
     deliveryFee: number;
+    baseDeliveryFee: number;
     isOpen: boolean;
     isActive: boolean;
     extendedStaffAccess: boolean;
@@ -55,7 +56,8 @@ function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
     // Extract delivery settings
     const deliverySettings = apiBranch.delivery_settings;
     const deliveryRadius = deliverySettings?.delivery_radius_km ?? 10; // Default 10km
-    const deliveryFee = 0; // Delivery fees temporarily disabled
+    const deliveryFee = 0; // Delivery fees temporarily disabled for customer flow
+    const baseDeliveryFee = deliverySettings?.base_delivery_fee ?? 0; // Branch base fee (used by POS delivery)
     
     // Convert operating hours object to string representation
     const operatingHours = apiBranch.operating_hours 
@@ -79,6 +81,7 @@ function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
         },
         deliveryRadius,
         deliveryFee,
+        baseDeliveryFee,
         operatingHours,
         isOpen: apiBranch.is_open ?? apiBranch.is_active,
         isActive: apiBranch.is_active,

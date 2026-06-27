@@ -70,6 +70,7 @@ export const checkoutSessionService = {
     recorded_at?: string;
     customer_notes?: string;
     discount?: number;
+    delivery_fee?: number;
   }): Promise<CheckoutSession> => {
     return apiClient.post('/pos/checkout-sessions', data);
   },
