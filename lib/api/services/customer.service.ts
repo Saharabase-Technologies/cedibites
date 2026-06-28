@@ -23,6 +23,8 @@ export interface ContactExportRow {
   phone: string;
 }
 
+export type ContactSegment = 'all' | 'active' | 'at_risk' | 'churned' | 'loyal' | 'one_time';
+
 export interface CustomersParams {
   is_guest?: boolean;
   status?: string;
@@ -38,11 +40,12 @@ export const customerService = {
   },
 
   /**
-   * Export every customer contact (name + phone) across the whole table.
+   * Export customer contacts (name + phone), optionally filtered to a
+   * behavioural segment (churned / at-risk / loyal …) for targeted SMS.
    * Phones are cleaned, normalised to +233, validated and de-duplicated server-side.
    */
-  exportContacts: (): Promise<{ data: ContactExportRow[] }> => {
-    return apiClient.get('/admin/customers/export-contacts');
+  exportContacts: (segment: ContactSegment = 'all'): Promise<{ data: ContactExportRow[]; segment: string }> => {
+    return apiClient.get('/admin/customers/export-contacts', { params: segment === 'all' ? undefined : { segment } });
   },
 
   getCustomer: (id: number): Promise<{ data: ApiCustomer }> => {

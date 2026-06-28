@@ -20,7 +20,7 @@ import {
 } from '@phosphor-icons/react';
 import { useCustomers, useCustomerOrders } from '@/lib/api/hooks/useCustomers';
 import { mapApiCustomerToDisplay } from '@/lib/api/adapters/customer.adapter';
-import { customerService } from '@/lib/api/services/customer.service';
+import { customerService, type ContactSegment } from '@/lib/api/services/customer.service';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/utils/toast';
 import { DeleteConfirmDialog } from '@/app/components/ui/DeleteConfirmDialog';
@@ -40,6 +40,16 @@ const STATUS_STYLES: Record<string, { dot: string; label: string }> = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatGHS(v: number) { return `₵${v.toFixed(2)}`; }
+
+// Contact export segments — for targeted SMS marketing lists.
+const SEGMENTS: { value: ContactSegment; label: string; hint: string }[] = [
+    { value: 'all',      label: 'All customers',       hint: 'Everyone with a valid number' },
+    { value: 'active',   label: 'Active (≤30 days)',   hint: 'Ordered in the last 30 days' },
+    { value: 'at_risk',  label: 'At risk (31–60 days)', hint: 'Slipping away — win them back' },
+    { value: 'churned',  label: 'Churned (>60 days)',  hint: 'Lapsed — re-engagement blast' },
+    { value: 'loyal',    label: 'Loyal (2+ orders)',   hint: 'Repeat customers — reward them' },
+    { value: 'one_time', label: 'One-time buyers',     hint: 'Ordered once — convert to repeat' },
+];
 
 // ─── Customer detail panel ────────────────────────────────────────────────────
 
@@ -210,6 +220,7 @@ export default function AdminCustomersPage() {
     const [sortBy, setSortBy] = useState<SortBy>('recent');
     const [page, setPage] = useState(1);
     const [exportingContacts, setExportingContacts] = useState(false);
+    const [exportSegment, setExportSegment] = useState<ContactSegment>('all');
     const [selected, setSelected] = useState<DisplayCustomer | null>(null);
     const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; customer: DisplayCustomer | null; isLoading: boolean }>({
         isOpen: false,
@@ -244,9 +255,9 @@ export default function AdminCustomersPage() {
     const handleExportContacts = useCallback(async () => {
         setExportingContacts(true);
         try {
-            const { data } = await customerService.exportContacts();
+            const { data } = await customerService.exportContacts(exportSegment);
             if (!data || data.length === 0) {
-                toast.error('No valid contacts to export.');
+                toast.error('No contacts in this segment to export.');
                 return;
             }
 
@@ -266,7 +277,7 @@ export default function AdminCustomersPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `cedibites-contacts-${new Date().toISOString().slice(0, 10)}.csv`;
+            a.download = `cedibites-contacts-${exportSegment}-${new Date().toISOString().slice(0, 10)}.csv`;
             a.click();
             URL.revokeObjectURL(url);
             toast.success(`Exported ${data.length} contact${data.length === 1 ? '' : 's'}.`);
@@ -275,7 +286,7 @@ export default function AdminCustomersPage() {
         } finally {
             setExportingContacts(false);
         }
-    }, []);
+    }, [exportSegment]);
 
     const selectedWithOrders = useMemo(() => {
         if (!selected) return null;
@@ -332,6 +343,16 @@ export default function AdminCustomersPage() {
                     <p className="text-neutral-gray text-sm font-body mt-0.5">{meta?.total ?? customers.length} customers</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                    <select
+                        value={exportSegment}
+                        onChange={e => setExportSegment(e.target.value as ContactSegment)}
+                        title={SEGMENTS.find(s => s.value === exportSegment)?.hint}
+                        className="px-3 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40 cursor-pointer max-w-47.5"
+                    >
+                        {SEGMENTS.map(s => (
+                            <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                    </select>
                     <button type="button" onClick={handleExportContacts} disabled={exportingContacts}
                         className="flex items-center gap-2 px-4 py-2 bg-primary rounded-xl text-white text-sm font-medium font-body hover:bg-primary-hover transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                         <DownloadSimpleIcon size={15} weight="bold" />
