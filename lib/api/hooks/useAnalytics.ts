@@ -14,6 +14,7 @@ import {
   type PaymentMethod,
   type DiscountUsageAnalytics,
   type CancellationReasonsAnalytics,
+  type FulfillmentAnalytics,
   type AdminStaffSalesRow,
   type SalesComparison,
   type RevenueTrend,
@@ -23,6 +24,9 @@ import {
   type ComparisonSubjectInput,
   type RepeatCustomerMetrics,
   type WeekdayHourMetrics,
+  type CustomerLifecycleMetrics,
+  type BasketAffinityAnalytics,
+  type TargetsVsActualResponse,
 } from '../services/analytics.service';
 
 export type AnalyticsPeriod = 'today' | 'yesterday' | 'week' | 'last_week' | 'month' | 'last_month' | '30d' | '90d' | 'lifetime' | 'custom';
@@ -277,6 +281,17 @@ export const useCancellationReasonsAnalytics = (period: AnalyticsPeriod = 'week'
   });
 };
 
+export const useFulfillmentAnalytics = (period: AnalyticsPeriod = 'week', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
+  const range = getDateRange(period, customRange);
+  const filters = buildFilters(period, customRange, branchId, branchIds);
+
+  return useQuery<FulfillmentAnalytics>({
+    queryKey: ['analytics', 'fulfillment', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
+    queryFn: () => analyticsService.getFulfillmentAnalytics(filters),
+    staleTime: 60 * 1000,
+  });
+};
+
 export const useAdminStaffSales = (period: AnalyticsPeriod = 'today', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);
   const filters = buildFilters(period, customRange, branchId, branchIds);
@@ -326,6 +341,36 @@ export const useRepeatCustomerAnalytics = (period: AnalyticsPeriod = 'month', br
     staleTime: 60 * 1000,
   });
 };
+
+export const useCustomerLifecycleAnalytics = (period: AnalyticsPeriod = 'month', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
+  const range = getDateRange(period, customRange);
+  const filters = buildFilters(period, customRange, branchId, branchIds);
+
+  return useQuery<CustomerLifecycleMetrics>({
+    queryKey: ['analytics', 'customer-lifecycle', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
+    queryFn: () => analyticsService.getCustomerLifecycleAnalytics(filters),
+    staleTime: 60 * 1000,
+  });
+};
+
+export const useBasketAffinityAnalytics = (period: AnalyticsPeriod = 'month', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
+  const range = getDateRange(period, customRange);
+  const filters = buildFilters(period, customRange, branchId, branchIds);
+
+  return useQuery<BasketAffinityAnalytics>({
+    queryKey: ['analytics', 'basket-affinity', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
+    queryFn: () => analyticsService.getBasketAffinityAnalytics(filters),
+    staleTime: 60 * 1000,
+  });
+};
+
+/** Per-branch monthly revenue targets vs actual (defaults to current month). */
+export const useTargetsVsActual = (year?: number, month?: number) =>
+  useQuery<TargetsVsActualResponse>({
+    queryKey: ['analytics', 'targets-vs-actual', year ?? 'cur', month ?? 'cur'],
+    queryFn: () => analyticsService.getTargetsVsActual(year && month ? { year, month } : undefined),
+    staleTime: 60 * 1000,
+  });
 
 export const useWeekdayHourAnalytics = (period: AnalyticsPeriod = 'month', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
   const range = getDateRange(period, customRange);

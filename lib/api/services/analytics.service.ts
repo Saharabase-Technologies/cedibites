@@ -66,6 +66,7 @@ export interface SalesAnalytics {
 export interface OrdersByHour {
   hour: number;
   count: number;
+  revenue?: number;
 }
 
 export interface OrderAnalytics {
@@ -173,6 +174,12 @@ export interface DiscountUsageAnalytics {
   promos: PromoMetric[];
 }
 
+export interface FulfillmentAnalytics {
+  avg_time_to_accept: number | null;   // minutes
+  avg_prep_time: number | null;        // minutes
+  avg_fulfillment_time: number | null; // minutes
+}
+
 export interface CancellationReason {
   reason: string;
   count: number;
@@ -252,6 +259,25 @@ export interface RepeatCustomerMetrics {
   avg_days_between_orders: number | null;
 }
 
+export interface RetentionCohort {
+  month: string;          // YYYY-MM
+  acquired: number;
+  retained: number;
+  retention_rate: number; // %
+}
+
+export interface CustomerLifecycleMetrics {
+  total_customers: number;
+  avg_lifetime_value: number;
+  avg_orders_per_customer: number;
+  one_time_customers: number;
+  repeat_customers: number;
+  active_customers: number;   // ordered ≤30d ago
+  at_risk_customers: number;  // 31–60d ago
+  churned_customers: number;  // >60d ago
+  cohorts: RetentionCohort[];
+}
+
 export interface WeekdayHourCell {
   dow: number; // 0=Mon … 6=Sun
   hour: number;
@@ -260,6 +286,49 @@ export interface WeekdayHourCell {
 
 export interface WeekdayHourMetrics {
   cells: WeekdayHourCell[];
+}
+
+// ─── Basket affinity (#4) ───────────────────────────────────────────────────
+
+export interface BasketPair {
+  item_a: string;
+  item_b: string;
+  count: number;        // orders containing both items
+  lift: number;         // association strength (>1 = bought together more than chance)
+}
+
+export interface BasketAffinityAnalytics {
+  total_multi_item_orders: number;
+  pairs: BasketPair[];
+}
+
+// ─── Revenue targets (#5) ───────────────────────────────────────────────────
+
+export interface RevenueTargetRow {
+  branch_id: number;
+  branch_name: string;
+  year: number;
+  month: number;
+  target_amount: number;
+}
+
+export interface TargetVsActual {
+  branch_id: number;
+  branch_name: string;
+  target_amount: number;
+  actual_amount: number;
+  attainment_pct: number;    // actual / target %
+  pace_pct: number;          // % of month elapsed
+  projected_amount: number;  // straight-line end-of-month projection
+  on_track: boolean;
+}
+
+export interface TargetsVsActualResponse {
+  year: number;
+  month: number;
+  days_in_month: number;
+  days_elapsed: number;
+  rows: TargetVsActual[];
 }
 
 function extractData<T>(response: unknown): T {
@@ -328,6 +397,10 @@ export const analyticsService = {
     return apiClient.get('/admin/analytics/staff-sales', { params: filters }).then(extractData) as Promise<AdminStaffSalesRow[]>;
   },
 
+  getFulfillmentAnalytics: (filters?: AnalyticsFilters): Promise<FulfillmentAnalytics> => {
+    return apiClient.get('/admin/analytics/fulfillment', { params: filters }).then(extractData) as Promise<FulfillmentAnalytics>;
+  },
+
   getMenuCatalog: (): Promise<MenuCatalogItem[]> => {
     return apiClient.get('/admin/analytics/menu-catalog').then(extractData) as Promise<MenuCatalogItem[]>;
   },
@@ -338,6 +411,26 @@ export const analyticsService = {
 
   getRepeatCustomerAnalytics: (filters?: AnalyticsFilters): Promise<RepeatCustomerMetrics> => {
     return apiClient.get('/admin/analytics/repeat-customers', { params: filters }).then(extractData) as Promise<RepeatCustomerMetrics>;
+  },
+
+  getCustomerLifecycleAnalytics: (filters?: AnalyticsFilters): Promise<CustomerLifecycleMetrics> => {
+    return apiClient.get('/admin/analytics/customer-lifecycle', { params: filters }).then(extractData) as Promise<CustomerLifecycleMetrics>;
+  },
+
+  getBasketAffinityAnalytics: (filters?: AnalyticsFilters): Promise<BasketAffinityAnalytics> => {
+    return apiClient.get('/admin/analytics/basket-affinity', { params: filters }).then(extractData) as Promise<BasketAffinityAnalytics>;
+  },
+
+  getRevenueTargets: (params: { year: number; month: number }): Promise<RevenueTargetRow[]> => {
+    return apiClient.get('/admin/analytics/revenue-targets', { params }).then(extractData) as Promise<RevenueTargetRow[]>;
+  },
+
+  setRevenueTarget: (data: { branch_id: number; year: number; month: number; target_amount: number }): Promise<RevenueTargetRow> => {
+    return apiClient.put('/admin/analytics/revenue-targets', data).then(extractData) as Promise<RevenueTargetRow>;
+  },
+
+  getTargetsVsActual: (params?: { year?: number; month?: number }): Promise<TargetsVsActualResponse> => {
+    return apiClient.get('/admin/analytics/targets-vs-actual', { params }).then(extractData) as Promise<TargetsVsActualResponse>;
   },
 
   getWeekdayHourAnalytics: (filters?: AnalyticsFilters): Promise<WeekdayHourMetrics> => {

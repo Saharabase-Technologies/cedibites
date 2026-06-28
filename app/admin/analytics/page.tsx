@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
-import { useAnalytics, useRevenueTrend, useOrderSourceAnalytics, useTopItemsAnalytics, useBottomItemsAnalytics, useCategoryRevenueAnalytics, useBranchPerformanceAnalytics, useDeliveryPickupAnalytics, usePaymentMethodAnalytics, useRepeatCustomerAnalytics, useWeekdayHourAnalytics } from '@/lib/api/hooks/useAnalytics';
+import { useAnalytics, useRevenueTrend, useOrderSourceAnalytics, useTopItemsAnalytics, useBottomItemsAnalytics, useCategoryRevenueAnalytics, useBranchPerformanceAnalytics, useDeliveryPickupAnalytics, usePaymentMethodAnalytics, useRepeatCustomerAnalytics, useWeekdayHourAnalytics, useDiscountUsageAnalytics, useCancellationReasonsAnalytics, useFulfillmentAnalytics, useAdminStaffSales, useCustomerLifecycleAnalytics, useBasketAffinityAnalytics, useTargetsVsActual } from '@/lib/api/hooks/useAnalytics';
+import type { DiscountUsageAnalytics, CancellationReasonsAnalytics, FulfillmentAnalytics, AdminStaffSalesRow, CustomerLifecycleMetrics, BasketAffinityAnalytics, TargetsVsActualResponse, TargetVsActual } from '@/lib/api/services/analytics.service';
+import { useQueryClient } from '@tanstack/react-query';
 import GrowthTrendCard from '@/app/components/analytics/GrowthTrendCard';
 import MenuComparison from '@/app/components/analytics/MenuComparison';
 import { RevenueConcentrationCard, FulfilmentFunnelCard, RepeatCustomersCard, WeekdayHourHeatmap } from '@/app/components/analytics/MetricCards';
@@ -28,6 +30,12 @@ import {
     BuildingsIcon,
     TagIcon,
     FileCsvIcon,
+    TimerIcon,
+    UserCircleIcon,
+    TargetIcon,
+    LinkIcon,
+    PencilSimpleIcon,
+    UsersThreeIcon,
 } from '@phosphor-icons/react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -143,7 +151,7 @@ function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total
                                 )}
                                 {/* Value label above short bars */}
                                 {val > 0 && h < 20 && (
-                                    <span className="text-[8px] font-bold text-primary leading-none select-none">
+                                    <span className="text-xs font-bold text-primary leading-none select-none">
                                         {val >= 1000 ? `${(val / 1000).toFixed(1)}k` : Math.round(val)}
                                     </span>
                                 )}
@@ -153,7 +161,7 @@ function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total
                                 >
                                     {/* Value label inside tall bars */}
                                     {val > 0 && h >= 20 && (
-                                        <span className="text-[8px] font-bold text-white leading-none select-none">
+                                        <span className="text-xs font-bold text-white leading-none select-none">
                                             {val >= 1000 ? `${(val / 1000).toFixed(1)}k` : Math.round(val)}
                                         </span>
                                     )}
@@ -251,6 +259,59 @@ function PeakHoursHeatmap({ ordersByHour }: { ordersByHour?: Array<{ hour: numbe
                             <span className="text-[8px] text-neutral-gray font-body" style={{ transform: 'rotate(-45deg)', display: 'block', marginTop: 4 }}>{h}</span>
                         </div>
                     ))}
+                </div>
+            )}
+        </Card>
+    );
+}
+
+// ─── Revenue by hour (#1) ─────────────────────────────────────────────────────
+
+function RevenueByHourChart({ ordersByHour }: { ordersByHour?: Array<{ hour: number; revenue?: number }> }) {
+    const fmtHour = (h: number) => `${((h + 11) % 12) + 1}${h < 12 ? 'a' : 'p'}`;
+
+    const data = useMemo(() => {
+        const rows = (ordersByHour ?? []).filter(r => (r.revenue ?? 0) > 0);
+        if (rows.length === 0) return [];
+        const minH = Math.min(...rows.map(r => r.hour));
+        const maxH = Math.max(...rows.map(r => r.hour));
+        const byHour: Record<number, number> = {};
+        for (const r of rows) byHour[r.hour] = (byHour[r.hour] ?? 0) + (r.revenue ?? 0);
+        const out: { hour: number; revenue: number }[] = [];
+        for (let h = minH; h <= maxH; h++) out.push({ hour: h, revenue: byHour[h] ?? 0 });
+        return out;
+    }, [ordersByHour]);
+
+    const maxRev = Math.max(...data.map(d => d.revenue), 1);
+    const peak = useMemo(
+        () => data.reduce<{ hour: number; revenue: number } | null>((a, b) => (b.revenue > (a?.revenue ?? -1) ? b : a), null),
+        [data],
+    );
+
+    return (
+        <Card>
+            <SectionTitle
+                title="Revenue by Hour"
+                sub={peak ? `Peak: ${fmtHour(peak.hour)} · ${formatGHS(peak.revenue)}` : 'Aggregated from selected period'}
+            />
+            {data.length === 0 ? (
+                <div className="flex items-center justify-center h-36 text-neutral-gray text-sm">No data for selected period</div>
+            ) : (
+                <div className="flex items-end gap-1.5 h-36">
+                    {data.map(d => {
+                        const h = Math.round((d.revenue / maxRev) * 112) || 2;
+                        return (
+                            <div key={d.hour} className="flex-1 flex flex-col items-center gap-1 group relative">
+                                {d.revenue > 0 && (
+                                    <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 z-10 bg-text-dark text-white rounded-md px-2 py-1 text-[10px] font-body whitespace-nowrap shadow pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {fmtHour(d.hour)} · {formatGHS(d.revenue)}
+                                    </div>
+                                )}
+                                <div className="w-full rounded-sm bg-primary/70 hover:bg-primary transition-colors" style={{ height: Math.max(h, 2), minHeight: 2 }} />
+                                <span className="text-[9px] text-neutral-gray font-body">{fmtHour(d.hour)}</span>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
         </Card>
@@ -740,7 +801,7 @@ function OrdersByDayOfWeek({ salesByDay }: { salesByDay?: Array<{ date: string; 
                                 )}
                                 <div className="w-full rounded-sm bg-primary/70 hover:bg-primary transition-colors flex items-end justify-center pb-0.5" style={{ height: h, minHeight: 3 }}>
                                     {val > 0 && h >= 18 && (
-                                        <span className="text-[7px] font-bold text-white leading-none select-none">{val}</span>
+                                        <span className="text-xs font-bold text-white leading-none select-none">{val}</span>
                                     )}
                                 </div>
                                 <span className="text-[9px] text-neutral-gray font-body">{day}</span>
@@ -771,31 +832,396 @@ function AvgItemsPerOrder({ avgItems }: { avgItems?: number }) {
     );
 }
 
-// ─── Discount Usage (UI-only) ─────────────────────────────────────────────────
+// ─── Discount Usage ───────────────────────────────────────────────────────────
 
-function DiscountUsage() {
+function DiscountUsage({ data }: { data?: DiscountUsageAnalytics }) {
+    const hasData = data && data.total_orders > 0;
     return (
         <Card>
             <div className="mb-4">
                 <p className="text-text-dark text-sm font-bold font-body">Discount Usage</p>
-                <p className="text-[10px] font-body mt-0.5 text-neutral-gray">Pending backend endpoint</p>
+                <p className="text-[10px] font-body mt-0.5 text-neutral-gray">Orders with a promo / discount applied</p>
             </div>
-            <div className="flex items-center justify-center h-16 text-neutral-gray text-sm font-body opacity-50">Coming soon</div>
+            {!hasData ? (
+                <div className="flex items-center justify-center h-16 text-neutral-gray text-sm font-body opacity-50">No data for selected period</div>
+            ) : (
+                <>
+                    <div className="flex items-end gap-2 mb-1">
+                        <p className="text-3xl font-bold text-primary font-body leading-none">{data!.discount_rate}%</p>
+                        <p className="text-[11px] text-neutral-gray font-body mb-0.5">of orders discounted</p>
+                    </div>
+                    <p className="text-[11px] text-neutral-gray font-body mb-3">
+                        {data!.discounted_orders} of {data!.total_orders} orders
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="rounded-lg bg-neutral-light p-2.5">
+                            <p className="text-[10px] text-neutral-gray font-body">Total discount</p>
+                            <p className="text-sm font-bold text-text-dark font-body">{formatGHS(data!.total_discount_given)}</p>
+                        </div>
+                        <div className="rounded-lg bg-neutral-light p-2.5">
+                            <p className="text-[10px] text-neutral-gray font-body">Avg / order</p>
+                            <p className="text-sm font-bold text-text-dark font-body">{formatGHS(data!.avg_discount_per_order)}</p>
+                        </div>
+                    </div>
+                    {data!.promos.length > 0 && (
+                        <div className="space-y-1.5">
+                            <p className="text-[10px] font-semibold text-neutral-gray font-body uppercase tracking-wide">Top promos</p>
+                            {data!.promos.slice(0, 3).map(p => (
+                                <div key={p.promo_id} className="flex items-center justify-between text-xs font-body">
+                                    <span className="text-text-dark truncate flex items-center gap-1.5">
+                                        <TagIcon size={11} weight="fill" className="text-secondary shrink-0" />
+                                        {p.promo_name}
+                                    </span>
+                                    <span className="text-neutral-gray shrink-0 ml-2">
+                                        {p.usage_count}× · {formatGHS(p.total_discount)}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </>
+            )}
         </Card>
     );
 }
 
-// ─── Cancellation Reasons (UI-only) ──────────────────────────────────────────
+// ─── Cancellation Reasons ─────────────────────────────────────────────────────
 
-function CancellationReasons() {
+function CancellationReasons({ data }: { data?: CancellationReasonsAnalytics }) {
+    const hasData = data && data.total_cancelled > 0;
     return (
         <Card>
             <div className="mb-4">
                 <p className="text-text-dark text-sm font-bold font-body">Cancellation Reasons</p>
-                <p className="text-[10px] font-body mt-0.5 text-neutral-gray">Pending backend endpoint</p>
+                <p className="text-[10px] font-body mt-0.5 text-neutral-gray">Why orders were cancelled this period</p>
             </div>
-            <div className="flex items-center justify-center h-16 text-neutral-gray text-sm font-body opacity-50">Coming soon</div>
+            {!hasData ? (
+                <div className="flex items-center justify-center h-16 text-neutral-gray text-sm font-body opacity-50">No cancellations 🎉</div>
+            ) : (
+                <>
+                    <div className="flex items-end gap-2 mb-3">
+                        <p className="text-3xl font-bold text-error font-body leading-none">{data!.total_cancelled}</p>
+                        <p className="text-[11px] text-neutral-gray font-body mb-0.5">cancelled</p>
+                    </div>
+                    <div className="space-y-2">
+                        {data!.reasons.slice(0, 5).map((r, i) => (
+                            <div key={i}>
+                                <div className="flex items-center justify-between text-xs font-body mb-0.5">
+                                    <span className="text-text-dark truncate capitalize">{r.reason}</span>
+                                    <span className="text-neutral-gray shrink-0 ml-2">{r.count} · {r.pct}%</span>
+                                </div>
+                                <div className="h-1.5 rounded-full bg-neutral-light overflow-hidden">
+                                    <div className="h-full rounded-full bg-error/70" style={{ width: `${r.pct}%` }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </>
+            )}
         </Card>
+    );
+}
+
+// ─── Kitchen & Fulfilment Speed (#3) ──────────────────────────────────────────
+
+function KitchenSpeedCard({ data }: { data?: FulfillmentAnalytics }) {
+    const fmt = (m: number | null | undefined) => (m == null ? '—' : m < 1 ? '<1 min' : `${m} min`);
+    const rows = [
+        { label: 'Time to accept', value: data?.avg_time_to_accept, hint: 'Received → Accepted' },
+        { label: 'Prep time', value: data?.avg_prep_time, hint: 'Preparing → Ready' },
+        { label: 'Total fulfilment', value: data?.avg_fulfillment_time, hint: 'Received → Completed' },
+    ];
+    const hasData = rows.some(r => r.value != null);
+    return (
+        <Card>
+            <SectionTitle title="Kitchen & Fulfilment Speed" sub="Average minutes per stage (completed orders)" />
+            {!hasData ? (
+                <div className="flex items-center justify-center h-16 text-neutral-gray text-sm font-body opacity-50">No data for selected period</div>
+            ) : (
+                <div className="grid grid-cols-3 gap-3">
+                    {rows.map(r => (
+                        <div key={r.label} className="rounded-xl bg-neutral-light p-3 text-center">
+                            <TimerIcon size={18} weight="duotone" className="text-primary mx-auto mb-1.5" />
+                            <p className="text-xl font-bold text-text-dark font-body leading-none">{fmt(r.value)}</p>
+                            <p className="text-[11px] text-neutral-gray font-body mt-1.5">{r.label}</p>
+                            <p className="text-[9px] text-neutral-gray/70 font-body mt-0.5">{r.hint}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </Card>
+    );
+}
+
+// ─── Staff Productivity (#3) ──────────────────────────────────────────────────
+
+function StaffProductivityCard({ rows }: { rows?: AdminStaffSalesRow[] }) {
+    const sorted = useMemo(
+        () => [...(rows ?? [])].sort((a, b) => b.total_revenue - a.total_revenue),
+        [rows],
+    );
+    const maxRev = sorted[0]?.total_revenue ?? 0;
+    return (
+        <Card>
+            <SectionTitle title="Staff Productivity" sub="Revenue & orders handled per staff member" />
+            {sorted.length === 0 ? (
+                <div className="flex items-center justify-center h-16 text-neutral-gray text-sm font-body opacity-50">No staff sales for selected period</div>
+            ) : (
+                <div className="space-y-2.5">
+                    {sorted.slice(0, 8).map(s => (
+                        <div key={s.employee_id}>
+                            <div className="flex items-center justify-between text-xs font-body mb-1">
+                                <span className="text-text-dark font-medium flex items-center gap-1.5 truncate">
+                                    <UserCircleIcon size={14} weight="fill" className="text-primary/70 shrink-0" />
+                                    {s.staff_name}
+                                </span>
+                                <span className="text-neutral-gray shrink-0 ml-2">
+                                    <span className="text-text-dark font-semibold">{formatGHS(s.total_revenue)}</span>
+                                    {' · '}{s.total_orders} order{s.total_orders !== 1 ? 's' : ''}
+                                </span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-neutral-light overflow-hidden">
+                                <div className="h-full rounded-full bg-primary/70" style={{ width: maxRev > 0 ? `${(s.total_revenue / maxRev) * 100}%` : '0%' }} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </Card>
+    );
+}
+
+// ─── Customer Lifetime & Churn (#4) ───────────────────────────────────────────
+
+function LifecycleBucket({ label, hint, value, color }: { label: string; hint: string; value: number; color: string }) {
+    return (
+        <div className="rounded-lg bg-neutral-light p-2.5 text-center">
+            <p className={`text-xl font-bold font-body leading-none ${color}`}>{value}</p>
+            <p className="text-[11px] text-text-dark font-body mt-1">{label}</p>
+            <p className="text-[9px] text-neutral-gray/70 font-body">{hint}</p>
+        </div>
+    );
+}
+
+function CustomerLifecycleCard({ data }: { data?: CustomerLifecycleMetrics }) {
+    const hasData = data && data.total_customers > 0;
+    return (
+        <Card>
+            <SectionTitle title="Customer Lifetime & Churn" sub="All-time value & recency (branch-scoped, ignores period)" />
+            {!hasData ? (
+                <div className="flex items-center justify-center h-24 text-neutral-gray text-sm">No customer data</div>
+            ) : (
+                <>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="rounded-lg bg-neutral-light p-2.5">
+                            <p className="text-[10px] text-neutral-gray font-body">Avg lifetime value</p>
+                            <p className="text-base font-bold text-primary font-body">{formatGHS(data!.avg_lifetime_value)}</p>
+                        </div>
+                        <div className="rounded-lg bg-neutral-light p-2.5">
+                            <p className="text-[10px] text-neutral-gray font-body">Avg orders / customer</p>
+                            <p className="text-base font-bold text-text-dark font-body">{data!.avg_orders_per_customer.toFixed(1)}</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                        <LifecycleBucket label="Active" hint="≤30 days" value={data!.active_customers} color="text-secondary" />
+                        <LifecycleBucket label="At risk" hint="31–60 days" value={data!.at_risk_customers} color="text-warning" />
+                        <LifecycleBucket label="Churned" hint=">60 days" value={data!.churned_customers} color="text-error" />
+                    </div>
+                    <div className="flex items-center justify-between text-xs font-body text-neutral-gray">
+                        <span className="flex items-center gap-1"><UsersThreeIcon size={13} weight="fill" className="text-primary/60" /> Repeat: <span className="text-text-dark font-semibold">{data!.repeat_customers}</span></span>
+                        <span>One-time: <span className="text-text-dark font-semibold">{data!.one_time_customers}</span></span>
+                    </div>
+                </>
+            )}
+        </Card>
+    );
+}
+
+// ─── Retention by Cohort (#4) ─────────────────────────────────────────────────
+
+function RetentionCohortCard({ cohorts }: { cohorts?: CustomerLifecycleMetrics['cohorts'] }) {
+    const fmtMonth = (m: string) => {
+        const [y, mo] = m.split('-');
+        return new Date(Number(y), Number(mo) - 1, 1).toLocaleString('en', { month: 'short', year: '2-digit' });
+    };
+    const rows = cohorts ?? [];
+    return (
+        <Card>
+            <SectionTitle title="Retention by Cohort" sub="Of customers acquired each month, % who ordered again later" />
+            {rows.length === 0 ? (
+                <div className="flex items-center justify-center h-24 text-neutral-gray text-sm">Not enough history yet</div>
+            ) : (
+                <div className="space-y-2.5">
+                    {rows.map(c => (
+                        <div key={c.month}>
+                            <div className="flex items-center justify-between text-xs font-body mb-0.5">
+                                <span className="text-text-dark">{fmtMonth(c.month)} · {c.acquired} new</span>
+                                <span className="text-neutral-gray">{c.retention_rate}% returned</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-neutral-light overflow-hidden">
+                                <div className="h-full rounded-full bg-secondary/70" style={{ width: `${c.retention_rate}%` }} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </Card>
+    );
+}
+
+// ─── Frequently Bought Together (#4) ──────────────────────────────────────────
+
+function BasketAffinityCard({ data }: { data?: BasketAffinityAnalytics }) {
+    const pairs = data?.pairs ?? [];
+    return (
+        <Card>
+            <SectionTitle
+                title="Frequently Bought Together"
+                sub={data ? `${data.total_multi_item_orders} multi-item orders analysed` : 'Items appearing in the same order'}
+            />
+            {pairs.length === 0 ? (
+                <div className="flex items-center justify-center h-24 text-neutral-gray text-sm">No item pairs for selected period</div>
+            ) : (
+                <div className="space-y-2">
+                    {pairs.map((p, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 text-xs font-body">
+                            <span className="text-text-dark truncate flex items-center gap-1.5">
+                                <LinkIcon size={12} weight="bold" className="text-primary shrink-0" />
+                                {p.item_a} <span className="text-neutral-gray">+</span> {p.item_b}
+                            </span>
+                            <span className="text-neutral-gray shrink-0 whitespace-nowrap">
+                                {p.count}×{p.lift >= 1.1 ? <span className="text-secondary"> · {p.lift}× lift</span> : null}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </Card>
+    );
+}
+
+// ─── Targets vs Actual (#5) ───────────────────────────────────────────────────
+
+function TargetsVsActualCard({ data, onEdit }: { data?: TargetsVsActualResponse; onEdit: () => void }) {
+    const rows = data?.rows ?? [];
+    const monthLabel = data ? new Date(data.year, data.month - 1, 1).toLocaleString('en', { month: 'long', year: 'numeric' }) : '';
+    return (
+        <Card>
+            <div className="flex items-start justify-between gap-2 mb-4">
+                <div>
+                    <p className="text-text-dark text-sm font-bold font-body flex items-center gap-1.5">
+                        <TargetIcon size={15} weight="fill" className="text-primary" /> Revenue Targets vs Actual
+                    </p>
+                    <p className="text-[10px] font-body mt-0.5 text-neutral-gray">
+                        {monthLabel}{data ? ` · day ${data.days_elapsed}/${data.days_in_month}` : ''}
+                    </p>
+                </div>
+                <button
+                    onClick={onEdit}
+                    data-export-ignore
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-light text-text-dark text-xs font-medium font-body hover:bg-neutral-gray/15 transition-colors cursor-pointer shrink-0"
+                >
+                    <PencilSimpleIcon size={13} weight="bold" /> Set targets
+                </button>
+            </div>
+            {rows.length === 0 ? (
+                <div className="flex items-center justify-center h-20 text-neutral-gray text-sm">No branches</div>
+            ) : (
+                <div className="space-y-3">
+                    {rows.map(r => {
+                        const pct = Math.min(100, r.attainment_pct);
+                        const hasTarget = r.target_amount > 0;
+                        return (
+                            <div key={r.branch_id}>
+                                <div className="flex items-center justify-between text-xs font-body mb-1">
+                                    <span className="text-text-dark font-medium truncate">{r.branch_name}</span>
+                                    <span className="text-neutral-gray shrink-0 ml-2">
+                                        {formatGHS(r.actual_amount)}{hasTarget && <> / {formatGHS(r.target_amount)}</>}
+                                    </span>
+                                </div>
+                                {hasTarget ? (
+                                    <>
+                                        <div className="relative h-2 rounded-full bg-neutral-light overflow-hidden">
+                                            <div className={`h-full rounded-full ${r.on_track ? 'bg-secondary/80' : 'bg-warning/80'}`} style={{ width: `${pct}%` }} />
+                                            <div className="absolute top-0 bottom-0 w-0.5 bg-text-dark/50" style={{ left: `${Math.min(100, r.pace_pct)}%` }} title={`Pace: ${r.pace_pct}%`} />
+                                        </div>
+                                        <div className="flex items-center justify-between text-[10px] font-body mt-0.5">
+                                            <span className={r.on_track ? 'text-secondary' : 'text-warning'}>
+                                                {r.attainment_pct}% attained · {r.on_track ? 'on track' : 'behind'}
+                                            </span>
+                                            <span className="text-neutral-gray">proj. {formatGHS(r.projected_amount)}</span>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <p className="text-[10px] text-neutral-gray font-body italic">No target set</p>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </Card>
+    );
+}
+
+function SetTargetsModal({ year, month, rows, onClose }: { year: number; month: number; rows: TargetVsActual[]; onClose: () => void }) {
+    const qc = useQueryClient();
+    const [values, setValues] = useState<Record<number, string>>(
+        () => Object.fromEntries(rows.map(r => [r.branch_id, r.target_amount > 0 ? String(r.target_amount) : ''])),
+    );
+    const [saving, setSaving] = useState(false);
+    const monthLabel = new Date(year, month - 1, 1).toLocaleString('en', { month: 'long', year: 'numeric' });
+
+    async function handleSave() {
+        setSaving(true);
+        try {
+            await Promise.all(rows.map(r => {
+                const v = parseFloat(values[r.branch_id] ?? '');
+                const amount = Number.isFinite(v) ? v : 0;
+                if (amount === r.target_amount) return Promise.resolve();
+                return analyticsService.setRevenueTarget({ branch_id: r.branch_id, year, month, target_amount: amount });
+            }));
+            await qc.invalidateQueries({ queryKey: ['analytics', 'targets-vs-actual'] });
+            toast.success('Targets saved');
+            onClose();
+        } catch {
+            toast.error('Failed to save targets');
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+            <div className="bg-neutral-card rounded-2xl border border-[#f0e8d8] w-full max-w-md p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+                <h2 className="text-text-dark text-base font-bold font-body mb-1">Set Revenue Targets</h2>
+                <p className="text-neutral-gray text-xs font-body mb-4">{monthLabel} · monthly goal per branch</p>
+                <div className="space-y-2.5 max-h-[50vh] overflow-y-auto mb-5">
+                    {rows.map(r => (
+                        <div key={r.branch_id} className="flex items-center gap-3">
+                            <span className="text-text-dark text-sm font-body flex-1 truncate">{r.branch_name}</span>
+                            <div className="relative w-32">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-gray text-sm">₵</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={values[r.branch_id] ?? ''}
+                                    onChange={e => setValues(v => ({ ...v, [r.branch_id]: e.target.value }))}
+                                    placeholder="0"
+                                    className="w-full h-9 pl-6 pr-2 rounded-lg bg-neutral-light border border-neutral-gray/20 focus:border-primary/50 outline-none text-sm font-body text-text-dark"
+                                />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={onClose} className="flex-1 h-10 rounded-xl bg-neutral-light text-text-dark text-sm font-medium font-body hover:bg-neutral-gray/15 transition-colors cursor-pointer">Cancel</button>
+                    <button onClick={handleSave} disabled={saving} className="flex-1 h-10 rounded-xl bg-primary text-white text-sm font-semibold font-body hover:bg-primary-hover transition-colors cursor-pointer disabled:opacity-50">
+                        {saving ? 'Saving…' : 'Save targets'}
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 }
 
@@ -964,6 +1390,14 @@ export default function AdminAnalyticsPage() {
     const { data: branchPerformance } = useBranchPerformanceAnalytics(period, branchId, customRange);
     const { data: deliveryPickup } = useDeliveryPickupAnalytics(period, branchId, customRange);
     const { data: paymentMethods } = usePaymentMethodAnalytics(period, branchId, customRange);
+    const { data: discountUsage } = useDiscountUsageAnalytics(period, branchId, customRange);
+    const { data: cancellationReasons } = useCancellationReasonsAnalytics(period, branchId, customRange);
+    const { data: fulfillment } = useFulfillmentAnalytics(period, branchId, customRange);
+    const { data: staffSales } = useAdminStaffSales(period, branchId, customRange);
+    const { data: customerLifecycle } = useCustomerLifecycleAnalytics(period, branchId, customRange);
+    const { data: basketAffinity } = useBasketAffinityAnalytics(period, branchId, customRange);
+    const { data: targetsVsActual } = useTargetsVsActual();
+    const [showTargetsModal, setShowTargetsModal] = useState(false);
 
     const fulfilmentPct = useMemo(() => {
         if (!orders?.orders_by_status || !orders?.total_orders) return 0;
@@ -1162,6 +1596,11 @@ export default function AdminAnalyticsPage() {
                 <PeakHoursHeatmap ordersByHour={orders?.orders_by_hour} />
             </div>
 
+            {/* Revenue by hour */}
+            <div className="mb-3">
+                <RevenueByHourChart ordersByHour={orders?.orders_by_hour} />
+            </div>
+
             {/* Source + category */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                 <OrderSourceChart orderSources={orderSources} />
@@ -1220,12 +1659,44 @@ export default function AdminAnalyticsPage() {
                 <OrdersByDayOfWeek salesByDay={sales?.sales_by_day} />
             </div>
 
+            {/* Operational efficiency — kitchen speed + staff productivity */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
+                <KitchenSpeedCard data={fulfillment} />
+                <StaffProductivityCard rows={staffSales} />
+            </div>
+
+            {/* Targets vs actual (#5) */}
+            <div className="mt-3">
+                <TargetsVsActualCard data={targetsVsActual} onEdit={() => setShowTargetsModal(true)} />
+            </div>
+
+            {/* Customer lifetime / churn + retention cohorts (#4) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
+                <CustomerLifecycleCard data={customerLifecycle} />
+                <RetentionCohortCard cohorts={customerLifecycle?.cohorts} />
+            </div>
+
+            {/* Basket affinity (#4) */}
+            <div className="mt-3">
+                <BasketAffinityCard data={basketAffinity} />
+            </div>
+
             {/* Avg items / discounts / cancellations */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                 <AvgItemsPerOrder avgItems={sales?.avg_items_per_order} />
-                <DiscountUsage />
-                <CancellationReasons />
+                <DiscountUsage data={discountUsage} />
+                <CancellationReasons data={cancellationReasons} />
             </div>
+
+            {/* Set targets modal */}
+            {showTargetsModal && targetsVsActual && (
+                <SetTargetsModal
+                    year={targetsVsActual.year}
+                    month={targetsVsActual.month}
+                    rows={targetsVsActual.rows}
+                    onClose={() => setShowTargetsModal(false)}
+                />
+            )}
 
             {/* Report generation modal */}
             {showReportModal && (
