@@ -27,6 +27,7 @@ import {
   type CustomerLifecycleMetrics,
   type BasketAffinityAnalytics,
   type TargetsVsActualResponse,
+  type DemandForecast,
 } from '../services/analytics.service';
 
 export type AnalyticsPeriod = 'today' | 'yesterday' | 'week' | 'last_week' | 'month' | 'last_month' | '30d' | '90d' | 'lifetime' | 'custom';
@@ -360,6 +361,17 @@ export const useBasketAffinityAnalytics = (period: AnalyticsPeriod = 'month', br
   return useQuery<BasketAffinityAnalytics>({
     queryKey: ['analytics', 'basket-affinity', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
     queryFn: () => analyticsService.getBasketAffinityAnalytics(filters),
+    staleTime: 60 * 1000,
+  });
+};
+
+export const useDemandForecast = (period: AnalyticsPeriod = 'month', branchId?: number, customRange?: CustomRange, branchIds?: number[]) => {
+  const range = getDateRange(period, customRange);
+  const filters = buildFilters(period, customRange, branchId, branchIds);
+
+  return useQuery<DemandForecast>({
+    queryKey: ['analytics', 'demand-forecast', period, branchKey(branchId, branchIds), range.date_from, range.date_to],
+    queryFn: () => analyticsService.getDemandForecast(filters),
     staleTime: 60 * 1000,
   });
 };

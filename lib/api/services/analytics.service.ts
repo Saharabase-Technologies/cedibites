@@ -302,6 +302,22 @@ export interface BasketAffinityAnalytics {
   pairs: BasketPair[];
 }
 
+// ─── Demand forecast (#5) ───────────────────────────────────────────────────
+
+export interface DemandForecastItem {
+  label: string;
+  total_units: number;
+  avg_per_day: number;
+  projected_units: number; // projected units over the horizon
+  trend_pct: number;       // projected daily vs recent average
+}
+
+export interface DemandForecast {
+  horizon_days: number;
+  based_on_days: number;
+  items: DemandForecastItem[];
+}
+
 // ─── Revenue targets (#5) ───────────────────────────────────────────────────
 
 export interface RevenueTargetRow {
@@ -419,6 +435,10 @@ export const analyticsService = {
 
   getBasketAffinityAnalytics: (filters?: AnalyticsFilters): Promise<BasketAffinityAnalytics> => {
     return apiClient.get('/admin/analytics/basket-affinity', { params: filters }).then(extractData) as Promise<BasketAffinityAnalytics>;
+  },
+
+  getDemandForecast: (filters?: AnalyticsFilters): Promise<DemandForecast> => {
+    return apiClient.get('/admin/analytics/demand-forecast', { params: filters }).then(extractData) as Promise<DemandForecast>;
   },
 
   getRevenueTargets: (params: { year: number; month: number }): Promise<RevenueTargetRow[]> => {

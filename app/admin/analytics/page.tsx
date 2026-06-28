@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
-import { useAnalytics, useRevenueTrend, useOrderSourceAnalytics, useTopItemsAnalytics, useBottomItemsAnalytics, useCategoryRevenueAnalytics, useBranchPerformanceAnalytics, useDeliveryPickupAnalytics, usePaymentMethodAnalytics, useRepeatCustomerAnalytics, useWeekdayHourAnalytics, useDiscountUsageAnalytics, useCancellationReasonsAnalytics, useFulfillmentAnalytics, useAdminStaffSales, useCustomerLifecycleAnalytics, useBasketAffinityAnalytics, useTargetsVsActual } from '@/lib/api/hooks/useAnalytics';
-import type { DiscountUsageAnalytics, CancellationReasonsAnalytics, FulfillmentAnalytics, AdminStaffSalesRow, CustomerLifecycleMetrics, BasketAffinityAnalytics, TargetsVsActualResponse, TargetVsActual } from '@/lib/api/services/analytics.service';
+import { useAnalytics, useRevenueTrend, useOrderSourceAnalytics, useTopItemsAnalytics, useBottomItemsAnalytics, useCategoryRevenueAnalytics, useBranchPerformanceAnalytics, useDeliveryPickupAnalytics, usePaymentMethodAnalytics, useRepeatCustomerAnalytics, useWeekdayHourAnalytics, useDiscountUsageAnalytics, useCancellationReasonsAnalytics, useFulfillmentAnalytics, useCustomerLifecycleAnalytics, useBasketAffinityAnalytics, useTargetsVsActual, useDemandForecast } from '@/lib/api/hooks/useAnalytics';
+import type { DiscountUsageAnalytics, CancellationReasonsAnalytics, FulfillmentAnalytics, CustomerLifecycleMetrics, BasketAffinityAnalytics, TargetsVsActualResponse, TargetVsActual, DemandForecast } from '@/lib/api/services/analytics.service';
 import { useQueryClient } from '@tanstack/react-query';
 import GrowthTrendCard from '@/app/components/analytics/GrowthTrendCard';
 import MenuComparison from '@/app/components/analytics/MenuComparison';
@@ -31,11 +31,11 @@ import {
     TagIcon,
     FileCsvIcon,
     TimerIcon,
-    UserCircleIcon,
     TargetIcon,
     LinkIcon,
     PencilSimpleIcon,
     UsersThreeIcon,
+    TrendDownIcon,
 } from '@phosphor-icons/react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -953,44 +953,6 @@ function KitchenSpeedCard({ data }: { data?: FulfillmentAnalytics }) {
     );
 }
 
-// ─── Staff Productivity (#3) ──────────────────────────────────────────────────
-
-function StaffProductivityCard({ rows }: { rows?: AdminStaffSalesRow[] }) {
-    const sorted = useMemo(
-        () => [...(rows ?? [])].sort((a, b) => b.total_revenue - a.total_revenue),
-        [rows],
-    );
-    const maxRev = sorted[0]?.total_revenue ?? 0;
-    return (
-        <Card>
-            <SectionTitle title="Staff Productivity" sub="Revenue & orders handled per staff member" />
-            {sorted.length === 0 ? (
-                <div className="flex items-center justify-center h-16 text-neutral-gray text-sm font-body opacity-50">No staff sales for selected period</div>
-            ) : (
-                <div className="space-y-2.5">
-                    {sorted.slice(0, 8).map(s => (
-                        <div key={s.employee_id}>
-                            <div className="flex items-center justify-between text-xs font-body mb-1">
-                                <span className="text-text-dark font-medium flex items-center gap-1.5 truncate">
-                                    <UserCircleIcon size={14} weight="fill" className="text-primary/70 shrink-0" />
-                                    {s.staff_name}
-                                </span>
-                                <span className="text-neutral-gray shrink-0 ml-2">
-                                    <span className="text-text-dark font-semibold">{formatGHS(s.total_revenue)}</span>
-                                    {' · '}{s.total_orders} order{s.total_orders !== 1 ? 's' : ''}
-                                </span>
-                            </div>
-                            <div className="h-1.5 rounded-full bg-neutral-light overflow-hidden">
-                                <div className="h-full rounded-full bg-primary/70" style={{ width: maxRev > 0 ? `${(s.total_revenue / maxRev) * 100}%` : '0%' }} />
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </Card>
-    );
-}
-
 // ─── Customer Lifetime & Churn (#4) ───────────────────────────────────────────
 
 function LifecycleBucket({ label, hint, value, color }: { label: string; hint: string; value: number; color: string }) {
@@ -1092,6 +1054,46 @@ function BasketAffinityCard({ data }: { data?: BasketAffinityAnalytics }) {
                             <span className="text-neutral-gray shrink-0 whitespace-nowrap">
                                 {p.count}×{p.lift >= 1.1 ? <span className="text-secondary"> · {p.lift}× lift</span> : null}
                             </span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </Card>
+    );
+}
+
+// ─── Demand Forecast (#5) ─────────────────────────────────────────────────────
+
+function DemandForecastCard({ data }: { data?: DemandForecast }) {
+    const items = data?.items ?? [];
+    const maxProj = items.reduce((m, i) => Math.max(m, i.projected_units), 0) || 1;
+    return (
+        <Card>
+            <SectionTitle
+                title="Demand Forecast"
+                sub={data ? `Projected units · next ${data.horizon_days} days · from last ${data.based_on_days} days of sales` : 'Projected units for upcoming days'}
+            />
+            {items.length === 0 ? (
+                <div className="flex items-center justify-center h-24 text-neutral-gray text-sm">Not enough sales history to forecast</div>
+            ) : (
+                <div className="space-y-2.5">
+                    {items.map((it, i) => (
+                        <div key={i}>
+                            <div className="flex items-center justify-between text-xs font-body mb-1">
+                                <span className="text-text-dark font-medium truncate">{it.label}</span>
+                                <span className="text-neutral-gray shrink-0 ml-2 flex items-center gap-1.5">
+                                    <span className="text-text-dark font-semibold">~{Math.round(it.projected_units)}</span> units
+                                    {it.trend_pct !== 0 && (
+                                        <span className={`flex items-center gap-0.5 ${it.trend_pct > 0 ? 'text-secondary' : 'text-error'}`}>
+                                            {it.trend_pct > 0 ? <TrendUpIcon size={11} weight="bold" /> : <TrendDownIcon size={11} weight="bold" />}
+                                            {Math.abs(it.trend_pct)}%
+                                        </span>
+                                    )}
+                                </span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-neutral-light overflow-hidden">
+                                <div className="h-full rounded-full bg-primary/70" style={{ width: `${(it.projected_units / maxProj) * 100}%` }} />
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -1393,9 +1395,9 @@ export default function AdminAnalyticsPage() {
     const { data: discountUsage } = useDiscountUsageAnalytics(period, branchId, customRange);
     const { data: cancellationReasons } = useCancellationReasonsAnalytics(period, branchId, customRange);
     const { data: fulfillment } = useFulfillmentAnalytics(period, branchId, customRange);
-    const { data: staffSales } = useAdminStaffSales(period, branchId, customRange);
     const { data: customerLifecycle } = useCustomerLifecycleAnalytics(period, branchId, customRange);
     const { data: basketAffinity } = useBasketAffinityAnalytics(period, branchId, customRange);
+    const { data: demandForecast } = useDemandForecast(period, branchId, customRange);
     const { data: targetsVsActual } = useTargetsVsActual();
     const [showTargetsModal, setShowTargetsModal] = useState(false);
 
@@ -1659,10 +1661,9 @@ export default function AdminAnalyticsPage() {
                 <OrdersByDayOfWeek salesByDay={sales?.sales_by_day} />
             </div>
 
-            {/* Operational efficiency — kitchen speed + staff productivity */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
+            {/* Operational efficiency — kitchen speed */}
+            <div className="mt-3">
                 <KitchenSpeedCard data={fulfillment} />
-                <StaffProductivityCard rows={staffSales} />
             </div>
 
             {/* Targets vs actual (#5) */}
@@ -1676,9 +1677,10 @@ export default function AdminAnalyticsPage() {
                 <RetentionCohortCard cohorts={customerLifecycle?.cohorts} />
             </div>
 
-            {/* Basket affinity (#4) */}
-            <div className="mt-3">
+            {/* Basket affinity + demand forecast (#4 / #5) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
                 <BasketAffinityCard data={basketAffinity} />
+                <DemandForecastCard data={demandForecast} />
             </div>
 
             {/* Avg items / discounts / cancellations */}
