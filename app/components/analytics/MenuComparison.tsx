@@ -222,7 +222,8 @@ export default function MenuComparison({ period, customRange, branchId, branchId
     };
 
     const compareSubjects: ComparisonSubjectInput[] = subjects.map(s => ({
-        label: autoLabel(s),
+        // Cap length — auto-labels from long combo names can otherwise exceed the API limit.
+        label: autoLabel(s).slice(0, 200),
         item_ids: s.itemIds,
         option_ids: s.optionIds,
     }));

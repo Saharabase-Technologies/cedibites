@@ -39,6 +39,18 @@ interface LineChartProps {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+/** Monday date of a given ISO week-year (e.g. 2026, 15) → that week's Monday. */
+function isoWeekToDate(year: number, week: number): Date {
+    // ISO 8601: week 1 is the week containing Jan 4th.
+    const jan4 = new Date(year, 0, 4);
+    const jan4DowMon = (jan4.getDay() + 6) % 7; // 0 = Monday
+    const week1Monday = new Date(jan4);
+    week1Monday.setDate(jan4.getDate() - jan4DowMon);
+    const d = new Date(week1Monday);
+    d.setDate(week1Monday.getDate() + (week - 1) * 7);
+    return d;
+}
+
 // ─── Year-aware trend → points helper (root fix for repeated/unclear labels) ─────
 
 /**
@@ -84,9 +96,14 @@ export function trendToPoints(
             label = multiYear ? `${name} '${y.slice(2)}` : name;
             fullLabel = `${name} ${y}`;
         } else if (bucket === 'week') {
-            const d = new Date(p.split('-W')[0] + 'T00:00:00');
-            label = Number.isNaN(d.getTime()) ? p : `${d.getDate()} ${MONTHS[d.getMonth()]}`;
-            fullLabel = `Week ${p.split('-W')[1] ?? ''}, ${p.split('-W')[0]}`;
+            const [yStr, wStr] = p.split('-W');
+            const y = parseInt(yStr, 10);
+            const w = parseInt(wStr ?? '1', 10);
+            const d = isoWeekToDate(y, w);
+            label = Number.isNaN(d.getTime())
+                ? p
+                : `${d.getDate()} ${MONTHS[d.getMonth()]}${multiYear ? ` '${yStr.slice(2)}` : ''}`;
+            fullLabel = `Week ${wStr ?? ''}, ${yStr}`;
         } else {
             const d = dayDates[i];
             if (!Number.isNaN(d.getTime())) {
