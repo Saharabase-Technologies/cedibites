@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getPurchaseOrders,
   getPurchaseOrder,
+  verifyPurchaseOrder,
   createPurchaseOrder,
   updatePurchaseOrder,
   submitPurchaseOrder,
@@ -36,6 +37,17 @@ export function usePurchaseOrder(id: number) {
     queryKey: ['inventory', 'purchase-orders', id],
     queryFn: () => getPurchaseOrder(id),
     enabled: id > 0,
+    staleTime: 30_000,
+  });
+}
+
+/** Verify a PO by its QR/verification code. */
+export function usePurchaseOrderVerification(code: string) {
+  return useQuery({
+    queryKey: ['inventory', 'purchase-orders', 'verify', code],
+    queryFn: () => verifyPurchaseOrder(code),
+    enabled: code.length > 0,
+    retry: false,
     staleTime: 30_000,
   });
 }

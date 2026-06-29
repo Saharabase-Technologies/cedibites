@@ -9,6 +9,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getInventoryItems,
   getInventoryItem,
+  getInventoryItemMovements,
+  recordConsumption,
   createInventoryItem,
   updateInventoryItem,
   getInventoryCategories,
@@ -22,6 +24,7 @@ import type {
   InventoryItemFilters,
   CreateInventoryItemPayload,
   UpdateInventoryItemPayload,
+  RecordConsumptionPayload,
   CreateInventoryCategoryPayload,
   CreateInventoryUnitPayload,
   CreateInventorySupplierPayload,
@@ -46,6 +49,15 @@ export function useInventoryItem(id: number) {
   });
 }
 
+export function useInventoryItemMovements(id: number) {
+  return useQuery({
+    queryKey: ['inventory', 'items', id, 'movements'],
+    queryFn: () => getInventoryItemMovements(id),
+    enabled: id > 0,
+    staleTime: 30_000,
+  });
+}
+
 export function useCreateInventoryItem() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -61,6 +73,17 @@ export function useUpdateInventoryItem(id: number) {
   return useMutation({
     mutationFn: (payload: UpdateInventoryItemPayload) => updateInventoryItem(id, payload),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['inventory', 'items'] });
+    },
+  });
+}
+
+export function useRecordConsumption() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: RecordConsumptionPayload) => recordConsumption(payload),
+    onSuccess: () => {
+      // Refreshes the items list and any open item detail/movement history.
       void queryClient.invalidateQueries({ queryKey: ['inventory', 'items'] });
     },
   });

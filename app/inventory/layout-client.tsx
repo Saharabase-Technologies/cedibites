@@ -303,7 +303,7 @@ function InventoryLayoutInner({ children }: { children: React.ReactNode }) {
 
       <SignOutDialog
         isOpen={isSignOutOpen}
-        onClose={() => setIsSignOutOpen(false)}
+        onCancel={() => setIsSignOutOpen(false)}
         onConfirm={async () => { await logout(); router.push('/staff/login'); }}
       />
     </div>
@@ -342,7 +342,7 @@ function InventoryLayoutMockInner({ children }: { children: React.ReactNode }) {
 
       <SignOutDialog
         isOpen={isSignOutOpen}
-        onClose={() => setIsSignOutOpen(false)}
+        onCancel={() => setIsSignOutOpen(false)}
         onConfirm={async () => { router.push('/staff/login'); }}
       />
     </div>

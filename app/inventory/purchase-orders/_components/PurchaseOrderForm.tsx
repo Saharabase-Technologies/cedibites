@@ -19,6 +19,7 @@ import {
   PlusIcon,
   TrashIcon,
   WarningCircleIcon,
+  CheckCircleIcon,
 } from '@phosphor-icons/react';
 import {
   FormField,
@@ -35,6 +36,7 @@ import {
   useUpdatePurchaseOrder,
 } from '@/lib/api/hooks/inventory/usePurchaseOrders';
 import { PO_APPROVAL_THRESHOLD } from '@/lib/constants/inventory.constants';
+import { downloadPurchaseOrderPdf } from '@/lib/utils/purchaseOrderPdf';
 import type {
   CreatePurchaseOrderPayload,
   PurchaseOrderItemPayload,
@@ -48,9 +50,14 @@ interface LineDraft {
   estimated_unit_cost: string;
 }
 
+// Deterministic, monotonic line ids — Math.random() here caused SSR/client
+// hydration mismatches on the generated htmlFor/id attributes.
+let lineSeq = 0;
+
 function emptyLine(): LineDraft {
+  lineSeq += 1;
   return {
-    tempId: `tmp-${Math.random().toString(36).slice(2, 9)}`,
+    tempId: `po-line-${lineSeq}`,
     item_id: '',
     ordered_qty: '',
     estimated_unit_cost: '',
@@ -80,7 +87,7 @@ export function PurchaseOrderForm({ mode, id }: Props) {
   const [destinationId, setDestinationId]         = useState<string>('');
   const [expectedDelivery, setExpectedDelivery]   = useState<string>('');
   const [notes, setNotes]                         = useState<string>('');
-  const [lines, setLines]                         = useState<LineDraft[]>([emptyLine()]);
+  const [lines, setLines]                         = useState<LineDraft[]>(() => [emptyLine()]);
   const [hydrated, setHydrated]                   = useState(false);
 
   // Hydrate edit-mode state once PO arrives.
@@ -131,8 +138,10 @@ export function PurchaseOrderForm({ mode, id }: Props) {
     validLines.length > 0 &&
     validLines.length === lines.length;
 
-  // Edit-mode guards: only `draft` POs are editable.
-  const editLocked = editing && existingPO && existingPO.status !== 'draft';
+  // Editable states: draft (normal edit) and pending_approval (admin edit & approve).
+  const isApprovalEdit = editing && existingPO?.status === 'pending_approval';
+  const editLocked =
+    editing && existingPO && !['draft', 'pending_approval'].includes(existingPO.status);
 
   // ─── Handlers ───────────────────────────────────────────────────────────
   const updateLine = (tempId: string, patch: Partial<LineDraft>) => {
@@ -162,15 +171,21 @@ export function PurchaseOrderForm({ mode, id }: Props) {
 
     try {
       if (editing) {
-        await updatePO.mutateAsync(payload);
-        router.push(`/inventory/purchase-orders/${id}`);
+        const updated = await updatePO.mutateAsync(payload);
+        // Editing a pending-approval PO approves + sends it → download the PO doc.
+        if (updated.status === 'sent') {
+          await downloadPurchaseOrderPdf(updated);
+          router.push(`/inventory/purchase-orders/${id}?approved=1`);
+        } else {
+          router.push(`/inventory/purchase-orders/${id}`);
+        }
       } else {
         const created = await createPO.mutateAsync(payload);
         router.push(`/inventory/purchase-orders/${created.id}`);
       }
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : 'Save unavailable in mock mode.';
+        err instanceof Error ? err.message : 'Save failed.';
       window.alert(msg);
     }
   };
@@ -188,9 +203,12 @@ export function PurchaseOrderForm({ mode, id }: Props) {
 
   const submitting = createPO.isPending || updatePO.isPending;
   const heading = editing ? `Edit ${existingPO?.reference}` : 'New Purchase Order';
-  const subhead = editing
-    ? 'Adjust this draft before sending it to the supplier.'
-    : 'Build a multi-line order. Approval is auto-required above ' + formatGHS(PO_APPROVAL_THRESHOLD) + '.';
+  const subhead = isApprovalEdit
+    ? 'Adjust this order and approve it. Saving sends it straight to the supplier.'
+    : editing
+      ? 'Adjust this draft before sending it to the supplier.'
+      : 'Build a multi-line order. Approval is auto-required above ' + formatGHS(PO_APPROVAL_THRESHOLD) + '.';
+  const submitLabel = isApprovalEdit ? 'Save & approve' : editing ? 'Save changes' : 'Create draft PO';
 
   return (
     <div className="p-6 pb-24 md:pb-6 max-w-6xl mx-auto w-full">
@@ -208,6 +226,19 @@ export function PurchaseOrderForm({ mode, id }: Props) {
       </header>
 
       <form onSubmit={submit} className="flex flex-col gap-5">
+        {isApprovalEdit && (
+          <div className="flex items-start gap-2.5 p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+            <CheckCircleIcon size={18} weight="fill" className="text-emerald-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-emerald-900 text-sm font-semibold font-body">Approving on save</p>
+              <p className="text-emerald-800/80 text-xs font-body mt-0.5">
+                This order is awaiting approval. Any edits you make here are approved on save and the
+                PO is sent to the supplier — the document downloads automatically.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ── Meta ────────────────────────────────────────────────────── */}
         <section className="bg-neutral-card border border-[#f0e8d8] rounded-2xl p-5">
           <h2 className="text-sm font-semibold font-body text-text-dark mb-4">Order details</h2>
@@ -411,7 +442,7 @@ export function PurchaseOrderForm({ mode, id }: Props) {
           </Link>
           <div className="sm:w-60">
             <PrimaryButton type="submit" loading={submitting} disabled={!canSubmit}>
-              {editing ? 'Save changes' : 'Create draft PO'}
+              {submitLabel}
             </PrimaryButton>
           </div>
         </div>

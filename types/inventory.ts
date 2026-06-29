@@ -115,6 +115,8 @@ export interface InventoryItem {
   reorder_level: number | null;
   min_threshold: number | null;
   weighted_avg_cost: number;
+  /** Total quantity on hand across all locations (summed balance cache). */
+  stock_on_hand: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -133,6 +135,42 @@ export interface InventoryLocation {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// ─── Item movement history (supply ledger) ───────────────────────────────────
+
+/** One append-only ledger row for an item, with the running balance after it. */
+export interface ItemMovement {
+  id: number;
+  occurred_at: string | null;
+  /** purchase | transfer_in | transfer_out | wastage | adjustment | consumption | … */
+  movement_type: string;
+  /** Signed: positive = stock in, negative = stock out. */
+  quantity: number;
+  balance_after: number;
+  unit_cost_at_time: number | null;
+  location: { id: number; name: string } | null;
+  user: { id: number; name: string } | null;
+  /** Source document — present for purchase receipts (links to receipt + PO). */
+  reference: {
+    type: 'purchase';
+    purchase_id: number;
+    purchase_reference: string;
+    purchase_order: { id: number; reference: string } | null;
+  } | null;
+}
+
+export interface ItemMovementSupplier {
+  id: number;
+  name: string;
+  code: string;
+}
+
+/** Payload for the item detail drill-down. */
+export interface ItemHistory {
+  item: InventoryItem;
+  suppliers: ItemMovementSupplier[];
+  movements: ItemMovement[];
 }
 
 // ─── Stock balances (denormalized cache) ─────────────────────────────────────
@@ -368,7 +406,8 @@ export interface InventoryTransferFilters {
 // ─── Mutation payloads ───────────────────────────────────────────────────────
 
 export interface CreateInventoryItemPayload {
-  sku: string;
+  /** Assigned server-side (sequential ITM-000001); do not send from the client. */
+  sku?: string;
   name: string;
   description?: string;
   category_id?: number;
@@ -382,6 +421,13 @@ export interface CreateInventoryItemPayload {
 }
 
 export interface UpdateInventoryItemPayload extends Partial<CreateInventoryItemPayload> {}
+
+/** Mother-kitchen consumption — posts negative `production` movements. */
+export interface RecordConsumptionPayload {
+  location_id: number;
+  occurred_at: string;
+  items: { item_id: number; quantity: number }[];
+}
 
 export interface CreateInventoryLocationPayload {
   code: string;
@@ -481,6 +527,8 @@ export interface PurchaseOrderItem {
 export interface PurchaseOrder {
   id: number;
   reference: string;
+  /** Unguessable anti-forgery code rendered as a QR signature on the PO document. */
+  verification_code: string;
   supplier_id: number;
   supplier: Pick<InventorySupplier, 'id' | 'code' | 'name' | 'phone'>;
   destination_location_id: number;
@@ -547,8 +595,18 @@ export interface PurchaseItem {
   item_id: number;
   item: Pick<InventoryItem, 'id' | 'sku' | 'name' | 'base_unit'>;
   purchase_order_item_id: number | null;
+  /** Expected qty for this receipt (snapshot of the PO line's outstanding amount at receipt time). Null for urgent buys with no PO. */
+  ordered_qty: number | null;
   received_qty: number;
+  /** received_qty − ordered_qty; computed server-side. Positive = surplus, negative = deficit. Null when ordered_qty is null. */
+  variance: number | null;
+  /** Operator's explanation when received ≠ ordered (covers both qty and cost deviations). */
+  variance_reason: string | null;
   unit: Pick<InventoryUnit, 'id' | 'symbol'>;
+  /** PO line's estimated unit cost snapshot. Null for urgent buys with no PO. */
+  expected_unit_cost: number | null;
+  /** unit_cost_paid − expected_unit_cost. Positive = overpaid, negative = underpaid. Null when no expected cost. */
+  cost_variance: number | null;
   unit_cost_paid: number;
   line_total: number;
 }
@@ -560,6 +618,8 @@ export interface Purchase {
   purchase_order: Pick<PurchaseOrder, 'id' | 'reference'> | null;
   supplier_id: number;
   supplier: Pick<InventorySupplier, 'id' | 'code' | 'name'>;
+  /** Free-text vendor name for urgent/market buys when the exact vendor isn't a listed supplier. */
+  supplier_name: string | null;
   destination_location_id: number;
   destination_location: Pick<InventoryLocation, 'id' | 'name'>;
   is_urgent_buy: boolean;
@@ -577,13 +637,21 @@ export interface Purchase {
 export interface RecordPurchaseItemPayload {
   item_id: number;
   purchase_order_item_id?: number;
+  /** Expected qty for this receipt — the PO line's outstanding amount. Omitted for urgent buys. */
+  ordered_qty?: number;
   received_qty: number;
+  /** PO line's estimated unit cost, so the backend can record cost variance. Omitted for urgent buys. */
+  expected_unit_cost?: number;
+  /** Explanation for any deviation (qty or cost). */
+  variance_reason?: string;
   unit_cost_paid: number;
 }
 
 export interface RecordPurchasePayload {
   purchase_order_id?: number;
   supplier_id: number;
+  /** Optional free-text vendor name for urgent/market buys. */
+  supplier_name?: string;
   destination_location_id: number;
   is_urgent_buy?: boolean;
   urgent_buy_reason?: string;

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   PlusIcon,
   ClipboardIcon,
+  SealCheckIcon,
 } from '@phosphor-icons/react';
 import {
   PageHeader,
@@ -16,6 +17,7 @@ import {
   type DataTableColumn,
 } from '../../_components';
 import { usePurchaseOrders } from '@/lib/api/hooks/inventory/usePurchaseOrders';
+import { usePurchaseOrderRealtime } from '@/lib/api/hooks/inventory/usePurchaseOrderRealtime';
 import { useInventorySuppliers } from '@/lib/api/hooks/inventory/useInventoryCatalog';
 import type { PurchaseOrder, PurchaseOrderStatus } from '@/types/inventory';
 import { formatGHS, formatShortDate } from '../utils';
@@ -32,9 +34,17 @@ const STATUS_OPTIONS: { value: PurchaseOrderStatus | ''; label: string }[] = [
 
 export function PurchaseOrdersPage() {
   const router = useRouter();
+  usePurchaseOrderRealtime();
   const [search, setSearch]         = useState('');
   const [status, setStatus]         = useState<string>('');
   const [supplierId, setSupplierId] = useState<string>('');
+  const [verifyCode, setVerifyCode] = useState('');
+
+  const submitVerify = (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = verifyCode.trim();
+    if (code) router.push(`/inventory/purchase-orders/verify/${encodeURIComponent(code)}`);
+  };
 
   const { data: suppliers = [] } = useInventorySuppliers();
   const { data: orders = [], isLoading } = usePurchaseOrders({
@@ -146,6 +156,23 @@ export function PurchaseOrdersPage() {
           placeholder="All suppliers"
           options={suppliers.map((s) => ({ value: String(s.id), label: s.name }))}
         />
+        <form onSubmit={submitVerify} className="flex items-center gap-2 ml-auto">
+          <input
+            value={verifyCode}
+            onChange={(e) => setVerifyCode(e.target.value)}
+            placeholder="Verify code…"
+            className="w-40 px-3.5 py-2.5 border border-[#f0e8d8] rounded-xl text-sm font-mono uppercase text-text-dark bg-slate-50 placeholder:font-body placeholder:normal-case placeholder:text-neutral-gray/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 min-h-11"
+          />
+          <button
+            type="submit"
+            disabled={!verifyCode.trim()}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold font-body bg-neutral-light text-text-dark hover:bg-neutral-light/70 border border-[#f0e8d8] min-h-11 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label="Verify purchase order code"
+          >
+            <SealCheckIcon size={15} weight="bold" />
+            Verify
+          </button>
+        </form>
       </FilterBar>
 
       {!isLoading && orders.length === 0 ? (

@@ -2,24 +2,20 @@
  * lib/api/services/inventory/catalog.service.ts
  *
  * Inventory catalog service — Items, Categories, Units, Suppliers.
- * When NEXT_PUBLIC_IMS_MOCK=true the functions return fixture data
- * with a small artificial delay so UI states (loading/error) can
- * be developed and tested without a live API.
+ *
+ * Live against the Laravel IMS backend (`/inventory/*`). Reads and writes both
+ * hit the API; suppliers/items get a system-generated code/sku server-side.
  */
 
 import apiClient from '../../client';
-import {
-  MOCK_ITEMS,
-  MOCK_CATEGORIES,
-  MOCK_UNITS,
-  MOCK_SUPPLIERS,
-} from '../../mocks/inventory.mock';
 import type {
   InventoryItem,
   InventoryCategory,
   InventoryUnit,
   InventorySupplier,
   InventoryItemFilters,
+  ItemHistory,
+  RecordConsumptionPayload,
   CreateInventoryItemPayload,
   UpdateInventoryItemPayload,
   CreateInventoryCategoryPayload,
@@ -27,10 +23,10 @@ import type {
   CreateInventorySupplierPayload,
 } from '@/types/inventory';
 
-const IS_MOCK = process.env.NEXT_PUBLIC_IMS_MOCK === 'true';
-
-function delay<T>(data: T, ms = 400): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(data), ms));
+/** Unwrap the API envelope ({ data: ... }), tolerating a raw body. */
+function extractData<T>(response: unknown): T {
+  const r = response as { data?: T };
+  return (r?.data ?? response) as T;
 }
 
 // ─── Items ────────────────────────────────────────────────────────────────────
@@ -38,162 +34,82 @@ function delay<T>(data: T, ms = 400): Promise<T> {
 export async function getInventoryItems(
   filters?: InventoryItemFilters,
 ): Promise<InventoryItem[]> {
-  if (IS_MOCK) {
-    let items = [...MOCK_ITEMS];
-    if (filters?.category_id) {
-      items = items.filter((i) => i.category_id === filters.category_id);
-    }
-    if (filters?.storage_type) {
-      items = items.filter((i) => i.storage_type === filters.storage_type);
-    }
-    if (filters?.is_active !== undefined) {
-      items = items.filter((i) => i.is_active === filters.is_active);
-    }
-    if (filters?.low_stock) {
-      items = items.filter(
-        (i) => i.reorder_level !== null && i.min_threshold !== null,
-        // In mock we don't have live balances so return all "tracked" items
-      );
-    }
-    if (filters?.search) {
-      const q = filters.search.toLowerCase();
-      items = items.filter(
-        (i) =>
-          i.name.toLowerCase().includes(q) ||
-          i.sku.toLowerCase().includes(q),
-      );
-    }
-    return delay(items);
-  }
-
-  const { data } = await apiClient.get<InventoryItem[]>('/v1/inventory/items', {
-    params: filters,
-  });
-  return data;
+  const response = await apiClient.get('/inventory/items', { params: filters });
+  return extractData<InventoryItem[]>(response);
 }
 
 export async function getInventoryItem(id: number): Promise<InventoryItem> {
-  if (IS_MOCK) {
-    const item = MOCK_ITEMS.find((i) => i.id === id);
-    if (!item) throw new Error(`Item ${id} not found`);
-    return delay(item);
-  }
-  const { data } = await apiClient.get<InventoryItem>(`/v1/inventory/items/${id}`);
-  return data;
+  const response = await apiClient.get(`/inventory/items/${id}`);
+  return extractData<InventoryItem>(response);
+}
+
+/** Supply/movement history (ledger + suppliers) for the item detail view. */
+export async function getInventoryItemMovements(id: number): Promise<ItemHistory> {
+  const response = await apiClient.get(`/inventory/items/${id}/movements`);
+  return extractData<ItemHistory>(response);
 }
 
 export async function createInventoryItem(
   payload: CreateInventoryItemPayload,
 ): Promise<InventoryItem> {
-  if (IS_MOCK) {
-    const newItem: InventoryItem = {
-      id: Date.now(),
-      sku: `ITM-${String(Date.now()).slice(-6)}`,
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      category: null,
-      base_unit: { id: payload.base_unit_id, name: '', symbol: '' },
-      default_supplier: null,
-      weighted_avg_cost: 0,
-      ...payload,
-    } as unknown as InventoryItem;
-    MOCK_ITEMS.push(newItem);
-    return delay(newItem, 600);
-  }
-  const { data } = await apiClient.post<InventoryItem>('/v1/inventory/items', payload);
-  return data;
+  const response = await apiClient.post('/inventory/items', payload);
+  return extractData<InventoryItem>(response);
 }
 
 export async function updateInventoryItem(
   id: number,
   payload: UpdateInventoryItemPayload,
 ): Promise<InventoryItem> {
-  if (IS_MOCK) {
-    const item = MOCK_ITEMS.find((i) => i.id === id);
-    if (!item) throw new Error(`Item ${id} not found`);
-    return delay({ ...item, ...payload, updated_at: new Date().toISOString() }, 600);
-  }
-  const { data } = await apiClient.patch<InventoryItem>(`/v1/inventory/items/${id}`, payload);
-  return data;
+  const response = await apiClient.patch(`/inventory/items/${id}`, payload);
+  return extractData<InventoryItem>(response);
+}
+
+/** Record mother-kitchen consumption (stock issue / production usage). */
+export async function recordConsumption(
+  payload: RecordConsumptionPayload,
+): Promise<{ count: number }> {
+  const response = await apiClient.post('/inventory/production', payload);
+  return extractData<{ count: number }>(response);
 }
 
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 export async function getInventoryCategories(): Promise<InventoryCategory[]> {
-  if (IS_MOCK) return delay(MOCK_CATEGORIES);
-  const { data } = await apiClient.get<InventoryCategory[]>('/v1/inventory/categories');
-  return data;
+  const response = await apiClient.get('/inventory/categories');
+  return extractData<InventoryCategory[]>(response);
 }
 
 export async function createInventoryCategory(
   payload: CreateInventoryCategoryPayload,
 ): Promise<InventoryCategory> {
-  if (IS_MOCK) {
-    const newCat: InventoryCategory = {
-      id: Date.now(),
-      sort_order: 99,
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      ...payload,
-    };
-    MOCK_CATEGORIES.push(newCat);
-    return delay(newCat, 600);
-  }
-  const { data } = await apiClient.post<InventoryCategory>('/v1/inventory/categories', payload);
-  return data;
+  const response = await apiClient.post('/inventory/categories', payload);
+  return extractData<InventoryCategory>(response);
 }
 
 // ─── Units ────────────────────────────────────────────────────────────────────
 
 export async function getInventoryUnits(): Promise<InventoryUnit[]> {
-  if (IS_MOCK) return delay(MOCK_UNITS);
-  const { data } = await apiClient.get<InventoryUnit[]>('/v1/inventory/units');
-  return data;
+  const response = await apiClient.get('/inventory/units');
+  return extractData<InventoryUnit[]>(response);
 }
 
 export async function createInventoryUnit(
   payload: CreateInventoryUnitPayload,
 ): Promise<InventoryUnit> {
-  if (IS_MOCK) {
-    const newUnit: InventoryUnit = {
-      id: Date.now(),
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      ...payload,
-    };
-    MOCK_UNITS.push(newUnit);
-    return delay(newUnit, 600);
-  }
-  const { data } = await apiClient.post<InventoryUnit>('/v1/inventory/units', payload);
-  return data;
+  const response = await apiClient.post('/inventory/units', payload);
+  return extractData<InventoryUnit>(response);
 }
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
 
 export async function getInventorySuppliers(): Promise<InventorySupplier[]> {
-  if (IS_MOCK) return delay(MOCK_SUPPLIERS);
-  const { data } = await apiClient.get<InventorySupplier[]>('/v1/inventory/suppliers');
-  return data;
+  const response = await apiClient.get('/inventory/suppliers');
+  return extractData<InventorySupplier[]>(response);
 }
 
 export async function createInventorySupplier(
   payload: CreateInventorySupplierPayload,
 ): Promise<InventorySupplier> {
-  if (IS_MOCK) {
-    const newSupplier: InventorySupplier = {
-      id: Date.now(),
-      code: `SUP-${String(Date.now()).slice(-3)}`,
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      ...payload,
-    };
-    MOCK_SUPPLIERS.push(newSupplier);
-    return delay(newSupplier, 600);
-  }
-  const { data } = await apiClient.post<InventorySupplier>('/v1/inventory/suppliers', payload);
-  return data;
+  const response = await apiClient.post('/inventory/suppliers', payload);
+  return extractData<InventorySupplier>(response);
 }

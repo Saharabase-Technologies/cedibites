@@ -60,6 +60,8 @@ function mapApiRoleToStaffRole(roleName: string): StaffRole {
     sales_staff: 'sales_staff',
     kitchen: 'kitchen',
     rider: 'rider',
+    warehouse_manager: 'warehouse_manager',
+    purchasing_clerk: 'purchasing_clerk',
   };
   const lower = roleName.toLowerCase().replace(/\s+/g, '_');
   return (map[lower] ?? 'sales_staff') as StaffRole;
@@ -99,6 +101,7 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
     canAccessPOS:          permissions.includes('access_pos'),
     canAccessKitchen:      permissions.includes('access_kitchen'),
     canAccessOrderManager: permissions.includes('access_order_manager'),
+    canAccessInventoryPortal: permissions.includes('access_inventory_portal'),
     canManageShifts:       permissions.includes('manage_shifts'),
     canManageSettings:     permissions.includes('manage_settings'),
     canViewMyShifts:       permissions.includes('view_my_shifts'),
@@ -135,7 +138,7 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
 }
 
 /** Backend role enum: all available roles */
-export type BackendRole = 'tech_admin' | 'admin' | 'branch_partner' | 'manager' | 'call_center' | 'sales_staff' | 'kitchen' | 'rider';
+export type BackendRole = 'tech_admin' | 'admin' | 'branch_partner' | 'manager' | 'call_center' | 'sales_staff' | 'kitchen' | 'rider' | 'warehouse_manager' | 'purchasing_clerk';
 
 /** Map frontend StaffRole to backend role for API */
 export function staffRoleToBackendRole(role: StaffRole): BackendRole {
@@ -148,6 +151,8 @@ export function staffRoleToBackendRole(role: StaffRole): BackendRole {
     sales_staff: 'sales_staff',
     kitchen: 'kitchen',
     rider: 'rider',
+    warehouse_manager: 'warehouse_manager',
+    purchasing_clerk: 'purchasing_clerk',
   };
   return map[role] ?? 'sales_staff';
 }
@@ -176,6 +181,7 @@ export function mapPermissionsToBackend(permissions: StaffPermissions): string[]
     canAccessPOS:          'access_pos',
     canAccessKitchen:      'access_kitchen',
     canAccessOrderManager: 'access_order_manager',
+    canAccessInventoryPortal: 'access_inventory_portal',
     canManageShifts:       'manage_shifts',
     canManageSettings:     'manage_settings',
     canViewMyShifts:       'view_my_shifts',

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeftIcon,
   CheckCircleIcon,
@@ -15,7 +15,10 @@ import {
   CalendarIcon,
   UserIcon,
   WarningCircleIcon,
+  DownloadSimpleIcon,
+  SealCheckIcon,
 } from '@phosphor-icons/react';
+import { downloadPurchaseOrderPdf } from '@/lib/utils/purchaseOrderPdf';
 import {
   POStatusBadge,
   PrimaryButton,
@@ -30,14 +33,39 @@ import {
   useClosePurchaseOrder,
   useSubmitPurchaseOrder,
 } from '@/lib/api/hooks/inventory/usePurchaseOrders';
+import { usePurchaseOrderRealtime } from '@/lib/api/hooks/inventory/usePurchaseOrderRealtime';
 import { PO_APPROVAL_THRESHOLD } from '@/lib/constants/inventory.constants';
 import type { PurchaseOrder, PurchaseOrderItem } from '@/types/inventory';
 import { formatGHS, formatShortDate, formatDateTime } from '../utils';
 
 export function PurchaseOrderDetailPage({ id }: { id: number }) {
+  // useSearchParams() must sit under a Suspense boundary, otherwise the route
+  // crashes the server render (surfaces as an opaque Turbopack worker error).
+  return (
+    <Suspense fallback={<DetailSkeleton />}>
+      <DetailContent id={id} />
+    </Suspense>
+  );
+}
+
+function DetailContent({ id }: { id: number }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: po, isLoading, error } = usePurchaseOrder(id);
+  usePurchaseOrderRealtime();
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [sentModal, setSentModal] = useState<{ open: boolean; approved: boolean }>({
+    open: false,
+    approved: false,
+  });
+
+  // The edit-and-approve flow on the form redirects here with ?approved=1.
+  useEffect(() => {
+    if (searchParams.get('approved') === '1' && po?.status === 'sent') {
+      setSentModal({ open: true, approved: true });
+      router.replace(`/inventory/purchase-orders/${id}`);
+    }
+  }, [searchParams, po?.status, id, router]);
 
   if (isLoading) return <DetailSkeleton />;
   if (error || !po) return <DetailMissing />;
@@ -71,11 +99,22 @@ export function PurchaseOrderDetailPage({ id }: { id: number }) {
           <p className="text-neutral-gray text-sm font-body mt-1">
             Created {formatDateTime(po.created_at)} by {po.created_by.name}
           </p>
+          {po.verification_code && (
+            <Link
+              href={`/inventory/purchase-orders/verify/${encodeURIComponent(po.verification_code)}`}
+              className="inline-flex items-center gap-1.5 mt-1.5 text-[11px] font-mono text-neutral-gray hover:text-primary"
+              title="Verification signature — scan the QR on the PO document or click to verify"
+            >
+              <SealCheckIcon size={13} weight="bold" />
+              {po.verification_code}
+            </Link>
+          )}
         </div>
 
         <ActionBar
           po={po}
           onCancel={() => setCancelOpen(true)}
+          onSent={(approved) => setSentModal({ open: true, approved })}
         />
       </div>
 
@@ -147,47 +186,140 @@ export function PurchaseOrderDetailPage({ id }: { id: number }) {
           router.refresh();
         }}
       />
+
+      <SentSuccessModal
+        po={po}
+        isOpen={sentModal.open}
+        approved={sentModal.approved}
+        onClose={() => setSentModal({ open: false, approved: false })}
+      />
     </div>
+  );
+}
+
+// ─── Sent / approved success modal ────────────────────────────────────────────
+
+function SentSuccessModal({
+  po,
+  isOpen,
+  approved,
+  onClose,
+}: {
+  po: PurchaseOrder;
+  isOpen: boolean;
+  approved: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <InventoryModal isOpen={isOpen} onClose={onClose} title={approved ? 'Purchase order approved' : 'Purchase order sent'} size="md">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-start gap-3">
+          <CheckCircleIcon size={28} weight="fill" className="text-emerald-600 mt-0.5 shrink-0" />
+          <p className="text-sm text-text-dark font-body">
+            <span className="font-mono font-semibold">{po.reference}</span>{' '}
+            {approved ? 'has been approved and is now ' : 'is now '}
+            <span className="font-semibold">sent</span>. The PO document has been downloaded — forward
+            it to <span className="font-semibold">{po.supplier.name}</span> to place the order.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+          <button
+            type="button"
+            onClick={() => void downloadPurchaseOrderPdf(po)}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold font-body bg-neutral-light text-text-dark hover:bg-neutral-light/70 border border-[#f0e8d8] min-h-11"
+          >
+            <DownloadSimpleIcon size={15} weight="bold" />
+            Download again
+          </button>
+          <div className="sm:w-40">
+            <PrimaryButton type="button" onClick={onClose}>
+              Done
+            </PrimaryButton>
+          </div>
+        </div>
+      </div>
+    </InventoryModal>
   );
 }
 
 // ─── Action bar ──────────────────────────────────────────────────────────────
 
-function ActionBar({ po, onCancel }: { po: PurchaseOrder; onCancel: () => void }) {
+function ActionBar({
+  po,
+  onCancel,
+  onSent,
+}: {
+  po: PurchaseOrder;
+  onCancel: () => void;
+  onSent: (approved: boolean) => void;
+}) {
   const submit  = useSubmitPurchaseOrder();
   const approve = useApprovePurchaseOrder();
   const close   = useClosePurchaseOrder();
 
-  const canEdit    = po.status === 'draft';
-  const canSubmit  = po.status === 'draft';
-  const canApprove = po.status === 'pending_approval';
-  const canCancel  = ['draft', 'pending_approval', 'sent'].includes(po.status);
-  const canClose   = ['received', 'partially_received'].includes(po.status);
+  // Draft → normal edit. Pending-approval → admin "edit & approve" (same form).
+  const canEdit     = ['draft', 'pending_approval'].includes(po.status);
+  const canSubmit   = po.status === 'draft';
+  const canApprove  = po.status === 'pending_approval';
+  const canCancel   = ['draft', 'pending_approval', 'sent'].includes(po.status);
+  const canClose    = ['received', 'partially_received'].includes(po.status);
+  const canDownload = ['sent', 'partially_received', 'received', 'closed'].includes(po.status);
 
-  const wrap = async (fn: () => Promise<unknown>) => {
+  const alertError = (e: unknown) => {
+    const msg = e instanceof Error ? e.message : 'Action failed.';
+    window.alert(msg);
+  };
+
+  // Submitting a sub-threshold PO sends it → download + confirm. A ₵10k+ PO goes
+  // to pending_approval instead (no download yet).
+  const handleSubmit = async () => {
     try {
-      await fn();
+      const updated = await submit.mutateAsync(po.id);
+      if (updated.status === 'sent') {
+        await downloadPurchaseOrderPdf(updated);
+        onSent(false);
+      }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Action unavailable in mock mode.';
-      window.alert(msg);
+      alertError(e);
+    }
+  };
+
+  const handleApprove = async () => {
+    try {
+      const updated = await approve.mutateAsync({ id: po.id });
+      if (updated.status === 'sent') {
+        await downloadPurchaseOrderPdf(updated);
+      }
+      onSent(true);
+    } catch (e) {
+      alertError(e);
     }
   };
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
+      {canDownload && (
+        <ActionButton
+          tone="neutral"
+          onClick={() => void downloadPurchaseOrderPdf(po)}
+          icon={<DownloadSimpleIcon size={14} weight="bold" />}
+        >
+          Download PO
+        </ActionButton>
+      )}
       {canEdit && (
         <Link
           href={`/inventory/purchase-orders/${po.id}/edit`}
           className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold font-body min-h-11 transition-colors cursor-pointer shadow-sm bg-neutral-light text-text-dark hover:bg-neutral-light/70 border border-[#f0e8d8]"
         >
           <PencilSimpleIcon size={14} weight="bold" />
-          Edit
+          {po.status === 'pending_approval' ? 'Edit & approve' : 'Edit'}
         </Link>
       )}
       {canSubmit && (
         <ActionButton
           tone="primary"
-          onClick={() => void wrap(() => submit.mutateAsync(po.id))}
+          onClick={handleSubmit}
           loading={submit.isPending}
           icon={<PaperPlaneTiltIcon size={14} weight="bold" />}
         >
@@ -197,7 +329,7 @@ function ActionBar({ po, onCancel }: { po: PurchaseOrder; onCancel: () => void }
       {canApprove && (
         <ActionButton
           tone="primary"
-          onClick={() => void wrap(() => approve.mutateAsync({ id: po.id }))}
+          onClick={handleApprove}
           loading={approve.isPending}
           icon={<CheckCircleIcon size={14} weight="bold" />}
         >
@@ -207,7 +339,7 @@ function ActionBar({ po, onCancel }: { po: PurchaseOrder; onCancel: () => void }
       {canClose && (
         <ActionButton
           tone="neutral"
-          onClick={() => void wrap(() => close.mutateAsync(po.id))}
+          onClick={() => { void close.mutateAsync(po.id).catch(alertError); }}
           loading={close.isPending}
           icon={<ArchiveIcon size={14} weight="bold" />}
         >
@@ -320,6 +452,7 @@ function ItemsTable({ items }: { items: PurchaseOrderItem[] }) {
             <th className="px-5 py-2.5">Item</th>
             <th className="px-5 py-2.5 text-right">Ordered</th>
             <th className="px-5 py-2.5 text-right">Received</th>
+            <th className="px-5 py-2.5 text-right">Variance</th>
             <th className="px-5 py-2.5 text-right">Unit cost</th>
             <th className="px-5 py-2.5 text-right">Line total</th>
           </tr>
@@ -328,6 +461,7 @@ function ItemsTable({ items }: { items: PurchaseOrderItem[] }) {
           {items.map((line) => {
             const fullyReceived  = line.received_qty >= line.ordered_qty;
             const partial        = line.received_qty > 0 && !fullyReceived;
+            const variance       = line.received_qty - line.ordered_qty;
             return (
               <tr key={line.id} className="hover:bg-primary/5">
                 <td className="px-5 py-3">
@@ -349,6 +483,17 @@ function ItemsTable({ items }: { items: PurchaseOrderItem[] }) {
                   >
                     {line.received_qty} {line.unit.symbol}
                   </span>
+                </td>
+                <td className="px-5 py-3 text-right tabular-nums">
+                  {line.received_qty === 0 ? (
+                    <span className="text-neutral-gray">—</span>
+                  ) : variance === 0 ? (
+                    <span className="text-emerald-700 font-semibold">0</span>
+                  ) : (
+                    <span className={variance < 0 ? 'text-rose-700 font-semibold' : 'text-amber-700 font-semibold'}>
+                      {variance > 0 ? '+' : ''}{variance} {line.unit.symbol}
+                    </span>
+                  )}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums text-text-dark">
                   {formatGHS(line.estimated_unit_cost)}

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { PackageIcon, PlusIcon } from '@phosphor-icons/react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { PackageIcon, PlusIcon, TrashIcon, MinusCircleIcon } from '@phosphor-icons/react';
 import {
   InventoryModal,
   FormField,
@@ -22,7 +23,10 @@ import {
   useInventoryUnits,
   useInventorySuppliers,
   useCreateInventoryItem,
+  useRecordConsumption,
 } from '@/lib/api/hooks/inventory/useInventoryCatalog';
+import { useInventoryLocations } from '@/lib/api/hooks/inventory/useInventoryLocations';
+import { getErrorMessage } from '@/lib/utils/error-handler';
 import type { InventoryItem, StorageType } from '@/types/inventory';
 
 // ─── Add Item form ────────────────────────────────────────────────────────────
@@ -49,7 +53,7 @@ function AddItemForm({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     if (!baseUnitId) return;
     await create.mutateAsync({
-      sku: `ITM-${Date.now().toString().slice(-6)}`,
+      // SKU is assigned server-side (sequential ITM-000001); never sent from here.
       name,
       description: description || undefined,
       category_id: categoryId ? Number(categoryId) : undefined,
@@ -189,14 +193,232 @@ function AddItemForm({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ─── Record consumption (mother kitchen using stock) ──────────────────────────
+
+interface ConsumeLine {
+  key: string;
+  item_id: string;
+  quantity: string;
+}
+
+let consumeSeq = 0;
+function emptyConsumeLine(): ConsumeLine {
+  consumeSeq += 1;
+  return { key: `consume-${consumeSeq}`, item_id: '', quantity: '' };
+}
+
+function RecordConsumptionForm({ onClose }: { onClose: () => void }) {
+  const { data: items = [] } = useInventoryItems({ is_active: true });
+  const { data: warehouses = [] } = useInventoryLocations({ type: 'warehouse', is_active: true });
+  const record = useRecordConsumption();
+
+  const [locationId, setLocationId] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [lines, setLines] = useState<ConsumeLine[]>(() => [emptyConsumeLine()]);
+  const [error, setError] = useState('');
+
+  // Default to the (usually single) mother-kitchen warehouse.
+  useEffect(() => {
+    if (!locationId && warehouses.length) setLocationId(String(warehouses[0].id));
+  }, [warehouses, locationId]);
+
+  const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  // You can only consume what's actually in stock — hide zero/negative on-hand items.
+  const consumableItems = useMemo(() => items.filter((i) => i.stock_on_hand > 0), [items]);
+
+  const updateLine = (key: string, patch: Partial<ConsumeLine>) =>
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  const addLine = () => setLines((prev) => [...prev, emptyConsumeLine()]);
+  const removeLine = (key: string) =>
+    setLines((prev) => (prev.length === 1 ? prev : prev.filter((l) => l.key !== key)));
+
+  const validLines = lines.filter((l) => l.item_id !== '' && Number(l.quantity) > 0);
+  const overdrawn = lines.some((l) => {
+    const item = itemById.get(Number(l.item_id));
+    return item != null && Number(l.quantity) > item.stock_on_hand;
+  });
+  const canSubmit = locationId !== '' && validLines.length > 0 && !overdrawn;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!canSubmit) return;
+    try {
+      await record.mutateAsync({
+        location_id: Number(locationId),
+        occurred_at: date,
+        items: validLines.map((l) => ({ item_id: Number(l.item_id), quantity: Number(l.quantity) })),
+      });
+      onClose();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      <p className="text-sm font-body text-neutral-gray">
+        Record raw materials used by the mother kitchen. This lowers on-hand stock and shows in each
+        item&apos;s supply history.
+      </p>
+
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="From location" htmlFor="consume-loc" required>
+          <Select id="consume-loc" value={locationId} onChange={(e) => setLocationId(e.target.value)} required>
+            <option value="">Select location</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>{w.name}</option>
+            ))}
+          </Select>
+        </FormField>
+        <FormField label="Date used" htmlFor="consume-date" required>
+          <TextInput
+            id="consume-date"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+          />
+        </FormField>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold font-body text-text-dark">Items used</span>
+          <button
+            type="button"
+            onClick={addLine}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold font-body bg-neutral-light text-text-dark hover:bg-neutral-light/70 border border-[#f0e8d8] cursor-pointer"
+          >
+            <PlusIcon size={12} weight="bold" />
+            Add line
+          </button>
+        </div>
+
+        {lines.map((line) => {
+          const item = itemById.get(Number(line.item_id));
+          const unit = item?.base_unit?.symbol ?? '';
+          const over = item != null && Number(line.quantity) > item.stock_on_hand;
+          return (
+            <div key={line.key} className="grid grid-cols-[1fr_7rem_auto] gap-2 items-start">
+              <Select
+                value={line.item_id}
+                onChange={(e) => updateLine(line.key, { item_id: e.target.value })}
+                required
+              >
+                <option value="">
+                  {consumableItems.length ? 'Select item' : 'No items in stock'}
+                </option>
+                {consumableItems.map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name} ({fmtQtyShort(it.stock_on_hand)} {it.base_unit?.symbol ?? ''})
+                  </option>
+                ))}
+              </Select>
+              <div>
+                <TextInput
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={line.quantity}
+                  onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
+                  placeholder={`Qty ${unit}`.trim()}
+                  required
+                />
+                {over && (
+                  <p className="text-[11px] text-rose-600 mt-1">
+                    Only {fmtQtyShort(item!.stock_on_hand)} {unit} on hand
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => removeLine(line.key)}
+                disabled={lines.length === 1}
+                className="self-start p-2.5 rounded-lg text-rose-600 hover:bg-rose-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                aria-label="Remove line"
+              >
+                <TrashIcon size={16} weight="bold" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {error && (
+        <p className="text-sm text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{error}</p>
+      )}
+
+      <PrimaryButton type="submit" loading={record.isPending} disabled={!canSubmit}>
+        Record consumption
+      </PrimaryButton>
+    </form>
+  );
+}
+
+function fmtQtyShort(n: number): string {
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+// ─── Stock level ────────────────────────────────────────────────────────────────
+
+type StockLevel = 'out' | 'critical' | 'low' | 'ok';
+
+/**
+ * Reorder signal from the on-hand quantity against the item's thresholds:
+ * out (≤0) → critical (≤ min_threshold) → low (≤ reorder_level) → ok.
+ */
+function stockLevel(item: InventoryItem): StockLevel {
+  const qty = item.stock_on_hand;
+  if (qty <= 0) return 'out';
+  if (item.min_threshold != null && qty <= item.min_threshold) return 'critical';
+  if (item.reorder_level != null && qty <= item.reorder_level) return 'low';
+  return 'ok';
+}
+
+const STOCK_TAG: Record<Exclude<StockLevel, 'ok'>, { label: string; className: string }> = {
+  out:      { label: 'Out',      className: 'bg-rose-100 text-rose-700' },
+  critical: { label: 'Critical', className: 'bg-rose-50 text-rose-700' },
+  low:      { label: 'Low',      className: 'bg-amber-50 text-amber-700' },
+};
+
+function StockCell({ item }: { item: InventoryItem }) {
+  const level = stockLevel(item);
+  const tag = level === 'ok' ? null : STOCK_TAG[level];
+  return (
+    <div className="flex items-center justify-end gap-2">
+      <span
+        className={`tabular-nums ${
+          level === 'out' || level === 'critical'
+            ? 'text-rose-700 font-semibold'
+            : level === 'low'
+              ? 'text-amber-700 font-semibold'
+              : 'text-text-dark'
+        }`}
+      >
+        {item.stock_on_hand.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+        {item.base_unit?.symbol ? ` ${item.base_unit.symbol}` : ''}
+      </span>
+      {tag && (
+        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${tag.className}`}>
+          {tag.label}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InventoryItemsPage() {
+  const router = useRouter();
   const [isAddOpen,   setIsAddOpen]   = useState(false);
+  const [isUseOpen,   setIsUseOpen]   = useState(false);
   const [search,      setSearch]      = useState('');
   const [categoryId,  setCategoryId]  = useState('');
   const [storageType, setStorageType] = useState('');
   const [status,      setStatus]      = useState('');
+  const [stockFilter, setStockFilter] = useState('');
 
   const { data: items = [], isLoading } = useInventoryItems({
     search:       search || undefined,
@@ -206,6 +428,18 @@ export default function InventoryItemsPage() {
   });
 
   const { data: categories = [] } = useInventoryCategories();
+
+  // Reorder/stock filter is client-side — the catalog endpoint returns the full set.
+  const visibleItems = useMemo(() => {
+    if (!stockFilter) return items;
+    return items.filter((i) => {
+      const level = stockLevel(i);
+      if (stockFilter === 'reorder') return level !== 'ok';
+      if (stockFilter === 'out')     return level === 'out';
+      if (stockFilter === 'in')      return level === 'ok';
+      return true;
+    });
+  }, [items, stockFilter]);
 
   const columns: DataTableColumn<InventoryItem>[] = [
     {
@@ -229,13 +463,6 @@ export default function InventoryItemsPage() {
       cell: (i) => i.category?.name ?? <span className="text-neutral-gray/60">—</span>,
     },
     {
-      key: 'supplier',
-      header: 'Supplier',
-      hideBelow: 'lg',
-      sortValue: (i) => i.default_supplier?.name ?? '',
-      cell: (i) => i.default_supplier?.name ?? <span className="text-neutral-gray/60">—</span>,
-    },
-    {
       key: 'storage',
       header: 'Storage',
       hideBelow: 'md',
@@ -243,14 +470,11 @@ export default function InventoryItemsPage() {
       cell: (i) => <span className="capitalize">{i.storage_type}</span>,
     },
     {
-      key: 'cost',
-      header: 'Cost/Unit',
+      key: 'stock',
+      header: 'On hand',
       align: 'right',
-      hideBelow: 'lg',
-      sortValue: (i) => i.weighted_avg_cost,
-      cell: (i) => (
-        <span className="tabular-nums">GH₵ {i.weighted_avg_cost.toFixed(2)}</span>
-      ),
+      sortValue: (i) => i.stock_on_hand,
+      cell: (i) => <StockCell item={i} />,
     },
   ];
 
@@ -276,6 +500,16 @@ export default function InventoryItemsPage() {
           ]}
         />
         <FilterSelect
+          value={stockFilter}
+          onChange={setStockFilter}
+          placeholder="All Stock"
+          options={[
+            { value: 'reorder', label: 'Needs reorder' },
+            { value: 'out',     label: 'Out of stock'  },
+            { value: 'in',      label: 'In stock'      },
+          ]}
+        />
+        <FilterSelect
           value={status}
           onChange={setStatus}
           placeholder="All Status"
@@ -285,8 +519,15 @@ export default function InventoryItemsPage() {
           ]}
         />
         <button
+          onClick={() => setIsUseOpen(true)}
+          className="ml-auto flex items-center gap-2 bg-neutral-light text-text-dark border border-[#f0e8d8] px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-neutral-light/70 transition-colors min-h-11 cursor-pointer shadow-sm"
+        >
+          <MinusCircleIcon size={16} weight="bold" />
+          Use stock
+        </button>
+        <button
           onClick={() => setIsAddOpen(true)}
-          className="ml-auto flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
+          className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
         >
           <PlusIcon size={16} weight="bold" />
           Add Item
@@ -294,9 +535,10 @@ export default function InventoryItemsPage() {
       </FilterBar>
 
       <DataTable<InventoryItem>
-        data={items}
+        data={visibleItems}
         columns={columns}
         rowKey={(i) => i.id}
+        onRowClick={(i) => router.push(`/inventory/catalog/items/${i.id}`)}
         defaultSortKey="name"
         isLoading={isLoading}
         pageSize={10}
@@ -325,6 +567,15 @@ export default function InventoryItemsPage() {
         size="lg"
       >
         <AddItemForm onClose={() => setIsAddOpen(false)} />
+      </InventoryModal>
+
+      <InventoryModal
+        isOpen={isUseOpen}
+        onClose={() => setIsUseOpen(false)}
+        title="Use stock — mother kitchen"
+        size="lg"
+      >
+        <RecordConsumptionForm onClose={() => setIsUseOpen(false)} />
       </InventoryModal>
     </>
   );

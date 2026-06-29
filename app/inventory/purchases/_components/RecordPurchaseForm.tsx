@@ -52,16 +52,29 @@ interface LineDraft {
   tempId: string;
   item_id: number | '';
   purchase_order_item_id: number | null;
+  /** Outstanding qty from the PO line at receipt time. Null for urgent buys. */
+  ordered_qty: number | null;
+  /** PO line's estimated unit cost — the baseline for cost deviation. Null for urgent buys. */
+  expected_unit_cost: number | null;
   received_qty: string;
+  variance_reason: string;
   unit_cost_paid: string;
 }
 
+// Deterministic, monotonic line ids — Math.random() here caused SSR/client
+// hydration mismatches on the generated htmlFor/id attributes.
+let lineSeq = 0;
+
 function emptyLine(): LineDraft {
+  lineSeq += 1;
   return {
-    tempId: `tmp-${Math.random().toString(36).slice(2, 9)}`,
+    tempId: `rp-line-${lineSeq}`,
     item_id: '',
     purchase_order_item_id: null,
+    ordered_qty: null,
+    expected_unit_cost: null,
     received_qty: '',
+    variance_reason: '',
     unit_cost_paid: '',
   };
 }
@@ -93,12 +106,13 @@ export function RecordPurchaseForm() {
   const [mode, setMode]                       = useState<Mode>('against_po');
   const [poId, setPoId]                       = useState<string>('');
   const [supplierId, setSupplierId]           = useState<string>('');
+  const [vendorName, setVendorName]           = useState<string>('');
   const [destinationId, setDestinationId]     = useState<string>('');
   const [urgentReason, setUrgentReason]       = useState<string>('');
   const [invoiceNumber, setInvoiceNumber]     = useState<string>('');
   const [receivedAt, setReceivedAt]           = useState<string>(nowLocalDateTime());
   const [notes, setNotes]                     = useState<string>('');
-  const [lines, setLines]                     = useState<LineDraft[]>([emptyLine()]);
+  const [lines, setLines]                     = useState<LineDraft[]>(() => [emptyLine()]);
 
   const selectedPO: PurchaseOrder | undefined =
     mode === 'against_po' && poId
@@ -117,7 +131,10 @@ export function RecordPurchaseForm() {
           tempId: `po-${line.id}`,
           item_id: line.item_id,
           purchase_order_item_id: line.id,
+          ordered_qty: remaining,
+          expected_unit_cost: line.estimated_unit_cost,
           received_qty: remaining > 0 ? String(remaining) : '',
+          variance_reason: '',
           unit_cost_paid: String(line.estimated_unit_cost),
         };
       }),
@@ -129,6 +146,7 @@ export function RecordPurchaseForm() {
     setMode(next);
     setPoId('');
     setSupplierId('');
+    setVendorName('');
     setDestinationId('');
     setLines([emptyLine()]);
   };
@@ -183,13 +201,17 @@ export function RecordPurchaseForm() {
     const itemsPayload: RecordPurchaseItemPayload[] = validLines.map((l) => ({
       item_id: Number(l.item_id),
       purchase_order_item_id: l.purchase_order_item_id ?? undefined,
+      ordered_qty: l.ordered_qty ?? undefined,
+      expected_unit_cost: l.expected_unit_cost ?? undefined,
       received_qty: Number(l.received_qty),
+      variance_reason: l.variance_reason.trim() || undefined,
       unit_cost_paid: Number(l.unit_cost_paid),
     }));
 
     const payload: RecordPurchasePayload = {
       purchase_order_id: mode === 'against_po' ? Number(poId) : undefined,
       supplier_id: Number(supplierId),
+      supplier_name: mode === 'urgent_buy' ? vendorName.trim() || undefined : undefined,
       destination_location_id: Number(destinationId),
       is_urgent_buy: mode === 'urgent_buy',
       urgent_buy_reason: mode === 'urgent_buy' ? urgentReason.trim() : undefined,
@@ -280,7 +302,7 @@ export function RecordPurchaseForm() {
 
         {/* ── Urgent reason (urgent_buy only) ────────────────────────── */}
         {mode === 'urgent_buy' && (
-          <section className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
+          <section className="bg-amber-50 border border-amber-100 rounded-2xl p-5 flex flex-col gap-4">
             <FormField
               label="Reason for urgent buy"
               htmlFor="rp-urgent"
@@ -294,6 +316,18 @@ export function RecordPurchaseForm() {
                 placeholder="e.g. Mid-service tomato shortage; nearest PO supplier closed"
                 rows={2}
                 required
+              />
+            </FormField>
+            <FormField
+              label="Vendor name (if not a listed supplier)"
+              htmlFor="rp-vendor"
+              hint="For open-market or cash buys, pick the “Market / Cash Purchase” supplier above and name the actual vendor here."
+            >
+              <TextInput
+                id="rp-vendor"
+                value={vendorName}
+                onChange={(e) => setVendorName(e.target.value)}
+                placeholder="e.g. Madina Market — Auntie Akos (vegetables)"
               />
             </FormField>
           </section>
@@ -404,11 +438,28 @@ export function RecordPurchaseForm() {
                 Number(line.received_qty || 0) * Number(line.unit_cost_paid || 0);
               const selectedItem = items.find((i) => i.id === Number(line.item_id));
               const itemLocked = mode === 'against_po' && !!selectedPO;
+              const unitSym = selectedItem?.base_unit.symbol ?? '';
+              // Deviation vs the PO line (only meaningful against a PO).
+              const hasExpected = line.ordered_qty != null;
+              const variance = hasExpected
+                ? Number(line.received_qty || 0) - (line.ordered_qty as number)
+                : 0;
+              const hasDeviation = hasExpected && Number(line.received_qty || 0) > 0 && variance !== 0;
+              // Cost deviation vs the PO line's estimated unit cost.
+              const hasExpectedCost = line.expected_unit_cost != null;
+              const paidEntered =
+                line.unit_cost_paid !== '' && !Number.isNaN(Number(line.unit_cost_paid));
+              const costVariance = hasExpectedCost
+                ? Number(line.unit_cost_paid || 0) - (line.expected_unit_cost as number)
+                : 0;
+              const hasCostDeviation =
+                hasExpectedCost && paidEntered && Math.abs(costVariance) > 0.0001;
               return (
                 <div
                   key={line.tempId}
-                  className="grid grid-cols-[1fr_auto] sm:grid-cols-[2fr_1fr_1fr_auto_auto] gap-3 items-end p-3 bg-neutral-light/40 border border-[#f0e8d8] rounded-xl"
+                  className="flex flex-col gap-2 p-3 bg-neutral-light/40 border border-[#f0e8d8] rounded-xl"
                 >
+                <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[2fr_1fr_1fr_auto_auto] gap-3 items-end">
                   <FormField label={idx === 0 ? 'Item' : ''} htmlFor={`rp-item-${line.tempId}`}>
                     <Select
                       id={`rp-item-${line.tempId}`}
@@ -486,6 +537,77 @@ export function RecordPurchaseForm() {
                   >
                     <TrashIcon size={16} weight="bold" />
                   </button>
+                </div>
+
+                {/* Variance vs PO (qty + cost) + deviation reason (against-PO lines only) */}
+                {hasExpected && (
+                  <div className="flex flex-col gap-2 border-t border-[#f0e8d8] pt-2">
+                    <div className="flex items-center gap-2 flex-wrap text-xs font-body">
+                      {/* Quantity */}
+                      <span className="text-neutral-gray">
+                        Exp. qty{' '}
+                        <span className="text-text-dark font-semibold tabular-nums">
+                          {line.ordered_qty} {unitSym}
+                        </span>
+                      </span>
+                      {hasDeviation ? (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold ${
+                            variance < 0
+                              ? 'bg-rose-50 text-rose-700'
+                              : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          {variance < 0 ? 'Deficit' : 'Surplus'} {Math.abs(variance)} {unitSym}
+                        </span>
+                      ) : (
+                        Number(line.received_qty || 0) > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-700">
+                            Qty OK
+                          </span>
+                        )
+                      )}
+
+                      <span className="text-neutral-gray/40">·</span>
+
+                      {/* Cost */}
+                      <span className="text-neutral-gray">
+                        Est. cost{' '}
+                        <span className="text-text-dark font-semibold tabular-nums">
+                          {hasExpectedCost ? formatGHS(line.expected_unit_cost as number) : '—'}
+                        </span>
+                      </span>
+                      {hasCostDeviation ? (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold ${
+                            costVariance > 0
+                              ? 'bg-rose-50 text-rose-700'
+                              : 'bg-emerald-50 text-emerald-700'
+                          }`}
+                        >
+                          {costVariance > 0 ? 'Overpaid' : 'Underpaid'} {formatGHS(Math.abs(costVariance))}/unit
+                        </span>
+                      ) : (
+                        hasExpectedCost && paidEntered && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-700">
+                            Cost OK
+                          </span>
+                        )
+                      )}
+                    </div>
+                    <TextInput
+                      id={`rp-reason-${line.tempId}`}
+                      value={line.variance_reason}
+                      onChange={(e) => updateLine(line.tempId, { variance_reason: e.target.value })}
+                      placeholder={
+                        hasDeviation || hasCostDeviation
+                          ? 'Reason for the deviation (e.g. supplier short, price hike, quality reject)'
+                          : 'Reason for any deviation (optional)'
+                      }
+                      className={hasDeviation || hasCostDeviation ? 'border-amber-300 bg-amber-50/40' : undefined}
+                    />
+                  </div>
+                )}
                 </div>
               );
             })}

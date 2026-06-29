@@ -51,14 +51,16 @@ import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 // ─── Display helpers ──────────────────────────────────────────────────────────
 
 const ROLE_COLORS: Record<StaffRole, string> = {
-    tech_admin:     'text-primary',
-    admin:          'text-primary',
-    branch_partner: 'text-purple-600',
-    manager:        'text-secondary',
-    call_center:    'text-info',
-    sales_staff:    'text-neutral-gray',
-    kitchen:        'text-warning',
-    rider:          'text-secondary',
+    tech_admin:        'text-primary',
+    admin:             'text-primary',
+    branch_partner:    'text-purple-600',
+    manager:           'text-secondary',
+    call_center:       'text-info',
+    sales_staff:       'text-neutral-gray',
+    kitchen:           'text-warning',
+    rider:             'text-secondary',
+    warehouse_manager: 'text-info',
+    purchasing_clerk:  'text-purple-600',
 };
 
 function initials(name?: string | null) {
@@ -645,6 +647,8 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
             'sales_staff': 'sales_staff',
             'kitchen': 'kitchen',
             'rider': 'rider',
+            'warehouse_manager': 'warehouse_manager',
+            'purchasing_clerk': 'purchasing_clerk',
         };
         return mapping[staffRole] ?? 'sales_staff';
     };

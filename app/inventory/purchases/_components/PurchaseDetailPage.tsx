@@ -74,7 +74,12 @@ export function PurchaseDetailPage({ id }: { id: number }) {
 
       {/* Meta cards */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        <MetaCard icon={<TruckIcon size={16} />} label="Supplier" value={purchase.supplier.name} hint={purchase.supplier.code} />
+        <MetaCard
+          icon={<TruckIcon size={16} />}
+          label="Supplier"
+          value={purchase.supplier_name ?? purchase.supplier.name}
+          hint={purchase.supplier_name ? `via ${purchase.supplier.name}` : purchase.supplier.code}
+        />
         <MetaCard icon={<MapPinIcon size={16} />} label="Destination" value={purchase.destination_location.name} />
         <MetaCard
           icon={<CalendarIcon size={16} />}
@@ -150,29 +155,70 @@ function ItemsTable({ items }: { items: PurchaseItem[] }) {
         <thead>
           <tr className="text-left bg-neutral-light/60 text-[11px] font-semibold uppercase tracking-wider text-neutral-gray">
             <th className="px-5 py-2.5">Item</th>
+            <th className="px-5 py-2.5 text-right">Ordered</th>
             <th className="px-5 py-2.5 text-right">Received</th>
-            <th className="px-5 py-2.5 text-right">Unit cost paid</th>
+            <th className="px-5 py-2.5 text-right">Qty var</th>
+            <th className="px-5 py-2.5 text-right">Est. cost</th>
+            <th className="px-5 py-2.5 text-right">Paid</th>
+            <th className="px-5 py-2.5 text-right">Cost var</th>
             <th className="px-5 py-2.5 text-right">Line total</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#f0e8d8]">
-          {items.map((line) => (
-            <tr key={line.id}>
-              <td className="px-5 py-3">
-                <p className="text-text-dark font-medium">{line.item.name}</p>
-                <p className="text-neutral-gray text-[11px] font-mono mt-0.5">{line.item.sku}</p>
-              </td>
-              <td className="px-5 py-3 text-right tabular-nums text-text-dark">
-                {line.received_qty} {line.unit.symbol}
-              </td>
-              <td className="px-5 py-3 text-right tabular-nums text-text-dark">
-                {formatGHS(line.unit_cost_paid)}
-              </td>
-              <td className="px-5 py-3 text-right tabular-nums text-text-dark font-semibold">
-                {formatGHS(line.line_total)}
-              </td>
-            </tr>
-          ))}
+          {items.map((line) => {
+            const variance = line.variance;
+            const costVar = line.cost_variance;
+            return (
+              <tr key={line.id}>
+                <td className="px-5 py-3">
+                  <p className="text-text-dark font-medium">{line.item.name}</p>
+                  <p className="text-neutral-gray text-[11px] font-mono mt-0.5">{line.item.sku}</p>
+                  {line.variance_reason && (
+                    <p className="text-amber-700 text-[11px] font-body mt-1 max-w-md">
+                      ⚠ {line.variance_reason}
+                    </p>
+                  )}
+                </td>
+                <td className="px-5 py-3 text-right tabular-nums text-neutral-gray">
+                  {line.ordered_qty != null ? `${line.ordered_qty} ${line.unit.symbol}` : '—'}
+                </td>
+                <td className="px-5 py-3 text-right tabular-nums text-text-dark">
+                  {line.received_qty} {line.unit.symbol}
+                </td>
+                <td className="px-5 py-3 text-right tabular-nums">
+                  {variance == null ? (
+                    <span className="text-neutral-gray">—</span>
+                  ) : variance === 0 ? (
+                    <span className="text-emerald-700 font-semibold">0</span>
+                  ) : (
+                    <span className={variance < 0 ? 'text-rose-700 font-semibold' : 'text-amber-700 font-semibold'}>
+                      {variance > 0 ? '+' : ''}{variance} {line.unit.symbol}
+                    </span>
+                  )}
+                </td>
+                <td className="px-5 py-3 text-right tabular-nums text-neutral-gray">
+                  {line.expected_unit_cost != null ? formatGHS(line.expected_unit_cost) : '—'}
+                </td>
+                <td className="px-5 py-3 text-right tabular-nums text-text-dark">
+                  {formatGHS(line.unit_cost_paid)}
+                </td>
+                <td className="px-5 py-3 text-right tabular-nums">
+                  {costVar == null ? (
+                    <span className="text-neutral-gray">—</span>
+                  ) : Math.abs(costVar) < 0.0001 ? (
+                    <span className="text-emerald-700 font-semibold">0</span>
+                  ) : (
+                    <span className={costVar > 0 ? 'text-rose-700 font-semibold' : 'text-emerald-700 font-semibold'}>
+                      {costVar > 0 ? '+' : '−'}{formatGHS(Math.abs(costVar))}
+                    </span>
+                  )}
+                </td>
+                <td className="px-5 py-3 text-right tabular-nums text-text-dark font-semibold">
+                  {formatGHS(line.line_total)}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
