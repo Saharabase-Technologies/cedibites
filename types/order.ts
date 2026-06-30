@@ -97,6 +97,9 @@ export interface Order {
     items: OrderItem[];
     subtotal: number;
     deliveryFee: number;
+    // Third-party delivery fee is collected by the rider on delivery, separate
+    // from the goods payment. Tracks that collection state (undefined = unknown).
+    deliveryFeeStatus?: 'not_applicable' | 'pending' | 'collected';
     discount: number;
     promoCode?: string;
     tax: number;

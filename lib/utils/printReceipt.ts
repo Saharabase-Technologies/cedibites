@@ -90,10 +90,18 @@ function receiptHTML(order: Order, branch: ReceiptBranch, kind: ReceiptKind): st
     ? `<tr><td colspan="3">Delivery Fee</td><td class="amount">${deliveryFee.toFixed(2)}</td></tr>`
     : '';
 
-  const grandTotalLabel = hasDelivery ? 'AMOUNT DUE' : 'TOTAL';
+  const grandTotalLabel = hasDelivery ? 'ORDER TOTAL' : 'TOTAL';
 
+  // With a delivery fee, the restaurant collects the goods only; the rider
+  // collects the delivery fee on delivery — shown so the customer knows exactly
+  // what they pay each party.
+  const paidLabel = hasDelivery ? 'Paid (goods)' : 'Amount Paid';
   const amountPaidRow = amountPaid != null
-    ? `<tr><td colspan="3">Amount Paid</td><td class="amount">${amountPaid.toFixed(2)}</td></tr>`
+    ? `<tr><td colspan="3">${paidLabel}</td><td class="amount">${amountPaid.toFixed(2)}</td></tr>`
+    : '';
+
+  const riderRow = hasDelivery
+    ? `<tr><td colspan="3">${order.deliveryFeeStatus === 'collected' ? 'Paid to rider' : 'Due to rider'}</td><td class="amount">${deliveryFee.toFixed(2)}</td></tr>`
     : '';
 
   const changeRow = change > 0
@@ -229,6 +237,7 @@ function receiptHTML(order: Order, branch: ReceiptBranch, kind: ReceiptKind): st
       <td class="amount">${total.toFixed(2)}</td>
     </tr>
     ${amountPaidRow}
+    ${riderRow}
     ${changeRow}
   </table>
 
