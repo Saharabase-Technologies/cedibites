@@ -19,6 +19,7 @@ import PeriodFilter, { PERIOD_LABELS, type CustomRange } from '@/app/components/
 import {
     CalendarIcon,
     CurrencyCircleDollarIcon,
+    TruckIcon,
     ReceiptIcon,
     TrendUpIcon,
     UsersIcon,
@@ -1572,7 +1573,8 @@ export default function AdminAnalyticsPage() {
 
             {/* KPI row */}
             <div className="flex flex-wrap gap-3 mb-5">
-                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue" value={isLoading ? '…' : formatGHS(sales?.total_sales ?? 0)} accent />
+                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue" value={isLoading ? '…' : formatGHS(sales?.total_sales ?? 0)} sub="Goods only" accent />
+                <KpiCard icon={TruckIcon} label="Delivery Fees" value={isLoading ? '…' : formatGHS(sales?.delivery_fees ?? 0)} sub="Paid to 3rd-party riders" />
                 <KpiCard icon={ReceiptIcon} label="Orders" value={isLoading ? '…' : String(sales?.total_orders ?? orders?.total_orders ?? 0)} />
                 <KpiCard icon={TrendUpIcon} label="Avg. Order" value={isLoading ? '…' : formatGHS(sales?.average_order_value ?? 0)} />
                 {/* <KpiCard icon={UsersIcon} label="New Customers" value={isLoading ? '…' : String(customers?.new_customers_30_days ?? 0)} /> */}

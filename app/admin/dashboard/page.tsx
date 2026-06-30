@@ -154,7 +154,8 @@ export default function AdminDashboardPage() {
         const cancelledToday = todayOrders.filter(o => o.status === 'cancelled');
         const activeStatuses = new Set(['received', 'accepted', 'preparing', 'ready', 'out_for_delivery', 'ready_for_pickup']);
         return {
-            revenueToday: todayOrders.filter(o => o.status !== 'cancelled' && o.paymentMethod !== 'no_charge').reduce((s, o) => s + o.total, 0),
+            // Revenue = value of goods only; third-party delivery fees are excluded (pass-through to riders).
+            revenueToday: todayOrders.filter(o => o.status !== 'cancelled' && o.paymentMethod !== 'no_charge').reduce((s, o) => s + (o.total - (o.deliveryFee ?? 0)), 0),
             ordersToday: todayOrders.length,
             activeOrders: todayOrders.filter(o => activeStatuses.has(o.status)).length,
             cancelledToday: cancelledToday.length,

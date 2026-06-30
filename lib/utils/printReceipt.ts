@@ -70,13 +70,27 @@ function receiptHTML(order: Order, branch: ReceiptBranch, kind: ReceiptKind): st
   const amountPaid = order.amountPaid;
   const change = amountPaid != null && amountPaid > total ? amountPaid - total : 0;
 
-  const deliveryRow = deliveryFee > 0
-    ? `<tr><td colspan="3">Delivery Fee</td><td class="amount">${deliveryFee.toFixed(2)}</td></tr>`
-    : '';
+  // Value of goods purchased (restaurant revenue) — never includes the delivery fee.
+  const goodsTotal = subtotal - discount;
+  // Third-party delivery is a pass-through: shown to the customer, but kept distinct
+  // from the goods total so the rider fee is never mistaken for restaurant revenue.
+  const hasDelivery = deliveryFee > 0;
 
   const discountRow = discount > 0
     ? `<tr><td colspan="3">Discount</td><td class="amount">-${discount.toFixed(2)}</td></tr>`
     : '';
+
+  // When a delivery fee applies, the goods total is broken out explicitly and the
+  // grand total is labelled "Amount Due"; otherwise a single "Total" line suffices.
+  const goodsTotalRow = hasDelivery
+    ? `<tr class="bold"><td colspan="3">GOODS TOTAL</td><td class="amount">${goodsTotal.toFixed(2)}</td></tr>`
+    : '';
+
+  const deliveryRow = hasDelivery
+    ? `<tr><td colspan="3">Delivery Fee</td><td class="amount">${deliveryFee.toFixed(2)}</td></tr>`
+    : '';
+
+  const grandTotalLabel = hasDelivery ? 'AMOUNT DUE' : 'TOTAL';
 
   const amountPaidRow = amountPaid != null
     ? `<tr><td colspan="3">Amount Paid</td><td class="amount">${amountPaid.toFixed(2)}</td></tr>`
@@ -207,10 +221,11 @@ function receiptHTML(order: Order, branch: ReceiptBranch, kind: ReceiptKind): st
       <td colspan="3">Subtotal</td>
       <td class="amount">${subtotal.toFixed(2)}</td>
     </tr>
-    ${deliveryRow}
     ${discountRow}
+    ${goodsTotalRow}
+    ${deliveryRow}
     <tr class="grand-total">
-      <td colspan="3">TOTAL</td>
+      <td colspan="3">${grandTotalLabel}</td>
       <td class="amount">${total.toFixed(2)}</td>
     </tr>
     ${amountPaidRow}

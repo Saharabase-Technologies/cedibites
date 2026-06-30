@@ -28,6 +28,8 @@ export interface AdminOrder {
   assignedEmployee?: string;
   source: OrderSource;
   items: AdminOrderItem[];
+  subtotal: number;
+  deliveryFee: number;
   amount: number;
   amountPaid: number;
   payment: PaymentMethod;
@@ -205,6 +207,8 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
   });
 
   const amount = Number(api.total_amount ?? api.subtotal ?? 0);
+  const subtotal = Number(api.subtotal ?? 0);
+  const deliveryFee = Number(api.delivery_fee ?? 0);
   const amountPaid = Number(primaryPayment?.amount ?? 0);
   const orderSource = (api.order_source ?? 'online').toLowerCase().replace(/\s+/g, '_');
   const source = (SOURCE_MAP[orderSource] ?? 'Online') as OrderSource;
@@ -227,6 +231,8 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
     assignedEmployee: (api as { assigned_employee?: { name?: string } }).assigned_employee?.name,
     source,
     items,
+    subtotal,
+    deliveryFee,
     amount,
     amountPaid,
     payment,

@@ -59,13 +59,17 @@ export default function MySalesView() {
     const activeOrders = useMemo(() => myOrders.filter(o => o.status !== 'cancelled'), [myOrders]);
     const cancelledOrders = useMemo(() => myOrders.filter(o => o.status === 'cancelled'), [myOrders]);
     const completedOrders = useMemo(() => myOrders.filter(o => o.status === 'completed' || o.status === 'delivered'), [myOrders]);
-    const totalRevenue = useMemo(() => activeOrders.filter(o => o.paymentMethod !== 'no_charge').reduce((s, o) => s + o.total, 0), [activeOrders]);
+    // Restaurant revenue = value of goods only. Third-party delivery fees are a
+    // pass-through to riders and are never counted as revenue.
+    const goodsRevenue = (o: Order) => o.total - (o.deliveryFee ?? 0);
+    const totalRevenue = useMemo(() => activeOrders.filter(o => o.paymentMethod !== 'no_charge').reduce((s, o) => s + goodsRevenue(o), 0), [activeOrders]);
+    const deliveryFeesCollected = useMemo(() => activeOrders.filter(o => o.paymentMethod !== 'no_charge').reduce((s, o) => s + (o.deliveryFee ?? 0), 0), [activeOrders]);
 
-    // Revenue breakdown by payment method
+    // Revenue breakdown by payment method (goods only, consistent with revenue above)
     const paymentBreakdown = useMemo(() => {
         const map: Record<string, number> = {};
         activeOrders.forEach(o => {
-            map[o.paymentMethod] = (map[o.paymentMethod] ?? 0) + o.total;
+            map[o.paymentMethod] = (map[o.paymentMethod] ?? 0) + goodsRevenue(o);
         });
         return map;
     }, [activeOrders]);
@@ -122,7 +126,7 @@ export default function MySalesView() {
                         icon={CurrencyCircleDollarIcon}
                         label="Revenue Generated"
                         value={formatGHS(totalRevenue)}
-                        sub="Excl. cancelled"
+                        sub={deliveryFeesCollected > 0 ? `Goods only · ${formatGHS(deliveryFeesCollected)} delivery (3rd-party)` : 'Goods only · excl. cancelled'}
                         accent="text-text-light dark:text-text-light/75"
                     />
                     <StatCard

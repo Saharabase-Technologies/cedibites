@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import {
     ChartBarIcon,
     CurrencyCircleDollarIcon,
+    TruckIcon,
     ReceiptIcon,
     TrendUpIcon,
     XCircleIcon,
@@ -57,10 +58,10 @@ const PERIOD_SCALE: Record<Period, number> = { today: 1 / 7, week: 1, month: 4.2
 
 // ─── KPI card ─────────────────────────────────────────────────────────────────
 
-function KpiCard({ icon: Icon, label, value, trend, accent = false }: {
-    icon: React.ElementType; label: string; value: string; trend: number; accent?: boolean;
+function KpiCard({ icon: Icon, label, value, trend, sub, accent = false }: {
+    icon: React.ElementType; label: string; value: string; trend?: number; sub?: string; accent?: boolean;
 }) {
-    const up = trend >= 0;
+    const up = (trend ?? 0) >= 0;
     return (
         <div className={`rounded-2xl px-5 py-4 flex flex-col gap-2 ${accent ? 'bg-primary' : 'bg-neutral-card border border-[#f0e8d8]'}`}>
             <div className="flex items-center gap-2">
@@ -68,15 +69,18 @@ function KpiCard({ icon: Icon, label, value, trend, accent = false }: {
                 <span className={`text-[10px] font-bold font-body uppercase tracking-widest ${accent ? 'text-white/80' : 'text-neutral-gray'}`}>{label}</span>
             </div>
             <p className={`text-2xl font-bold font-body leading-none ${accent ? 'text-white' : 'text-text-dark'}`}>{value}</p>
-            <div className="flex items-center gap-1">
-                {up
-                    ? <ArrowUpIcon size={11} weight="bold" className={accent ? 'text-white/70' : 'text-secondary'} />
-                    : <ArrowDownIcon size={11} weight="bold" className={accent ? 'text-white/70' : 'text-error'} />
-                }
-                <span className={`text-xs font-semibold font-body ${accent ? 'text-white/80' : up ? 'text-secondary' : 'text-error'}`}>
-                    {Math.abs(trend)}% vs last {trend === 0 ? '' : 'period'}
-                </span>
-            </div>
+            {sub && <p className={`text-xs font-body ${accent ? 'text-white/70' : 'text-neutral-gray'}`}>{sub}</p>}
+            {trend !== undefined && (
+                <div className="flex items-center gap-1">
+                    {up
+                        ? <ArrowUpIcon size={11} weight="bold" className={accent ? 'text-white/70' : 'text-secondary'} />
+                        : <ArrowDownIcon size={11} weight="bold" className={accent ? 'text-white/70' : 'text-error'} />
+                    }
+                    <span className={`text-xs font-semibold font-body ${accent ? 'text-white/80' : up ? 'text-secondary' : 'text-error'}`}>
+                        {Math.abs(trend)}% vs last {trend === 0 ? '' : 'period'}
+                    </span>
+                </div>
+            )}
         </div>
     );
 }
@@ -202,6 +206,7 @@ export default function PartnerAnalyticsPage() {
 
     const weekRevTotal = revenueData.reduce((a, b) => a + b, 0);
     const kpiRevenue = isLoading ? '…' : formatPrice(sales?.total_sales ?? Math.round(weekRevTotal * scale));
+    const kpiDeliveryFees = isLoading ? '…' : formatPrice(sales?.delivery_fees ?? 0);
     const kpiOrders = isLoading ? '…' : String(sales?.total_orders ?? Math.round(42 * scale));
     const kpiCompleted = isLoading ? '…' : String(Math.round((sales?.total_orders ?? 38) * 0.9 * scale));
     const kpiCancelled = isLoading ? '…' : String(Math.round(3 * scale));
@@ -234,8 +239,9 @@ export default function PartnerAnalyticsPage() {
             </div>
 
             {/* KPIs */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue"   value={kpiRevenue}   trend={+14} accent />
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue"   value={kpiRevenue}   trend={+14} sub="Goods only" accent />
+                <KpiCard icon={TruckIcon}                label="Delivery Fees" value={kpiDeliveryFees} sub="Paid to 3rd-party riders" />
                 <KpiCard icon={ReceiptIcon}              label="Orders"    value={kpiOrders}    trend={+8} />
                 <KpiCard icon={TrendUpIcon}              label="Completed" value={kpiCompleted} trend={+6} />
                 <KpiCard icon={XCircleIcon}              label="Cancelled" value={kpiCancelled} trend={-2} />

@@ -48,6 +48,7 @@ export interface SalesByType {
 
 export interface SalesAnalytics {
   total_sales: number;
+  delivery_fees: number; // third-party rider pass-through, excluded from revenue
   total_orders: number;
   completed_orders: number;
   cancelled_orders: number;
@@ -147,6 +148,7 @@ export interface DeliveryPickupAnalytics {
   pickup_pct: number;
   delivery_revenue: number;
   pickup_revenue: number;
+  delivery_fees: number; // third-party rider pass-through, excluded from revenue
   types?: OrderTypeSplit[];
 }
 

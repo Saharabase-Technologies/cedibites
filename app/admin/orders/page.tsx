@@ -327,6 +327,18 @@ function OrderDetailPanel({
                                     {order.paymentStatus === 'no_charge' ? 'No Charge' : order.paymentStatus}
                                 </span>
                             </div>
+                            {order.deliveryFee > 0 && (
+                                <>
+                                    <div className="flex justify-between">
+                                        <span className="text-neutral-gray text-xs font-body">Goods Total</span>
+                                        <span className="text-text-dark text-xs font-semibold font-body">{formatGHS(order.amount - order.deliveryFee)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-neutral-gray text-xs font-body">Delivery Fee</span>
+                                        <span className="text-text-dark text-xs font-semibold font-body">{formatGHS(order.deliveryFee)}</span>
+                                    </div>
+                                </>
+                            )}
                             <div className="flex justify-between">
                                 <span className="text-neutral-gray text-xs font-body">Order Total</span>
                                 <span className="text-text-dark text-xs font-semibold font-body">{formatGHS(order.amount)}</span>

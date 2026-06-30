@@ -66,9 +66,9 @@ function SectionHeader({ title, sub }: { title: string; sub?: string }) {
 // ─── KPI stat card ────────────────────────────────────────────────────────────
 
 function KpiCard({
-    label, value, trend, trendLabel, accent = false,
+    label, value, trend, trendLabel, sub, accent = false,
 }: {
-    label: string; value: string; trend?: number; trendLabel?: string; accent?: boolean;
+    label: string; value: string; trend?: number; trendLabel?: string; sub?: string; accent?: boolean;
 }) {
     const up = (trend ?? 0) >= 0;
     return (
@@ -79,6 +79,11 @@ function KpiCard({
             <span className={`text-2xl font-bold font-body leading-none ${accent ? 'text-brand-darker' : 'text-text-dark'}`}>
                 {value}
             </span>
+            {sub && (
+                <span className={`text-xs font-body ${accent ? 'text-brand-darker/60' : 'text-neutral-gray'}`}>
+                    {sub}
+                </span>
+            )}
             {trend !== undefined && (
                 <div className="flex items-center gap-1 mt-0.5">
                     {up
@@ -772,6 +777,7 @@ export default function ManagerAnalyticsPage() {
 
     // KPI values from selected period
     const periodRevenue = periodSales?.total_sales ?? 0;
+    const periodDeliveryFees = periodSales?.delivery_fees ?? 0;
     const prevRevenue = prevSales?.total_sales ?? 0;
     const revTrend = prevRevenue > 0 ? Math.round(((periodRevenue - prevRevenue) / prevRevenue) * 100) : 0;
     const periodOrderCount = periodOrders?.total_orders ?? periodSales?.total_orders ?? 0;
@@ -987,7 +993,13 @@ export default function ManagerAnalyticsPage() {
                     value={formatGHS(periodRevenue)}
                     trend={revTrend}
                     trendLabel="vs previous period"
+                    sub="Goods only"
                     accent
+                />
+                <KpiCard
+                    label="Delivery Fees"
+                    value={formatGHS(periodDeliveryFees)}
+                    sub="Paid to 3rd-party riders"
                 />
                 <KpiCard
                     label={`Orders · ${periodLabel}`}

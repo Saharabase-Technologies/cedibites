@@ -2,6 +2,7 @@ import apiClient from '../client';
 
 export interface DashboardKpis {
   revenue_today: number;
+  delivery_fees_today?: number; // third-party rider pass-through, excluded from revenue
   orders_today: number;
   active_orders: number;
   cancelled_today: number;
