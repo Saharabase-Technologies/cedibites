@@ -598,8 +598,8 @@ export default function PartnerAnalyticsPage() {
 
             {/* KPI row */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
-                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue" value={isLoading ? '…' : formatGHS(sales?.total_sales ?? 0)} sub="Goods only" accent />
-                <KpiCard icon={TruckIcon} label="Delivery Fees" value={isLoading ? '…' : formatGHS(sales?.delivery_fees ?? 0)} sub="Paid to 3rd-party riders" />
+                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue" value={isLoading ? '…' : formatGHS(sales?.total_sales ?? 0)} accent />
+                <KpiCard icon={TruckIcon} label="Delivery Fees" value={isLoading ? '…' : formatGHS(sales?.delivery_fees ?? 0)} />
                 <KpiCard icon={ReceiptIcon} label="Orders" value={isLoading ? '…' : String(sales?.total_orders ?? 0)} />
                 <KpiCard icon={TrendUpIcon} label="Avg. Order" value={isLoading ? '…' : formatGHS(sales?.average_order_value ?? 0)} />
                 <KpiCard icon={CheckCircleIcon} label="Fulfilment" value={isLoading ? '…' : `${fulfilmentPct}%`} />

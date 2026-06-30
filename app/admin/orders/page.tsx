@@ -864,8 +864,8 @@ export default function AdminOrdersPage() {
                             <StatusBadge status={order.status} />
                             <span className="text-text-dark text-xs font-body truncate">{order.assignedEmployee ?? '—'}</span>
                             <div className="flex flex-col">
-                                <span className="text-text-dark text-sm font-bold font-body">{formatGHS(order.amount)}</span>
-                                <span className="text-neutral-gray text-[10px] font-body">{order.paymentStatus === 'no_charge' ? `Waived: ${formatGHS(order.amount)}` : `Paid: ${formatGHS(order.amountPaid)}`}</span>
+                                <span className="text-text-dark text-sm font-bold font-body">{formatGHS(order.amount - order.deliveryFee)}</span>
+                                <span className="text-neutral-gray text-[10px] font-body">{order.paymentStatus === 'no_charge' ? `Waived: ${formatGHS(order.amount - order.deliveryFee)}` : `Paid: ${formatGHS(Math.min(order.amountPaid, order.amount - order.deliveryFee))}`}</span>
                             </div>
                             <span className="text-neutral-gray text-xs font-body">{order.placedAt}</span>
                         </div>

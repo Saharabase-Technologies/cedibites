@@ -993,13 +993,11 @@ export default function ManagerAnalyticsPage() {
                     value={formatGHS(periodRevenue)}
                     trend={revTrend}
                     trendLabel="vs previous period"
-                    sub="Goods only"
                     accent
                 />
                 <KpiCard
                     label="Delivery Fees"
                     value={formatGHS(periodDeliveryFees)}
-                    sub="Paid to 3rd-party riders"
                 />
                 <KpiCard
                     label={`Orders · ${periodLabel}`}

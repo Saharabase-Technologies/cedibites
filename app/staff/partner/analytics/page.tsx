@@ -240,8 +240,8 @@ export default function PartnerAnalyticsPage() {
 
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue"   value={kpiRevenue}   trend={+14} sub="Goods only" accent />
-                <KpiCard icon={TruckIcon}                label="Delivery Fees" value={kpiDeliveryFees} sub="Paid to 3rd-party riders" />
+                <KpiCard icon={CurrencyCircleDollarIcon} label="Revenue"   value={kpiRevenue}   trend={+14} accent />
+                <KpiCard icon={TruckIcon}                label="Delivery Fees" value={kpiDeliveryFees} />
                 <KpiCard icon={ReceiptIcon}              label="Orders"    value={kpiOrders}    trend={+8} />
                 <KpiCard icon={TrendUpIcon}              label="Completed" value={kpiCompleted} trend={+6} />
                 <KpiCard icon={XCircleIcon}              label="Cancelled" value={kpiCancelled} trend={-2} />
