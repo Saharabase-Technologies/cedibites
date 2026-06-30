@@ -36,6 +36,7 @@ import {
   useUpdatePurchaseOrder,
 } from '@/lib/api/hooks/inventory/usePurchaseOrders';
 import { PO_APPROVAL_THRESHOLD } from '@/lib/constants/inventory.constants';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { downloadPurchaseOrderPdf } from '@/lib/utils/purchaseOrderPdf';
 import type {
   CreatePurchaseOrderPayload,
@@ -71,6 +72,10 @@ interface Props {
 
 export function PurchaseOrderForm({ mode, id }: Props) {
   const router = useRouter();
+  const { can } = useStaffAuth();
+  const requiredPermission =
+    mode === 'edit' ? 'inventory.purchase_order.update' : 'inventory.purchase_order.create';
+  const allowed = can(requiredPermission);
 
   const { data: suppliers = [] } = useInventorySuppliers();
   const { data: locations = [] } = useInventoryLocations({ type: 'warehouse', is_active: true });
@@ -190,6 +195,12 @@ export function PurchaseOrderForm({ mode, id }: Props) {
     }
   };
 
+  // Permission gate — block the dead-end where a role without PO authoring
+  // rights reaches this form (by URL or stale UI) and only fails on save.
+  if (!allowed) {
+    return <NoPermission mode={mode} />;
+  }
+
   // ─── Edit-mode loading / error states ──────────────────────────────────
   if (editing && loadingPO) {
     return <FormSkeleton heading="Loading purchase order…" />;
@@ -199,6 +210,11 @@ export function PurchaseOrderForm({ mode, id }: Props) {
   }
   if (editLocked) {
     return <EditLocked status={existingPO!.status} reference={existingPO!.reference} id={existingPO!.id} />;
+  }
+  // Editing a pending-approval PO approves + sends it on save, so it needs the
+  // approve right — `update` alone (e.g. WM, clerk) isn't enough.
+  if (isApprovalEdit && !can('inventory.purchase_order.approve')) {
+    return <NoPermission mode="approve" />;
   }
 
   const submitting = createPO.isPending || updatePO.isPending;
@@ -467,6 +483,27 @@ function FormMissing() {
       <h1 className="text-xl font-bold font-brand text-text-dark mb-2">Purchase order not found</h1>
       <p className="text-neutral-gray text-sm font-body">
         It may have been removed.{' '}
+        <Link href="/inventory/purchase-orders" className="text-primary hover:underline">
+          Back to all POs
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+function NoPermission({ mode }: { mode: 'create' | 'edit' | 'approve' }) {
+  const verb = mode === 'approve' ? 'approve' : mode === 'edit' ? 'edit' : 'create';
+  const reason =
+    mode === 'approve'
+      ? 'This order is awaiting approval — editing it would approve and send it, which only an administrator can do.'
+      : "Your role doesn't have purchase-order authoring rights. Ask an administrator if you need access.";
+  return (
+    <div className="p-6 pb-24 md:pb-6 max-w-6xl mx-auto w-full">
+      <h1 className="text-xl font-bold font-brand text-text-dark mb-2">
+        You can&apos;t {verb} this purchase order
+      </h1>
+      <p className="text-neutral-gray text-sm font-body">
+        {reason}{' '}
         <Link href="/inventory/purchase-orders" className="text-primary hover:underline">
           Back to all POs
         </Link>

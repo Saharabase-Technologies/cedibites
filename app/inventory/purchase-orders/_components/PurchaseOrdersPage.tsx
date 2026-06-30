@@ -19,6 +19,7 @@ import {
 import { usePurchaseOrders } from '@/lib/api/hooks/inventory/usePurchaseOrders';
 import { usePurchaseOrderRealtime } from '@/lib/api/hooks/inventory/usePurchaseOrderRealtime';
 import { useInventorySuppliers } from '@/lib/api/hooks/inventory/useInventoryCatalog';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { PurchaseOrder, PurchaseOrderStatus } from '@/types/inventory';
 import { formatGHS, formatShortDate } from '../utils';
 
@@ -34,6 +35,8 @@ const STATUS_OPTIONS: { value: PurchaseOrderStatus | ''; label: string }[] = [
 
 export function PurchaseOrdersPage() {
   const router = useRouter();
+  const { can } = useStaffAuth();
+  const canCreate = can('inventory.purchase_order.create');
   usePurchaseOrderRealtime();
   const [search, setSearch]         = useState('');
   const [status, setStatus]         = useState<string>('');
@@ -135,11 +138,15 @@ export function PurchaseOrdersPage() {
       <PageHeader
         title="Purchase Orders"
         subtitle="Authorise stock orders sent to suppliers."
-        action={{
-          label: 'New PO',
-          icon: <PlusIcon size={16} weight="bold" />,
-          onClick: () => router.push('/inventory/purchase-orders/new'),
-        }}
+        action={
+          canCreate
+            ? {
+                label: 'New PO',
+                icon: <PlusIcon size={16} weight="bold" />,
+                onClick: () => router.push('/inventory/purchase-orders/new'),
+              }
+            : undefined
+        }
       />
 
       <FilterBar>

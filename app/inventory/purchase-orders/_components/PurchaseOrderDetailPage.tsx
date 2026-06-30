@@ -34,6 +34,7 @@ import {
   useSubmitPurchaseOrder,
 } from '@/lib/api/hooks/inventory/usePurchaseOrders';
 import { usePurchaseOrderRealtime } from '@/lib/api/hooks/inventory/usePurchaseOrderRealtime';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { PO_APPROVAL_THRESHOLD } from '@/lib/constants/inventory.constants';
 import type { PurchaseOrder, PurchaseOrderItem } from '@/types/inventory';
 import { formatGHS, formatShortDate, formatDateTime } from '../utils';
@@ -256,13 +257,19 @@ function ActionBar({
   const submit  = useSubmitPurchaseOrder();
   const approve = useApprovePurchaseOrder();
   const close   = useClosePurchaseOrder();
+  const { can } = useStaffAuth();
 
-  // Draft → normal edit. Pending-approval → admin "edit & approve" (same form).
-  const canEdit     = ['draft', 'pending_approval'].includes(po.status);
-  const canSubmit   = po.status === 'draft';
-  const canApprove  = po.status === 'pending_approval';
-  const canCancel   = ['draft', 'pending_approval', 'sent'].includes(po.status);
-  const canClose    = ['received', 'partially_received'].includes(po.status);
+  // Buttons require both the right status AND the matching permission, so a role
+  // never sees an action it can't perform (e.g. WM has no approve right). The
+  // backend enforces the same permissions; this just keeps the UI honest.
+  // Editing a pending-approval PO approves + sends on save → needs approve, not update.
+  const canEditDraft   = po.status === 'draft' && can('inventory.purchase_order.update');
+  const canEditApprove = po.status === 'pending_approval' && can('inventory.purchase_order.approve');
+  const canEdit     = canEditDraft || canEditApprove;
+  const canSubmit   = po.status === 'draft' && can('inventory.purchase_order.submit');
+  const canApprove  = po.status === 'pending_approval' && can('inventory.purchase_order.approve');
+  const canCancel   = ['draft', 'pending_approval', 'sent'].includes(po.status) && can('inventory.purchase_order.cancel');
+  const canClose    = ['received', 'partially_received'].includes(po.status) && can('inventory.purchase_order.close');
   const canDownload = ['sent', 'partially_received', 'received', 'closed'].includes(po.status);
 
   const alertError = (e: unknown) => {
