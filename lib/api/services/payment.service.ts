@@ -16,6 +16,7 @@ export interface Payment {
   id: number;
   order_id: number;
   amount: string;
+  goods_amount?: number; // restaurant's share — excludes third-party delivery fee
   payment_method: string;
   payment_status: string;
   transaction_id: string | null;

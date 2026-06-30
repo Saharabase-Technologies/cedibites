@@ -178,7 +178,7 @@ function TransactionDetailPanel({ payment, onClose }: {
 
                     <div className="bg-neutral-light rounded-2xl p-4 text-center">
                         <p className="text-neutral-gray text-xs font-body mb-1">Amount</p>
-                        <p className="text-text-dark text-3xl font-bold font-body">{formatGHS(payment.amount)}</p>
+                        <p className="text-text-dark text-3xl font-bold font-body">{formatGHS(payment.goods_amount ?? payment.amount)}</p>
                         <div className="flex items-center justify-center mt-2">
                             <MethodBadge method={payment.payment_method} />
                         </div>
@@ -276,7 +276,7 @@ export default function AdminTransactionsPage() {
     const totalPages = meta?.last_page ?? 1;
 
     const totalCollected = useMemo(() =>
-        payments.filter(p => p.payment_status === 'completed').reduce((s, p) => s + Number(p.amount), 0),
+        payments.filter(p => p.payment_status === 'completed').reduce((s, p) => s + Number(p.goods_amount ?? p.amount), 0),
         [payments]
     );
 
@@ -299,7 +299,7 @@ export default function AdminTransactionsPage() {
             const header = ['ID', 'Order', 'Customer', 'Phone', 'Method', 'Status', 'Amount', 'Transaction ID', 'Paid At', 'Created At'];
             const lines = rows.map(p => [
                 p.id, p.order?.order_number ?? '', getCustomerName(p), getCustomerPhone(p) ?? '',
-                p.payment_method, p.payment_status, Number(p.amount).toFixed(2),
+                p.payment_method, p.payment_status, Number(p.goods_amount ?? p.amount).toFixed(2),
                 p.transaction_id ?? '', p.paid_at ?? '', p.created_at,
             ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
             const csv = [header.join(','), ...lines].join('\n');
@@ -508,7 +508,7 @@ export default function AdminTransactionsPage() {
                             <MethodBadge method={payment.payment_method} />
                             <StatusBadge status={payment.payment_status} />
                             <span className={`text-sm font-bold font-body ${payment.payment_status === 'completed' ? 'text-secondary' : 'text-text-dark'}`}>
-                                {formatGHS(payment.amount)}
+                                {formatGHS(payment.goods_amount ?? payment.amount)}
                             </span>
                             <span className="text-neutral-gray text-xs font-body">{formatDate(payment.created_at)}</span>
                         </div>
