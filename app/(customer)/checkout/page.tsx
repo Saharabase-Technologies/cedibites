@@ -398,7 +398,10 @@ function OrderSummary({ orderType, scConfig, deliveryFeeEnabled, discount, promo
             <div className="flex flex-col gap-2 text-sm">
                 <div className="flex justify-between"><span className="text-neutral-gray">Subtotal</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(subtotal)}</span></div>
                 {deliveryFeeEnabled && (
-                    <div className="flex justify-between"><span className="text-neutral-gray">Delivery Fee</span><span className="font-semibold text-text-dark dark:text-text-light">{showDelivery ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span></div>
+                    <div className="flex justify-between">
+                        <span className="text-neutral-gray">Delivery Fee{showDelivery ? <span className="text-neutral-gray/70"> · paid to rider</span> : ''}</span>
+                        <span className="font-semibold text-text-dark dark:text-text-light">{showDelivery ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span>
+                    </div>
                 )}
                 <div className="flex justify-between"><span className="text-neutral-gray">Service Charge{scConfig.enabled ? ` (${scConfig.percent}%)` : ''}</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(serviceCharge)}</span></div>
                 {(discount ?? 0) > 0 && (
@@ -627,11 +630,18 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                         className="flex-1 flex cursor-pointer items-center justify-between bg-brown dark:bg-brand-dark hover:bg-brown-light disabled:opacity-70 text-white font-bold px-6 py-4 rounded-2xl transition-all active:scale-[0.98] group">
                         <span>{placing ? 'Placing Order...' : paymentMethod === 'mobile_money' ? 'Pay & Place Order' : 'Place Order'}</span>
                         <div className="flex items-center gap-2">
-                            <span className="text-primary font-bold">{formatPrice(total)}</span>
+                            <span className="text-primary font-bold">{formatPrice(paymentMethod === 'mobile_money' ? total - delivery : total)}</span>
                             <ArrowRightIcon weight="bold" size={18} className="group-hover:translate-x-1 transition-transform" />
                         </div>
                     </button>
                 </div>
+                {delivery > 0 && (
+                    <p className="text-xs text-center text-neutral-gray">
+                        {paymentMethod === 'mobile_money'
+                            ? `You pay ${formatPrice(total - delivery)} now for your order · ${formatPrice(delivery)} delivery is paid to the rider on delivery.`
+                            : `You'll pay ${formatPrice(total)} to the rider on delivery (incl. ${formatPrice(delivery)} delivery).`}
+                    </p>
+                )}
                 <p className="text-xs text-center text-neutral-gray flex items-center justify-center gap-1"><LockIcon size={11} /> Secured · Encrypted · Powered by Hubtel</p>
             </div>
             <BranchSelectorSheet isOpen={branchSheetOpen} onClose={() => setBranchSheetOpen(false)} />

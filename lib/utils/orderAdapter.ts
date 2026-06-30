@@ -84,6 +84,7 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
     items,
     subtotal: Number(apiOrder.subtotal) || 0,
     deliveryFee: Number(apiOrder.delivery_fee) ?? 0,
+    deliveryFeeStatus: apiOrder.delivery_fee_status as UnifiedOrder['deliveryFeeStatus'],
     discount: Number(apiOrder.discount) || 0,
     promoCode: apiOrder.promo_name || undefined,
     tax: Number(apiOrder.tax_amount ?? apiOrder.tax) || 0,

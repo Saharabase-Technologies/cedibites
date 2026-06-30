@@ -376,6 +376,9 @@ export interface Order {
   payments?: Payment[];
   subtotal: number;
   delivery_fee: number;
+  delivery_fee_status?: 'not_applicable' | 'pending' | 'collected';
+  delivery_fee_collected_at?: string | null;
+  goods_amount?: number;
   service_charge?: number;
   tax?: number;
   tax_amount?: number;
