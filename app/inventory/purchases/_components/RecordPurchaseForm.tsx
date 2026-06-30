@@ -59,6 +59,8 @@ interface LineDraft {
   received_qty: string;
   variance_reason: string;
   unit_cost_paid: string;
+  /** Expiry date (YYYY-MM-DD) for expiry-tracked items — creates a FEFO batch. */
+  expiry_date: string;
 }
 
 // Deterministic, monotonic line ids — Math.random() here caused SSR/client
@@ -76,6 +78,7 @@ function emptyLine(): LineDraft {
     received_qty: '',
     variance_reason: '',
     unit_cost_paid: '',
+    expiry_date: '',
   };
 }
 
@@ -136,6 +139,7 @@ export function RecordPurchaseForm() {
           received_qty: remaining > 0 ? String(remaining) : '',
           variance_reason: '',
           unit_cost_paid: String(line.estimated_unit_cost),
+          expiry_date: '',
         };
       }),
     );
@@ -206,6 +210,7 @@ export function RecordPurchaseForm() {
       received_qty: Number(l.received_qty),
       variance_reason: l.variance_reason.trim() || undefined,
       unit_cost_paid: Number(l.unit_cost_paid),
+      expiry_date: l.expiry_date || undefined,
     }));
 
     const payload: RecordPurchasePayload = {
@@ -538,6 +543,24 @@ export function RecordPurchaseForm() {
                     <TrashIcon size={16} weight="bold" />
                   </button>
                 </div>
+
+                {/* Expiry date — only for expiry-tracked items (creates a FEFO batch). */}
+                {selectedItem?.expiry_tracked && (
+                  <div className="border-t border-[#f0e8d8] pt-2 sm:max-w-xs">
+                    <FormField
+                      label="Expiry date"
+                      htmlFor={`rp-expiry-${line.tempId}`}
+                      hint="Tracked item — sets the batch's expiry for FEFO."
+                    >
+                      <TextInput
+                        id={`rp-expiry-${line.tempId}`}
+                        type="date"
+                        value={line.expiry_date}
+                        onChange={(e) => updateLine(line.tempId, { expiry_date: e.target.value })}
+                      />
+                    </FormField>
+                  </div>
+                )}
 
                 {/* Variance vs PO (qty + cost) + deviation reason (against-PO lines only) */}
                 {hasExpected && (

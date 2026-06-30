@@ -20,6 +20,7 @@ import {
   SlidersIcon,
   ReceiptIcon,
   ClipboardIcon,
+  CookingPotIcon,
 } from '@phosphor-icons/react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
@@ -31,6 +32,7 @@ type NavItem = { href: string; label: string; icon: React.ElementType };
 /** Operational work — daily use. */
 const OPERATIONS_NAV: NavItem[] = [
   { href: '/inventory/dashboard',     label: 'Dashboard',     icon: SquaresFourIcon     },
+  { href: '/inventory/production',     label: 'Production',    icon: CookingPotIcon      },
   { href: '/inventory/transfers',     label: 'Transfers',     icon: ArrowsLeftRightIcon },
   { href: '/inventory/requisitions',  label: 'Requisitions',  icon: ClipboardTextIcon   },
   { href: '/inventory/wastage',       label: 'Wastage',       icon: TrashIcon           },

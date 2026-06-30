@@ -10,6 +10,7 @@ import {
   WarningCircleIcon,
   ArrowDownIcon,
   ArrowUpIcon,
+  ClockCountdownIcon,
 } from '@phosphor-icons/react';
 import { formatGHS } from '@/lib/utils/currency';
 import { useInventoryItemMovements } from '@/lib/api/hooks/inventory/useInventoryCatalog';
@@ -32,6 +33,18 @@ function fmtDateTime(iso: string | null): string {
   });
 }
 
+// Expiry label + colour: expired (red), ≤7 days (amber), else neutral.
+function batchExpiry(date: string | null): { label: string; className: string } {
+  if (!date) return { label: 'No expiry', className: 'text-neutral-gray' };
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return { label: date, className: 'text-neutral-gray' };
+  const days = Math.ceil((d.getTime() - Date.now()) / 86_400_000);
+  const pretty = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  if (days < 0) return { label: `${pretty} · expired`, className: 'text-rose-700 font-semibold' };
+  if (days <= 7) return { label: `${pretty} · ${days}d left`, className: 'text-amber-700 font-semibold' };
+  return { label: pretty, className: 'text-text-dark' };
+}
+
 // ─── Stock level ────────────────────────────────────────────────────────────────
 
 function stockBadge(item: InventoryItem) {
@@ -52,7 +65,7 @@ export default function ItemDetailPage({ id }: { id: number }) {
   if (isLoading) return <DetailSkeleton />;
   if (error || !data) return <DetailMissing />;
 
-  const { item, suppliers, movements } = data;
+  const { item, suppliers, batches, movements } = data;
   const badge = stockBadge(item);
   const unit = item.base_unit?.symbol ?? '';
 
@@ -127,6 +140,53 @@ export default function ItemDetailPage({ id }: { id: number }) {
         )}
       </div>
 
+      {/* Batches (expiry-tracked items) */}
+      {item.expiry_tracked && (
+        <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl p-5 mb-5">
+          <div className="flex items-center gap-1.5 text-neutral-gray text-[11px] font-semibold uppercase tracking-wider mb-3">
+            <ClockCountdownIcon size={14} />
+            Batches (FEFO) <span className="text-neutral-gray/60 normal-case font-normal">· soonest expiry first</span>
+          </div>
+          {batches.length === 0 ? (
+            <p className="text-neutral-gray text-sm font-body">No open batches.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm font-body">
+                <thead>
+                  <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-gray">
+                    <th className="py-2 pr-4">Expiry</th>
+                    <th className="py-2 pr-4 text-right">Remaining</th>
+                    <th className="py-2 pr-4 text-right">Received</th>
+                    <th className="py-2 text-right">Unit cost</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f0e8d8]">
+                  {batches.map((b) => {
+                    const exp = batchExpiry(b.expiry_date);
+                    return (
+                      <tr key={b.id}>
+                        <td className="py-2 pr-4">
+                          <span className={`inline-flex items-center gap-1.5 ${exp.className}`}>
+                            {exp.label}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-4 text-right tabular-nums text-text-dark font-semibold">
+                          {fmtQty(b.remaining_qty)} {unit}
+                        </td>
+                        <td className="py-2 pr-4 text-right tabular-nums text-neutral-gray">
+                          {fmtQty(b.received_qty)} {unit}
+                        </td>
+                        <td className="py-2 text-right tabular-nums text-text-dark">{formatGHS(b.unit_cost)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Supply / movement history */}
       <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-[#f0e8d8] flex items-baseline justify-between">
@@ -191,7 +251,7 @@ function MovementsTable({ movements, unit }: { movements: ItemMovement[]; unit: 
                   {m.unit_cost_at_time != null ? formatGHS(m.unit_cost_at_time) : '—'}
                 </td>
                 <td className="px-5 py-3">
-                  {m.reference ? (
+                  {m.reference?.type === 'purchase' ? (
                     <div className="flex flex-col gap-0.5">
                       <Link
                         href={`/inventory/purchases/${m.reference.purchase_id}`}
@@ -210,6 +270,14 @@ function MovementsTable({ movements, unit }: { movements: ItemMovement[]; unit: 
                         </Link>
                       )}
                     </div>
+                  ) : m.reference?.type === 'order' ? (
+                    <Link
+                      href={`/staff/orders?select=${m.reference.order_id}`}
+                      className="inline-flex items-center gap-1 text-primary hover:underline font-mono text-xs"
+                    >
+                      <ReceiptIcon size={12} weight="bold" />
+                      {m.reference.order_number}
+                    </Link>
                   ) : (
                     <span className="text-neutral-gray/60">—</span>
                   )}

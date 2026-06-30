@@ -244,9 +244,13 @@ function RecordConsumptionForm({ onClose }: { onClose: () => void }) {
     setError('');
     if (!canSubmit) return;
     try {
+      // Stamp with the current time-of-day so an entry recorded today sorts
+      // after earlier same-day movements (a bare date = midnight would sort first
+      // and break the running balance).
+      const occurredAt = `${date}T${new Date().toTimeString().slice(0, 8)}`;
       await record.mutateAsync({
         location_id: Number(locationId),
-        occurred_at: date,
+        occurred_at: occurredAt,
         items: validLines.map((l) => ({ item_id: Number(l.item_id), quantity: Number(l.quantity) })),
       });
       onClose();

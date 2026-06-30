@@ -1,50 +1,55 @@
 /**
  * lib/api/services/inventory/recipes.service.ts
  *
- * Recipe / BOM service.
+ * Recipe / BOM service. Live against the Laravel IMS backend
+ * (`/inventory/recipes`). Recipes are keyed per menu-item option and drive
+ * automatic stock deduction when an order is paid.
  */
 
 import apiClient from '../../client';
-import { MOCK_RECIPES } from '../../mocks/inventory.mock';
-import type { InventoryRecipe } from '@/types/inventory';
+import type {
+  InventoryRecipe,
+  CreateRecipePayload,
+  UpdateRecipePayload,
+} from '@/types/inventory';
 
-const IS_MOCK = process.env.NEXT_PUBLIC_IMS_MOCK === 'true';
-
-function delay<T>(data: T, ms = 400): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(data), ms));
+/** Unwrap the API envelope ({ data: ... }), tolerating a raw body. */
+function extractData<T>(response: unknown): T {
+  const r = response as { data?: T };
+  return (r?.data ?? response) as T;
 }
 
-export async function getInventoryRecipes(
-  menuItemId?: number,
-  branchId?: number | null,
-): Promise<InventoryRecipe[]> {
-  if (IS_MOCK) {
-    let recipes = [...MOCK_RECIPES];
-    if (menuItemId !== undefined) {
-      recipes = recipes.filter((r) => r.menu_item_id === menuItemId);
-    }
-    // null means global defaults; a number means a branch override
-    if (branchId !== undefined) {
-      recipes = recipes.filter((r) => r.branch_id === branchId);
-    }
-    return delay(recipes);
-  }
+export interface RecipeFilters {
+  menu_item_option_id?: number;
+  branch_id?: number;
+  global_only?: boolean;
+}
 
-  const { data } = await apiClient.get<InventoryRecipe[]>('/v1/inventory/recipes', {
-    params: {
-      ...(menuItemId !== undefined && { menu_item_id: menuItemId }),
-      ...(branchId !== undefined && { branch_id: branchId ?? 'null' }),
-    },
-  });
-  return data;
+export async function getInventoryRecipes(filters?: RecipeFilters): Promise<InventoryRecipe[]> {
+  const response = await apiClient.get('/inventory/recipes', { params: filters });
+  return extractData<InventoryRecipe[]>(response);
 }
 
 export async function getInventoryRecipe(id: number): Promise<InventoryRecipe> {
-  if (IS_MOCK) {
-    const recipe = MOCK_RECIPES.find((r) => r.id === id);
-    if (!recipe) throw new Error(`Recipe ${id} not found`);
-    return delay(recipe);
-  }
-  const { data } = await apiClient.get<InventoryRecipe>(`/v1/inventory/recipes/${id}`);
-  return data;
+  const response = await apiClient.get(`/inventory/recipes/${id}`);
+  return extractData<InventoryRecipe>(response);
+}
+
+export async function createRecipe(payload: CreateRecipePayload): Promise<InventoryRecipe> {
+  const response = await apiClient.post('/inventory/recipes', payload);
+  return extractData<InventoryRecipe>(response);
+}
+
+export async function updateRecipe(id: number, payload: UpdateRecipePayload): Promise<InventoryRecipe> {
+  const response = await apiClient.patch(`/inventory/recipes/${id}`, payload);
+  return extractData<InventoryRecipe>(response);
+}
+
+export async function deleteRecipe(id: number): Promise<void> {
+  await apiClient.delete(`/inventory/recipes/${id}`);
+}
+
+export async function lockRecipe(id: number): Promise<InventoryRecipe> {
+  const response = await apiClient.post(`/inventory/recipes/${id}/lock`);
+  return extractData<InventoryRecipe>(response);
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useMemo, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { CaretLeftIcon, CaretRightIcon, DotsThreeIcon } from '@phosphor-icons/react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -329,64 +330,88 @@ export type RowAction = {
 
 export function RowActionsMenu({ actions }: { actions: RowAction[] }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  // Fixed viewport coords so the menu escapes the table's overflow clipping.
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const openMenu = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setCoords({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    setOpen(true);
+  };
 
   useEffect(() => {
     if (!open) return;
     function onMouseDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
     }
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
     }
+    // The menu is fixed-positioned; close it if the page scrolls/resizes.
+    function onReflow() {
+      setOpen(false);
+    }
     document.addEventListener('mousedown', onMouseDown);
     document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('scroll', onReflow, true);
+    window.addEventListener('resize', onReflow);
     return () => {
       document.removeEventListener('mousedown', onMouseDown);
       document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('scroll', onReflow, true);
+      window.removeEventListener('resize', onReflow);
     };
   }, [open]);
 
   return (
-    <div ref={ref} className="relative inline-flex">
+    <span className="inline-flex">
       <button
+        ref={btnRef}
         type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        onClick={(e) => { e.stopPropagation(); open ? setOpen(false) : openMenu(); }}
         aria-label="More actions"
         className="w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-colors text-neutral-gray hover:text-text-dark hover:bg-neutral-light"
       >
         <DotsThreeIcon size={16} weight="bold" />
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 min-w-35 bg-neutral-card border border-[#f0e8d8] rounded-xl shadow-lg overflow-hidden">
-          {actions.map((action, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpen(false);
-                action.onClick();
-              }}
-              className={`
-                w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-body text-left
-                transition-colors cursor-pointer
-                ${action.destructive
-                  ? 'text-red-500 hover:bg-red-50'
-                  : 'text-text-dark hover:bg-neutral-light'}
-              `}
-            >
-              {action.icon && (
-                <span className="shrink-0 opacity-70">{action.icon}</span>
-              )}
-              {action.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      {open && coords && typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{ position: 'fixed', top: coords.top, right: coords.right, zIndex: 9999 }}
+            className="min-w-35 bg-neutral-card border border-[#f0e8d8] rounded-xl shadow-lg overflow-hidden"
+          >
+            {actions.map((action, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                  action.onClick();
+                }}
+                className={`
+                  w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-body text-left
+                  transition-colors cursor-pointer
+                  ${action.destructive
+                    ? 'text-red-500 hover:bg-red-50'
+                    : 'text-text-dark hover:bg-neutral-light'}
+                `}
+              >
+                {action.icon && (
+                  <span className="shrink-0 opacity-70">{action.icon}</span>
+                )}
+                {action.label}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </span>
   );
 }

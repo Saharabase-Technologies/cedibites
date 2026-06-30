@@ -151,13 +151,20 @@ export interface ItemMovement {
   unit_cost_at_time: number | null;
   location: { id: number; name: string } | null;
   user: { id: number; name: string } | null;
-  /** Source document — present for purchase receipts (links to receipt + PO). */
-  reference: {
-    type: 'purchase';
-    purchase_id: number;
-    purchase_reference: string;
-    purchase_order: { id: number; reference: string } | null;
-  } | null;
+  /** Source document — present for purchase receipts and order sales. */
+  reference:
+    | {
+        type: 'purchase';
+        purchase_id: number;
+        purchase_reference: string;
+        purchase_order: { id: number; reference: string } | null;
+      }
+    | {
+        type: 'order';
+        order_id: number;
+        order_number: string;
+      }
+    | null;
 }
 
 export interface ItemMovementSupplier {
@@ -166,10 +173,21 @@ export interface ItemMovementSupplier {
   code: string;
 }
 
+/** An open FEFO batch (expiry-tracked items). */
+export interface ItemBatch {
+  id: number;
+  expiry_date: string | null;
+  remaining_qty: number;
+  received_qty: number;
+  unit_cost: number;
+  received_at: string | null;
+}
+
 /** Payload for the item detail drill-down. */
 export interface ItemHistory {
   item: InventoryItem;
   suppliers: ItemMovementSupplier[];
+  batches: ItemBatch[];
   movements: ItemMovement[];
 }
 
@@ -309,19 +327,42 @@ export interface InventoryRecipeIngredient {
 
 export interface InventoryRecipe {
   id: number;
-  menu_item_id: number;
-  menu_item: { id: number; name: string };
+  /** Recipe is keyed to a menu-item option (size/variant). */
+  menu_item_option_id: number;
+  menu_item_option: {
+    id: number;
+    label: string;
+    menu_item: { id: number; name: string } | null;
+  } | null;
   branch_id: number | null;
+  branch: { id: number; name: string } | null;
   is_default: boolean;
   status: RecipeStatus;
   version: number;
+  /** Portions this recipe yields; ingredient quantities are per yield_qty portions. */
+  yield_qty: number;
   ingredients: InventoryRecipeIngredient[];
-  locked_by_id: number | null;
   locked_by: { id: number; name: string } | null;
   locked_at: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export interface RecipeIngredientPayload {
+  item_id: number;
+  unit_id: number;
+  quantity: number;
+}
+
+export interface CreateRecipePayload {
+  menu_item_option_id: number;
+  branch_id?: number | null;
+  status?: RecipeStatus;
+  yield_qty?: number;
+  ingredients: RecipeIngredientPayload[];
+}
+
+export type UpdateRecipePayload = CreateRecipePayload;
 
 // ─── Reconciliation ───────────────────────────────────────────────────────────
 
@@ -427,6 +468,41 @@ export interface RecordConsumptionPayload {
   location_id: number;
   occurred_at: string;
   items: { item_id: number; quantity: number }[];
+}
+
+// ─── Production runs (batch-prep: consume inputs → yield prepared item) ────────
+
+export interface ProductionLogInput {
+  id: number;
+  item_id: number;
+  item: { id: number; name: string; unit: string | null } | null;
+  quantity: number;
+  line_cost: number;
+}
+
+export interface ProductionLog {
+  id: number;
+  reference: string;
+  location: { id: number; name: string } | null;
+  output_item: { id: number; sku: string; name: string; unit: string | null } | null;
+  output_qty: number;
+  output_unit_cost: number;
+  input_cost_total: number;
+  inputs: ProductionLogInput[];
+  produced_by: { id: number; name: string } | null;
+  produced_at: string | null;
+  created_at: string;
+}
+
+export interface RecordProductionPayload {
+  location_id: number;
+  output_item_id: number;
+  output_unit_id?: number;
+  output_qty: number;
+  expiry_date?: string;
+  notes?: string;
+  occurred_at?: string;
+  inputs: { item_id: number; quantity: number }[];
 }
 
 export interface CreateInventoryLocationPayload {
@@ -645,6 +721,8 @@ export interface RecordPurchaseItemPayload {
   /** Explanation for any deviation (qty or cost). */
   variance_reason?: string;
   unit_cost_paid: number;
+  /** Expiry date (YYYY-MM-DD) for expiry-tracked items — creates a FEFO batch. */
+  expiry_date?: string;
 }
 
 export interface RecordPurchasePayload {
