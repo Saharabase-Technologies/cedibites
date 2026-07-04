@@ -14,7 +14,9 @@ export interface StaffShift {
     loginAt: number;          // Unix ms timestamp
     logoutAt?: number;        // undefined = still active
     orderIds: string[];       // orders placed during this shift
-    totalSales: number;       // sum of non-cancelled order totals
+    totalSales: number;       // gross: goods + third-party delivery fees
+    goodsSales: number;       // restaurant revenue = totalSales − deliveryFees
+    deliveryFees: number;     // third-party delivery, pass-through (not revenue)
     orderCount: number;
 }
 

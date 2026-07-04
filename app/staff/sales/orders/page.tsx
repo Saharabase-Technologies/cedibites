@@ -138,6 +138,12 @@ function OrderRow({ order, isLast, onCancel }: { order: Order; isLast: boolean; 
                                 <span className="text-secondary">−{formatPrice(order.discount ?? 0)}</span>
                             </div>
                         )}
+                        {order.deliveryFee > 0 && (
+                            <div className="flex items-center justify-between text-xs font-body">
+                                <span className="text-neutral-gray">Delivery fee (3rd-party)</span>
+                                <span className="text-neutral-gray">{formatPrice(order.deliveryFee)}</span>
+                            </div>
+                        )}
                         <div className="flex items-center justify-between text-sm font-bold font-body border-t border-[#f0e8d8] mt-1 pt-1">
                             <span className="text-text-dark">Total</span>
                             <span className="text-text-dark">{formatPrice(order.total)}</span>

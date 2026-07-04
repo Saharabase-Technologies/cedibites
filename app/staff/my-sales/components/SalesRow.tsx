@@ -17,6 +17,8 @@ export default function SalesRow({ order, index, isSelected, onSelect }: SalesRo
     const status = STATUS_CONFIG[order.status];
     const isCancelled = order.status === 'cancelled';
     const qty = itemCount(order);
+    // Restaurant revenue = goods only; third-party delivery is a pass-through.
+    const goodsTotal = order.total - order.deliveryFee;
 
     return (
         <tr
@@ -71,11 +73,16 @@ export default function SalesRow({ order, index, isSelected, onSelect }: SalesRo
                 {PAYMENT_LABELS[order.paymentMethod].short}
             </td>
 
-            {/* Total */}
+            {/* Total (goods only — delivery shown separately below) */}
             <td className="px-4 py-3.5 text-right whitespace-nowrap">
                 <span className={`text-sm font-bold font-body ${isCancelled ? 'line-through text-text-dark dark:text-text-light' : 'text-text-dark dark:text-text-light'}`}>
-                    {formatGHS(order.total)}
+                    {formatGHS(goodsTotal)}
                 </span>
+                {order.deliveryFee > 0 && (
+                    <span className="block text-neutral-gray text-[10px] font-body mt-0.5">
+                        +{formatGHS(order.deliveryFee)} delivery
+                    </span>
+                )}
             </td>
 
             {/* Status + caret */}

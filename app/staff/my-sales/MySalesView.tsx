@@ -9,6 +9,7 @@ import {
     SpinnerGapIcon,
     ProhibitIcon,
     ClockCounterClockwiseIcon,
+    TruckIcon,
     MoneyIcon,
     DeviceMobileIcon,
     CreditCardIcon,
@@ -114,7 +115,7 @@ export default function MySalesView() {
                 </div>
 
                 {/* ── Primary Stats ─────────────────────────────────────────── */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
                     <StatCard
                         icon={ReceiptIcon}
                         label="Orders Placed"
@@ -126,14 +127,14 @@ export default function MySalesView() {
                         icon={CurrencyCircleDollarIcon}
                         label="Revenue Generated"
                         value={formatGHS(totalRevenue)}
-                        sub={deliveryFeesCollected > 0 ? `Goods only · ${formatGHS(deliveryFeesCollected)} delivery (3rd-party)` : 'Goods only · excl. cancelled'}
+                        sub="Goods only · excl. cancelled"
                         accent="text-text-light dark:text-text-light/75"
                     />
                     <StatCard
-                        icon={ProhibitIcon}
-                        label="Cancelled"
-                        value={String(cancelledOrders.length)}
-                        sub={cancelledOrders.length > 0 ? 'orders voided' : 'none today'}
+                        icon={TruckIcon}
+                        label="Delivery Fees"
+                        value={formatGHS(deliveryFeesCollected)}
+                        sub="Pass-through to 3rd-party riders"
                         accent="text-text-light dark:text-text-light/75"
                     />
                     <StatCard
@@ -141,6 +142,13 @@ export default function MySalesView() {
                         label="Completed"
                         value={String(completedOrders.length)}
                         sub="fulfilled orders"
+                        accent="text-text-light dark:text-text-light/75"
+                    />
+                    <StatCard
+                        icon={ProhibitIcon}
+                        label="Cancelled"
+                        value={String(cancelledOrders.length)}
+                        sub={cancelledOrders.length > 0 ? 'orders voided' : 'none today'}
                         accent="text-text-light dark:text-text-light/75"
                     />
                 </div>
