@@ -8,6 +8,7 @@ import {
     SignOutIcon,
     ShoppingBagIcon,
     CurrencyCircleDollarIcon,
+    TruckIcon,
     SpinnerGapIcon,
     ArrowRightIcon,
     TimerIcon,
@@ -121,10 +122,19 @@ function ShiftCard({ shift, showName, isLast }: { shift: StaffShift; showName: b
                     <div className="text-center">
                         <div className="flex items-center gap-1 justify-center">
                             <CurrencyCircleDollarIcon size={12} weight="fill" className="text-primary" />
-                            <p className="text-primary text-sm font-bold font-body">{formatGHS(shift.totalSales)}</p>
+                            <p className="text-primary text-sm font-bold font-body">{formatGHS(shift.goodsSales)}</p>
                         </div>
-                        <p className="text-neutral-gray text-[10px] font-body">sales</p>
+                        <p className="text-neutral-gray text-[10px] font-body">revenue</p>
                     </div>
+                    {shift.deliveryFees > 0 && (
+                        <div className="text-center">
+                            <div className="flex items-center gap-1 justify-center">
+                                <TruckIcon size={12} weight="fill" className="text-neutral-gray" />
+                                <p className="text-text-dark text-sm font-bold font-body">{formatGHS(shift.deliveryFees)}</p>
+                            </div>
+                            <p className="text-neutral-gray text-[10px] font-body">delivery</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -175,7 +185,7 @@ export default function ShiftsPage() {
                     next.set(date, {
                         count: dayShifts.length,
                         orders: dayShifts.reduce((s, sh) => s + sh.orderCount, 0),
-                        sales: dayShifts.reduce((s, sh) => s + sh.totalSales, 0),
+                        sales: dayShifts.reduce((s, sh) => s + sh.goodsSales, 0),   // goods revenue
                         hasActive: dayShifts.some(sh => !sh.logoutAt),
                     });
                 }
@@ -230,7 +240,7 @@ export default function ShiftsPage() {
             map.set(key, {
                 count: existing.count + 1,
                 orders: existing.orders + s.orderCount,
-                sales: existing.sales + s.totalSales,
+                sales: existing.sales + s.goodsSales,   // goods revenue
                 hasActive: existing.hasActive || !s.logoutAt,
             });
         }
@@ -252,13 +262,15 @@ export default function ShiftsPage() {
     // ── Derived stats ────────────────────────────────────────────────────────
     const activeShifts = shifts.filter(s => !s.logoutAt);
     const todayOrders = shifts.reduce((s, sh) => s + sh.orderCount, 0);
-    const todaySales = shifts.reduce((s, sh) => s + sh.totalSales, 0);
+    const todaySales = shifts.reduce((s, sh) => s + sh.goodsSales, 0);
+    const todayDelivery = shifts.reduce((s, sh) => s + sh.deliveryFees, 0);
 
     const myTodayShifts = useMemo(() => {
         return myShifts.filter(s => new Date(s.loginAt).toISOString().slice(0, 10) === today);
     }, [myShifts, today]);
     const myTodayOrders = myTodayShifts.reduce((s, sh) => s + sh.orderCount, 0);
-    const myTodaySales = myTodayShifts.reduce((s, sh) => s + sh.totalSales, 0);
+    const myTodaySales = myTodayShifts.reduce((s, sh) => s + sh.goodsSales, 0);
+    const myTodayDelivery = myTodayShifts.reduce((s, sh) => s + sh.deliveryFees, 0);
 
     const handleSelectDate = useCallback((date: string) => {
         setSelectedDate(date);
@@ -332,10 +344,16 @@ export default function ShiftsPage() {
                                         <p className="text-neutral-gray text-[10px] font-body">Orders</p>
                                     </div>
                                     <div className="bg-white/50 rounded-xl px-3 py-2.5 text-center">
-                                        <p className="text-primary text-lg font-bold font-body">{formatGHS(activeShifts.reduce((s, sh) => s + sh.totalSales, 0))}</p>
-                                        <p className="text-neutral-gray text-[10px] font-body">Sales</p>
+                                        <p className="text-primary text-lg font-bold font-body">{formatGHS(activeShifts.reduce((s, sh) => s + sh.goodsSales, 0))}</p>
+                                        <p className="text-neutral-gray text-[10px] font-body">Revenue</p>
                                     </div>
                                 </div>
+                                {activeShifts.reduce((s, sh) => s + sh.deliveryFees, 0) > 0 && (
+                                    <p className="text-neutral-gray text-[11px] font-body mt-3 flex items-center gap-1.5">
+                                        <TruckIcon size={12} weight="fill" className="text-neutral-gray/70" />
+                                        +{formatGHS(activeShifts.reduce((s, sh) => s + sh.deliveryFees, 0))} delivery collected for 3rd-party riders (not revenue)
+                                    </p>
+                                )}
                             </div>
                         ) : (
                             <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-5 py-4 flex items-center gap-3">
@@ -352,11 +370,12 @@ export default function ShiftsPage() {
                         {/* Today's Summary */}
                         <div>
                             <p className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-widest mb-3">Today&apos;s Summary</p>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 {[
                                     { label: 'Sessions', value: shifts.length.toString(), icon: ClockIcon },
                                     { label: 'Orders', value: todayOrders.toString(), icon: ShoppingBagIcon },
                                     { label: 'Revenue', value: formatGHS(todaySales), icon: CurrencyCircleDollarIcon },
+                                    { label: 'Delivery', value: formatGHS(todayDelivery), icon: TruckIcon },
                                 ].map(({ label, value, icon: Icon }) => (
                                     <div key={label} className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3.5 text-center">
                                         <Icon size={14} weight="fill" className="text-primary mx-auto mb-1.5" />
@@ -396,6 +415,12 @@ export default function ShiftsPage() {
                                             <span className="font-bold">{todayOrders}</span> orders
                                         </span>
                                         <span className="text-primary font-bold">{formatGHS(todaySales)}</span>
+                                        {todayDelivery > 0 && (
+                                            <span className="text-neutral-gray flex items-center gap-1">
+                                                <TruckIcon size={11} weight="fill" />
+                                                {formatGHS(todayDelivery)}
+                                            </span>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -459,10 +484,16 @@ export default function ShiftsPage() {
                                         <p className="text-neutral-gray text-[10px] font-body">Orders</p>
                                     </div>
                                     <div className="bg-white/50 rounded-xl px-3 py-2.5 text-center">
-                                        <p className="text-primary text-lg font-bold font-body">{formatGHS(myActiveShift.totalSales)}</p>
-                                        <p className="text-neutral-gray text-[10px] font-body">Sales</p>
+                                        <p className="text-primary text-lg font-bold font-body">{formatGHS(myActiveShift.goodsSales)}</p>
+                                        <p className="text-neutral-gray text-[10px] font-body">Revenue</p>
                                     </div>
                                 </div>
+                                {myActiveShift.deliveryFees > 0 && (
+                                    <p className="text-neutral-gray text-[11px] font-body mt-3 flex items-center gap-1.5">
+                                        <TruckIcon size={12} weight="fill" className="text-neutral-gray/70" />
+                                        +{formatGHS(myActiveShift.deliveryFees)} delivery collected for 3rd-party riders (not revenue)
+                                    </p>
+                                )}
                             </div>
                         ) : (
                             <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-5 py-4 flex items-center gap-3">
@@ -479,11 +510,12 @@ export default function ShiftsPage() {
                         {/* Today's Summary */}
                         <div>
                             <p className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-widest mb-3">Today&apos;s Summary</p>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 {[
                                     { label: 'Sessions', value: myTodayShifts.length.toString(), icon: ClockIcon },
                                     { label: 'Orders', value: myTodayOrders.toString(), icon: ShoppingBagIcon },
                                     { label: 'Revenue', value: formatGHS(myTodaySales), icon: CurrencyCircleDollarIcon },
+                                    { label: 'Delivery', value: formatGHS(myTodayDelivery), icon: TruckIcon },
                                 ].map(({ label, value, icon: Icon }) => (
                                     <div key={label} className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3.5 text-center">
                                         <Icon size={14} weight="fill" className="text-primary mx-auto mb-1.5" />
@@ -522,7 +554,13 @@ export default function ShiftsPage() {
                                         <span className="text-text-dark">
                                             <span className="font-bold">{myDayShifts.reduce((s, sh) => s + sh.orderCount, 0)}</span> orders
                                         </span>
-                                        <span className="text-primary font-bold">{formatGHS(myDayShifts.reduce((s, sh) => s + sh.totalSales, 0))}</span>
+                                        <span className="text-primary font-bold">{formatGHS(myDayShifts.reduce((s, sh) => s + sh.goodsSales, 0))}</span>
+                                        {myDayShifts.reduce((s, sh) => s + sh.deliveryFees, 0) > 0 && (
+                                            <span className="text-neutral-gray flex items-center gap-1">
+                                                <TruckIcon size={11} weight="fill" />
+                                                {formatGHS(myDayShifts.reduce((s, sh) => s + sh.deliveryFees, 0))}
+                                            </span>
+                                        )}
                                     </div>
                                 )}
                             </div>

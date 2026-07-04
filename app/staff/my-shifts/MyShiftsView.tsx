@@ -5,6 +5,7 @@ import {
     ClockIcon,
     ShoppingBagIcon,
     CurrencyCircleDollarIcon,
+    TruckIcon,
     SpinnerGapIcon,
     ArrowRightIcon,
     TimerIcon,
@@ -84,7 +85,7 @@ export default function MyShiftsView() {
             map.set(key, {
                 count: existing.count + 1,
                 orders: existing.orders + s.orderCount,
-                sales: existing.sales + s.totalSales,
+                sales: existing.sales + s.goodsSales,   // calendar shows goods revenue
                 hasActive: existing.hasActive || !s.logoutAt,
             });
         }
@@ -97,7 +98,8 @@ export default function MyShiftsView() {
     }, [allShifts, today]);
 
     const todayOrders = todayShifts.reduce((s, sh) => s + sh.orderCount, 0);
-    const todaySales = todayShifts.reduce((s, sh) => s + sh.totalSales, 0);
+    const todaySales = todayShifts.reduce((s, sh) => s + sh.goodsSales, 0);
+    const todayDelivery = todayShifts.reduce((s, sh) => s + sh.deliveryFees, 0);
 
     // Filter shifts for selected day
     const dayShifts = useMemo(() => {
@@ -178,10 +180,16 @@ export default function MyShiftsView() {
                                     <p className="text-neutral-gray text-[10px] font-body">Orders</p>
                                 </div>
                                 <div className="bg-white/50 dark:bg-brand-dark/50 rounded-xl px-3 py-2.5 text-center">
-                                    <p className="text-primary text-lg font-bold font-body">{formatGHS(activeShift.totalSales)}</p>
-                                    <p className="text-neutral-gray text-[10px] font-body">Sales</p>
+                                    <p className="text-primary text-lg font-bold font-body">{formatGHS(activeShift.goodsSales)}</p>
+                                    <p className="text-neutral-gray text-[10px] font-body">Revenue</p>
                                 </div>
                             </div>
+                            {activeShift.deliveryFees > 0 && (
+                                <p className="text-neutral-gray text-[11px] font-body mt-3 flex items-center gap-1.5">
+                                    <TruckIcon size={12} weight="fill" className="text-neutral-gray/70" />
+                                    +{formatGHS(activeShift.deliveryFees)} delivery collected for 3rd-party riders (not revenue)
+                                </p>
+                            )}
                         </div>
                     ) : (
                         <div className="bg-neutral-card dark:bg-brand-dark border border-[#f0e8d8] dark:border-brown-light/15 rounded-2xl px-5 py-4 flex items-center gap-3">
@@ -198,11 +206,12 @@ export default function MyShiftsView() {
                     {/* ── Today's Summary ─────────────────────────────────────────── */}
                     <div>
                         <p className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-widest mb-3">Today&apos;s Summary</p>
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             {[
                                 { label: 'Sessions', value: todayShifts.length.toString(), icon: ClockIcon },
                                 { label: 'Orders', value: todayOrders.toString(), icon: ShoppingBagIcon },
                                 { label: 'Revenue', value: formatGHS(todaySales), icon: CurrencyCircleDollarIcon },
+                                { label: 'Delivery', value: formatGHS(todayDelivery), icon: TruckIcon },
                             ].map(({ label, value, icon: Icon }) => (
                                 <div key={label} className="bg-brown dark:bg-brand-dark border border-brown-light/15 rounded-2xl px-4 py-3.5 text-center">
                                     <Icon size={14} weight="fill" className="text-primary mx-auto mb-1.5" />
@@ -241,7 +250,13 @@ export default function MyShiftsView() {
                                     <span className="text-text-dark dark:text-text-light">
                                         <span className="font-bold">{dayShifts.reduce((s, sh) => s + sh.orderCount, 0)}</span> orders
                                     </span>
-                                    <span className="text-primary font-bold">{formatGHS(dayShifts.reduce((s, sh) => s + sh.totalSales, 0))}</span>
+                                    <span className="text-primary font-bold">{formatGHS(dayShifts.reduce((s, sh) => s + sh.goodsSales, 0))}</span>
+                                    {dayShifts.reduce((s, sh) => s + sh.deliveryFees, 0) > 0 && (
+                                        <span className="text-neutral-gray flex items-center gap-1">
+                                            <TruckIcon size={11} weight="fill" />
+                                            {formatGHS(dayShifts.reduce((s, sh) => s + sh.deliveryFees, 0))}
+                                        </span>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -307,10 +322,19 @@ export default function MyShiftsView() {
                                                     <div className="text-center">
                                                         <div className="flex items-center gap-1 justify-center">
                                                             <CurrencyCircleDollarIcon size={12} weight="fill" className="text-primary" />
-                                                            <p className="text-primary text-sm font-bold font-body">{formatGHS(shift.totalSales)}</p>
+                                                            <p className="text-primary text-sm font-bold font-body">{formatGHS(shift.goodsSales)}</p>
                                                         </div>
-                                                        <p className="text-neutral-gray text-[10px] font-body">sales</p>
+                                                        <p className="text-neutral-gray text-[10px] font-body">revenue</p>
                                                     </div>
+                                                    {shift.deliveryFees > 0 && (
+                                                        <div className="text-center">
+                                                            <div className="flex items-center gap-1 justify-center">
+                                                                <TruckIcon size={12} weight="fill" className="text-neutral-gray" />
+                                                                <p className="text-text-dark dark:text-text-light text-sm font-bold font-body">{formatGHS(shift.deliveryFees)}</p>
+                                                            </div>
+                                                            <p className="text-neutral-gray text-[10px] font-body">delivery</p>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

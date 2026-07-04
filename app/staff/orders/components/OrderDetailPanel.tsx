@@ -291,7 +291,19 @@ export default function OrderDetailPanel() {
                                     <span className="text-neutral-gray text-sm font-body">{formatGHS(item.unitPrice * item.quantity)}</span>
                                 </div>
                             ))}
-                            <div className="flex items-center justify-between pt-2 border-t border-brown-light/15 mt-1">
+                            {order.deliveryFee > 0 && (
+                                <>
+                                    <div className="flex items-center justify-between pt-2 border-t border-brown-light/15 mt-1">
+                                        <span className="text-neutral-gray text-xs font-body">Goods Total</span>
+                                        <span className="text-text-light text-xs font-semibold font-body">{formatGHS(order.total - order.deliveryFee)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-neutral-gray text-xs font-body">Delivery Fee (3rd-party)</span>
+                                        <span className="text-text-light text-xs font-semibold font-body">{formatGHS(order.deliveryFee)}</span>
+                                    </div>
+                                </>
+                            )}
+                            <div className={`flex items-center justify-between pt-2 mt-1 ${order.deliveryFee > 0 ? '' : 'border-t border-brown-light/15'}`}>
                                 <span className="text-text-light text-sm font-semibold font-body">Total</span>
                                 <span className={`text-sm font-bold font-body ${refundDone ? 'line-through text-neutral-gray' : 'text-primary'}`}>
                                     {formatGHS(order.total)}

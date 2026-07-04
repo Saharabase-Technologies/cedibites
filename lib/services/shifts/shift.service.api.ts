@@ -11,6 +11,8 @@ interface ApiShift {
   logoutAt?: number | null;
   orderIds: string[];
   totalSales: number;
+  goodsSales?: number;
+  deliveryFees?: number;
   orderCount: number;
 }
 
@@ -21,6 +23,11 @@ function extractData<T>(response: unknown): T {
 
 function toStaffShift(raw: ApiShift): StaffShift {
   const logoutMs = raw.logoutAt != null ? Number(raw.logoutAt) : NaN;
+  const totalSales = Number(raw.totalSales) || 0;
+  // Fall back gracefully if the backend hasn't been deployed yet: treat the whole
+  // gross total as goods (no delivery split) so figures never break.
+  const deliveryFees = Number(raw.deliveryFees) || 0;
+  const goodsSales = raw.goodsSales != null ? Number(raw.goodsSales) : totalSales - deliveryFees;
 
   return {
     id: String(raw.id),
@@ -31,7 +38,9 @@ function toStaffShift(raw: ApiShift): StaffShift {
     loginAt: Number(raw.loginAt) || 0,
     logoutAt: Number.isFinite(logoutMs) && logoutMs > 0 ? logoutMs : undefined,
     orderIds: Array.isArray(raw.orderIds) ? raw.orderIds.map(String) : [],
-    totalSales: Number(raw.totalSales) || 0,
+    totalSales,
+    goodsSales: Number.isFinite(goodsSales) ? goodsSales : totalSales,
+    deliveryFees,
     orderCount: Number(raw.orderCount) || 0,
   };
 }
