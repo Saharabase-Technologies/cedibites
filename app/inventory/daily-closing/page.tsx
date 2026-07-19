@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import ComingSoon from '../_components/ComingSoon';
+import { DailyClosingPage } from './_components/DailyClosingPage';
 
-export const metadata: Metadata = { title: 'Daily Closing' };
+export const metadata: Metadata = { title: 'Daily Closing — Inventory' };
 
-export default function DailyClosingPage() {
-  return <ComingSoon title="Daily Closing" description="Daily closing stock entry coming soon." />;
+export default function Page() {
+  return <DailyClosingPage />;
 }

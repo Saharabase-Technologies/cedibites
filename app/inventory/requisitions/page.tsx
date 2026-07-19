@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import ComingSoon from '../_components/ComingSoon';
+import { RequisitionsPage } from './_components/RequisitionsPage';
 
-export const metadata: Metadata = { title: 'Requisitions' };
+export const metadata: Metadata = { title: 'Requisitions — Inventory' };
 
-export default function RequisitionsPage() {
-  return <ComingSoon title="Requisitions" description="Requisition management coming soon." />;
+export default function Page() {
+  return <RequisitionsPage />;
 }

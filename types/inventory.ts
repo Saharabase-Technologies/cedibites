@@ -32,7 +32,9 @@ export type TransferStatus =
   | 'sent'
   | 'received'
   | 'disputed'
-  | 'closed_disputed';
+  | 'closed'
+  | 'closed_disputed'
+  | 'cancelled';
 export type RequisitionStatus =
   | 'draft'
   | 'submitted'
@@ -205,67 +207,186 @@ export interface InventoryStockBalance {
 }
 
 // ─── Transfers ────────────────────────────────────────────────────────────────
+//
+// Lifecycle (backend TransferStatus enum / TransferService):
+//   draft → submitted → approved → sent → received → closed
+//                                       ↘ disputed → closed_disputed
+//   (draft | submitted | approved) → cancelled
+//
+// Stock leaves the source at `sent` (transfer_out, FEFO) and arrives at the
+// destination at `received` (transfer_in). A short receipt routes to `disputed`;
+// the original is immutable and reconciled by a corrective transfer.
+// Shape mirrors `App\Http\Resources\Inventory\TransferResource`.
 
 export interface InventoryTransferLine {
   id: number;
   item_id: number;
-  item: Pick<InventoryItem, 'id' | 'sku' | 'name' | 'base_unit'>;
+  /** `unit` is the item's base-unit symbol (e.g. "kg"). */
+  item: { id: number; name: string; unit: string | null } | null;
   requested_qty: number;
+  /** Populated once the transfer is sent. */
   sent_qty: number | null;
+  /** Populated once the transfer is received. */
   received_qty: number | null;
-  disputed_qty: number | null;
-  unit: Pick<InventoryUnit, 'id' | 'symbol'>;
-  unit_cost_at_time: number;
+  /** Weighted per-unit cost captured at send time (FEFO-allocated). */
+  unit_cost_at_time: number | null;
+}
+
+export interface InventoryTransferDispute {
+  id: number;
+  status: 'open' | 'resolved' | string;
+  reason: string | null;
+  discrepancy_qty: number;
+  /** The corrective draft transfer spawned on resolution, if any. */
+  corrective_transfer_id: number | null;
 }
 
 export interface InventoryTransfer {
   id: number;
   reference: string;
-  source_location_id: number;
-  source_location: Pick<InventoryLocation, 'id' | 'name' | 'type'>;
-  destination_location_id: number;
-  destination_location: Pick<InventoryLocation, 'id' | 'name' | 'type'>;
   status: TransferStatus;
-  notes: string | null;
-  requested_by_id: number;
-  requested_by: { id: number; name: string };
-  approved_by_id: number | null;
-  approved_by: { id: number; name: string } | null;
+  source_location: { id: number; name: string; type: LocationType } | null;
+  destination_location: { id: number; name: string; type: LocationType } | null;
+  /** Set when this transfer was spawned to correct a disputed parent. */
   parent_transfer_id: number | null;
-  source_validation_overridden_by: number | null;
+  notes: string | null;
   lines: InventoryTransferLine[];
-  total_value: number;
-  created_at: string;
-  updated_at: string;
+  dispute: InventoryTransferDispute | null;
+  /** Actor names (or null). The backend resource returns names, not objects. */
+  created_by: string | null;
+  approved_by: string | null;
+  sent_by: string | null;
+  received_by: string | null;
+  cancelled_by: string | null;
+  cancel_reason: string | null;
+  submitted_at: string | null;
+  approved_at: string | null;
+  sent_at: string | null;
+  received_at: string | null;
+  cancelled_at: string | null;
+  created_at: string | null;
+}
+
+export interface TransferLinePayload {
+  item_id: number;
+  requested_qty: number;
+}
+
+export interface CreateTransferPayload {
+  source_location_id: number;
+  destination_location_id: number;
+  notes?: string;
+  items: TransferLinePayload[];
+}
+
+export interface UpdateTransferPayload {
+  notes?: string;
+  items?: TransferLinePayload[];
+}
+
+export interface SubmitTransferPayload {
+  /** Admin-only: bypass the source-stock check on a deficit. */
+  override_source_check?: boolean;
+}
+
+export interface SendTransferPayload {
+  /** Optional per-line sent-qty overrides; defaults to the requested qty. */
+  lines?: { line_id: number; sent_qty: number }[];
+}
+
+export interface ReceiveTransferPayload {
+  /** Optional per-line received-qty; defaults to the sent qty. Short → dispute. */
+  lines?: { line_id: number; received_qty: number }[];
+  dispute_reason?: string;
+}
+
+export interface CancelTransferPayload {
+  reason: string;
+}
+
+export interface ResolveTransferDisputePayload {
+  notes?: string;
 }
 
 // ─── Requisitions ─────────────────────────────────────────────────────────────
 
+// Lifecycle (backend RequisitionStatus enum / RequisitionService):
+//   draft → submitted → approved → fulfilled
+//                     ↘ rejected
+// A branch requests stock from the warehouse; on approval a fulfilling transfer
+// is spawned and the requisition flips to `fulfilled` once that transfer is
+// received. Shape mirrors `App\Http\Resources\Inventory\RequisitionResource`.
+
 export interface InventoryRequisitionLine {
   id: number;
   item_id: number;
-  item: Pick<InventoryItem, 'id' | 'sku' | 'name' | 'base_unit'>;
+  /** `unit` is the item's base-unit symbol (e.g. "kg"). */
+  item: { id: number; name: string; unit: string | null } | null;
   requested_qty: number;
+  /** Quantity granted at approval; null until then. */
   approved_qty: number | null;
-  unit: Pick<InventoryUnit, 'id' | 'symbol'>;
 }
 
 export interface InventoryRequisition {
   id: number;
   reference: string;
-  requesting_location_id: number;
-  requesting_location: Pick<InventoryLocation, 'id' | 'name' | 'type'>;
-  source_type: RequisitionSourceType;
-  source_location_id: number | null;
-  source_location: Pick<InventoryLocation, 'id' | 'name' | 'type'> | null;
-  purpose: RequisitionPurpose;
   status: RequisitionStatus;
+  requesting_location: { id: number; name: string; type: LocationType } | null;
+  source_type: RequisitionSourceType;
+  source_location: { id: number; name: string; type: LocationType } | null;
+  purpose: RequisitionPurpose;
   notes: string | null;
-  requested_by_id: number;
-  requested_by: { id: number; name: string };
   lines: InventoryRequisitionLine[];
-  created_at: string;
-  updated_at: string;
+  /** The transfer spawned on approval to fulfil this requisition. */
+  fulfilling_transfer: { id: number; reference: string; status: TransferStatus } | null;
+  /** Actor names (or null). The backend resource returns names, not objects. */
+  requested_by: string | null;
+  approved_by: string | null;
+  rejection_reason: string | null;
+  submitted_at: string | null;
+  approved_at: string | null;
+  rejected_at: string | null;
+  fulfilled_at: string | null;
+  created_at: string | null;
+}
+
+export interface RequisitionLinePayload {
+  item_id: number;
+  requested_qty: number;
+}
+
+export interface CreateRequisitionPayload {
+  requesting_location_id: number;
+  source_location_id: number;
+  purpose?: RequisitionPurpose;
+  notes?: string;
+  items: RequisitionLinePayload[];
+}
+
+export interface UpdateRequisitionPayload {
+  source_location_id?: number;
+  purpose?: RequisitionPurpose;
+  notes?: string;
+  items?: RequisitionLinePayload[];
+}
+
+export interface ApproveRequisitionPayload {
+  /** Optional per-line granted qty; defaults to the requested qty. 0 skips a line. */
+  lines?: { line_id: number; approved_qty: number }[];
+}
+
+export interface RejectRequisitionPayload {
+  reason: string;
+}
+
+export interface InventoryRequisitionFilters {
+  search?: string;
+  status?: RequisitionStatus;
+  requesting_location_id?: number;
+  source_location_id?: number;
+  purpose?: RequisitionPurpose;
+  page?: number;
+  per_page?: number;
 }
 
 // ─── Wastage ──────────────────────────────────────────────────────────────────
@@ -299,20 +420,64 @@ export interface InventoryWastageEvent {
 }
 
 // ─── Daily closing ────────────────────────────────────────────────────────────
+//
+// Mandatory end-of-day count. Opening a closing snapshots the expected quantity
+// (ledger balance) per item held at the location; the operator enters counted
+// quantities and completes it, locking in the variance (counted − expected).
+// Dates with no closing are "missed" — surfaced by the calendar endpoint.
+// Shape mirrors `App\Http\Resources\Inventory\DailyClosingResource`.
 
-export interface InventoryDailyClosingEntry {
+export type DailyClosingStatus = 'open' | 'completed';
+
+export interface InventoryDailyClosingLine {
   id: number;
-  location_id: number;
-  location: Pick<InventoryLocation, 'id' | 'name'>;
   item_id: number;
-  item: Pick<InventoryItem, 'id' | 'sku' | 'name' | 'base_unit'>;
-  date: string;
+  item: { id: number; name: string; unit: string | null } | null;
   expected_qty: number;
-  actual_qty: number;
-  variance: number;
-  entered_by_id: number;
-  entered_by: { id: number; name: string };
-  created_at: string;
+  counted_qty: number | null;
+  /** counted − expected; null until counted. */
+  variance: number | null;
+}
+
+export interface InventoryDailyClosing {
+  id: number;
+  business_date: string; // YYYY-MM-DD
+  status: DailyClosingStatus;
+  location: { id: number; name: string; type: LocationType } | null;
+  notes: string | null;
+  lines: InventoryDailyClosingLine[];
+  /** Summary (present whenever lines are loaded — always, from index/show). */
+  line_count: number;
+  counted_count: number;
+  discrepancy_count: number;
+  net_variance: number;
+  opened_by: string | null;
+  completed_by: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+}
+
+export interface OpenDailyClosingPayload {
+  location_id: number;
+  business_date: string;
+}
+
+export interface SaveDailyClosingPayload {
+  lines: { line_id: number; counted_qty: number }[];
+  complete?: boolean;
+}
+
+export interface InventoryDailyClosingFilters {
+  location_id?: number;
+  status?: DailyClosingStatus;
+  date_from?: string;
+  date_to?: string;
+}
+
+export interface DailyClosingCalendarDay {
+  date: string;
+  status: DailyClosingStatus | null;
+  id: number | null;
 }
 
 // ─── Recipes (BOMs) ──────────────────────────────────────────────────────────
@@ -435,6 +600,7 @@ export interface InventoryLocationFilters {
 }
 
 export interface InventoryTransferFilters {
+  search?: string;
   status?: TransferStatus;
   source_location_id?: number;
   destination_location_id?: number;

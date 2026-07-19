@@ -17,3 +17,6 @@ export {
   PrimaryButton,
 } from './FormPrimitives';
 export { POStatusBadge } from './POStatusBadge';
+export { TransferStatusBadge } from './TransferStatusBadge';
+export { RequisitionStatusBadge } from './RequisitionStatusBadge';
+export { DailyClosingStatusBadge } from './DailyClosingStatusBadge';
