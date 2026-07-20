@@ -21,6 +21,7 @@ import {
   ReceiptIcon,
   ClipboardIcon,
   CookingPotIcon,
+  ScalesIcon,
 } from '@phosphor-icons/react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
@@ -37,6 +38,7 @@ const OPERATIONS_NAV: NavItem[] = [
   { href: '/inventory/requisitions',  label: 'Requisitions',  icon: ClipboardTextIcon   },
   { href: '/inventory/wastage',       label: 'Wastage',       icon: TrashIcon           },
   { href: '/inventory/daily-closing', label: 'Daily Closing', icon: CalendarCheckIcon   },
+  { href: '/inventory/reconciliation',label: 'Reconciliation',icon: ScalesIcon          },
   { href: '/inventory/reports',       label: 'Reports',       icon: ChartBarIcon        },
 ];
 

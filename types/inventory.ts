@@ -530,18 +530,69 @@ export interface CreateRecipePayload {
 export type UpdateRecipePayload = CreateRecipePayload;
 
 // ─── Reconciliation ───────────────────────────────────────────────────────────
+//
+// The stock-take loop the IMS builds toward: "inventory is basically accounting —
+// whatever comes in, whatever comes out must cancel out." A cycle opens with a
+// system-qty snapshot, the operator counts everything, and posting writes a
+// `cycle_adjustment` movement per non-zero variance (bringing the ledger to the
+// counted actual) then closes — "the system is reset to zero, another cycle
+// begins." Shape mirrors `App\Http\Resources\Inventory\ReconciliationCycleResource`.
+
+export type ReconciliationStatus = 'open' | 'closed';
+
+export interface InventoryReconciliationLine {
+  id: number;
+  item_id: number;
+  item: { id: number; name: string; unit: string | null } | null;
+  /** Ledger balance snapshotted at open (the "expected"). */
+  system_qty: number;
+  counted_qty: number | null;
+  /** counted − system; null until counted. */
+  variance: number | null;
+  unit_cost: number | null;
+  /** variance × unit_cost; the value of the discrepancy. */
+  variance_value: number | null;
+  /** Variance value exceeds the location threshold (the founder's red flag). */
+  over_threshold: boolean;
+  /** A cycle_adjustment movement was posted for this line. */
+  adjusted: boolean;
+}
 
 export interface InventoryReconciliationCycle {
   id: number;
-  location_id: number;
-  location: Pick<InventoryLocation, 'id' | 'name'>;
-  opened_at: string;
+  status: ReconciliationStatus;
+  location: { id: number; name: string; type: LocationType } | null;
+  notes: string | null;
+  /** Signed sum of posted variance values; set on posting. */
+  net_variance_value: number | null;
+  threshold_amount: number | null;
+  lines: InventoryReconciliationLine[];
+  line_count: number;
+  counted_count: number;
+  variance_line_count: number;
+  over_threshold_count: number;
+  opened_by: string | null;
+  closed_by: string | null;
+  opened_at: string | null;
   closed_at: string | null;
-  status: 'open' | 'closed';
-  net_variance_value: number;
-  opened_by_id: number;
-  opened_by: { id: number; name: string };
-  created_at: string;
+  created_at: string | null;
+}
+
+export interface OpenReconciliationPayload {
+  location_id: number;
+}
+
+export interface SaveReconciliationPayload {
+  lines: { line_id: number; counted_qty: number }[];
+}
+
+export interface PostReconciliationPayload {
+  notes?: string;
+}
+
+export interface InventoryReconciliationFilters {
+  location_id?: number;
+  status?: ReconciliationStatus;
 }
 
 // ─── Reports ─────────────────────────────────────────────────────────────────
