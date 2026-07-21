@@ -42,6 +42,7 @@ export interface FeedbackRect {
 export interface FeedbackScreenshot {
   url: string;
   source: string;
+  route?: string | null;
   pins: FeedbackPin[];
   rects: FeedbackRect[];
 }

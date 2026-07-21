@@ -20,7 +20,7 @@ export interface ReportPayload {
   request_ids: string[];
   client_meta: Record<string, unknown>;
   /** Aligns by index with the uploaded `screenshots[]` files. */
-  screenshot_meta: Array<{ source: string; pins: Pin[]; rects: Rect[] }>;
+  screenshot_meta: Array<{ source: string; pins: Pin[]; rects: Rect[]; route?: string }>;
 }
 
 /** Browser/OS/connection facts — the real story behind "it's slow / it hangs". */

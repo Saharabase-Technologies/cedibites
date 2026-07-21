@@ -198,6 +198,11 @@ export function FeedbackDetailPage({ id }: { id: number }) {
             <div className="flex flex-col gap-3">
               {report.screenshots.map((shot, si) => (
                 <div key={si}>
+                  {shot.route && (
+                    <p className="mb-1 flex items-center gap-1 font-mono text-[11px] text-neutral-gray">
+                      <MapPinIcon size={12} /> {shot.route}
+                    </p>
+                  )}
                   <div className="relative overflow-hidden rounded-xl border border-[#f0e8d8]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={shot.url} alt={`Screenshot ${si + 1}`} className="w-full" />
