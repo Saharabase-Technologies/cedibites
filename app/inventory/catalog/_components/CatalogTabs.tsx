@@ -4,6 +4,7 @@ import { SegmentedTabsLink } from '../../_components';
 
 const CATALOG_NAV = [
   { href: '/inventory/catalog/items',     label: 'Items'     },
+  { href: '/inventory/catalog/recipes',   label: 'Recipes'   },
   { href: '/inventory/catalog/suppliers', label: 'Suppliers' },
 ];
 
@@ -13,7 +14,7 @@ export function CatalogTabs() {
 
 /**
  * Unified Catalog header — one "Inventory" title above the tabs,
- * shared by all four sub-pages (Items, Categories, Units, Suppliers).
+ * shared by the sub-pages (Items, Recipes, Suppliers).
  */
 export function CatalogShell({ children }: { children: React.ReactNode }) {
   return (
@@ -21,7 +22,7 @@ export function CatalogShell({ children }: { children: React.ReactNode }) {
       <div className="mb-5">
         <h1 className="text-2xl font-bold font-brand text-text-dark">Inventory</h1>
         <p className="text-neutral-gray text-sm font-body mt-1">
-          Inventory items and supplier master data.
+          Items, recipes and supplier master data.
         </p>
       </div>
       <div className="mb-5">

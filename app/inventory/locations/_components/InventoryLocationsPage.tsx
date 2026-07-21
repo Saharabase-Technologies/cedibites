@@ -17,6 +17,7 @@ import {
   PrimaryButton,
 } from '../../_components';
 import { useInventoryLocations, useCreateInventoryLocation } from '@/lib/api/hooks/inventory/useInventoryLocations';
+import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import type { InventoryLocation, LocationType } from '@/types/inventory';
 
 // ─── Status indicator (subtle gray) ───────────────────────────────────────────
@@ -80,19 +81,31 @@ function LocationCard({ location }: { location: InventoryLocation }) {
 // ─── Add location form ────────────────────────────────────────────────────────
 
 function AddLocationForm({ onClose }: { onClose: () => void }) {
-  const [name,    setName]    = useState('');
-  const [code,    setCode]    = useState('');
-  const [type,    setType]    = useState<LocationType>('satellite');
-  const [address, setAddress] = useState('');
+  const [name,     setName]     = useState('');
+  const [type,     setType]     = useState<LocationType>('satellite');
+  const [branchId, setBranchId] = useState('');
+  const [address,  setAddress]  = useState('');
 
   const create = useCreateInventoryLocation();
+  const { branches } = useBranchesApi();
+
+  // Linking to an existing branch prefills the name (still editable). A satellite
+  // kitchen may map to a branch or stand alone; the mother kitchen never does.
+  const onBranchChange = (value: string) => {
+    setBranchId(value);
+    const branch = branches.find((b) => String(b.id) === value);
+    if (branch && !name.trim()) setName(branch.name);
+  };
+
+  const isSatellite = type === 'satellite';
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Code is assigned server-side (SK-001 / WH-001) — never sent from here.
     await create.mutateAsync({
       name,
-      code: code.toUpperCase(),
       type,
+      branch_id: isSatellite && branchId ? Number(branchId) : undefined,
       address: address || undefined,
     });
     onClose();
@@ -100,6 +113,36 @@ function AddLocationForm({ onClose }: { onClose: () => void }) {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
+      <FormField label="Type" htmlFor="loc-type" required>
+        <Select
+          id="loc-type"
+          value={type}
+          onChange={(e) => setType(e.target.value as LocationType)}
+        >
+          <option value="satellite">Satellite kitchen</option>
+          <option value="warehouse">Mother kitchen (central warehouse)</option>
+        </Select>
+      </FormField>
+
+      {isSatellite && (
+        <FormField
+          label="Link to branch"
+          htmlFor="loc-branch"
+          hint="Optional — pick an existing branch, or leave empty for a standalone satellite kitchen."
+        >
+          <Select
+            id="loc-branch"
+            value={branchId}
+            onChange={(e) => onBranchChange(e.target.value)}
+          >
+            <option value="">Standalone (no branch)</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </Select>
+        </FormField>
+      )}
+
       <FormField label="Location name" htmlFor="loc-name" required>
         <TextInput
           id="loc-name"
@@ -109,27 +152,6 @@ function AddLocationForm({ onClose }: { onClose: () => void }) {
           required
           autoFocus
         />
-      </FormField>
-
-      <FormField label="Code" htmlFor="loc-code" required hint="Short unique identifier (e.g. SK-005)">
-        <TextInput
-          id="loc-code"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="e.g. SK-005"
-          required
-        />
-      </FormField>
-
-      <FormField label="Type" htmlFor="loc-type" required>
-        <Select
-          id="loc-type"
-          value={type}
-          onChange={(e) => setType(e.target.value as LocationType)}
-        >
-          <option value="satellite">Satellite kitchen (branch)</option>
-          <option value="warehouse">Mother kitchen (central warehouse)</option>
-        </Select>
       </FormField>
 
       <FormField label="Address" htmlFor="loc-address">
