@@ -18,6 +18,7 @@ import {
     ChartBarIcon,
     GearSixIcon,
     ClockCounterClockwiseIcon,
+    ChatCircleDotsIcon,
     SignOutIcon,
     CaretRightIcon,
     ShieldCheckIcon,
@@ -74,6 +75,7 @@ const ADMIN_GROUPS = [
 const SYSTEM_GROUP = {
     title: 'System',
     items: [
+        { href: '/admin/feedback',  label: 'Feedback',   icon: ChatCircleDotsIcon        },
         { href: '/admin/settings',  label: 'Settings',   icon: GearSixIcon               },
         { href: '/admin/audit',     label: 'Audit Log',  icon: ClockCounterClockwiseIcon },
     ],

@@ -1,5 +1,31 @@
-import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
 import { navigateTo } from '@/lib/navigation';
+import { nextRequestId } from '@/lib/feedback/request-id';
+import { recordNetwork } from '@/lib/feedback/network-buffer';
+import { signalProblem } from '@/lib/feedback/auto-prompt';
+
+/** Per-request metadata the feedback layer attaches for correlation + timing. */
+interface RequestMeta {
+  requestId: string;
+  start: number;
+}
+type ConfigWithMeta = InternalAxiosRequestConfig & { __cbMeta?: RequestMeta };
+
+/** Record a network breadcrumb — never throws into the request/response flow. */
+function recordBreadcrumb(config: ConfigWithMeta | undefined, status: number | null): void {
+  try {
+    const meta = config?.__cbMeta;
+    recordNetwork({
+      method: (config?.method || 'get').toUpperCase(),
+      url: config?.url || '',
+      status,
+      durationMs: meta ? Date.now() - meta.start : null,
+      requestId: meta?.requestId ?? null,
+    });
+  } catch {
+    /* capture must never break the app */
+  }
+}
 
 // API Response types
 export interface ApiResponse<T = any> {
@@ -83,6 +109,12 @@ function isStaffRoute(): boolean {
 // Request interceptor - use the token that matches the current route, no fallbacks
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // Feedback correlation: stamp a unique id + start time on every call. Added
+    // here without touching the auth logic below (I4 — chain, never reorder).
+    const requestId = nextRequestId();
+    if (config.headers) config.headers['X-Request-ID'] = requestId;
+    (config as ConfigWithMeta).__cbMeta = { requestId, start: Date.now() };
+
     if (typeof window !== 'undefined' && config.headers) {
       if (isStaffRoute()) {
         const token = localStorage.getItem('cedibites_staff_token');
@@ -106,12 +138,27 @@ apiClient.interceptors.request.use(
 
 // Response interceptor - handle errors globally
 apiClient.interceptors.response.use(
-  (response) => {
+  (response: AxiosResponse) => {
+    // Feedback: record the network breadcrumb, then return unchanged.
+    recordBreadcrumb(response.config as ConfigWithMeta, response.status);
     // Backend returns data wrapped in { data: ... } for success responses
     // Return the full response to preserve structure
     return response.data;
   },
   async (error: AxiosError<ApiResponse>) => {
+    // Feedback: record the breadcrumb (status null when there was no response),
+    // then fall through to existing error handling, rethrowing untouched (I4).
+    const errStatus = error.response?.status ?? null;
+    recordBreadcrumb(error.config as ConfigWithMeta, errStatus);
+
+    // Auto-prompt on a genuine unexpected failure (5xx or dead connection).
+    // Exclude the feedback endpoint itself (C7) so a failing submit can't prompt
+    // the user to report the failure — an infinite loop.
+    const reqUrl = error.config?.url || '';
+    if (!reqUrl.includes('/feedback/') && (errStatus === null || errStatus >= 500)) {
+      signalProblem();
+    }
+
     // Handle network errors
     if (!error.response) {
       throw new ApiError(0, 'Network error. Please check your connection.');
