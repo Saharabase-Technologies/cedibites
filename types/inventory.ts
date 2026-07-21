@@ -116,6 +116,10 @@ export interface InventoryItem {
   expiry_tracked: boolean;
   reorder_level: number | null;
   min_threshold: number | null;
+  /** Option A — label of the pack the item is bought in (e.g. "crate"). */
+  purchase_pack_label: string | null;
+  /** How many base units are in one pack (e.g. 30 pieces per crate). */
+  purchase_pack_size: number | null;
   weighted_avg_cost: number;
   /** Total quantity on hand across all locations (summed balance cache). */
   stock_on_hand: number;
@@ -676,6 +680,9 @@ export interface CreateInventoryItemPayload {
   expiry_tracked?: boolean;
   reorder_level?: number;
   min_threshold?: number;
+  /** Option A — buy-in-packs-of. Send label + size together, or neither. */
+  purchase_pack_label?: string | null;
+  purchase_pack_size?: number | null;
 }
 
 export interface UpdateInventoryItemPayload extends Partial<CreateInventoryItemPayload> {}
@@ -723,7 +730,8 @@ export interface RecordProductionPayload {
 }
 
 export interface CreateInventoryLocationPayload {
-  code: string;
+  /** Assigned server-side (SK-001 / WH-001); do not send from the client. */
+  code?: string;
   name: string;
   type: LocationType;
   branch_id?: number;

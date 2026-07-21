@@ -25,14 +25,17 @@ import { toast } from '@/lib/utils/toast';
 // ─── Creatable roles ──────────────────────────────────────────────────────────
 
 const ROLES: { value: string; label: string }[] = [
-    { value: 'branch_partner', label: 'Branch Partner' },
-    { value: 'admin',          label: 'Admin' },
-    { value: 'manager',        label: 'Manager' },
-    { value: 'sales_staff',    label: 'Sales Staff' },
-    { value: 'call_center',    label: 'Call Center' },
-    { value: 'kitchen',        label: 'Kitchen' },
-    { value: 'rider',          label: 'Rider' },
-    { value: 'tech_admin',     label: 'Tech Admin' },
+    { value: 'branch_partner',    label: 'Branch Partner' },
+    { value: 'admin',             label: 'Admin' },
+    { value: 'manager',           label: 'Manager' },
+    { value: 'sales_staff',       label: 'Sales Staff' },
+    { value: 'call_center',       label: 'Call Center' },
+    { value: 'kitchen',           label: 'Kitchen' },
+    { value: 'rider',             label: 'Rider' },
+    // Inventory / IMS roles — backend-scoped to the linked branch (mother or satellite kitchen).
+    { value: 'warehouse_manager', label: 'Warehouse Manager' },
+    { value: 'purchasing_clerk',  label: 'Purchasing Clerk' },
+    { value: 'tech_admin',        label: 'Tech Admin' },
 ];
 
 // ─── Passcode Gate ────────────────────────────────────────────────────────────

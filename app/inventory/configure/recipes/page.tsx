@@ -1,13 +1,7 @@
-import type { Metadata } from 'next';
-import { ConfigureShell } from '../_components/ConfigureShell';
-import RecipesPage from '../../recipes/_components/RecipesPage';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Recipes — Configure' };
-
+// Recipes moved to Catalog (it's master data that depends on items existing).
+// Kept as a redirect so old links / bookmarks still resolve.
 export default function Page() {
-  return (
-    <ConfigureShell>
-      <RecipesPage />
-    </ConfigureShell>
-  );
+  redirect('/inventory/catalog/recipes');
 }

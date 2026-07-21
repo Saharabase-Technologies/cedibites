@@ -40,20 +40,18 @@ export function InventoryModal({
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    // Backdrop deliberately does NOT close on click — accidental outside clicks
+    // must not discard an in-progress form. Close only via the ✕ or Escape.
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div
         className={`bg-white rounded-2xl shadow-2xl w-full ${SIZE_MAP[size]} max-h-[90vh] overflow-hidden flex flex-col`}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-neutral-100">
           <h3 className="text-text-dark font-semibold font-brand text-lg">{title}</h3>
           <button
             onClick={onClose}
-            className="text-neutral-gray hover:text-text-dark transition-colors p-1 -m-1"
+            className="text-neutral-gray hover:text-text-dark transition-colors p-1 -m-1 cursor-pointer"
             aria-label="Close"
           >
             <XIcon size={20} />

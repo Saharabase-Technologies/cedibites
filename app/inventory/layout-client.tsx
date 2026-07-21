@@ -22,6 +22,7 @@ import {
   ClipboardIcon,
   CookingPotIcon,
   ScalesIcon,
+  ForkKnifeIcon,
 } from '@phosphor-icons/react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
@@ -57,9 +58,12 @@ const PURCHASING_NAV: NavItem[] = [
 
 /** Product master data — less frequent. */
 const CATALOG_NAV: NavItem[] = [
+  { href: '/inventory/catalog',           label: 'Items',     icon: PackageIcon,    permission: 'view_inventory_catalog' },
+  // Recipes/BOM is master data that depends on items existing, so it lives with
+  // the catalog rather than one-time system setup.
+  { href: '/inventory/catalog/recipes',   label: 'Recipes',   icon: ForkKnifeIcon,  permission: 'inventory.recipe.view'  },
   // Suppliers are a purchasing concern, so they follow the purchasing grant
   // rather than plain catalog visibility.
-  { href: '/inventory/catalog',           label: 'Items',     icon: PackageIcon,    permission: 'view_inventory_catalog' },
   { href: '/inventory/catalog/suppliers', label: 'Suppliers', icon: StorefrontIcon, permission: 'inventory.purchase.view' },
 ];
 

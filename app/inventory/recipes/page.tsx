@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
 export default function Page() {
-  redirect('/inventory/configure/recipes');
+  redirect('/inventory/catalog/recipes');
 }
 

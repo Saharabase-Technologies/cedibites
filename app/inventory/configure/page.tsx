@@ -1,8 +1,13 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
+import { ConfigureShell } from './_components/ConfigureShell';
+import { ConfigureHub } from './_components/ConfigureHub';
 
 export const metadata: Metadata = { title: 'Configure' };
 
 export default function ConfigurePage() {
-  redirect('/inventory/configure/categories');
+  return (
+    <ConfigureShell>
+      <ConfigureHub />
+    </ConfigureShell>
+  );
 }
