@@ -11,7 +11,7 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { ChatCircleDotsIcon, XIcon, CrosshairIcon, ArrowsClockwiseIcon, ImageIcon, TrashIcon } from '@phosphor-icons/react';
+import { ChatCircleDotsIcon, XIcon, CrosshairIcon, CameraIcon, ImageIcon, TrashIcon } from '@phosphor-icons/react';
 import { FEATURES } from '@/lib/constants/features';
 import { snapshot } from '@/lib/feedback';
 import { captureScreenshot, dataUrlToFile } from '@/lib/feedback/screenshot';
@@ -63,7 +63,7 @@ async function sendReport(
       network_entries: snap.network,
       request_ids: snap.requestIds,
       client_meta: buildClientMeta(),
-      screenshot_meta: shots.map((s) => ({ source: s.source, pins: s.pins, rects: s.rects })),
+      screenshot_meta: shots.map((s) => ({ source: s.source, pins: s.pins, rects: s.rects, route: s.route })),
     },
     files,
     audioFile,
@@ -89,6 +89,8 @@ function RichWidget() {
   const [severity, setSeverity] = useState<Severity>('annoying');
   const [audio, setAudio] = useState<Blob | null>(null);
   const [prompted, setPrompted] = useState(false);
+  // Which shot pins attach to — the one captured on the page you're currently on.
+  const [activeShot, setActiveShot] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const openRef = useRef(false);
 
@@ -115,40 +117,50 @@ function RichWidget() {
     setDescription('');
     setSeverity('annoying');
     setAudio(null);
+    setActiveShot(0);
     setStep('annotate');
   }, []);
 
   const openWidget = useCallback(async () => {
     setOpen(true);
     setStep('annotate');
+    // First open captures the current page. If a draft is already going
+    // (roamed here from another page), keep it — you add pages explicitly.
     if (shots.length === 0) {
       setCapturing(true);
       const dataUrl = await captureScreenshot();
-      if (dataUrl) setShots([{ dataUrl, source: 'capture', pins: [], rects: [] }]);
+      if (dataUrl) {
+        setShots([{ dataUrl, source: 'capture', pins: [], rects: [], route: pathname }]);
+        setActiveShot(0);
+      }
       setCapturing(false);
     }
-  }, [shots.length]);
+  }, [shots.length, pathname]);
 
-  const addPin = useCallback((pin: Pin) => {
-    setShots((prev) => {
-      if (prev.length === 0) return prev;
-      const next = [...prev];
-      next[0] = { ...next[0], pins: [...next[0].pins, pin] };
-      return next;
-    });
-  }, []);
-
-  const retake = useCallback(async () => {
+  // Capture the CURRENT page and append it — this is what lets a report span
+  // multiple pages: capture here, navigate, reopen, capture there.
+  const captureThisPage = useCallback(async () => {
+    if (shots.length >= MAX_SHOTS) return;
     setCapturing(true);
     const dataUrl = await captureScreenshot();
     setCapturing(false);
     if (dataUrl) {
       setShots((prev) => {
-        const rest = prev.filter((s) => s.source === 'upload');
-        return [{ dataUrl, source: 'capture' as const, pins: [], rects: [] }, ...rest].slice(0, MAX_SHOTS);
+        const next = [...prev, { dataUrl, source: 'capture' as const, pins: [], rects: [], route: pathname }];
+        setActiveShot(next.length - 1); // pin the page you just captured
+        return next;
       });
     }
-  }, []);
+  }, [shots.length, pathname]);
+
+  const addPin = useCallback((pin: Pin) => {
+    setShots((prev) => {
+      if (prev.length === 0 || !prev[activeShot]) return prev;
+      const next = [...prev];
+      next[activeShot] = { ...next[activeShot], pins: [...next[activeShot].pins, pin] };
+      return next;
+    });
+  }, [activeShot]);
 
   const onUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -166,6 +178,7 @@ function RichWidget() {
 
   const removeShot = useCallback((idx: number) => {
     setShots((prev) => prev.filter((_, i) => i !== idx));
+    setActiveShot((a) => (idx < a ? a - 1 : Math.max(0, a)));
   }, []);
 
   const submit = useCallback(async () => {
@@ -186,6 +199,9 @@ function RichWidget() {
   if (!authenticated) return null;
 
   const buf = open && step === 'review' ? snapshot() : null;
+  // You can only pin the page you're actually on, and only capture it once.
+  const canPin = shots[activeShot]?.route === pathname;
+  const currentPageCaptured = shots.some((s) => s.route === pathname);
 
   return (
     <div data-feedback-widget>
@@ -232,7 +248,7 @@ function RichWidget() {
 
       {/* Element picker (hides the modal while active) */}
       {picking && (
-        <ElementPicker pins={shots[0]?.pins ?? []} onPin={addPin} onDone={() => setPicking(false)} />
+        <ElementPicker pins={shots[activeShot]?.pins ?? []} onPin={addPin} onDone={() => setPicking(false)} />
       )}
 
       {/* Stepper modal */}
@@ -244,7 +260,7 @@ function RichWidget() {
               <div>
                 <h2 className="font-body text-base font-bold text-text-dark">Send feedback</h2>
                 <p className="font-body text-xs text-neutral-gray">
-                  {step === 'annotate' && 'Point at what went wrong'}
+                  {step === 'annotate' && (shots.length > 1 ? `${shots.length} pages attached` : 'Point at what went wrong')}
                   {step === 'describe' && 'Tell us what happened'}
                   {step === 'review' && "Here's what we'll attach"}
                 </p>
@@ -270,9 +286,17 @@ function RichWidget() {
                   ) : shots.length > 0 ? (
                     <div className="flex flex-col gap-2">
                       {shots.map((shot, idx) => (
-                        <div key={idx} className="group relative overflow-hidden rounded-xl border border-[#f0e8d8]">
+                        <div
+                          key={idx}
+                          className={`group relative overflow-hidden rounded-xl border ${idx === activeShot ? 'border-primary ring-1 ring-primary/40' : 'border-[#f0e8d8]'}`}
+                        >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={shot.dataUrl} alt={`Screenshot ${idx + 1}`} className="w-full" />
+                          {shot.route && (
+                            <span className="absolute left-2 top-2 max-w-[70%] truncate rounded-md bg-black/55 px-1.5 py-0.5 font-mono text-[10px] text-white">
+                              {shot.route}
+                            </span>
+                          )}
                           {shot.pins.map((p, i) => (
                             <span
                               key={i}
@@ -302,7 +326,8 @@ function RichWidget() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      disabled={shots.length === 0}
+                      disabled={!canPin}
+                      title={canPin ? undefined : 'Capture this page first to pin its elements'}
                       onClick={() => setPicking(true)}
                       className="flex items-center gap-1.5 rounded-lg border border-[#f0e8d8] px-3 py-2 font-body text-xs font-medium text-text-dark hover:bg-neutral-light disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                     >
@@ -310,10 +335,12 @@ function RichWidget() {
                     </button>
                     <button
                       type="button"
-                      onClick={retake}
-                      className="flex items-center gap-1.5 rounded-lg border border-[#f0e8d8] px-3 py-2 font-body text-xs font-medium text-text-dark hover:bg-neutral-light cursor-pointer"
+                      disabled={shots.length >= MAX_SHOTS || currentPageCaptured}
+                      title={currentPageCaptured ? 'This page is already attached' : 'Add the page you\'re on now'}
+                      onClick={captureThisPage}
+                      className="flex items-center gap-1.5 rounded-lg border border-[#f0e8d8] px-3 py-2 font-body text-xs font-medium text-text-dark hover:bg-neutral-light disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                     >
-                      <ArrowsClockwiseIcon size={16} /> Retake
+                      <CameraIcon size={16} /> Capture this page
                     </button>
                     <button
                       type="button"
@@ -325,6 +352,11 @@ function RichWidget() {
                     </button>
                     <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={onUpload} />
                   </div>
+                  {shots.length > 0 && (
+                    <p className="font-body text-[11px] text-neutral-gray">
+                      Building a multi-page report? Close this, go to another page, reopen, and “Capture this page” to add it.
+                    </p>
+                  )}
                 </div>
               )}
 

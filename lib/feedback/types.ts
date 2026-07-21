@@ -65,6 +65,8 @@ export interface Shot {
   source: 'capture' | 'upload';
   pins: Pin[];
   rects: Rect[];
+  /** Page this shot was captured on — lets one report span multiple pages. */
+  route?: string;
 }
 
 export type Severity = 'blocking' | 'annoying' | 'cosmetic' | 'suggestion';
