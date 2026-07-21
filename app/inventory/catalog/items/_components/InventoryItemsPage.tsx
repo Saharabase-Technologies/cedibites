@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PackageIcon, PlusIcon, TrashIcon, MinusCircleIcon } from '@phosphor-icons/react';
+import { PackageIcon, PlusIcon } from '@phosphor-icons/react';
 import {
   InventoryModal,
   FormField,
@@ -23,10 +23,7 @@ import {
   useInventoryUnits,
   useInventorySuppliers,
   useCreateInventoryItem,
-  useRecordConsumption,
 } from '@/lib/api/hooks/inventory/useInventoryCatalog';
-import { useInventoryLocations } from '@/lib/api/hooks/inventory/useInventoryLocations';
-import { getErrorMessage } from '@/lib/utils/error-handler';
 import type { InventoryItem, StorageType } from '@/types/inventory';
 
 // ─── Add Item form ────────────────────────────────────────────────────────────
@@ -193,177 +190,6 @@ function AddItemForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── Record consumption (mother kitchen using stock) ──────────────────────────
-
-interface ConsumeLine {
-  key: string;
-  item_id: string;
-  quantity: string;
-}
-
-let consumeSeq = 0;
-function emptyConsumeLine(): ConsumeLine {
-  consumeSeq += 1;
-  return { key: `consume-${consumeSeq}`, item_id: '', quantity: '' };
-}
-
-function RecordConsumptionForm({ onClose }: { onClose: () => void }) {
-  const { data: items = [] } = useInventoryItems({ is_active: true });
-  const { data: warehouses = [] } = useInventoryLocations({ type: 'warehouse', is_active: true });
-  const record = useRecordConsumption();
-
-  const [locationId, setLocationId] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [lines, setLines] = useState<ConsumeLine[]>(() => [emptyConsumeLine()]);
-  const [error, setError] = useState('');
-
-  // Default to the (usually single) mother-kitchen warehouse.
-  useEffect(() => {
-    if (!locationId && warehouses.length) setLocationId(String(warehouses[0].id));
-  }, [warehouses, locationId]);
-
-  const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
-  // You can only consume what's actually in stock — hide zero/negative on-hand items.
-  const consumableItems = useMemo(() => items.filter((i) => i.stock_on_hand > 0), [items]);
-
-  const updateLine = (key: string, patch: Partial<ConsumeLine>) =>
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-  const addLine = () => setLines((prev) => [...prev, emptyConsumeLine()]);
-  const removeLine = (key: string) =>
-    setLines((prev) => (prev.length === 1 ? prev : prev.filter((l) => l.key !== key)));
-
-  const validLines = lines.filter((l) => l.item_id !== '' && Number(l.quantity) > 0);
-  const overdrawn = lines.some((l) => {
-    const item = itemById.get(Number(l.item_id));
-    return item != null && Number(l.quantity) > item.stock_on_hand;
-  });
-  const canSubmit = locationId !== '' && validLines.length > 0 && !overdrawn;
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    if (!canSubmit) return;
-    try {
-      // Stamp with the current time-of-day so an entry recorded today sorts
-      // after earlier same-day movements (a bare date = midnight would sort first
-      // and break the running balance).
-      const occurredAt = `${date}T${new Date().toTimeString().slice(0, 8)}`;
-      await record.mutateAsync({
-        location_id: Number(locationId),
-        occurred_at: occurredAt,
-        items: validLines.map((l) => ({ item_id: Number(l.item_id), quantity: Number(l.quantity) })),
-      });
-      onClose();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  };
-
-  return (
-    <form onSubmit={submit} className="flex flex-col gap-4">
-      <p className="text-sm font-body text-neutral-gray">
-        Record raw materials used by the mother kitchen. This lowers on-hand stock and shows in each
-        item&apos;s supply history.
-      </p>
-
-      <div className="grid grid-cols-2 gap-4">
-        <FormField label="From location" htmlFor="consume-loc" required>
-          <Select id="consume-loc" value={locationId} onChange={(e) => setLocationId(e.target.value)} required>
-            <option value="">Select location</option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>{w.name}</option>
-            ))}
-          </Select>
-        </FormField>
-        <FormField label="Date used" htmlFor="consume-date" required>
-          <TextInput
-            id="consume-date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
-        </FormField>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold font-body text-text-dark">Items used</span>
-          <button
-            type="button"
-            onClick={addLine}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold font-body bg-neutral-light text-text-dark hover:bg-neutral-light/70 border border-[#f0e8d8] cursor-pointer"
-          >
-            <PlusIcon size={12} weight="bold" />
-            Add line
-          </button>
-        </div>
-
-        {lines.map((line) => {
-          const item = itemById.get(Number(line.item_id));
-          const unit = item?.base_unit?.symbol ?? '';
-          const over = item != null && Number(line.quantity) > item.stock_on_hand;
-          return (
-            <div key={line.key} className="grid grid-cols-[1fr_7rem_auto] gap-2 items-start">
-              <Select
-                value={line.item_id}
-                onChange={(e) => updateLine(line.key, { item_id: e.target.value })}
-                required
-              >
-                <option value="">
-                  {consumableItems.length ? 'Select item' : 'No items in stock'}
-                </option>
-                {consumableItems.map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.name} ({fmtQtyShort(it.stock_on_hand)} {it.base_unit?.symbol ?? ''})
-                  </option>
-                ))}
-              </Select>
-              <div>
-                <TextInput
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={line.quantity}
-                  onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
-                  placeholder={`Qty ${unit}`.trim()}
-                  required
-                />
-                {over && (
-                  <p className="text-[11px] text-rose-600 mt-1">
-                    Only {fmtQtyShort(item!.stock_on_hand)} {unit} on hand
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => removeLine(line.key)}
-                disabled={lines.length === 1}
-                className="self-start p-2.5 rounded-lg text-rose-600 hover:bg-rose-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                aria-label="Remove line"
-              >
-                <TrashIcon size={16} weight="bold" />
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      {error && (
-        <p className="text-sm text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{error}</p>
-      )}
-
-      <PrimaryButton type="submit" loading={record.isPending} disabled={!canSubmit}>
-        Record consumption
-      </PrimaryButton>
-    </form>
-  );
-}
-
-function fmtQtyShort(n: number): string {
-  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
-}
-
 // ─── Stock level ────────────────────────────────────────────────────────────────
 
 type StockLevel = 'out' | 'critical' | 'low' | 'ok';
@@ -417,7 +243,6 @@ function StockCell({ item }: { item: InventoryItem }) {
 export default function InventoryItemsPage() {
   const router = useRouter();
   const [isAddOpen,   setIsAddOpen]   = useState(false);
-  const [isUseOpen,   setIsUseOpen]   = useState(false);
   const [search,      setSearch]      = useState('');
   const [categoryId,  setCategoryId]  = useState('');
   const [storageType, setStorageType] = useState('');
@@ -523,15 +348,8 @@ export default function InventoryItemsPage() {
           ]}
         />
         <button
-          onClick={() => setIsUseOpen(true)}
-          className="ml-auto flex items-center gap-2 bg-neutral-light text-text-dark border border-[#f0e8d8] px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-neutral-light/70 transition-colors min-h-11 cursor-pointer shadow-sm"
-        >
-          <MinusCircleIcon size={16} weight="bold" />
-          Use stock
-        </button>
-        <button
           onClick={() => setIsAddOpen(true)}
-          className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
+          className="ml-auto flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
         >
           <PlusIcon size={16} weight="bold" />
           Add Item
@@ -571,15 +389,6 @@ export default function InventoryItemsPage() {
         size="lg"
       >
         <AddItemForm onClose={() => setIsAddOpen(false)} />
-      </InventoryModal>
-
-      <InventoryModal
-        isOpen={isUseOpen}
-        onClose={() => setIsUseOpen(false)}
-        title="Use stock — mother kitchen"
-        size="lg"
-      >
-        <RecordConsumptionForm onClose={() => setIsUseOpen(false)} />
       </InventoryModal>
     </>
   );

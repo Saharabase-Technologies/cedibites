@@ -20,6 +20,7 @@ import {
     MonitorIcon,
     ClipboardTextIcon,
     CurrencyCircleDollarIcon,
+    WarehouseIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { StaffAuthProvider, useStaffAuth, type StaffRole } from '@/app/components/providers/StaffAuthProvider';
@@ -50,9 +51,10 @@ const SALES_NAV = [
 ];
 
 const DISPLAYS_NAV = [
-    { href: '/pos/terminal',    label: 'POS Terminal',    icon: CashRegisterIcon,  permission: 'access_pos',           external: true },
-    { href: '/kitchen/display', label: 'Kitchen Display', icon: MonitorIcon,       permission: 'access_kitchen',       external: true },
-    { href: '/order-manager',   label: 'Order Manager',   icon: ClipboardTextIcon, permission: 'access_order_manager', external: true },
+    { href: '/pos/terminal',       label: 'POS Terminal',    icon: CashRegisterIcon,  permission: 'access_pos',              external: true  },
+    { href: '/kitchen/display',    label: 'Kitchen Display', icon: MonitorIcon,       permission: 'access_kitchen',          external: true  },
+    { href: '/order-manager',      label: 'Order Manager',   icon: ClipboardTextIcon, permission: 'access_order_manager',    external: true  },
+    { href: '/inventory/dashboard', label: 'Inventory',      icon: WarehouseIcon,     permission: 'access_inventory_portal', external: false },
 ];
 
 // ─── Sidebar link ─────────────────────────────────────────────────────────────
