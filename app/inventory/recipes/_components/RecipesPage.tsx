@@ -30,6 +30,7 @@ import {
 } from '@/lib/api/hooks/inventory/useInventoryRecipes';
 import { useInventoryItems } from '@/lib/api/hooks/inventory/useInventoryCatalog';
 import { useMenu } from '@/lib/api/hooks/useMenu';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { getErrorMessage } from '@/lib/utils/error-handler';
 import type { InventoryRecipe, RecipeStatus } from '@/types/inventory';
 
@@ -320,6 +321,13 @@ export default function RecipesPage() {
   const lock = useLockRecipe();
   const remove = useDeleteRecipe();
 
+  // Recipe authoring/locking is Admin-only — everyone else (e.g. Warehouse
+  // Manager) gets a read-only view. Mirrors the backend route middleware so the
+  // page never shows an action the API would reject.
+  const { can } = useStaffAuth();
+  const canEdit = can('inventory.recipe.edit_global');
+  const canLock = can('inventory.recipe.lock');
+
   const filtered = statusFilter ? recipes.filter((r) => r.status === statusFilter) : recipes;
 
   const openCreate = () => { setEditing(null); setEditorOpen(true); };
@@ -369,22 +377,26 @@ export default function RecipesPage() {
         <RowActionsMenu
           actions={[
             { label: 'View ingredients', icon: <EyeIcon size={14} weight="bold" />, onClick: () => setViewing(r) },
-            { label: 'Edit', icon: <PencilSimpleIcon size={14} weight="bold" />, onClick: () => openEdit(r) },
-            ...(r.status !== 'locked'
+            ...(canEdit
+              ? [{ label: 'Edit', icon: <PencilSimpleIcon size={14} weight="bold" />, onClick: () => openEdit(r) }]
+              : []),
+            ...(canLock && r.status !== 'locked'
               ? [{
                   label: 'Lock',
                   icon: <LockSimpleIcon size={14} weight="bold" />,
                   onClick: () => { void lock.mutate(r.id); },
                 }]
               : []),
-            {
-              label: 'Delete',
-              icon: <TrashIcon size={14} weight="bold" />,
-              destructive: true,
-              onClick: () => {
-                if (confirm(`Delete recipe for ${recipeTitle(r)}?`)) void remove.mutate(r.id);
-              },
-            },
+            ...(canEdit
+              ? [{
+                  label: 'Delete',
+                  icon: <TrashIcon size={14} weight="bold" />,
+                  destructive: true,
+                  onClick: () => {
+                    if (confirm(`Delete recipe for ${recipeTitle(r)}?`)) void remove.mutate(r.id);
+                  },
+                }]
+              : []),
           ]}
         />
       ),
@@ -407,13 +419,15 @@ export default function RecipesPage() {
             { value: 'locked', label: 'Locked' },
           ]}
         />
-        <button
-          className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm shrink-0"
-          onClick={openCreate}
-        >
-          <PlusIcon size={16} weight="bold" />
-          Add Recipe
-        </button>
+        {canEdit && (
+          <button
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm shrink-0"
+            onClick={openCreate}
+          >
+            <PlusIcon size={16} weight="bold" />
+            Add Recipe
+          </button>
+        )}
       </FilterBar>
 
       <DataTable<InventoryRecipe>
