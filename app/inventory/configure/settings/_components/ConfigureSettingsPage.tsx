@@ -51,7 +51,7 @@ export function ConfigureSettingsPage() {
               disabled={isLoading}
               className="
                 w-full pl-11 pr-3 py-2 rounded-xl min-h-10
-                border border-[#f0e8d8] bg-slate-50
+                border border-[#e3e1de] bg-[#f5f4f2]
                 text-sm font-body text-text-dark
                 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10
                 transition-shadow disabled:opacity-50

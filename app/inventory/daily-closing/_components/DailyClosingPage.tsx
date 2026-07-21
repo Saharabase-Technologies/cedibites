@@ -21,6 +21,8 @@ import { useInventoryLocations } from '@/lib/api/hooks/inventory/useInventoryLoc
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { InventoryDailyClosing } from '@/types/inventory';
 import { formatBusinessDate, formatVariance, todayIso } from '../utils';
+import { getErrorMessage } from '@/lib/utils/error-handler';
+import { toast } from '@/lib/utils/toast';
 
 export function DailyClosingPage() {
   const router = useRouter();
@@ -47,7 +49,7 @@ export function DailyClosingPage() {
       const closing = await open.mutateAsync({ location_id: locId, business_date: date });
       router.push(`/inventory/daily-closing/${closing.id}`);
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : 'Could not open the count.');
+      toast.error(getErrorMessage(e));
     }
   };
 

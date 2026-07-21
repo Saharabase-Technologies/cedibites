@@ -38,6 +38,8 @@ import type {
   RequisitionLinePayload,
   RequisitionPurpose,
 } from '@/types/inventory';
+import { getErrorMessage } from '@/lib/utils/error-handler';
+import { toast } from '@/lib/utils/toast';
 
 interface LineDraft {
   tempId: string;
@@ -168,7 +170,7 @@ export function RequisitionForm({ mode, id }: Props) {
         router.push(`/inventory/requisitions/${created.id}`);
       }
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Save failed.');
+      toast.error(getErrorMessage(err));
     }
   };
 

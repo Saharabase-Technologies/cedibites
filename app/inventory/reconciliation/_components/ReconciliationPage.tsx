@@ -20,6 +20,8 @@ import { useInventoryLocations } from '@/lib/api/hooks/inventory/useInventoryLoc
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { InventoryReconciliationCycle } from '@/types/inventory';
 import { formatDateTime, formatGHS } from '../utils';
+import { getErrorMessage } from '@/lib/utils/error-handler';
+import { toast } from '@/lib/utils/toast';
 
 export function ReconciliationPage() {
   const router = useRouter();
@@ -43,7 +45,7 @@ export function ReconciliationPage() {
       const cycle = await open.mutateAsync({ location_id: locId });
       router.push(`/inventory/reconciliation/${cycle.id}`);
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : 'Could not open a reconciliation cycle.');
+      toast.error(getErrorMessage(e));
     }
   };
 

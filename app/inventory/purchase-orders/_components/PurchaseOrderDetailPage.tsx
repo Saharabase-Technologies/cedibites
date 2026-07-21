@@ -38,6 +38,8 @@ import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { PO_APPROVAL_THRESHOLD } from '@/lib/constants/inventory.constants';
 import type { PurchaseOrder, PurchaseOrderItem } from '@/types/inventory';
 import { formatGHS, formatShortDate, formatDateTime } from '../utils';
+import { getErrorMessage } from '@/lib/utils/error-handler';
+import { toast } from '@/lib/utils/toast';
 
 export function PurchaseOrderDetailPage({ id }: { id: number }) {
   // useSearchParams() must sit under a Suspense boundary, otherwise the route
@@ -273,8 +275,7 @@ function ActionBar({
   const canDownload = ['sent', 'partially_received', 'received', 'closed'].includes(po.status);
 
   const alertError = (e: unknown) => {
-    const msg = e instanceof Error ? e.message : 'Action failed.';
-    window.alert(msg);
+    toast.error(getErrorMessage(e));
   };
 
   // Submitting a sub-threshold PO sends it → download + confirm. A ₵10k+ PO goes
@@ -419,8 +420,7 @@ function CancelDialog({
       await cancel.mutateAsync({ id: po.id, payload: { reason } });
       onCancelled();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Cancellation unavailable in mock mode.';
-      window.alert(msg);
+      toast.error(getErrorMessage(e));
     }
   };
 

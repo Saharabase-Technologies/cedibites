@@ -40,10 +40,8 @@ import { useTransferRealtime } from '@/lib/api/hooks/inventory/useTransferRealti
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { InventoryTransfer, InventoryTransferLine } from '@/types/inventory';
 import { formatGHS, formatDateTime, transferValue } from '../utils';
-
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : 'Action failed.';
-}
+import { getErrorMessage } from '@/lib/utils/error-handler';
+import { toast } from '@/lib/utils/toast';
 
 function qtyLabel(qty: number | null, unit: string | null): string {
   if (qty === null) return '—';
@@ -222,7 +220,7 @@ function ActionBar({
   const canCancel  = ['draft', 'submitted', 'approved'].includes(s) && can('inventory.transfer.create');
 
   const handleApprove = () => {
-    approve.mutateAsync(transfer.id).catch((e) => window.alert(errorMessage(e)));
+    approve.mutateAsync(transfer.id).catch((e) => toast.error(getErrorMessage(e)));
   };
 
   return (
@@ -324,7 +322,7 @@ function SubmitDialog({
       await submit.mutateAsync({ id: transfer.id, payload: { override_source_check: override } });
       onClose();
     } catch (e) {
-      setErr(errorMessage(e));
+      setErr(getErrorMessage(e));
     }
   };
 
@@ -399,7 +397,7 @@ function SendModal({
       await send.mutateAsync({ id: transfer.id, payload: { lines } });
       onClose();
     } catch (e) {
-      setErr(errorMessage(e));
+      setErr(getErrorMessage(e));
     }
   };
 
@@ -507,7 +505,7 @@ function ReceiveModal({
       });
       onClose();
     } catch (e) {
-      setErr(errorMessage(e));
+      setErr(getErrorMessage(e));
     }
   };
 
@@ -613,7 +611,7 @@ function CancelDialog({
       await cancel.mutateAsync({ id: transfer.id, payload: { reason } });
       onCancelled();
     } catch (e) {
-      window.alert(errorMessage(e));
+      toast.error(getErrorMessage(e));
     }
   };
 
@@ -662,7 +660,7 @@ function ResolveDisputeDialog({
       await resolve.mutateAsync({ id: transfer.id, payload: { notes: notes.trim() || undefined } });
       onClose();
     } catch (e) {
-      window.alert(errorMessage(e));
+      toast.error(getErrorMessage(e));
     }
   };
 

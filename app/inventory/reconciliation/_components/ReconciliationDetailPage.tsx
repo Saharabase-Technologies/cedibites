@@ -32,10 +32,8 @@ import type {
   InventoryReconciliationLine,
 } from '@/types/inventory';
 import { formatDateTime, formatGHS, formatVariance } from '../utils';
-
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : 'Action failed.';
-}
+import { getErrorMessage } from '@/lib/utils/error-handler';
+import { toast } from '@/lib/utils/toast';
 
 export function ReconciliationDetailPage({ id }: { id: number }) {
   const { data: cycle, isLoading, error } = useReconciliation(id);
@@ -82,13 +80,13 @@ export function ReconciliationDetailPage({ id }: { id: number }) {
 
   const saveProgress = async () => {
     if (enteredLines.some((l) => Number.isNaN(l.counted_qty) || l.counted_qty < 0)) {
-      window.alert('Counted quantities must be zero or more.');
+      toast.error('Counted quantities must be zero or more.');
       return;
     }
     try {
       await save.mutateAsync({ lines: enteredLines });
     } catch (e) {
-      window.alert(errorMessage(e));
+      toast.error(getErrorMessage(e));
     }
   };
 
@@ -255,7 +253,7 @@ function PostDialog({
       await post.mutateAsync({ notes: notes.trim() || undefined });
       onClose();
     } catch (e) {
-      window.alert(errorMessage(e));
+      toast.error(getErrorMessage(e));
     }
   };
 

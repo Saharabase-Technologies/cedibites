@@ -7,8 +7,8 @@
  * Multi-line item builder with live total + admin-approval threshold warning.
  *
  * Mock-mode behaviour: write hooks throw a friendly message; the form catches
- * and surfaces it via window.alert (no save happens). Backend wiring will
- * remove the throw and the alert will never fire.
+ * and surfaces it via an error toast (no save happens). Backend wiring will
+ * remove the throw and the toast will never fire.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -43,6 +43,8 @@ import type {
   PurchaseOrderItemPayload,
 } from '@/types/inventory';
 import { formatGHS } from '../utils';
+import { getErrorMessage } from '@/lib/utils/error-handler';
+import { toast } from '@/lib/utils/toast';
 
 interface LineDraft {
   tempId: string;
@@ -189,9 +191,7 @@ export function PurchaseOrderForm({ mode, id }: Props) {
         router.push(`/inventory/purchase-orders/${created.id}`);
       }
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Save failed.';
-      window.alert(msg);
+      toast.error(getErrorMessage(err));
     }
   };
 

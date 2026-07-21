@@ -28,45 +28,73 @@ import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
-type NavItem = { href: string; label: string; icon: React.ElementType };
+/**
+ * `permission` is the single source of truth for both the sidebar and the route
+ * guard below — a link a role cannot see is also a URL it cannot open. The
+ * strings mirror the backend grants in RoleSeeder, so a Branch Manager lands on
+ * requisitions/transfers/wastage/closing while purchasing, production,
+ * reconciliation and configuration stay Warehouse-Manager-only.
+ */
+type NavItem = { href: string; label: string; icon: React.ElementType; permission: string };
 
 /** Operational work — daily use. */
 const OPERATIONS_NAV: NavItem[] = [
-  { href: '/inventory/dashboard',     label: 'Dashboard',     icon: SquaresFourIcon     },
-  { href: '/inventory/production',     label: 'Production',    icon: CookingPotIcon      },
-  { href: '/inventory/transfers',     label: 'Transfers',     icon: ArrowsLeftRightIcon },
-  { href: '/inventory/requisitions',  label: 'Requisitions',  icon: ClipboardTextIcon   },
-  { href: '/inventory/wastage',       label: 'Wastage',       icon: TrashIcon           },
-  { href: '/inventory/daily-closing', label: 'Daily Closing', icon: CalendarCheckIcon   },
-  { href: '/inventory/reconciliation',label: 'Reconciliation',icon: ScalesIcon          },
-  { href: '/inventory/reports',       label: 'Reports',       icon: ChartBarIcon        },
+  { href: '/inventory/dashboard',     label: 'Dashboard',     icon: SquaresFourIcon,     permission: 'access_inventory_portal'             },
+  { href: '/inventory/production',    label: 'Production',    icon: CookingPotIcon,      permission: 'inventory.production.record'         },
+  { href: '/inventory/transfers',     label: 'Transfers',     icon: ArrowsLeftRightIcon, permission: 'inventory.transfer.create'           },
+  { href: '/inventory/requisitions',  label: 'Requisitions',  icon: ClipboardTextIcon,   permission: 'inventory.requisition.create'        },
+  { href: '/inventory/wastage',       label: 'Wastage',       icon: TrashIcon,           permission: 'inventory.wastage.record'            },
+  { href: '/inventory/daily-closing', label: 'Daily Closing', icon: CalendarCheckIcon,   permission: 'inventory.daily_closing.enter'       },
+  { href: '/inventory/reconciliation',label: 'Reconciliation',icon: ScalesIcon,          permission: 'inventory.reconciliation.open_cycle' },
+  { href: '/inventory/reports',       label: 'Reports',       icon: ChartBarIcon,        permission: 'inventory.report.view'               },
 ];
 
 /** Purchasing — Warehouse Manager + Purchasing Clerk workflows. */
 const PURCHASING_NAV: NavItem[] = [
-  { href: '/inventory/purchase-orders', label: 'Purchase Orders', icon: ClipboardIcon },
-  { href: '/inventory/purchases',       label: 'Purchases',       icon: ReceiptIcon   },
+  { href: '/inventory/purchase-orders', label: 'Purchase Orders', icon: ClipboardIcon, permission: 'inventory.purchase_order.create' },
+  { href: '/inventory/purchases',       label: 'Purchases',       icon: ReceiptIcon,   permission: 'inventory.purchase.view'         },
 ];
 
 /** Product master data — less frequent. */
 const CATALOG_NAV: NavItem[] = [
-  { href: '/inventory/catalog',           label: 'Items',     icon: PackageIcon     },
-  { href: '/inventory/catalog/suppliers', label: 'Suppliers', icon: StorefrontIcon  },
+  // Suppliers are a purchasing concern, so they follow the purchasing grant
+  // rather than plain catalog visibility.
+  { href: '/inventory/catalog',           label: 'Items',     icon: PackageIcon,    permission: 'view_inventory_catalog' },
+  { href: '/inventory/catalog/suppliers', label: 'Suppliers', icon: StorefrontIcon, permission: 'inventory.purchase.view' },
 ];
 
 /** System configuration — set once, rarely touched. */
 const CONFIGURE_NAV: NavItem[] = [
-  { href: '/inventory/configure', label: 'Configure', icon: SlidersIcon },
+  { href: '/inventory/configure', label: 'Configure', icon: SlidersIcon, permission: 'inventory.settings.manage' },
 ];
 
-/** Bottom mobile bar — 5 most accessed. */
+/** Bottom mobile bar — 5 most accessed, filtered the same way. */
 const BOTTOM_NAV: NavItem[] = [
-  { href: '/inventory/dashboard',    label: 'Home',     icon: SquaresFourIcon     },
-  { href: '/inventory/catalog',      label: 'Catalog',  icon: PackageIcon         },
-  { href: '/inventory/transfers',    label: 'Transfers',icon: ArrowsLeftRightIcon },
-  { href: '/inventory/requisitions', label: 'Requests', icon: ClipboardTextIcon   },
-  { href: '/inventory/configure',    label: 'Configure',icon: SlidersIcon         },
+  { href: '/inventory/dashboard',    label: 'Home',     icon: SquaresFourIcon,     permission: 'access_inventory_portal'      },
+  { href: '/inventory/catalog',      label: 'Catalog',  icon: PackageIcon,         permission: 'view_inventory_catalog'       },
+  { href: '/inventory/transfers',    label: 'Transfers',icon: ArrowsLeftRightIcon, permission: 'inventory.transfer.create'    },
+  { href: '/inventory/requisitions', label: 'Requests', icon: ClipboardTextIcon,   permission: 'inventory.requisition.create' },
+  { href: '/inventory/configure',    label: 'Configure',icon: SlidersIcon,         permission: 'inventory.settings.manage'    },
 ];
+
+/** Settings sits outside the nav arrays but is gated the same way. */
+const SETTINGS_PERMISSION = 'inventory.settings.manage';
+
+/**
+ * Route guard table — longest prefix wins, so `/inventory/catalog/suppliers`
+ * is checked before `/inventory/catalog`. Anything unlisted only requires
+ * portal access.
+ */
+const ROUTE_PERMISSIONS: Array<{ prefix: string; permission: string }> = [
+  ...[...OPERATIONS_NAV, ...PURCHASING_NAV, ...CATALOG_NAV, ...CONFIGURE_NAV]
+    .map(({ href, permission }) => ({ prefix: href, permission })),
+  { prefix: '/inventory/settings', permission: SETTINGS_PERMISSION },
+].sort((a, b) => b.prefix.length - a.prefix.length);
+
+/** The permission required to open a given IMS path, if any beyond portal access. */
+function permissionForPath(pathname: string): string | null {
+  return ROUTE_PERMISSIONS.find(({ prefix }) => pathname.startsWith(prefix))?.permission ?? null;
+}
 
 // ─── Sidebar link ─────────────────────────────────────────────────────────────
 
@@ -111,6 +139,10 @@ function NavSection({
   items: NavItem[];
   pathname: string;
 }) {
+  // Callers filter before rendering; an empty section would otherwise leave a
+  // stray heading and divider behind.
+  if (items.length === 0) return null;
+
   return (
     <div className="flex flex-col gap-0.5">
       {label && (
@@ -169,12 +201,20 @@ function Sidebar({
   userName,
   userRole,
   onSignOut,
+  can,
 }: {
   pathname: string;
   userName: string;
   userRole: string;
   onSignOut: () => void;
+  can: (permission: string) => boolean;
 }) {
+  const operations = OPERATIONS_NAV.filter((i) => can(i.permission));
+  const purchasing = PURCHASING_NAV.filter((i) => can(i.permission));
+  const catalog = CATALOG_NAV.filter((i) => can(i.permission));
+  const configure = CONFIGURE_NAV.filter((i) => can(i.permission));
+  const showSettings = can(SETTINGS_PERMISSION);
+
   return (
     <aside className="hidden md:flex flex-col w-60 shrink-0 bg-neutral-card border-r border-[#f0e8d8] sticky top-0 h-screen">
       {/* Logo */}
@@ -191,35 +231,43 @@ function Sidebar({
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 flex flex-col gap-2 overflow-y-auto">
-        <NavSection items={OPERATIONS_NAV} pathname={pathname} />
-        <div className="border-t border-[#f0e8d8] pt-1">
-          <NavSection label="Purchasing" items={PURCHASING_NAV} pathname={pathname} />
-        </div>
-        <div className="border-t border-[#f0e8d8] pt-1">
-          <NavSection label="Catalog" items={CATALOG_NAV} pathname={pathname} />
-        </div>
-        <div className="border-t border-[#f0e8d8] pt-1">
-          <NavSection label="System" items={CONFIGURE_NAV} pathname={pathname} />
-          <Link
-            href="/inventory/settings"
-            className={`
-              group flex items-center gap-3 py-2.5 rounded-xl mt-0.5
-              text-sm font-medium font-body transition-all duration-150
-              ${
-                pathname.startsWith('/inventory/settings')
-                  ? 'bg-[#fff8ec] text-primary px-3 border-l-[3px] border-primary pl-2.25'
-                  : 'text-neutral-gray hover:bg-neutral-light hover:text-text-dark px-3'
-              }
-            `}
-          >
-            <GearSixIcon
-              size={18}
-              weight={pathname.startsWith('/inventory/settings') ? 'fill' : 'regular'}
-              className="shrink-0"
-            />
-            <span>Settings</span>
-          </Link>
-        </div>
+        <NavSection items={operations} pathname={pathname} />
+        {purchasing.length > 0 && (
+          <div className="border-t border-[#f0e8d8] pt-1">
+            <NavSection label="Purchasing" items={purchasing} pathname={pathname} />
+          </div>
+        )}
+        {catalog.length > 0 && (
+          <div className="border-t border-[#f0e8d8] pt-1">
+            <NavSection label="Catalog" items={catalog} pathname={pathname} />
+          </div>
+        )}
+        {(configure.length > 0 || showSettings) && (
+          <div className="border-t border-[#f0e8d8] pt-1">
+            <NavSection label="System" items={configure} pathname={pathname} />
+            {showSettings && (
+              <Link
+                href="/inventory/settings"
+                className={`
+                  group flex items-center gap-3 py-2.5 rounded-xl mt-0.5
+                  text-sm font-medium font-body transition-all duration-150
+                  ${
+                    pathname.startsWith('/inventory/settings')
+                      ? 'bg-[#fff8ec] text-primary px-3 border-l-[3px] border-primary pl-2.25'
+                      : 'text-neutral-gray hover:bg-neutral-light hover:text-text-dark px-3'
+                  }
+                `}
+              >
+                <GearSixIcon
+                  size={18}
+                  weight={pathname.startsWith('/inventory/settings') ? 'fill' : 'regular'}
+                  className="shrink-0"
+                />
+                <span>Settings</span>
+              </Link>
+            )}
+          </div>
+        )}
       </nav>
 
       {/* User footer */}
@@ -252,7 +300,7 @@ function Sidebar({
 function InventoryLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { staffUser, isLoading, logout } = useStaffAuth();
+  const { staffUser, isLoading, logout, can } = useStaffAuth();
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
   useEffect(() => {
@@ -261,9 +309,18 @@ function InventoryLayoutInner({ children }: { children: React.ReactNode }) {
       if (!staffUser) { router.push('/staff/login'); return; }
       if (!staffUser.permissions?.includes('access_inventory_portal')) {
         router.push('/staff/login');
+        return;
+      }
+
+      // Deep links and stale bookmarks can reach a section this role has no
+      // grant for. Send them to the dashboard rather than rendering a page
+      // whose every action is disabled.
+      const required = permissionForPath(pathname);
+      if (required && !can(required)) {
+        router.replace('/inventory/dashboard');
       }
     }
-  }, [staffUser, isLoading, router]);
+  }, [staffUser, isLoading, router, pathname, can]);
 
   const isMock = process.env.NEXT_PUBLIC_IMS_MOCK === 'true';
 
@@ -289,12 +346,13 @@ function InventoryLayoutInner({ children }: { children: React.ReactNode }) {
         userName={staffUser?.name ?? 'Inventory User'}
         userRole={staffUser?.role ?? ''}
         onSignOut={() => setIsSignOutOpen(true)}
+        can={can}
       />
 
       <main className="flex-1 overflow-y-auto flex flex-col min-h-0">{children}</main>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-neutral-card border-t border-[#f0e8d8] flex z-50">
-        {BOTTOM_NAV.map((item) => (
+        {BOTTOM_NAV.filter((item) => can(item.permission)).map((item) => (
           <BottomNavLink
             key={item.href}
             href={item.href}
@@ -328,6 +386,9 @@ function InventoryLayoutMockInner({ children }: { children: React.ReactNode }) {
         userName="Mock User"
         userRole="Super Admin"
         onSignOut={() => setIsSignOutOpen(true)}
+        // Mock mode has no real grants — show the whole portal so every screen
+        // stays reachable while developing against fixtures.
+        can={() => true}
       />
 
       <main className="flex-1 overflow-y-auto flex flex-col min-h-0">{children}</main>

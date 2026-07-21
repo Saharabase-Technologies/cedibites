@@ -36,10 +36,8 @@ import { useRequisitionRealtime } from '@/lib/api/hooks/inventory/useRequisition
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { InventoryRequisition, InventoryRequisitionLine } from '@/types/inventory';
 import { formatDateTime, PURPOSE_LABEL } from '../utils';
-
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : 'Action failed.';
-}
+import { getErrorMessage } from '@/lib/utils/error-handler';
+import { toast } from '@/lib/utils/toast';
 
 function qtyLabel(qty: number | null, unit: string | null): string {
   if (qty === null) return '—';
@@ -200,7 +198,7 @@ function ActionBar({
   const canDecide  = s === 'submitted' && can('inventory.requisition.approve');
 
   const handleSubmit = () => {
-    submit.mutateAsync(req.id).catch((e) => window.alert(errorMessage(e)));
+    submit.mutateAsync(req.id).catch((e) => toast.error(getErrorMessage(e)));
   };
 
   return (
@@ -300,7 +298,7 @@ function ApproveModal({
       await approve.mutateAsync({ id: req.id, payload: { lines } });
       onClose();
     } catch (e) {
-      setErr(errorMessage(e));
+      setErr(getErrorMessage(e));
     }
   };
 
@@ -388,7 +386,7 @@ function RejectDialog({
       await reject.mutateAsync({ id: req.id, payload: { reason } });
       onRejected();
     } catch (e) {
-      window.alert(errorMessage(e));
+      toast.error(getErrorMessage(e));
     }
   };
 

@@ -37,6 +37,8 @@ import {
 } from '@/lib/api/hooks/inventory/useTransfers';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { CreateTransferPayload, TransferLinePayload } from '@/types/inventory';
+import { getErrorMessage } from '@/lib/utils/error-handler';
+import { toast } from '@/lib/utils/toast';
 
 interface LineDraft {
   tempId: string;
@@ -151,7 +153,7 @@ export function TransferForm({ mode, id }: Props) {
         router.push(`/inventory/transfers/${created.id}`);
       }
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Save failed.');
+      toast.error(getErrorMessage(err));
     }
   };
 

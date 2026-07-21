@@ -45,6 +45,8 @@ import type {
   RecordPurchaseItemPayload,
 } from '@/types/inventory';
 import { formatGHS } from '../utils';
+import { getErrorMessage } from '@/lib/utils/error-handler';
+import { toast } from '@/lib/utils/toast';
 
 type Mode = 'against_po' | 'urgent_buy';
 
@@ -230,9 +232,7 @@ export function RecordPurchaseForm() {
       const created = await recordPurchase.mutateAsync(payload);
       router.push(`/inventory/purchases/${created.id}`);
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Save unavailable in mock mode.';
-      window.alert(msg);
+      toast.error(getErrorMessage(err));
     }
   };
 

@@ -23,6 +23,8 @@ import {
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { InventoryDailyClosing, InventoryDailyClosingLine } from '@/types/inventory';
 import { formatBusinessDate, formatDateTime, formatVariance } from '../utils';
+import { getErrorMessage } from '@/lib/utils/error-handler';
+import { toast } from '@/lib/utils/toast';
 
 export function DailyClosingDetailPage({ id }: { id: number }) {
   const { data: closing, isLoading, error } = useDailyClosing(id);
@@ -68,17 +70,17 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
 
   const persist = async (complete: boolean) => {
     if (enteredLines.some((l) => Number.isNaN(l.counted_qty) || l.counted_qty < 0)) {
-      window.alert('Counted quantities must be zero or more.');
+      toast.error('Counted quantities must be zero or more.');
       return;
     }
     if (complete && !allCounted) {
-      window.alert('Count every item before completing, or use "Save progress".');
+      toast.error('Count every item before completing, or use "Save progress".');
       return;
     }
     try {
       await save.mutateAsync({ lines: enteredLines, complete });
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : 'Save failed.');
+      toast.error(getErrorMessage(e));
     }
   };
 

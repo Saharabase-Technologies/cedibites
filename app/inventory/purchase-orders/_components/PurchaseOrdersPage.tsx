@@ -168,7 +168,7 @@ export function PurchaseOrdersPage() {
             value={verifyCode}
             onChange={(e) => setVerifyCode(e.target.value)}
             placeholder="Verify code…"
-            className="w-40 px-3.5 py-2.5 border border-[#f0e8d8] rounded-xl text-sm font-mono uppercase text-text-dark bg-slate-50 placeholder:font-body placeholder:normal-case placeholder:text-neutral-gray/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 min-h-11"
+            className="w-40 px-3.5 py-2.5 border border-[#e3e1de] rounded-xl text-sm font-mono uppercase text-text-dark bg-[#f5f4f2] placeholder:font-body placeholder:normal-case placeholder:text-neutral-gray/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 min-h-11"
           />
           <button
             type="submit"

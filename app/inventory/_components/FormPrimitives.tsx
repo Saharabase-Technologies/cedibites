@@ -41,7 +41,7 @@ export function FormField({
 // ─── Text input ───────────────────────────────────────────────────────────────
 
 const INPUT_BASE =
-  'w-full px-3.5 py-2.5 border border-[#f0e8d8] rounded-xl text-sm font-body text-text-dark bg-slate-50 placeholder:text-neutral-gray/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-shadow min-h-11';
+  'w-full px-3.5 py-2.5 border border-[#e3e1de] rounded-xl text-sm font-body text-text-dark bg-[#f5f4f2] placeholder:text-neutral-gray/60 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-shadow min-h-11';
 
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
   const { className = '', ...rest } = props;
