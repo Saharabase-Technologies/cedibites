@@ -1,5 +1,13 @@
-import { redirect } from 'next/navigation';
+import type { Metadata } from 'next';
+import { CatalogShell } from '../_components/CatalogTabs';
+import { CatalogUnitsPage } from './_components/CatalogUnitsPage';
+
+export const metadata: Metadata = { title: 'Units — Inventory' };
 
 export default function Page() {
-  redirect('/inventory/configure/units');
+  return (
+    <CatalogShell>
+      <CatalogUnitsPage />
+    </CatalogShell>
+  );
 }

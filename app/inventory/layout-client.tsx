@@ -23,6 +23,9 @@ import {
   CookingPotIcon,
   ScalesIcon,
   ForkKnifeIcon,
+  TagIcon,
+  RulerIcon,
+  MapPinIcon,
 } from '@phosphor-icons/react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
@@ -32,44 +35,58 @@ import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 /**
  * `permission` is the single source of truth for both the sidebar and the route
  * guard below — a link a role cannot see is also a URL it cannot open. The
- * strings mirror the backend grants in RoleSeeder, so a Branch Manager lands on
- * requisitions/transfers/wastage/closing while purchasing, production,
- * reconciliation and configuration stay Warehouse-Manager-only.
+ * strings mirror the backend grants in RoleSeeder. The sections group the portal
+ * by workflow so every role gets an appropriate menu once filtered: the Warehouse
+ * Manager runs Operations + Purchasing (view) + the item Catalog she curates
+ * (items/categories/units); the Purchasing Clerk gets Purchasing + suppliers; the
+ * Branch Manager gets branch operations; only Admin sees the System section.
  */
 type NavItem = { href: string; label: string; icon: React.ElementType; permission: string };
 
-/** Operational work — daily use. */
+/** Home — always first, no section header. */
+const DASHBOARD_NAV: NavItem[] = [
+  { href: '/inventory/dashboard', label: 'Dashboard', icon: SquaresFourIcon, permission: 'access_inventory_portal' },
+];
+
+/** Operational work — daily stock movement. */
 const OPERATIONS_NAV: NavItem[] = [
-  { href: '/inventory/dashboard',     label: 'Dashboard',     icon: SquaresFourIcon,     permission: 'access_inventory_portal'             },
   { href: '/inventory/production',    label: 'Production',    icon: CookingPotIcon,      permission: 'inventory.production.record'         },
   { href: '/inventory/transfers',     label: 'Transfers',     icon: ArrowsLeftRightIcon, permission: 'inventory.transfer.create'           },
   { href: '/inventory/requisitions',  label: 'Requisitions',  icon: ClipboardTextIcon,   permission: 'inventory.requisition.create'        },
   { href: '/inventory/wastage',       label: 'Wastage',       icon: TrashIcon,           permission: 'inventory.wastage.record'            },
   { href: '/inventory/daily-closing', label: 'Daily Closing', icon: CalendarCheckIcon,   permission: 'inventory.daily_closing.enter'       },
   { href: '/inventory/reconciliation',label: 'Reconciliation',icon: ScalesIcon,          permission: 'inventory.reconciliation.open_cycle' },
-  { href: '/inventory/reports',       label: 'Reports',       icon: ChartBarIcon,        permission: 'inventory.report.view'               },
 ];
 
-/** Purchasing — Warehouse Manager + Purchasing Clerk workflows. */
+/** Purchasing — Purchasing Clerk authors POs; Warehouse Manager views them. */
 const PURCHASING_NAV: NavItem[] = [
-  { href: '/inventory/purchase-orders', label: 'Purchase Orders', icon: ClipboardIcon, permission: 'inventory.purchase_order.create' },
-  { href: '/inventory/purchases',       label: 'Purchases',       icon: ReceiptIcon,   permission: 'inventory.purchase.view'         },
+  // Gated on `purchase.view` so the WM sees POs read-only; the create/edit
+  // surfaces are separately gated on `inventory.purchase_order.*`.
+  { href: '/inventory/purchase-orders', label: 'Purchase Orders', icon: ClipboardIcon, permission: 'inventory.purchase.view' },
+  { href: '/inventory/purchases',       label: 'Purchases',       icon: ReceiptIcon,   permission: 'inventory.purchase.view' },
 ];
 
-/** Product master data — less frequent. */
+/** Item catalog & master data. Each row gated on its own manage grant. */
 const CATALOG_NAV: NavItem[] = [
-  { href: '/inventory/catalog',           label: 'Items',     icon: PackageIcon,    permission: 'view_inventory_catalog' },
-  // Recipes/BOM is master data that depends on items existing, so it lives with
-  // the catalog rather than one-time system setup.
-  { href: '/inventory/catalog/recipes',   label: 'Recipes',   icon: ForkKnifeIcon,  permission: 'inventory.recipe.view'  },
-  // Suppliers are a purchasing concern, so they follow the purchasing grant
-  // rather than plain catalog visibility.
-  { href: '/inventory/catalog/suppliers', label: 'Suppliers', icon: StorefrontIcon, permission: 'inventory.purchase.view' },
+  { href: '/inventory/catalog',            label: 'Items',      icon: PackageIcon,    permission: 'view_inventory_catalog'  },
+  { href: '/inventory/catalog/categories', label: 'Categories', icon: TagIcon,        permission: 'inventory.category.manage' },
+  { href: '/inventory/catalog/units',      label: 'Units',      icon: RulerIcon,      permission: 'inventory.unit.manage'   },
+  // Suppliers are a purchasing concern — Clerk/Admin only, not the WM.
+  { href: '/inventory/catalog/suppliers',  label: 'Suppliers',  icon: StorefrontIcon, permission: 'inventory.supplier.manage' },
+  // Recipes/BOM authoring is Admin-only; Branch Managers keep view access.
+  { href: '/inventory/catalog/recipes',    label: 'Recipes',    icon: ForkKnifeIcon,  permission: 'inventory.recipe.view'   },
 ];
 
-/** System configuration — set once, rarely touched. */
-const CONFIGURE_NAV: NavItem[] = [
-  { href: '/inventory/configure', label: 'Configure', icon: SlidersIcon, permission: 'inventory.settings.manage' },
+/** Reporting — its own section. */
+const REPORTS_NAV: NavItem[] = [
+  { href: '/inventory/reports', label: 'Reports', icon: ChartBarIcon, permission: 'inventory.report.view' },
+];
+
+/** System configuration — Admin-only, set once. */
+const SYSTEM_NAV: NavItem[] = [
+  { href: '/inventory/configure', label: 'Setup',     icon: SlidersIcon, permission: 'inventory.settings.manage' },
+  { href: '/inventory/locations', label: 'Locations', icon: MapPinIcon,  permission: 'inventory.location.manage' },
+  { href: '/inventory/settings',  label: 'Settings',  icon: GearSixIcon, permission: 'inventory.settings.manage' },
 ];
 
 /** Bottom mobile bar — 5 most accessed, filtered the same way. */
@@ -78,11 +95,8 @@ const BOTTOM_NAV: NavItem[] = [
   { href: '/inventory/catalog',      label: 'Catalog',  icon: PackageIcon,         permission: 'view_inventory_catalog'       },
   { href: '/inventory/transfers',    label: 'Transfers',icon: ArrowsLeftRightIcon, permission: 'inventory.transfer.create'    },
   { href: '/inventory/requisitions', label: 'Requests', icon: ClipboardTextIcon,   permission: 'inventory.requisition.create' },
-  { href: '/inventory/configure',    label: 'Configure',icon: SlidersIcon,         permission: 'inventory.settings.manage'    },
+  { href: '/inventory/reports',      label: 'Reports',  icon: ChartBarIcon,        permission: 'inventory.report.view'        },
 ];
-
-/** Settings sits outside the nav arrays but is gated the same way. */
-const SETTINGS_PERMISSION = 'inventory.settings.manage';
 
 /**
  * Route guard table — longest prefix wins, so `/inventory/catalog/suppliers`
@@ -90,9 +104,17 @@ const SETTINGS_PERMISSION = 'inventory.settings.manage';
  * portal access.
  */
 const ROUTE_PERMISSIONS: Array<{ prefix: string; permission: string }> = [
-  ...[...OPERATIONS_NAV, ...PURCHASING_NAV, ...CATALOG_NAV, ...CONFIGURE_NAV]
-    .map(({ href, permission }) => ({ prefix: href, permission })),
-  { prefix: '/inventory/settings', permission: SETTINGS_PERMISSION },
+  ...[
+    ...DASHBOARD_NAV,
+    ...OPERATIONS_NAV,
+    ...PURCHASING_NAV,
+    ...CATALOG_NAV,
+    ...REPORTS_NAV,
+    ...SYSTEM_NAV,
+  ].map(({ href, permission }) => ({ prefix: href, permission })),
+  // The PO list/detail are viewable (purchase.view), but authoring the new PO
+  // requires the create grant — longest prefix wins, so this overrides the list.
+  { prefix: '/inventory/purchase-orders/new', permission: 'inventory.purchase_order.create' },
 ].sort((a, b) => b.prefix.length - a.prefix.length);
 
 /** The permission required to open a given IMS path, if any beyond portal access. */
@@ -172,6 +194,24 @@ function NavSection({
   );
 }
 
+/** A labeled section preceded by a top divider. Renders nothing when empty. */
+function DividerSection({
+  label,
+  items,
+  pathname,
+}: {
+  label: string;
+  items: NavItem[];
+  pathname: string;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="border-t border-[#f0e8d8] pt-1">
+      <NavSection label={label} items={items} pathname={pathname} />
+    </div>
+  );
+}
+
 // ─── Bottom nav link ──────────────────────────────────────────────────────────
 
 function BottomNavLink({
@@ -213,11 +253,12 @@ function Sidebar({
   onSignOut: () => void;
   can: (permission: string) => boolean;
 }) {
+  const dashboard  = DASHBOARD_NAV.filter((i) => can(i.permission));
   const operations = OPERATIONS_NAV.filter((i) => can(i.permission));
   const purchasing = PURCHASING_NAV.filter((i) => can(i.permission));
-  const catalog = CATALOG_NAV.filter((i) => can(i.permission));
-  const configure = CONFIGURE_NAV.filter((i) => can(i.permission));
-  const showSettings = can(SETTINGS_PERMISSION);
+  const catalog    = CATALOG_NAV.filter((i) => can(i.permission));
+  const reports    = REPORTS_NAV.filter((i) => can(i.permission));
+  const system     = SYSTEM_NAV.filter((i) => can(i.permission));
 
   return (
     <aside className="hidden md:flex flex-col w-60 shrink-0 bg-neutral-card border-r border-[#f0e8d8] sticky top-0 h-screen">
@@ -235,43 +276,12 @@ function Sidebar({
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 flex flex-col gap-2 overflow-y-auto">
-        <NavSection items={operations} pathname={pathname} />
-        {purchasing.length > 0 && (
-          <div className="border-t border-[#f0e8d8] pt-1">
-            <NavSection label="Purchasing" items={purchasing} pathname={pathname} />
-          </div>
-        )}
-        {catalog.length > 0 && (
-          <div className="border-t border-[#f0e8d8] pt-1">
-            <NavSection label="Catalog" items={catalog} pathname={pathname} />
-          </div>
-        )}
-        {(configure.length > 0 || showSettings) && (
-          <div className="border-t border-[#f0e8d8] pt-1">
-            <NavSection label="System" items={configure} pathname={pathname} />
-            {showSettings && (
-              <Link
-                href="/inventory/settings"
-                className={`
-                  group flex items-center gap-3 py-2.5 rounded-xl mt-0.5
-                  text-sm font-medium font-body transition-all duration-150
-                  ${
-                    pathname.startsWith('/inventory/settings')
-                      ? 'bg-[#fff8ec] text-primary px-3 border-l-[3px] border-primary pl-2.25'
-                      : 'text-neutral-gray hover:bg-neutral-light hover:text-text-dark px-3'
-                  }
-                `}
-              >
-                <GearSixIcon
-                  size={18}
-                  weight={pathname.startsWith('/inventory/settings') ? 'fill' : 'regular'}
-                  className="shrink-0"
-                />
-                <span>Settings</span>
-              </Link>
-            )}
-          </div>
-        )}
+        <NavSection items={dashboard} pathname={pathname} />
+        <DividerSection label="Operations" items={operations} pathname={pathname} />
+        <DividerSection label="Purchasing" items={purchasing} pathname={pathname} />
+        <DividerSection label="Catalog"    items={catalog}    pathname={pathname} />
+        <DividerSection label="Reports"    items={reports}    pathname={pathname} />
+        <DividerSection label="System"     items={system}     pathname={pathname} />
       </nav>
 
       {/* User footer */}

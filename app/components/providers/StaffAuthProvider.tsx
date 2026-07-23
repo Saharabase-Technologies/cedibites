@@ -168,6 +168,16 @@ export function useStaffAuth() {
     return ctx;
 }
 
+/**
+ * Non-throwing variant for shared components that may render outside a provider
+ * (e.g. the IMS portal's mock mode, which renders without StaffAuthProvider).
+ * Returns null when there is no auth context — callers should treat that as
+ * "no permission gating" (show everything).
+ */
+export function useStaffAuthOptional() {
+    return useContext(StaffAuthContext);
+}
+
 /** Where to redirect after login, based on permissions. */
 export function permissionsHomeRoute(permissions: string[]): string {
     const has = (p: string) => permissions.includes(p);

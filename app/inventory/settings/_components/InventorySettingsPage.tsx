@@ -1,13 +1,19 @@
 'use client';
 
-import { TrashIcon, UserPlusIcon } from '@phosphor-icons/react';
+import { useState, useEffect } from 'react';
+import { TrashIcon, UserPlusIcon, FloppyDiskIcon } from '@phosphor-icons/react';
 import {
   PageHeader,
   DataTable,
   RowActionsMenu,
   type DataTableColumn,
 } from '../../_components';
-import { useImsStaff, useRemoveImsRole } from '@/lib/api/hooks/inventory/useInventorySettings';
+import {
+  useImsStaff,
+  useRemoveImsRole,
+  useInventorySettings,
+  useUpdateInventorySettings,
+} from '@/lib/api/hooks/inventory/useInventorySettings';
 import type { ImsStaffAssignment, ImsRole } from '@/types/inventory';
 
 // ─── Role badge ───────────────────────────────────────────────────────────────
@@ -23,6 +29,76 @@ const ROLE_STYLES: Record<ImsRole, string> = {
   purchasing_clerk:
     'bg-purple-50 text-purple-700 border border-purple-200 text-xs font-medium px-2 py-0.5 rounded-full',
 };
+
+// ─── Wastage threshold (Admin-only) ───────────────────────────────────────────
+
+function WastageThresholdCard() {
+  const { data: settings, isLoading } = useInventorySettings();
+  const update = useUpdateInventorySettings();
+
+  const [threshold, setThreshold] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (settings) setThreshold(String(settings.wastage_threshold_amount));
+  }, [settings]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const value = parseFloat(threshold);
+    if (isNaN(value) || value < 0) return;
+    await update.mutateAsync({ wastage_threshold_amount: value });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  return (
+    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl p-4">
+      <p className="text-sm font-semibold font-body text-text-dark">Wastage threshold</p>
+      <p className="text-sm font-body text-neutral-gray mt-0.5 mb-3">
+        Wastage events above this amount require warehouse manager approval. Events below are
+        auto-accepted (unless marked as spoiled from warehouse).
+      </p>
+
+      <form onSubmit={handleSave} className="flex items-center gap-2 max-w-xs">
+        <div className="relative flex-1">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-gray font-body pointer-events-none select-none">
+            GH₵
+          </span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={threshold}
+            onChange={(e) => setThreshold(e.target.value)}
+            disabled={isLoading}
+            className="
+              w-full pl-11 pr-3 py-2 rounded-xl min-h-10
+              border border-[#e3e1de] bg-[#f5f4f2]
+              text-sm font-body text-text-dark
+              focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10
+              transition-shadow disabled:opacity-50
+            "
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={update.isPending || isLoading}
+          className="
+            flex items-center gap-1.5 bg-primary text-white
+            px-3 py-2 rounded-xl min-h-10 shrink-0
+            text-sm font-semibold font-body
+            hover:bg-primary/90 transition-colors cursor-pointer
+            disabled:opacity-60
+          "
+        >
+          <FloppyDiskIcon size={14} weight="bold" />
+          {update.isPending ? 'Saving…' : saved ? 'Saved!' : 'Save'}
+        </button>
+      </form>
+    </div>
+  );
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -86,15 +162,29 @@ export default function InventorySettingsPage() {
     <div className="p-6 pb-24 md:pb-6 max-w-6xl mx-auto w-full">
       <PageHeader
         title="Settings"
-        subtitle="Manage IMS staff role assignments."
-        action={{
-          label: 'Assign role',
-          icon: <UserPlusIcon size={16} weight="bold" />,
-          onClick: () => {
-            // TODO: open assign role modal when backend is ready
-          },
-        }}
+        subtitle="Wastage threshold and IMS staff role assignments."
       />
+
+      <WastageThresholdCard />
+
+      {/* IMS staff roles ─────────────────────────────────────────────────── */}
+      <div className="mt-8 mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold font-body text-text-dark">IMS staff roles</h2>
+          <p className="text-sm font-body text-neutral-gray mt-0.5">
+            Assign staff members to IMS roles to grant them access.
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            // TODO: open assign role modal when backend is ready
+          }}
+          className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm shrink-0"
+        >
+          <UserPlusIcon size={16} weight="bold" />
+          Assign role
+        </button>
+      </div>
 
       <DataTable<ImsStaffAssignment>
         data={staff}
@@ -116,4 +206,3 @@ export default function InventorySettingsPage() {
     </div>
   );
 }
-

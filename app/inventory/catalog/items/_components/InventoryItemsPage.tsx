@@ -24,6 +24,7 @@ import {
   useInventorySuppliers,
   useCreateInventoryItem,
 } from '@/lib/api/hooks/inventory/useInventoryCatalog';
+import { useStaffAuthOptional } from '@/app/components/providers/StaffAuthProvider';
 import type { InventoryItem, StorageType } from '@/types/inventory';
 
 // ─── Add Item form ────────────────────────────────────────────────────────────
@@ -242,6 +243,10 @@ function StockCell({ item }: { item: InventoryItem }) {
 
 export default function InventoryItemsPage() {
   const router = useRouter();
+  // The Items list is viewable by every IMS role, but only item-catalog managers
+  // (Warehouse Manager / Admin) may add items. Outside a provider (mock) show it.
+  const can = useStaffAuthOptional()?.can;
+  const canManage = !can || can('manage_inventory_catalog');
   const [isAddOpen,   setIsAddOpen]   = useState(false);
   const [search,      setSearch]      = useState('');
   const [categoryId,  setCategoryId]  = useState('');
@@ -347,13 +352,15 @@ export default function InventoryItemsPage() {
             { value: 'inactive', label: 'Inactive' },
           ]}
         />
-        <button
-          onClick={() => setIsAddOpen(true)}
-          className="ml-auto flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
-        >
-          <PlusIcon size={16} weight="bold" />
-          Add Item
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="ml-auto flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
+          >
+            <PlusIcon size={16} weight="bold" />
+            Add Item
+          </button>
+        )}
       </FilterBar>
 
       <DataTable<InventoryItem>
@@ -371,13 +378,15 @@ export default function InventoryItemsPage() {
             <p className="text-neutral-gray text-sm font-body mt-1 mb-5 max-w-xs">
               Add inventory items to start tracking stock, recipes and transfers.
             </p>
-            <button
-              onClick={() => setIsAddOpen(true)}
-              className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors cursor-pointer"
-            >
-              <PlusIcon size={16} weight="bold" />
-              Add first item
-            </button>
+            {canManage && (
+              <button
+                onClick={() => setIsAddOpen(true)}
+                className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors cursor-pointer"
+              >
+                <PlusIcon size={16} weight="bold" />
+                Add first item
+              </button>
+            )}
           </div>
         }
       />

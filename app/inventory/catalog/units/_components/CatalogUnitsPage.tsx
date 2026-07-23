@@ -17,6 +17,7 @@ import {
   useInventoryUnits,
   useCreateInventoryUnit,
 } from '@/lib/api/hooks/inventory/useInventoryCatalog';
+import { useStaffAuthOptional } from '@/app/components/providers/StaffAuthProvider';
 import type { InventoryUnit, UnitDimension } from '@/types/inventory';
 
 const DIMENSION_LABEL: Record<UnitDimension, string> = {
@@ -117,6 +118,8 @@ function AddUnitForm({ onClose }: { onClose: () => void }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function CatalogUnitsPage() {
+  const can = useStaffAuthOptional()?.can;
+  const canManage = !can || can('inventory.unit.manage');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const { data: units = [], isLoading } = useInventoryUnits();
 
@@ -190,13 +193,15 @@ export function CatalogUnitsPage() {
         <p className="text-sm font-body text-neutral-gray flex-1">
           Define the units used to measure inventory items.
         </p>
-        <button
-          onClick={() => setIsAddOpen(true)}
-          className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
-        >
-          <PlusIcon size={16} weight="bold" />
-          Add Unit
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
+          >
+            <PlusIcon size={16} weight="bold" />
+            Add Unit
+          </button>
+        )}
       </div>
 
       <DataTable<InventoryUnit>
@@ -213,13 +218,15 @@ export function CatalogUnitsPage() {
             <p className="text-neutral-gray text-sm font-body mt-1 mb-5 max-w-xs">
               Units describe how items are measured (kg, L, piece, etc).
             </p>
-            <button
-              onClick={() => setIsAddOpen(true)}
-              className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors cursor-pointer"
-            >
-              <PlusIcon size={16} weight="bold" />
-              Add first unit
-            </button>
+            {canManage && (
+              <button
+                onClick={() => setIsAddOpen(true)}
+                className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors cursor-pointer"
+              >
+                <PlusIcon size={16} weight="bold" />
+                Add first unit
+              </button>
+            )}
           </div>
         }
       />
