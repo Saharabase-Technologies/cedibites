@@ -203,11 +203,18 @@ function RichWidget() {
   const canPin = shots[activeShot]?.route === pathname;
   const currentPageCaptured = shots.some((s) => s.route === pathname);
 
+  // On the POS terminal the bottom-right corner holds the Pay button (desktop)
+  // and a full-width cart bar (tablet), so move the launcher to the bottom-left
+  // and lift it above the tablet bar. Everywhere else it stays bottom-right.
+  const onPos = pathname.startsWith('/pos');
+  const fabPos = onPos ? 'bottom-24 left-5 lg:bottom-5 lg:left-5' : 'bottom-5 right-5';
+  const promptPos = onPos ? 'bottom-40 left-5 lg:bottom-20 lg:left-5' : 'bottom-20 right-5';
+
   return (
     <div data-feedback-widget>
       {/* Auto-prompt after an unexpected failure (only while closed) */}
       {prompted && !open && !picking && (
-        <div className="fixed bottom-20 right-5 z-[2147482000] w-72 rounded-2xl border border-[#f0e8d8] bg-neutral-card p-4 shadow-2xl">
+        <div className={`fixed ${promptPos} z-[2147482000] w-72 rounded-2xl border border-[#f0e8d8] bg-neutral-card p-4 shadow-2xl`}>
           <p className="font-body text-sm font-semibold text-text-dark">Something went wrong</p>
           <p className="mt-0.5 font-body text-xs text-neutral-gray">Want to send a quick report? We&apos;ll attach the details automatically.</p>
           <div className="mt-3 flex justify-end gap-2">
@@ -239,7 +246,7 @@ function RichWidget() {
           type="button"
           onClick={openWidget}
           aria-label="Send feedback"
-          className="fixed bottom-5 right-5 z-[2147482000] flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-105 hover:bg-primary-hover cursor-pointer font-body"
+          className={`fixed ${fabPos} z-[2147482000] flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-105 hover:bg-primary-hover cursor-pointer font-body`}
         >
           <ChatCircleDotsIcon size={20} weight="fill" />
           Feedback
@@ -448,12 +455,18 @@ function RichWidget() {
 // ─── Text-only fallback (I1) ──────────────────────────────────────────────────
 
 function TextOnlyFallback() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<Severity>('annoying');
   const [submitting, setSubmitting] = useState(false);
 
   if (typeof window !== 'undefined' && !resolveReporterContext().authenticated) return null;
+
+  // Match the rich widget: keep the launcher clear of the POS Pay button / cart bar.
+  const fabPos = pathname.startsWith('/pos')
+    ? 'bottom-24 left-5 lg:bottom-5 lg:left-5'
+    : 'bottom-5 right-5';
 
   const submit = async () => {
     setSubmitting(true);
@@ -475,7 +488,7 @@ function TextOnlyFallback() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-[2147482000] rounded-full bg-primary px-4 py-3 text-sm font-semibold text-white shadow-lg font-body cursor-pointer"
+          className={`fixed ${fabPos} z-[2147482000] rounded-full bg-primary px-4 py-3 text-sm font-semibold text-white shadow-lg font-body cursor-pointer`}
         >
           Feedback
         </button>
