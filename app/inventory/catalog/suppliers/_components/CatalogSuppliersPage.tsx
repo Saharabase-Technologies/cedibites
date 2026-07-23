@@ -31,6 +31,7 @@ import {
   useInventorySuppliers,
   useCreateInventorySupplier,
 } from '@/lib/api/hooks/inventory/useInventoryCatalog';
+import { useStaffAuthOptional } from '@/app/components/providers/StaffAuthProvider';
 import type { InventorySupplier } from '@/types/inventory';
 
 // ─── Add supplier form ────────────────────────────────────────────────────────
@@ -146,6 +147,8 @@ function AddSupplierForm({ onClose }: { onClose: () => void }) {
 type ViewMode = 'grid' | 'table';
 
 export function CatalogSuppliersPage() {
+  const can = useStaffAuthOptional()?.can;
+  const canManage = !can || can('inventory.supplier.manage');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [search,    setSearch]    = useState('');
   const [view,      setView]      = useState<ViewMode>('grid');
@@ -240,13 +243,15 @@ export function CatalogSuppliersPage() {
             { value: 'table', label: 'Table', icon: <ListIcon size={14} weight="bold" /> },
           ]}
         />
-        <button
-          onClick={() => setIsAddOpen(true)}
-          className="ml-auto flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
-        >
-          <PlusIcon size={16} weight="bold" />
-          Add Supplier
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="ml-auto flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
+          >
+            <PlusIcon size={16} weight="bold" />
+            Add Supplier
+          </button>
+        )}
       </FilterBar>
 
       {isLoading ? (
@@ -264,7 +269,7 @@ export function CatalogSuppliersPage() {
           />
         )
       ) : filtered.length === 0 ? (
-        <EmptyState onAdd={() => setIsAddOpen(true)} hasSearch={!!search} />
+        <EmptyState onAdd={() => setIsAddOpen(true)} hasSearch={!!search} canAdd={canManage} />
       ) : view === 'grid' ? (
         <div className="grid sm:grid-cols-2 gap-3">
           {filtered.map((s) => (
@@ -341,9 +346,11 @@ function Detail({ icon, children }: { icon: React.ReactNode; children: React.Rea
 function EmptyState({
   onAdd,
   hasSearch,
+  canAdd,
 }: {
   onAdd: () => void;
   hasSearch: boolean;
+  canAdd: boolean;
 }) {
   return (
     <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl py-16 flex flex-col items-center text-center">
@@ -356,7 +363,7 @@ function EmptyState({
           ? 'Try clearing the search or adjusting your terms.'
           : 'Track who you buy from, their contact info and payment terms.'}
       </p>
-      {!hasSearch && (
+      {!hasSearch && canAdd && (
         <button
           onClick={onAdd}
           className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors cursor-pointer"

@@ -1,13 +1,7 @@
-import type { Metadata } from 'next';
-import { ConfigureShell } from '../_components/ConfigureShell';
-import { CatalogCategoriesPage } from '../../catalog/categories/_components/CatalogCategoriesPage';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Categories — Configure' };
-
+// Categories now live in the Catalog section (the Warehouse Manager curates them
+// alongside items). Kept as a redirect for backward-compatible links/bookmarks.
 export default function Page() {
-  return (
-    <ConfigureShell>
-      <CatalogCategoriesPage />
-    </ConfigureShell>
-  );
+  redirect('/inventory/catalog/categories');
 }

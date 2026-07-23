@@ -1,13 +1,7 @@
-import type { Metadata } from 'next';
-import { ConfigureShell } from '../_components/ConfigureShell';
-import { ConfigureSettingsPage } from './_components/ConfigureSettingsPage';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Settings — Configure' };
-
+// The wastage-threshold editor now lives on the consolidated admin Settings page
+// (alongside IMS role assignment). Kept as a redirect for backward-compatible links.
 export default function Page() {
-  return (
-    <ConfigureShell>
-      <ConfigureSettingsPage />
-    </ConfigureShell>
-  );
+  redirect('/inventory/settings');
 }

@@ -22,6 +22,7 @@ import {
   useInventoryCategories,
   useCreateInventoryCategory,
 } from '@/lib/api/hooks/inventory/useInventoryCatalog';
+import { useStaffAuthOptional } from '@/app/components/providers/StaffAuthProvider';
 import type { InventoryCategory } from '@/types/inventory';
 
 // ─── Add category form ────────────────────────────────────────────────────────
@@ -96,6 +97,8 @@ type CategoryRow = InventoryCategory & {
 };
 
 export function CatalogCategoriesPage() {
+  const can = useStaffAuthOptional()?.can;
+  const canManage = !can || can('inventory.category.manage');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const { data: categories = [], isLoading } = useInventoryCategories();
 
@@ -189,13 +192,15 @@ export function CatalogCategoriesPage() {
         <p className="text-sm font-body text-neutral-gray flex-1">
           Group inventory items for easier reporting and search.
         </p>
-        <button
-          onClick={() => setIsAddOpen(true)}
-          className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
-        >
-          <PlusIcon size={16} weight="bold" />
-          Add Category
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
+          >
+            <PlusIcon size={16} weight="bold" />
+            Add Category
+          </button>
+        )}
       </div>
 
       <DataTable<CategoryRow>
@@ -212,13 +217,15 @@ export function CatalogCategoriesPage() {
             <p className="text-neutral-gray text-sm font-body mt-1 mb-5 max-w-xs">
               Categories help group items for reporting and discovery.
             </p>
-            <button
-              onClick={() => setIsAddOpen(true)}
-              className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors cursor-pointer"
-            >
-              <PlusIcon size={16} weight="bold" />
-              Add first category
-            </button>
+            {canManage && (
+              <button
+                onClick={() => setIsAddOpen(true)}
+                className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-primary/90 transition-colors cursor-pointer"
+              >
+                <PlusIcon size={16} weight="bold" />
+                Add first category
+              </button>
+            )}
           </div>
         }
       />

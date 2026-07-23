@@ -1,13 +1,7 @@
-import type { Metadata } from 'next';
-import { ConfigureShell } from '../_components/ConfigureShell';
-import { CatalogUnitsPage } from '../../catalog/units/_components/CatalogUnitsPage';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Units — Configure' };
-
+// Units now live in the Catalog section (the Warehouse Manager curates them
+// alongside items). Kept as a redirect for backward-compatible links/bookmarks.
 export default function Page() {
-  return (
-    <ConfigureShell>
-      <CatalogUnitsPage />
-    </ConfigureShell>
-  );
+  redirect('/inventory/catalog/units');
 }

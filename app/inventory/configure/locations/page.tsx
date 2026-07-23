@@ -1,13 +1,7 @@
-import type { Metadata } from 'next';
-import { ConfigureShell } from '../_components/ConfigureShell';
-import InventoryLocationsPage from '../../locations/_components/InventoryLocationsPage';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Locations — Configure' };
-
+// Locations now live under the System section as a standalone admin route.
+// Kept as a redirect for backward-compatible links/bookmarks.
 export default function Page() {
-  return (
-    <ConfigureShell>
-      <InventoryLocationsPage />
-    </ConfigureShell>
-  );
+  redirect('/inventory/locations');
 }

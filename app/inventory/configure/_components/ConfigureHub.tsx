@@ -111,17 +111,17 @@ export function ConfigureHub() {
     {
       n: 1, key: 'units', label: 'Units of measurement',
       desc: 'How you measure stock — piece, kg, litre, crate.',
-      href: '/inventory/configure/units', icon: RulerIcon, done: units.length > 0,
+      href: '/inventory/catalog/units', icon: RulerIcon, done: units.length > 0,
     },
     {
       n: 2, key: 'categories', label: 'Categories',
       desc: 'Group items — proteins, dry goods, packaging.',
-      href: '/inventory/configure/categories', icon: TagIcon, done: categories.length > 0,
+      href: '/inventory/catalog/categories', icon: TagIcon, done: categories.length > 0,
     },
     {
       n: 3, key: 'locations', label: 'Locations',
       desc: 'Your mother kitchen and satellite kitchens.',
-      href: '/inventory/configure/locations', icon: MapPinIcon, done: locations.length > 0,
+      href: '/inventory/locations', icon: MapPinIcon, done: locations.length > 0,
     },
     {
       n: 4, key: 'items', label: 'Inventory items',
