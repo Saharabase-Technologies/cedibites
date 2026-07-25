@@ -241,12 +241,11 @@ function RichWidget() {
     }
   }, [description, severity, shots, audio, notes, resetDraft]);
 
-  if (!authenticated) return null;
-
-  const buf = open && step === 'review' ? snapshot() : null;
-  // You can only pin the page you're actually on, and only capture it once.
-  const canPin = shots[activeShot]?.route === pathname;
-  const currentPageCaptured = shots.some((s) => s.route === pathname);
+  // NOTE: every hook must sit ABOVE the `!authenticated` early return below.
+  // `authenticated` starts false and flips true once the auth effect runs, so a
+  // hook placed after the guard is skipped on the first render and called on the
+  // second — React throws on the hook-count change and the error boundary
+  // swallows the whole widget down to the text-only fallback.
 
   // The note being edited always belongs to the page you are standing on, so
   // roaming to another page swaps the editor rather than overwriting what you
@@ -291,6 +290,13 @@ function RichWidget() {
   );
 
   const filledNotes = useMemo(() => notes.filter(noteHasContent), [notes]);
+
+  if (!authenticated) return null;
+
+  const buf = open && step === 'review' ? snapshot() : null;
+  // You can only pin the page you're actually on, and only capture it once.
+  const canPin = shots[activeShot]?.route === pathname;
+  const currentPageCaptured = shots.some((s) => s.route === pathname);
 
   // On the POS terminal the bottom-right corner holds the Pay button (desktop)
   // and a full-width cart bar (tablet), so move the launcher to the bottom-left
