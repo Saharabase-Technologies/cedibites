@@ -18,11 +18,10 @@ import {
   type DataTableColumn,
 } from '../../_components';
 import { useTransfers } from '@/lib/api/hooks/inventory/useTransfers';
-import { useTransferRealtime } from '@/lib/api/hooks/inventory/useTransferRealtime';
 import { useInventoryLocations } from '@/lib/api/hooks/inventory/useInventoryLocations';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { InventoryTransfer, TransferStatus } from '@/types/inventory';
-import { formatGHS, formatShortDate, transferValue } from '../utils';
+import { formatGHS, formatDateTime, transferValue } from '../utils';
 
 const STATUS_OPTIONS: { value: TransferStatus | ''; label: string }[] = [
   { value: 'draft',           label: 'Draft' },
@@ -39,7 +38,6 @@ export function TransfersPage() {
   const router = useRouter();
   const { can } = useStaffAuth();
   const canCreate = can('inventory.transfer.create');
-  useTransferRealtime();
 
   const [search, setSearch]     = useState('');
   const [status, setStatus]     = useState<string>('');
@@ -65,7 +63,7 @@ export function TransfersPage() {
         <div>
           <p className="font-mono text-text-dark text-sm font-semibold">{t.reference}</p>
           <p className="text-neutral-gray text-[11px] mt-0.5">
-            {formatShortDate(t.created_at)}
+            {formatDateTime(t.created_at)}
             {t.created_by ? <> · by {t.created_by}</> : null}
           </p>
         </div>
@@ -176,6 +174,8 @@ export function TransfersPage() {
           rowKey={(t) => t.id}
           isLoading={isLoading}
           defaultSortKey="reference"
+          needsAttention={(t) => t.status === 'sent' || t.status === 'disputed'}
+          defaultSortDir="desc"
           pageSize={15}
           onRowClick={(t) => router.push(`/inventory/transfers/${t.id}`)}
         />

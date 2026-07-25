@@ -25,7 +25,7 @@ const ROLE_LABELS: Record<ImsRole, string> = {
 
 const ROLE_STYLES: Record<ImsRole, string> = {
   warehouse_manager:
-    'bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium px-2 py-0.5 rounded-full',
+    'bg-[#e7edf3] text-[#2f5570] border border-[#d3e0ea] text-xs font-medium px-2 py-0.5 rounded-full',
   purchasing_clerk:
     'bg-purple-50 text-purple-700 border border-purple-200 text-xs font-medium px-2 py-0.5 rounded-full',
 };

@@ -15,7 +15,6 @@ import {
   useReconciliations,
   useOpenReconciliation,
 } from '@/lib/api/hooks/inventory/useReconciliations';
-import { useReconciliationRealtime } from '@/lib/api/hooks/inventory/useReconciliationRealtime';
 import { useInventoryLocations } from '@/lib/api/hooks/inventory/useInventoryLocations';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { InventoryReconciliationCycle } from '@/types/inventory';
@@ -27,7 +26,6 @@ export function ReconciliationPage() {
   const router = useRouter();
   const { can } = useStaffAuth();
   const canOpen = can('inventory.reconciliation.open_cycle');
-  useReconciliationRealtime();
 
   const { data: locations = [] } = useInventoryLocations({ is_active: true });
   const [locationId, setLocationId] = useState<string>('');
@@ -171,6 +169,7 @@ export function ReconciliationPage() {
           rowKey={(c) => c.id}
           isLoading={isLoading}
           defaultSortKey="opened_at"
+          defaultSortDir="desc"
           pageSize={15}
           onRowClick={(c) => router.push(`/inventory/reconciliation/${c.id}`)}
         />

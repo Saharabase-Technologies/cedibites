@@ -179,6 +179,7 @@ export function DailyClosingPage() {
           rowKey={(c) => c.id}
           isLoading={isLoading}
           defaultSortKey="business_date"
+          defaultSortDir="desc"
           pageSize={15}
           onRowClick={(c) => router.push(`/inventory/daily-closing/${c.id}`)}
         />

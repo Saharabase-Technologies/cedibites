@@ -34,7 +34,9 @@ export function useTransfers(filters?: InventoryTransferFilters) {
   return useQuery({
     queryKey: [...KEY, filters ?? null],
     queryFn: () => getTransfers(filters),
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -43,7 +45,9 @@ export function useTransfer(id: number) {
     queryKey: [...KEY, id],
     queryFn: () => getTransfer(id),
     enabled: id > 0,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 

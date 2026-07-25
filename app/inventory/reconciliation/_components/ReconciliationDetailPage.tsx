@@ -25,7 +25,6 @@ import {
   useSaveReconciliation,
   usePostReconciliation,
 } from '@/lib/api/hooks/inventory/useReconciliations';
-import { useReconciliationRealtime } from '@/lib/api/hooks/inventory/useReconciliationRealtime';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type {
   InventoryReconciliationCycle,
@@ -39,7 +38,6 @@ export function ReconciliationDetailPage({ id }: { id: number }) {
   const { data: cycle, isLoading, error } = useReconciliation(id);
   const { can } = useStaffAuth();
   const save = useSaveReconciliation(id);
-  useReconciliationRealtime();
 
   const [counts, setCounts] = useState<Record<number, string>>({});
   const [hydrated, setHydrated] = useState(false);

@@ -18,7 +18,6 @@ import {
   type DataTableColumn,
 } from '../../_components';
 import { useRequisitions } from '@/lib/api/hooks/inventory/useRequisitions';
-import { useRequisitionRealtime } from '@/lib/api/hooks/inventory/useRequisitionRealtime';
 import { useInventoryLocations } from '@/lib/api/hooks/inventory/useInventoryLocations';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type {
@@ -26,7 +25,7 @@ import type {
   RequisitionStatus,
   RequisitionPurpose,
 } from '@/types/inventory';
-import { formatShortDate, PURPOSE_LABEL } from '../utils';
+import { formatDateTime, PURPOSE_LABEL } from '../utils';
 
 const STATUS_OPTIONS: { value: RequisitionStatus | ''; label: string }[] = [
   { value: 'draft',     label: 'Draft' },
@@ -45,7 +44,6 @@ export function RequisitionsPage() {
   const router = useRouter();
   const { can } = useStaffAuth();
   const canCreate = can('inventory.requisition.create');
-  useRequisitionRealtime();
 
   const [search, setSearch]       = useState('');
   const [status, setStatus]       = useState<string>('');
@@ -73,7 +71,7 @@ export function RequisitionsPage() {
         <div>
           <p className="font-mono text-text-dark text-sm font-semibold">{r.reference}</p>
           <p className="text-neutral-gray text-[11px] mt-0.5">
-            {formatShortDate(r.created_at)}
+            {formatDateTime(r.created_at)}
             {r.requested_by ? <> · by {r.requested_by}</> : null}
           </p>
         </div>
@@ -162,6 +160,8 @@ export function RequisitionsPage() {
           rowKey={(r) => r.id}
           isLoading={isLoading}
           defaultSortKey="reference"
+          needsAttention={(r) => r.status === 'submitted'}
+          defaultSortDir="desc"
           pageSize={15}
           onRowClick={(r) => router.push(`/inventory/requisitions/${r.id}`)}
         />

@@ -36,7 +36,9 @@ export function useInventoryItems(filters?: InventoryItemFilters) {
   return useQuery({
     queryKey: ['inventory', 'items', filters ?? null],
     queryFn: () => getInventoryItems(filters),
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -45,7 +47,9 @@ export function useInventoryItem(id: number) {
     queryKey: ['inventory', 'items', id],
     queryFn: () => getInventoryItem(id),
     enabled: id > 0,
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -54,7 +58,9 @@ export function useInventoryItemMovements(id: number) {
     queryKey: ['inventory', 'items', id, 'movements'],
     queryFn: () => getInventoryItemMovements(id),
     enabled: id > 0,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 

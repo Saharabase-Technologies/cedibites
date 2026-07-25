@@ -27,14 +27,16 @@ import type {
 // Keep the list/detail live even when Reverb broadcasts don't arrive: poll while
 // the tab is focused and refetch when it regains focus, so a status change (e.g.
 // pending_approval → sent) surfaces on its own without a manual page refresh.
-// usePurchaseOrderRealtime() layers the instant WebSocket path on top of this.
+// useInventoryRealtime(), mounted in the inventory layout, layers the instant
+// WebSocket path on top of this for every screen in the portal.
 const PO_REFETCH_INTERVAL = 10_000;
 
 export function usePurchaseOrders(filters?: PurchaseOrderFilters) {
   return useQuery({
     queryKey: ['inventory', 'purchase-orders', filters ?? null],
     queryFn: () => getPurchaseOrders(filters),
-    staleTime: 10_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchInterval: PO_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
   });
@@ -45,7 +47,8 @@ export function usePurchaseOrder(id: number) {
     queryKey: ['inventory', 'purchase-orders', id],
     queryFn: () => getPurchaseOrder(id),
     enabled: id > 0,
-    staleTime: 10_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchInterval: PO_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
   });
@@ -58,7 +61,8 @@ export function usePurchaseOrderVerification(code: string) {
     queryFn: () => verifyPurchaseOrder(code),
     enabled: code.length > 0,
     retry: false,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 

@@ -1,65 +1,18 @@
 'use client';
 
 import type { TransferStatus } from '@/types/inventory';
+import { TONE, type StatusTone } from './status-tokens';
 
-const STATUS_STYLES: Record<
-  TransferStatus,
-  { label: string; bg: string; text: string; dot: string }
-> = {
-  draft: {
-    label: 'Draft',
-    bg: 'bg-neutral-light',
-    text: 'text-neutral-gray',
-    dot: 'bg-neutral-gray/60',
-  },
-  submitted: {
-    label: 'Submitted',
-    bg: 'bg-amber-50',
-    text: 'text-amber-700',
-    dot: 'bg-amber-500',
-  },
-  approved: {
-    label: 'Approved',
-    bg: 'bg-blue-50',
-    text: 'text-blue-700',
-    dot: 'bg-blue-500',
-  },
-  sent: {
-    label: 'In transit',
-    bg: 'bg-indigo-50',
-    text: 'text-indigo-700',
-    dot: 'bg-indigo-500',
-  },
-  received: {
-    label: 'Received',
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
-    dot: 'bg-emerald-500',
-  },
-  disputed: {
-    label: 'Disputed',
-    bg: 'bg-rose-50',
-    text: 'text-rose-700',
-    dot: 'bg-rose-500',
-  },
-  closed: {
-    label: 'Closed',
-    bg: 'bg-neutral-light',
-    text: 'text-text-dark',
-    dot: 'bg-text-dark/60',
-  },
-  closed_disputed: {
-    label: 'Closed (disputed)',
-    bg: 'bg-neutral-light',
-    text: 'text-rose-700',
-    dot: 'bg-rose-400',
-  },
-  cancelled: {
-    label: 'Cancelled',
-    bg: 'bg-rose-50',
-    text: 'text-rose-700',
-    dot: 'bg-rose-500',
-  },
+const STATUS_STYLES: Record<TransferStatus, { label: string } & StatusTone> = {
+  draft: { label: 'Draft', ...TONE.neutral },
+  submitted: { label: 'Submitted', ...TONE.waiting },
+  approved: { label: 'Approved', ...TONE.decided },
+  sent: { label: 'In transit', ...TONE.moving },
+  received: { label: 'Received', ...TONE.done },
+  disputed: { label: 'Disputed', ...TONE.problem },
+  closed: { label: 'Closed', ...TONE.settled },
+  closed_disputed: { label: 'Closed (disputed)', ...TONE.problemSettled },
+  cancelled: { label: 'Cancelled', ...TONE.problem },
 };
 
 export function TransferStatusBadge({
