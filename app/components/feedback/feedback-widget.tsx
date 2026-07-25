@@ -36,6 +36,24 @@ const SEVERITIES: Array<{ value: Severity; label: string; hint: string }> = [
 
 type Step = 'annotate' | 'describe' | 'review';
 
+/**
+ * A note about one specific page. A report roams — capture here, navigate,
+ * capture there — and each page usually needs its own words, so a note carries
+ * its own text and its own voice clip rather than everything collapsing into a
+ * single description.
+ */
+export interface PageNote {
+  route: string;
+  pageTitle: string;
+  body: string;
+  audio: Blob | null;
+}
+
+/** A note is worth sending once it has text or a voice clip. */
+export function noteHasContent(note: PageNote): boolean {
+  return note.body.trim().length > 0 || note.audio !== null;
+}
+
 // ─── Shared submit ────────────────────────────────────────────────────────────
 
 async function sendReport(
@@ -43,12 +61,34 @@ async function sendReport(
   severity: Severity,
   shots: Shot[],
   audio: Blob | null,
+  notes: PageNote[] = [],
 ): Promise<void> {
   const ctx = resolveReporterContext();
   const snap = snapshot();
   const files = await Promise.all(shots.map((s, i) => dataUrlToFile(s.dataUrl, `shot-${i + 1}`)));
   const audioFile = audio ? new File([audio], 'voice-note.webm', { type: audio.type || 'audio/webm' }) : null;
   const replayId = await captureReplayId(); // null unless an error monitor is wired
+
+  // Build the note clips and their indices together, so `audio_index` always
+  // points at the right file even when only some notes carry audio.
+  const noteAudio: File[] = [];
+  const notePayload = notes.filter(noteHasContent).map((note) => {
+    let audioIndex: number | null = null;
+    if (note.audio) {
+      audioIndex = noteAudio.length;
+      noteAudio.push(
+        new File([note.audio], `note-${audioIndex + 1}.webm`, {
+          type: note.audio.type || 'audio/webm',
+        }),
+      );
+    }
+    return {
+      route: note.route || null,
+      page_title: note.pageTitle || null,
+      body: note.body.trim() || null,
+      audio_index: audioIndex,
+    };
+  });
 
   const fd = buildReportFormData(
     {
@@ -64,9 +104,11 @@ async function sendReport(
       request_ids: snap.requestIds,
       client_meta: buildClientMeta(),
       screenshot_meta: shots.map((s) => ({ source: s.source, pins: s.pins, rects: s.rects, route: s.route })),
+      notes: notePayload,
     },
     files,
     audioFile,
+    noteAudio,
   );
 
   await submitFeedbackReport(fd);
@@ -88,6 +130,8 @@ function RichWidget() {
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<Severity>('annoying');
   const [audio, setAudio] = useState<Blob | null>(null);
+  // One note per page visited while the draft is open, keyed by route.
+  const [notes, setNotes] = useState<PageNote[]>([]);
   const [prompted, setPrompted] = useState(false);
   // Which shot pins attach to — the one captured on the page you're currently on.
   const [activeShot, setActiveShot] = useState(0);
@@ -117,6 +161,7 @@ function RichWidget() {
     setDescription('');
     setSeverity('annoying');
     setAudio(null);
+    setNotes([]);
     setActiveShot(0);
     setStep('annotate');
   }, []);
@@ -184,7 +229,7 @@ function RichWidget() {
   const submit = useCallback(async () => {
     setSubmitting(true);
     try {
-      await sendReport(description, severity, shots, audio);
+      await sendReport(description, severity, shots, audio, notes);
       toast.success('Thanks — your report was sent.');
       resetDraft();
       setOpen(false);
@@ -194,7 +239,7 @@ function RichWidget() {
     } finally {
       setSubmitting(false);
     }
-  }, [description, severity, shots, audio, resetDraft]);
+  }, [description, severity, shots, audio, notes, resetDraft]);
 
   if (!authenticated) return null;
 
@@ -202,6 +247,50 @@ function RichWidget() {
   // You can only pin the page you're actually on, and only capture it once.
   const canPin = shots[activeShot]?.route === pathname;
   const currentPageCaptured = shots.some((s) => s.route === pathname);
+
+  // The note being edited always belongs to the page you are standing on, so
+  // roaming to another page swaps the editor rather than overwriting what you
+  // already said. Held unsaved until it has content — an untouched editor must
+  // not create an empty note.
+  const currentNote = useMemo<PageNote>(
+    () =>
+      notes.find((n) => n.route === pathname) ?? {
+        route: pathname,
+        pageTitle: typeof document !== 'undefined' ? document.title : '',
+        body: '',
+        audio: null,
+      },
+    [notes, pathname],
+  );
+
+  const otherNotes = useMemo(
+    () => notes.filter((n) => n.route !== pathname && noteHasContent(n)),
+    [notes, pathname],
+  );
+
+  const updateCurrentNote = useCallback(
+    (patch: Partial<PageNote>) => {
+      setNotes((prev) => {
+        const existing = prev.find((n) => n.route === pathname);
+        if (existing) {
+          return prev.map((n) => (n.route === pathname ? { ...n, ...patch } : n));
+        }
+        return [
+          ...prev,
+          {
+            route: pathname,
+            pageTitle: typeof document !== 'undefined' ? document.title : '',
+            body: '',
+            audio: null,
+            ...patch,
+          },
+        ];
+      });
+    },
+    [pathname],
+  );
+
+  const filledNotes = useMemo(() => notes.filter(noteHasContent), [notes]);
 
   // On the POS terminal the bottom-right corner holds the Pay button (desktop)
   // and a full-width cart bar (tablet), so move the launcher to the bottom-left
@@ -395,6 +484,64 @@ function RichWidget() {
                     className="w-full rounded-xl border border-[#e3e1de] bg-[#f5f4f2] px-3.5 py-2.5 font-body text-sm text-text-dark placeholder:text-neutral-gray/60 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10"
                   />
                   <VoiceRecorder audio={audio} onRecorded={setAudio} onClear={() => setAudio(null)} />
+
+                  {/* Per-page notes. The overall description above covers the
+                      report as a whole; these say what went wrong on each
+                      specific page the draft has roamed across. */}
+                  <div className="flex flex-col gap-2 border-t border-[#f0e8d8] pt-3">
+                    <p className="font-body text-[11px] font-semibold uppercase tracking-wide text-neutral-gray">
+                      Note for this page
+                    </p>
+                    <span className="w-fit rounded-md bg-neutral-light px-1.5 py-0.5 font-mono text-[10px] text-neutral-gray">
+                      {pathname}
+                    </span>
+                    <textarea
+                      value={currentNote.body}
+                      onChange={(e) => updateCurrentNote({ body: e.target.value })}
+                      rows={2}
+                      placeholder="Anything specific to this page?"
+                      className="w-full rounded-xl border border-[#e3e1de] bg-[#f5f4f2] px-3.5 py-2.5 font-body text-sm text-text-dark placeholder:text-neutral-gray/60 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10"
+                    />
+                    <VoiceRecorder
+                      audio={currentNote.audio}
+                      onRecorded={(blob) => updateCurrentNote({ audio: blob })}
+                      onClear={() => updateCurrentNote({ audio: null })}
+                    />
+                  </div>
+
+                  {otherNotes.length > 0 && (
+                    <div className="flex flex-col gap-2 border-t border-[#f0e8d8] pt-3">
+                      <p className="font-body text-[11px] font-semibold uppercase tracking-wide text-neutral-gray">
+                        Notes on other pages ({otherNotes.length})
+                      </p>
+                      {otherNotes.map((note) => (
+                        <div
+                          key={note.route}
+                          className="flex items-start gap-2 rounded-xl border border-[#f0e8d8] bg-neutral-light/50 px-3 py-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="block font-mono text-[10px] text-neutral-gray">{note.route}</span>
+                            {note.body.trim() && (
+                              <p className="mt-0.5 line-clamp-2 font-body text-xs text-text-dark">{note.body}</p>
+                            )}
+                            {note.audio && (
+                              <span className="mt-0.5 inline-block font-body text-[11px] text-neutral-gray">
+                                🎤 Voice note attached
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setNotes((prev) => prev.filter((n) => n.route !== note.route))}
+                            aria-label={`Remove note for ${note.route}`}
+                            className="shrink-0 text-neutral-gray hover:text-red-500 cursor-pointer"
+                          >
+                            <TrashIcon size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -406,6 +553,13 @@ function RichWidget() {
                   <ul className="flex flex-col gap-1.5 rounded-xl bg-neutral-light p-3 font-body text-xs text-neutral-gray">
                     <li>📝 {description.trim().length} characters of description</li>
                     {audio && <li>🎤 Voice note attached</li>}
+                    {filledNotes.length > 0 && (
+                      <li>
+                        🗒️ {filledNotes.length} page note{filledNotes.length === 1 ? '' : 's'}
+                        {filledNotes.filter((n) => n.audio).length > 0 &&
+                          ` · ${filledNotes.filter((n) => n.audio).length} voice`}
+                      </li>
+                    )}
                     <li>🏷️ Severity: {SEVERITIES.find((s) => s.value === severity)?.label}</li>
                     <li>🖼️ {shots.length} screenshot{shots.length === 1 ? '' : 's'}, {shots.reduce((n, s) => n + s.pins.length, 0)} pin(s)</li>
                     <li>🧭 {buf.breadcrumbs.length} recent steps</li>
@@ -438,7 +592,12 @@ function RichWidget() {
                 <button
                   type="button"
                   onClick={() => setStep(step === 'annotate' ? 'describe' : 'review')}
-                  disabled={step === 'describe' && description.trim().length === 0 && !audio}
+                  disabled={
+                    step === 'describe' &&
+                    description.trim().length === 0 &&
+                    !audio &&
+                    filledNotes.length === 0
+                  }
                   className="rounded-xl bg-primary px-5 py-2.5 font-body text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                 >
                   Next
