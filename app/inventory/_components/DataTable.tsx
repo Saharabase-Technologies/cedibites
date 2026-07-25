@@ -35,6 +35,12 @@ export type DataTableProps<T> = {
   emptyState?: ReactNode;
   /** Optional onClick handler for rows. */
   onRowClick?: (row: T) => void;
+  /**
+   * Rows that are waiting on a person. Marked with a gold edge so what needs
+   * doing is obvious on landing, instead of having to read every status badge.
+   * Matches the sidebar counters — same definition of "needs attention".
+   */
+  needsAttention?: (row: T) => boolean;
   /** Loading state — renders skeleton rows. */
   isLoading?: boolean;
   /** Show row index column ('#'). */
@@ -52,6 +58,7 @@ export function DataTable<T>({
   pageSize = 10,
   emptyState,
   onRowClick,
+  needsAttention,
   isLoading,
   showIndex,
 }: DataTableProps<T>) {
@@ -169,6 +176,7 @@ export function DataTable<T>({
                   className={`
                     border-b border-[#f0e8d8] last:border-0 transition-colors
                     ${onRowClick ? 'cursor-pointer hover:bg-primary/5' : 'hover:bg-primary/5'}
+                    ${needsAttention?.(row) ? 'bg-primary/6 shadow-[inset_3px_0_0_0_var(--color-primary)]' : ''}
                   `}
                 >
                   {showIndex && (

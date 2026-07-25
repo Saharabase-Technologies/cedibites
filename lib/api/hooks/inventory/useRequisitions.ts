@@ -28,7 +28,9 @@ export function useRequisitions(filters?: InventoryRequisitionFilters) {
   return useQuery({
     queryKey: [...KEY, filters ?? null],
     queryFn: () => getRequisitions(filters),
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -37,7 +39,9 @@ export function useRequisition(id: number) {
     queryKey: [...KEY, id],
     queryFn: () => getRequisition(id),
     enabled: id > 0,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 

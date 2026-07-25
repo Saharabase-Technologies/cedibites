@@ -145,6 +145,7 @@ export function PurchasesPage() {
           rowKey={(p) => p.id}
           isLoading={isLoading}
           defaultSortKey="reference"
+          defaultSortDir="desc"
           pageSize={15}
           onRowClick={(p) => router.push(`/inventory/purchases/${p.id}`)}
         />

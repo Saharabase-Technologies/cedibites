@@ -17,11 +17,10 @@ import {
   type DataTableColumn,
 } from '../../_components';
 import { usePurchaseOrders } from '@/lib/api/hooks/inventory/usePurchaseOrders';
-import { usePurchaseOrderRealtime } from '@/lib/api/hooks/inventory/usePurchaseOrderRealtime';
 import { useInventorySuppliers } from '@/lib/api/hooks/inventory/useInventoryCatalog';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { PurchaseOrder, PurchaseOrderStatus } from '@/types/inventory';
-import { formatGHS, formatShortDate } from '../utils';
+import { formatGHS, formatShortDate, formatDateTime } from '../utils';
 
 const STATUS_OPTIONS: { value: PurchaseOrderStatus | ''; label: string }[] = [
   { value: 'draft',              label: 'Draft' },
@@ -37,7 +36,6 @@ export function PurchaseOrdersPage() {
   const router = useRouter();
   const { can } = useStaffAuth();
   const canCreate = can('inventory.purchase_order.create');
-  usePurchaseOrderRealtime();
   const [search, setSearch]         = useState('');
   const [status, setStatus]         = useState<string>('');
   const [supplierId, setSupplierId] = useState<string>('');
@@ -65,7 +63,7 @@ export function PurchaseOrdersPage() {
         <div>
           <p className="font-mono text-text-dark text-sm font-semibold">{po.reference}</p>
           <p className="text-neutral-gray text-[11px] mt-0.5">
-            {formatShortDate(po.created_at)} · by {po.created_by.name}
+            {formatDateTime(po.created_at)} · by {po.created_by.name}
           </p>
         </div>
       ),
@@ -191,6 +189,8 @@ export function PurchaseOrdersPage() {
           rowKey={(po) => po.id}
           isLoading={isLoading}
           defaultSortKey="reference"
+          needsAttention={(p) => p.status === 'pending_approval'}
+          defaultSortDir="desc"
           pageSize={15}
           onRowClick={(po) => router.push(`/inventory/purchase-orders/${po.id}`)}
         />

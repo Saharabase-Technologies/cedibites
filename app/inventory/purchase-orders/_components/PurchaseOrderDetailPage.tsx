@@ -33,7 +33,6 @@ import {
   useClosePurchaseOrder,
   useSubmitPurchaseOrder,
 } from '@/lib/api/hooks/inventory/usePurchaseOrders';
-import { usePurchaseOrderRealtime } from '@/lib/api/hooks/inventory/usePurchaseOrderRealtime';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { PO_APPROVAL_THRESHOLD } from '@/lib/constants/inventory.constants';
 import type { PurchaseOrder, PurchaseOrderItem } from '@/types/inventory';
@@ -55,7 +54,6 @@ function DetailContent({ id }: { id: number }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: po, isLoading, error } = usePurchaseOrder(id);
-  usePurchaseOrderRealtime();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [sentModal, setSentModal] = useState<{ open: boolean; approved: boolean }>({
     open: false,

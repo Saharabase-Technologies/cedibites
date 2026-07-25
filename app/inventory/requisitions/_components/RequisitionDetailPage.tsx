@@ -32,7 +32,6 @@ import {
   useApproveRequisition,
   useRejectRequisition,
 } from '@/lib/api/hooks/inventory/useRequisitions';
-import { useRequisitionRealtime } from '@/lib/api/hooks/inventory/useRequisitionRealtime';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { InventoryRequisition, InventoryRequisitionLine } from '@/types/inventory';
 import { formatDateTime, PURPOSE_LABEL } from '../utils';
@@ -47,7 +46,6 @@ function qtyLabel(qty: number | null, unit: string | null): string {
 export function RequisitionDetailPage({ id }: { id: number }) {
   const router = useRouter();
   const { data: req, isLoading, error } = useRequisition(id);
-  useRequisitionRealtime();
 
   const [modal, setModal] = useState<null | 'approve' | 'reject'>(null);
 
@@ -103,19 +101,19 @@ export function RequisitionDetailPage({ id }: { id: number }) {
       {req.fulfilling_transfer && (
         <Link
           href={`/inventory/transfers/${req.fulfilling_transfer.id}`}
-          className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5 hover:bg-blue-100/60 transition-colors"
+          className="flex items-center gap-3 bg-[#e7edf3] border border-[#d3e0ea] rounded-xl p-4 mb-5 hover:bg-[#dde7ef] transition-colors"
         >
-          <TruckIcon size={20} weight="fill" className="text-blue-600 shrink-0" />
+          <TruckIcon size={20} weight="fill" className="text-[#4f7a99] shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-700 mb-0.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#2f5570] mb-0.5">
               {req.status === 'fulfilled' ? 'Fulfilled by transfer' : 'Fulfilling transfer'}
             </p>
-            <p className="text-blue-900 text-sm font-body font-mono">
+            <p className="text-[#24435a] text-sm font-body font-mono">
               {req.fulfilling_transfer.reference}
             </p>
           </div>
           <TransferStatusBadge status={req.fulfilling_transfer.status} />
-          <ArrowRightIcon size={16} weight="bold" className="text-blue-600 shrink-0" />
+          <ArrowRightIcon size={16} weight="bold" className="text-[#4f7a99] shrink-0" />
         </Link>
       )}
 

@@ -28,6 +28,8 @@ import {
   MapPinIcon,
 } from '@phosphor-icons/react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { useInventoryRealtime } from '@/lib/api/hooks/inventory/useInventoryRealtime';
+import { useInventoryAttention } from '@/lib/api/hooks/inventory/useInventoryAttention';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
@@ -129,11 +131,14 @@ function SidebarLink({
   label,
   icon: Icon,
   active,
+  badge = 0,
 }: {
   href: string;
   label: string;
   icon: React.ElementType;
   active: boolean;
+  /** Items on this screen waiting on a person. Hidden when zero. */
+  badge?: number;
 }) {
   return (
     <Link
@@ -150,7 +155,17 @@ function SidebarLink({
     >
       <Icon size={18} weight={active ? 'fill' : 'regular'} className="shrink-0" />
       <span>{label}</span>
-      {active && <CaretRightIcon size={12} weight="bold" className="ml-auto opacity-40" />}
+      {badge > 0 && (
+        <span
+          className="ml-auto min-w-5 px-1.5 py-0.5 rounded-full bg-primary text-white text-[10px] font-bold leading-none text-center tabular-nums"
+          aria-label={`${badge} item${badge === 1 ? '' : 's'} needing attention`}
+        >
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
+      {active && badge === 0 && (
+        <CaretRightIcon size={12} weight="bold" className="ml-auto opacity-40" />
+      )}
     </Link>
   );
 }
@@ -160,10 +175,12 @@ function NavSection({
   label,
   items,
   pathname,
+  attention = {},
 }: {
   label?: string;
   items: NavItem[];
   pathname: string;
+  attention?: Record<string, number>;
 }) {
   // Callers filter before rendering; an empty section would otherwise leave a
   // stray heading and divider behind.
@@ -182,6 +199,7 @@ function NavSection({
           href={item.href}
           label={item.label}
           icon={item.icon}
+          badge={attention[item.href] ?? 0}
           active={
             item.href === '/inventory/catalog'
               ? pathname === '/inventory/catalog' ||
@@ -199,15 +217,17 @@ function DividerSection({
   label,
   items,
   pathname,
+  attention = {},
 }: {
   label: string;
   items: NavItem[];
   pathname: string;
+  attention?: Record<string, number>;
 }) {
   if (items.length === 0) return null;
   return (
     <div className="border-t border-[#f0e8d8] pt-1">
-      <NavSection label={label} items={items} pathname={pathname} />
+      <NavSection label={label} items={items} pathname={pathname} attention={attention} />
     </div>
   );
 }
@@ -260,6 +280,10 @@ function Sidebar({
   const reports    = REPORTS_NAV.filter((i) => can(i.permission));
   const system     = SYSTEM_NAV.filter((i) => can(i.permission));
 
+  // Counters ride on the same list queries the pages use, so they cost no extra
+  // traffic and the realtime layer keeps them moving without a refresh.
+  const { counts } = useInventoryAttention();
+
   return (
     <aside className="hidden md:flex flex-col w-60 shrink-0 bg-neutral-card border-r border-[#f0e8d8] sticky top-0 h-screen">
       {/* Logo */}
@@ -277,8 +301,8 @@ function Sidebar({
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 flex flex-col gap-2 overflow-y-auto">
         <NavSection items={dashboard} pathname={pathname} />
-        <DividerSection label="Operations" items={operations} pathname={pathname} />
-        <DividerSection label="Purchasing" items={purchasing} pathname={pathname} />
+        <DividerSection label="Operations" items={operations} pathname={pathname} attention={counts} />
+        <DividerSection label="Purchasing" items={purchasing} pathname={pathname} attention={counts} />
         <DividerSection label="Catalog"    items={catalog}    pathname={pathname} />
         <DividerSection label="Reports"    items={reports}    pathname={pathname} />
         <DividerSection label="System"     items={system}     pathname={pathname} />
@@ -316,6 +340,13 @@ function InventoryLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { staffUser, isLoading, logout, can } = useStaffAuth();
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
+
+  // One subscription for the whole portal, mounted here so every inventory
+  // screen is live without each one wiring its own. Must stay ABOVE the
+  // loading/permission early returns below — those flip after the auth effect
+  // resolves, and a hook beneath them would change the hook count between
+  // renders. No-ops until a staff token exists.
+  useInventoryRealtime();
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_IMS_MOCK === 'true') return;

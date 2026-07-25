@@ -16,7 +16,9 @@ export function useProductionRuns(filters?: ProductionRunFilters) {
   return useQuery({
     queryKey: ['inventory', 'production-runs', filters ?? null],
     queryFn: () => getProductionRuns(filters),
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 

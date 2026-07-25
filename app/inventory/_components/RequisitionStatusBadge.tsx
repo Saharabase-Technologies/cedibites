@@ -1,41 +1,14 @@
 'use client';
 
 import type { RequisitionStatus } from '@/types/inventory';
+import { TONE, type StatusTone } from './status-tokens';
 
-const STATUS_STYLES: Record<
-  RequisitionStatus,
-  { label: string; bg: string; text: string; dot: string }
-> = {
-  draft: {
-    label: 'Draft',
-    bg: 'bg-neutral-light',
-    text: 'text-neutral-gray',
-    dot: 'bg-neutral-gray/60',
-  },
-  submitted: {
-    label: 'Awaiting approval',
-    bg: 'bg-amber-50',
-    text: 'text-amber-700',
-    dot: 'bg-amber-500',
-  },
-  approved: {
-    label: 'Approved',
-    bg: 'bg-blue-50',
-    text: 'text-blue-700',
-    dot: 'bg-blue-500',
-  },
-  fulfilled: {
-    label: 'Fulfilled',
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
-    dot: 'bg-emerald-500',
-  },
-  rejected: {
-    label: 'Rejected',
-    bg: 'bg-rose-50',
-    text: 'text-rose-700',
-    dot: 'bg-rose-500',
-  },
+const STATUS_STYLES: Record<RequisitionStatus, { label: string } & StatusTone> = {
+  draft: { label: 'Draft', ...TONE.neutral },
+  submitted: { label: 'Awaiting approval', ...TONE.waiting },
+  approved: { label: 'Approved', ...TONE.decided },
+  fulfilled: { label: 'Fulfilled', ...TONE.done },
+  rejected: { label: 'Rejected', ...TONE.problem },
 };
 
 export function RequisitionStatusBadge({

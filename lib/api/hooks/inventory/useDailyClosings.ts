@@ -24,7 +24,9 @@ export function useDailyClosings(filters?: InventoryDailyClosingFilters) {
   return useQuery({
     queryKey: [...KEY, filters ?? null],
     queryFn: () => getDailyClosings(filters),
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -33,7 +35,9 @@ export function useDailyClosing(id: number) {
     queryKey: [...KEY, id],
     queryFn: () => getDailyClosing(id),
     enabled: id > 0,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -47,7 +51,9 @@ export function useClosingCalendar(
     queryKey: [...KEY, 'calendar', locationId, from, to],
     queryFn: () => getClosingCalendar(locationId, from, to),
     enabled: enabled && locationId > 0 && !!from && !!to,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 

@@ -16,7 +16,9 @@ export function usePurchases(filters?: PurchaseFilters) {
   return useQuery({
     queryKey: ['inventory', 'purchases', filters ?? null],
     queryFn: () => getPurchases(filters),
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -25,7 +27,9 @@ export function usePurchase(id: number) {
     queryKey: ['inventory', 'purchases', id],
     queryFn: () => getPurchase(id),
     enabled: id > 0,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 

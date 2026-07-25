@@ -25,7 +25,9 @@ export function useReconciliations(filters?: InventoryReconciliationFilters) {
   return useQuery({
     queryKey: [...KEY, filters ?? null],
     queryFn: () => getReconciliations(filters),
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -34,7 +36,9 @@ export function useReconciliation(id: number) {
     queryKey: [...KEY, id],
     queryFn: () => getReconciliation(id),
     enabled: id > 0,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 

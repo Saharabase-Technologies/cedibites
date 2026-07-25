@@ -36,7 +36,6 @@ import {
   useCancelTransfer,
   useResolveTransferDispute,
 } from '@/lib/api/hooks/inventory/useTransfers';
-import { useTransferRealtime } from '@/lib/api/hooks/inventory/useTransferRealtime';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import type { InventoryTransfer, InventoryTransferLine } from '@/types/inventory';
 import { formatGHS, formatDateTime, transferValue } from '../utils';
@@ -51,7 +50,6 @@ function qtyLabel(qty: number | null, unit: string | null): string {
 export function TransferDetailPage({ id }: { id: number }) {
   const router = useRouter();
   const { data: transfer, isLoading, error } = useTransfer(id);
-  useTransferRealtime();
 
   const [modal, setModal] = useState<
     null | 'submit' | 'send' | 'receive' | 'cancel' | 'resolve'
