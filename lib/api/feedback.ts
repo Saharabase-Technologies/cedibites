@@ -21,6 +21,17 @@ export interface ReportPayload {
   client_meta: Record<string, unknown>;
   /** Aligns by index with the uploaded `screenshots[]` files. */
   screenshot_meta: Array<{ source: string; pins: Pin[]; rects: Rect[]; route?: string }>;
+  /**
+   * Per-page notes. `audio_index` points into the uploaded `note_audio[]` files
+   * — an index rather than positional alignment, because notes and clips are not
+   * one-to-one (a note may be text-only).
+   */
+  notes: Array<{
+    route: string | null;
+    page_title: string | null;
+    body: string | null;
+    audio_index: number | null;
+  }>;
 }
 
 /** Browser/OS/connection facts — the real story behind "it's slow / it hangs". */
@@ -56,11 +67,14 @@ export function buildReportFormData(
   payload: ReportPayload,
   screenshots: File[],
   audio?: File | null,
+  noteAudio: File[] = [],
 ): FormData {
   const fd = new FormData();
   fd.append('payload', JSON.stringify(payload));
   screenshots.forEach((file) => fd.append('screenshots[]', file));
   if (audio) fd.append('audio', audio);
+  // Order matters: payload.notes[].audio_index indexes into this list.
+  noteAudio.forEach((file) => fd.append('note_audio[]', file));
   return fd;
 }
 

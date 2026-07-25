@@ -68,12 +68,24 @@ export interface FeedbackNetworkEntry {
   at: number;
 }
 
+/** A note the reporter made about one specific page. */
+export interface FeedbackReportNote {
+  id: number;
+  route: string | null;
+  page_title: string | null;
+  body: string | null;
+  audio_url: string | null;
+  transcript: string | null;
+  position: number;
+}
+
 export interface FeedbackReportDetail extends FeedbackReportListItem {
   transcript: string | null;
   audio_url: string | null;
   replay_url: string | null;
   replay_id: string | null;
   screenshots: FeedbackScreenshot[];
+  notes: FeedbackReportNote[];
   breadcrumbs: FeedbackBreadcrumb[];
   console_entries: FeedbackConsoleEntry[];
   network_entries: FeedbackNetworkEntry[];

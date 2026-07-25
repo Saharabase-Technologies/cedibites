@@ -360,7 +360,12 @@ export interface RequisitionLinePayload {
 }
 
 export interface CreateRequisitionPayload {
-  requesting_location_id: number;
+  /**
+   * Omit for a branch-scoped requester — the server resolves it from their own
+   * branch. Required only for users who can see every location and could
+   * therefore mean any branch.
+   */
+  requesting_location_id?: number;
   source_location_id: number;
   purpose?: RequisitionPurpose;
   notes?: string;

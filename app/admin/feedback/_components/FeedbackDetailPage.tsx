@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeftIcon,
@@ -14,6 +14,7 @@ import { useFeedbackReport, useFeedbackLogs, useUpdateFeedbackReport, useTranscr
 import { feedbackService } from '@/lib/api/services/feedback.service';
 import { SEVERITY_CONFIG, STATUS_CONFIG, STATUS_FLOW } from '@/lib/constants/feedback.constants';
 import type { FeedbackStatus } from '@/types/feedback';
+import { buildPageSegments, filterToSegment } from '@/lib/feedback/page-segments';
 import { timeAgo } from '@/types/order';
 import { getErrorMessage } from '@/lib/utils/error-handler';
 import { toast } from '@/lib/utils/toast';
@@ -39,6 +40,31 @@ export function FeedbackDetailPage({ id }: { id: number }) {
   const update = useUpdateFeedbackReport(id);
   const transcribe = useTranscribeFeedbackReport(id);
   const [expandedLog, setExpandedLog] = useState<number | null>(null);
+  // null = all pages. Isolating a page slices the steps, console and network to
+  // just the stretch that page was on screen.
+  const [pageFilter, setPageFilter] = useState<string | null>(null);
+
+  const segments = useMemo(
+    () => (report ? buildPageSegments(report.breadcrumbs, report.route) : []),
+    [report],
+  );
+  const activeSegment = useMemo(
+    () => segments.find((s) => s.route === pageFilter) ?? null,
+    [segments, pageFilter],
+  );
+
+  const breadcrumbs = useMemo(
+    () => filterToSegment(report?.breadcrumbs ?? [], activeSegment),
+    [report, activeSegment],
+  );
+  const consoleEntries = useMemo(
+    () => filterToSegment(report?.console_entries ?? [], activeSegment),
+    [report, activeSegment],
+  );
+  const networkEntries = useMemo(
+    () => filterToSegment(report?.network_entries ?? [], activeSegment),
+    [report, activeSegment],
+  );
 
   if (isLoading) {
     return <div className="p-6 font-body text-sm text-neutral-gray">Loading report…</div>;
@@ -134,6 +160,42 @@ export function FeedbackDetailPage({ id }: { id: number }) {
           ))}
         </div>
       </div>
+
+      {/* Page isolation — a report roams, so let triage read one page at a time.
+          Derived from nav breadcrumbs, so it works on older reports too. */}
+      {segments.length > 1 && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 font-body text-[11px] font-bold uppercase text-neutral-gray">
+            Isolate page
+          </span>
+          <button
+            type="button"
+            onClick={() => setPageFilter(null)}
+            className={`rounded-lg px-2.5 py-1 font-mono text-[11px] cursor-pointer ${
+              pageFilter === null
+                ? 'bg-primary text-white'
+                : 'border border-[#f0e8d8] text-neutral-gray hover:bg-neutral-light'
+            }`}
+          >
+            All pages
+          </button>
+          {segments.map((s) => (
+            <button
+              key={s.route}
+              type="button"
+              onClick={() => setPageFilter(s.route)}
+              title={s.route}
+              className={`max-w-[16rem] truncate rounded-lg px-2.5 py-1 font-mono text-[11px] cursor-pointer ${
+                pageFilter === s.route
+                  ? 'bg-primary text-white'
+                  : 'border border-[#f0e8d8] text-neutral-gray hover:bg-neutral-light'
+              }`}
+            >
+              {s.route}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Description + voice */}
@@ -235,11 +297,55 @@ export function FeedbackDetailPage({ id }: { id: number }) {
           </Section>
         )}
 
+        {/* Per-page notes — what the reporter said about each specific screen. */}
+        {report.notes.length > 0 && (
+          <Section
+            title="Notes by page"
+            count={
+              pageFilter === null
+                ? report.notes.length
+                : report.notes.filter((n) => n.route === pageFilter).length
+            }
+          >
+            <div className="flex flex-col gap-2.5">
+              {report.notes
+                .filter((n) => pageFilter === null || n.route === pageFilter)
+                .map((note) => (
+                  <div key={note.id} className="rounded-xl border border-[#f0e8d8] p-2.5">
+                    <span className="font-mono text-[10px] text-neutral-gray">
+                      {note.route ?? '—'}
+                    </span>
+                    {note.body && (
+                      <p className="mt-1 whitespace-pre-wrap font-body text-sm text-text-dark">
+                        {note.body}
+                      </p>
+                    )}
+                    {note.transcript && (
+                      <p className="mt-1 whitespace-pre-wrap rounded-lg bg-neutral-light p-2 font-body text-xs text-text-dark">
+                        <span className="font-bold uppercase text-neutral-gray">Voice · </span>
+                        {note.transcript}
+                      </p>
+                    )}
+                    {note.audio_url && (
+                      <audio controls src={note.audio_url} className="mt-1.5 w-full">
+                        <track kind="captions" />
+                      </audio>
+                    )}
+                  </div>
+                ))}
+              {pageFilter !== null &&
+                report.notes.filter((n) => n.route === pageFilter).length === 0 && (
+                  <p className="font-body text-xs text-neutral-gray">No notes on this page.</p>
+                )}
+            </div>
+          </Section>
+        )}
+
         {/* Breadcrumbs */}
-        <Section title="Steps before reporting" count={report.breadcrumbs.length}>
+        <Section title="Steps before reporting" count={breadcrumbs.length}>
           <ol className="flex flex-col gap-1">
-            {report.breadcrumbs.length === 0 && <li className="font-body text-xs text-neutral-gray">No steps recorded.</li>}
-            {report.breadcrumbs.map((b, i) => (
+            {breadcrumbs.length === 0 && <li className="font-body text-xs text-neutral-gray">No steps recorded.</li>}
+            {breadcrumbs.map((b, i) => (
               <li key={i} className="flex items-center gap-2 font-body text-xs">
                 <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${b.kind === 'nav' ? 'bg-blue-50 text-blue-600' : 'bg-neutral-light text-neutral-gray'}`}>
                   {b.kind}
@@ -251,10 +357,10 @@ export function FeedbackDetailPage({ id }: { id: number }) {
         </Section>
 
         {/* Console */}
-        <Section title="Console" count={report.console_entries.length}>
+        <Section title="Console" count={consoleEntries.length}>
           <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
-            {report.console_entries.length === 0 && <p className="font-body text-xs text-neutral-gray">No console output.</p>}
-            {report.console_entries.map((c, i) => (
+            {consoleEntries.length === 0 && <p className="font-body text-xs text-neutral-gray">No console output.</p>}
+            {consoleEntries.map((c, i) => (
               <div key={i} className={`rounded px-2 py-1 font-mono text-[11px] ${c.level === 'error' ? 'bg-red-50 text-red-700' : c.level === 'warn' ? 'bg-amber-50 text-amber-700' : 'bg-neutral-light text-neutral-gray'}`}>
                 <span className="opacity-60">[{c.level}]</span> {c.message}
               </div>
@@ -263,10 +369,10 @@ export function FeedbackDetailPage({ id }: { id: number }) {
         </Section>
 
         {/* Network */}
-        <Section title="Network" count={report.network_entries.length}>
+        <Section title="Network" count={networkEntries.length}>
           <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto">
-            {report.network_entries.length === 0 && <p className="font-body text-xs text-neutral-gray">No network calls.</p>}
-            {report.network_entries.map((n, i) => (
+            {networkEntries.length === 0 && <p className="font-body text-xs text-neutral-gray">No network calls.</p>}
+            {networkEntries.map((n, i) => (
               <div key={i} className="flex items-center gap-2 font-mono text-[11px]">
                 <span className={`font-semibold ${n.status === null ? 'text-red-600' : n.status >= 400 ? 'text-red-600' : 'text-secondary'}`}>
                   {n.status ?? 'ERR'}
