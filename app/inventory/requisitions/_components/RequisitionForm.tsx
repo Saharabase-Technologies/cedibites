@@ -70,6 +70,17 @@ export function RequisitionForm({ mode, id }: Props) {
   const branches = locations.filter((l) => l.type === 'satellite');
   const warehouses = locations.filter((l) => l.type === 'warehouse');
 
+  // A branch manager is by definition requesting for their own branch, so there
+  // is nothing to ask. The locations endpoint already narrows `branches` to what
+  // this user runs, so asking would only ever offer them the one answer. Users
+  // who span several branches, or who see every location (warehouse manager,
+  // admin), still have to say which branch they mean.
+  const seesAllLocations = can('inventory.view_all_locations');
+  const ownBranch = branches.length === 1 ? branches[0] : null;
+  const impliedBranch = !seesAllLocations && ownBranch ? ownBranch : null;
+  // Distinguish "still loading" from "genuinely has no branch".
+  const strandedNoBranch = !seesAllLocations && locations.length > 0 && branches.length === 0;
+
   const editing = mode === 'edit' && typeof id === 'number';
   const { data: existing, isLoading: loadingReq, error: loadError } =
     useRequisition(editing ? id! : 0);
@@ -125,9 +136,10 @@ export function RequisitionForm({ mode, id }: Props) {
 
   const sameLocation = requestingId !== '' && requestingId === sourceId;
   const canSubmit =
-    requestingId !== '' &&
+    (impliedBranch !== null || requestingId !== '') &&
     sourceId !== '' &&
     !sameLocation &&
+    !strandedNoBranch &&
     validLines.length > 0 &&
     validLines.length === lines.length;
 
@@ -159,8 +171,11 @@ export function RequisitionForm({ mode, id }: Props) {
         });
         router.push(`/inventory/requisitions/${id}`);
       } else {
+        // Omit the branch when it is implied — the server resolves it from the
+        // requester, which also stops a stale dropdown value from creating a
+        // requisition the requester then cannot read.
         const payload: CreateRequisitionPayload = {
-          requesting_location_id: Number(requestingId),
+          ...(impliedBranch ? {} : { requesting_location_id: Number(requestingId) }),
           source_location_id: Number(sourceId),
           purpose,
           notes: notes.trim() || undefined,
@@ -207,22 +222,35 @@ export function RequisitionForm({ mode, id }: Props) {
         <section className="bg-neutral-card border border-[#f0e8d8] rounded-2xl p-5">
           <h2 className="text-sm font-semibold font-body text-text-dark mb-4">Request details</h2>
           <div className="grid sm:grid-cols-2 gap-4">
-            <FormField label="For branch" htmlFor="req-branch" required>
-              <Select
-                id="req-branch"
-                value={requestingId}
-                onChange={(e) => setRequestingId(e.target.value)}
-                required
-                disabled={editing}
-              >
-                <option value="">Select branch…</option>
-                {branches.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
+            {impliedBranch ? (
+              <FormField label="For branch" htmlFor="req-branch">
+                <div
+                  id="req-branch"
+                  className="flex items-center min-h-11 px-3 py-2 rounded-xl bg-neutral-light/60 border border-[#f0e8d8] text-sm font-body text-text-dark"
+                >
+                  {editing && existing?.requesting_location
+                    ? existing.requesting_location.name
+                    : impliedBranch.name}
+                </div>
+              </FormField>
+            ) : (
+              <FormField label="For branch" htmlFor="req-branch" required>
+                <Select
+                  id="req-branch"
+                  value={requestingId}
+                  onChange={(e) => setRequestingId(e.target.value)}
+                  required
+                  disabled={editing}
+                >
+                  <option value="">Select branch…</option>
+                  {branches.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            )}
 
             <FormField label="Fulfil from" htmlFor="req-source" required>
               <Select
@@ -267,6 +295,14 @@ export function RequisitionForm({ mode, id }: Props) {
             <p className="text-rose-600 text-xs font-body mt-2 flex items-center gap-1.5">
               <WarningCircleIcon size={13} weight="fill" />
               The branch and source must be different locations.
+            </p>
+          )}
+
+          {strandedNoBranch && (
+            <p className="text-rose-600 text-xs font-body mt-2 flex items-start gap-1.5">
+              <WarningCircleIcon size={13} weight="fill" className="mt-0.5 shrink-0" />
+              Your branch has no inventory location, so it can&apos;t request stock yet. Ask an
+              administrator to link your branch to an inventory location.
             </p>
           )}
         </section>
