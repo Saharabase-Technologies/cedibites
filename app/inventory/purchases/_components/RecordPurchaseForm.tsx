@@ -6,10 +6,10 @@
  * The Purchasing Clerk's primary entry point: log a supplier receipt.
  *
  * Two modes (mutually exclusive):
- *   • "Against PO"  — pick a sent / partially-received PO; lines auto-prefill
+ *   • "Against PO"  - pick a sent / partially-received PO; lines auto-prefill
  *                     with the remaining quantities and estimated unit costs.
  *                     Supplier + destination are read from the PO and locked.
- *   • "Urgent buy"  — manual supplier + destination + items. A reason is
+ *   • "Urgent buy"  - manual supplier + destination + items. A reason is
  *                     required and the receipt is flagged in reports.
  *
  * Mock-mode write hook throws; the form catches and shows the message.
@@ -56,16 +56,16 @@ interface LineDraft {
   purchase_order_item_id: number | null;
   /** Outstanding qty from the PO line at receipt time. Null for urgent buys. */
   ordered_qty: number | null;
-  /** PO line's estimated unit cost — the baseline for cost deviation. Null for urgent buys. */
+  /** PO line's estimated unit cost - the baseline for cost deviation. Null for urgent buys. */
   expected_unit_cost: number | null;
   received_qty: string;
   variance_reason: string;
   unit_cost_paid: string;
-  /** Expiry date (YYYY-MM-DD) for expiry-tracked items — creates a FEFO batch. */
+  /** Expiry date (YYYY-MM-DD) for expiry-tracked items - creates a FEFO batch. */
   expiry_date: string;
 }
 
-// Deterministic, monotonic line ids — Math.random() here caused SSR/client
+// Deterministic, monotonic line ids - Math.random() here caused SSR/client
 // hydration mismatches on the generated htmlFor/id attributes.
 let lineSeq = 0;
 
@@ -98,7 +98,7 @@ export function RecordPurchaseForm() {
   const { data: suppliers = [] }    = useInventorySuppliers();
   const { data: locations = [] }    = useInventoryLocations({ is_active: true });
   const { data: items = [] }        = useInventoryItems({ is_active: true });
-  // Receivable POs only — sent or partially received.
+  // Receivable POs only - sent or partially received.
   const { data: openPOs = [] }      = usePurchaseOrders();
   const recordPurchase              = useRecordPurchase();
 
@@ -297,7 +297,7 @@ export function RecordPurchaseForm() {
                 <option value="">Select PO…</option>
                 {receivablePOs.map((po) => (
                   <option key={po.id} value={po.id}>
-                    {po.reference} — {po.supplier.name} ({po.status.replace('_', ' ')})
+                    {po.reference} - {po.supplier.name} ({po.status.replace('_', ' ')})
                   </option>
                 ))}
               </Select>
@@ -332,7 +332,7 @@ export function RecordPurchaseForm() {
                 id="rp-vendor"
                 value={vendorName}
                 onChange={(e) => setVendorName(e.target.value)}
-                placeholder="e.g. Madina Market — Auntie Akos (vegetables)"
+                placeholder="e.g. Madina Market - Auntie Akos (vegetables)"
               />
             </FormField>
           </section>
@@ -544,13 +544,13 @@ export function RecordPurchaseForm() {
                   </button>
                 </div>
 
-                {/* Expiry date — only for expiry-tracked items (creates a FEFO batch). */}
+                {/* Expiry date - only for expiry-tracked items (creates a FEFO batch). */}
                 {selectedItem?.expiry_tracked && (
                   <div className="border-t border-[#f0e8d8] pt-2 sm:max-w-xs">
                     <FormField
                       label="Expiry date"
                       htmlFor={`rp-expiry-${line.tempId}`}
-                      hint="Tracked item — sets the batch's expiry for FEFO."
+                      hint="Tracked item - sets the batch's expiry for FEFO."
                     >
                       <TextInput
                         id={`rp-expiry-${line.tempId}`}
@@ -597,7 +597,7 @@ export function RecordPurchaseForm() {
                       <span className="text-neutral-gray">
                         Est. cost{' '}
                         <span className="text-text-dark font-semibold tabular-nums">
-                          {hasExpectedCost ? formatGHS(line.expected_unit_cost as number) : '—'}
+                          {hasExpectedCost ? formatGHS(line.expected_unit_cost as number) : '-'}
                         </span>
                       </span>
                       {hasCostDeviation ? (

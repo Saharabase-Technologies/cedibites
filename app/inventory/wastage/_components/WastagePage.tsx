@@ -35,7 +35,7 @@ export function WastagePage() {
   const { data: catalog } = useWastageReasons();
 
   // What the approver actually has to do. Counted from the same list rather
-  // than a second request — a badge that disagrees with the table below it is
+  // than a second request - a badge that disagrees with the table below it is
   // worse than no badge.
   const awaitingMe = useMemo(
     () => wastages.filter((w) => w.status === 'pending_approval').length,
@@ -60,7 +60,7 @@ export function WastagePage() {
       hideBelow: 'md',
       sortValue: (w) => w.location?.name ?? '',
       cell: (w) => (
-        <span className="text-neutral-gray text-sm">{w.location?.name ?? '—'}</span>
+        <span className="text-neutral-gray text-sm">{w.location?.name ?? '-'}</span>
       ),
     },
     {
@@ -99,7 +99,7 @@ export function WastagePage() {
       cell: (w) => (
         <div className="min-w-0">
           <p className="text-neutral-gray text-xs">{formatDateTime(w.recorded_at)}</p>
-          <p className="text-neutral-gray/70 text-[11px] truncate">{w.recorded_by ?? '—'}</p>
+          <p className="text-neutral-gray/70 text-[11px] truncate">{w.recorded_by ?? '-'}</p>
         </div>
       ),
     },

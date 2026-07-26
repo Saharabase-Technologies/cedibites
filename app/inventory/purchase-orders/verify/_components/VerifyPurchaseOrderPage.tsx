@@ -15,7 +15,7 @@ import { usePurchaseOrderVerification } from '@/lib/api/hooks/inventory/usePurch
 import { formatGHS } from '@/lib/utils/currency';
 
 function fmt(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return new Date(iso).toLocaleString('en-GB', {
     day: '2-digit',
     month: 'short',
@@ -54,7 +54,7 @@ export function VerifyPurchaseOrderPage({ code }: { code: string }) {
             <p className="text-rose-900 font-semibold font-body">Could not verify this code</p>
             <p className="text-rose-800/80 text-sm font-body mt-1">
               No purchase order matches <span className="font-mono">{code}</span>. A genuine PO document
-              carries a code that resolves here — treat this as suspect.
+              carries a code that resolves here - treat this as suspect.
             </p>
           </div>
         </div>
@@ -81,7 +81,7 @@ export function VerifyPurchaseOrderPage({ code }: { code: string }) {
               <Row icon={<MapPinIcon size={15} />} label="Destination" value={po.destination_location.name} />
               <Row icon={<ClipboardIcon size={15} />} label="Estimated total" value={formatGHS(po.estimated_total)} />
               <Row icon={<ClipboardIcon size={15} />} label="Received to date" value={formatGHS(po.actual_total)} />
-              <Row icon={<UserIcon size={15} />} label="Created by" value={`${po.created_by?.name ?? '—'} · ${fmt(po.created_at)}`} />
+              <Row icon={<UserIcon size={15} />} label="Created by" value={`${po.created_by?.name ?? '-'} · ${fmt(po.created_at)}`} />
               <Row
                 icon={<UserIcon size={15} />}
                 label="Approved by"

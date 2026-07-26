@@ -267,14 +267,14 @@ export default function InventoryItemsPage() {
 
   const { data: categories = [] } = useInventoryCategories();
 
-  // Reorder/stock filter is client-side — the catalog endpoint returns the full set.
+  // Reorder/stock filter is client-side - the catalog endpoint returns the full set.
   const visibleItems = useMemo(() => {
     if (!stockFilter) return items;
     return items.filter((i) => {
       const level = stockLevel(i);
       if (stockFilter === 'reorder') return level !== 'ok';
       if (stockFilter === 'out')     return level === 'out';
-      // "In stock" means you have some, not that you have plenty — an item
+      // "In stock" means you have some, not that you have plenty - an item
       // running low is still an item you hold, and excluding it read as though
       // the stock had vanished.
       if (stockFilter === 'in')      return level !== 'out';
@@ -294,14 +294,14 @@ export default function InventoryItemsPage() {
       header: 'Unit',
       hideBelow: 'sm',
       sortValue: (i) => i.base_unit?.symbol ?? '',
-      cell: (i) => i.base_unit?.symbol ?? <span className="text-neutral-gray/60">—</span>,
+      cell: (i) => i.base_unit?.symbol ?? <span className="text-neutral-gray/60">-</span>,
     },
     {
       key: 'category',
       header: 'Category',
       hideBelow: 'md',
       sortValue: (i) => i.category?.name ?? '',
-      cell: (i) => i.category?.name ?? <span className="text-neutral-gray/60">—</span>,
+      cell: (i) => i.category?.name ?? <span className="text-neutral-gray/60">-</span>,
     },
     {
       key: 'storage',
@@ -360,10 +360,10 @@ export default function InventoryItemsPage() {
           ]}
         />
         {/* Only for someone confined to a location. The warehouse manager is the
-            source — everything in the catalogue is already his, so the toggle
+            source - everything in the catalogue is already his, so the toggle
             would be a no-op that just implies otherwise. Quantities are scoped
             server-side either way; this narrows the LIST, and stays off by
-            default so the full catalogue is still browsable — a branch requests
+            default so the full catalogue is still browsable - a branch requests
             an item precisely because it holds none. */}
         {!seesAllLocations && (
           <button

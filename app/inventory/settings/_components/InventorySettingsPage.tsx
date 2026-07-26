@@ -21,7 +21,7 @@ import { getErrorMessage } from '@/lib/utils/error-handler';
 
 function WastageThresholdCard() {
   const { can } = useStaffAuth();
-  // Deliberately NOT `manage_settings` — branch managers hold that, and this
+  // Deliberately NOT `manage_settings` - branch managers hold that, and this
   // number decides when their own losses stop being self-approvable.
   const canEdit = can('inventory.settings.manage');
 
@@ -91,8 +91,8 @@ function WastageThresholdCard() {
         <li className="flex gap-2">
           <span className="text-neutral-gray/50 select-none">·</span>
           <span>
-            The warehouse&rsquo;s own wastage always self-approves — nobody sits above the warehouse
-            manager — but the admin is alerted above this figure.
+            The warehouse&rsquo;s own wastage always self-approves - nobody sits above the warehouse
+            manager - but the admin is alerted above this figure.
           </span>
         </li>
         <li className="flex gap-2">
@@ -178,7 +178,7 @@ export default function InventorySettingsPage() {
           <div className="min-w-0">
             <p className="text-sm font-semibold font-body text-text-dark">IMS access</p>
             <p className="text-sm font-body text-neutral-gray mt-0.5">
-              Warehouse Manager and Purchasing Clerk are ordinary staff roles — assign them where you
+              Warehouse Manager and Purchasing Clerk are ordinary staff roles - assign them where you
               assign every other role, and portal access follows automatically.
             </p>
             <Link

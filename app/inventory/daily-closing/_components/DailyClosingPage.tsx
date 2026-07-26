@@ -91,7 +91,7 @@ export function DailyClosingPage() {
             {c.discrepancy_count}
           </span>
         ) : (
-          <span className="text-neutral-gray/60">—</span>
+          <span className="text-neutral-gray/60">-</span>
         ),
     },
     {
@@ -188,7 +188,7 @@ export function DailyClosingPage() {
   );
 }
 
-// ─── Coverage strip (last 14 days — flags missed days) ────────────────────────
+// ─── Coverage strip (last 14 days - flags missed days) ────────────────────────
 
 function CoverageStrip({
   locationId,

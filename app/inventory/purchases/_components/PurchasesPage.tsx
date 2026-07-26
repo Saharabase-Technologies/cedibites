@@ -61,7 +61,7 @@ export function PurchasesPage() {
         ) : p.purchase_order ? (
           <span className="font-mono text-text-dark text-xs">{p.purchase_order.reference}</span>
         ) : (
-          <span className="text-neutral-gray/60">—</span>
+          <span className="text-neutral-gray/60">-</span>
         ),
     },
     {

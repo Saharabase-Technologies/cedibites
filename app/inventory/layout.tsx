@@ -11,7 +11,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    template: '%s — Inventory | CediBites',
+    template: '%s - Inventory | CediBites',
     default: 'Inventory',
   },
   robots: { index: false, follow: false },

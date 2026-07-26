@@ -42,8 +42,7 @@ const PURPOSE_OPTIONS: { value: RequisitionPurpose | ''; label: string }[] = [
 
 export function RequisitionsPage() {
   const router = useRouter();
-  const { can } = useStaffAuth();
-  const canCreate = can('inventory.requisition.create');
+  const { can, staffUser } = useStaffAuth();
 
   const [search, setSearch]       = useState('');
   const [status, setStatus]       = useState<string>('');
@@ -51,6 +50,21 @@ export function RequisitionsPage() {
   const [purpose, setPurpose]     = useState<string>('');
 
   const { data: locations = [] } = useInventoryLocations({ is_active: true });
+
+  // A requisition is a branch asking the warehouse to supply it, so it can only
+  // be raised for a satellite kitchen you actually work at. The warehouse
+  // manager works at warehouses, which supply stock rather than request it, so
+  // there is nothing for them to raise. Hidden rather than offered and then
+  // refused by the API.
+  const operating = staffUser?.operating_location_ids;
+  const canCreate =
+    can('inventory.requisition.create') &&
+    locations.some(
+      (l) =>
+        l.type === 'satellite' &&
+        (operating === null || operating === undefined || operating.includes(l.id)),
+    );
+
   const { data: requisitions = [], isLoading } = useRequisitions({
     search:                 search || undefined,
     status:                 (status as RequisitionStatus) || undefined,
@@ -82,9 +96,9 @@ export function RequisitionsPage() {
       header: 'Fulfil from → for',
       cell: (r) => (
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-text-dark">{r.source_location?.name ?? '—'}</span>
+          <span className="text-text-dark">{r.source_location?.name ?? '-'}</span>
           <ArrowRightIcon size={13} weight="bold" className="text-neutral-gray/60 shrink-0" />
-          <span className="text-text-dark">{r.requesting_location?.name ?? '—'}</span>
+          <span className="text-text-dark">{r.requesting_location?.name ?? '-'}</span>
         </div>
       ),
     },

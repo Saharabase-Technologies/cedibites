@@ -41,7 +41,7 @@ import { getErrorMessage } from '@/lib/utils/error-handler';
 import { toast } from '@/lib/utils/toast';
 
 function qtyLabel(qty: number | null, unit: string | null): string {
-  if (qty === null) return '—';
+  if (qty === null) return '-';
   return `${qty}${unit ? ` ${unit}` : ''}`;
 }
 
@@ -124,19 +124,19 @@ export function RequisitionDetailPage({ id }: { id: number }) {
         <MetaCard
           icon={<MapPinIcon size={16} />}
           label="For branch"
-          value={req.requesting_location?.name ?? '—'}
+          value={req.requesting_location?.name ?? '-'}
         />
         <MetaCard
           icon={<StorefrontIcon size={16} />}
           label="Fulfil from"
-          value={req.source_location?.name ?? '—'}
+          value={req.source_location?.name ?? '-'}
           hint={req.source_location?.type === 'warehouse' ? 'Warehouse' : 'Branch'}
         />
         <MetaCard icon={<TagIcon size={16} />} label="Purpose" value={PURPOSE_LABEL[req.purpose]} />
         <MetaCard
           icon={<UserIcon size={16} />}
           label={req.approved_by ? 'Decided by' : 'Requested by'}
-          value={req.approved_by ?? req.requested_by ?? '—'}
+          value={req.approved_by ?? req.requested_by ?? '-'}
         />
       </div>
 
@@ -198,11 +198,11 @@ function ActionBar({
   const canEdit    = s === 'draft' && can('inventory.requisition.create');
   const canSubmit  = s === 'draft' && can('inventory.requisition.create');
   // A branch manager holds the approve grant so they can fulfil requests from
-  // OTHER branches drawing on their stock — not to sign off their own. Letting
+  // OTHER branches drawing on their stock - not to sign off their own. Letting
   // the requester approve makes the fulfilling side's control decorative.
   // Rejecting your own is still allowed: that is withdrawing it.
   const { staffUser } = useStaffAuth();
-  // The USER id — `staffUser.id` is the employee id, a different table.
+  // The USER id - `staffUser.id` is the employee id, a different table.
   const iRaisedThis = req.requested_by_id !== null && req.requested_by_id === staffUser?.user_id;
   const canDecide  = s === 'submitted' && can('inventory.requisition.approve');
   const canApprove = canDecide && !iRaisedThis;
@@ -211,7 +211,7 @@ function ActionBar({
     submit.mutateAsync(req.id).catch((e) => toast.error(getErrorMessage(e)));
   };
 
-  // Drafts only — the server refuses anything that has become a record, and
+  // Drafts only - the server refuses anything that has become a record, and
   // refuses a draft the caller did not start.
   const handleDelete = () => {
     remove

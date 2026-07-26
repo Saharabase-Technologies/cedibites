@@ -21,7 +21,7 @@ const MAX_BYTES = 10 * 1024 * 1024; // matches the server's max:10240
  *
  * The client's rule: *"So show me the food that has gone bad."* A branch saying
  * goods arrived spoiled and a warehouse saying they left fine is an argument no
- * quantity settles — somebody has to look at the food.
+ * quantity settles - somebody has to look at the food.
  *
  * Both accounts stay on the record and both are visible to both ends, because
  * the claim itself is scoped to its origin AND disposal location. Photos are
@@ -78,7 +78,7 @@ export function EvidencePanel({ wastage }: { wastage: InventoryWastage }) {
           <p className="text-neutral-gray text-xs font-body mt-0.5">
             {canAdd
               ? 'Both the branch and the warehouse can add photos while the claim is open.'
-              : 'Locked — this is what the decision was made on.'}
+              : 'Locked - this is what the decision was made on.'}
           </p>
         </div>
 
@@ -213,7 +213,7 @@ function PhotoGroup({
               )}
 
               <figcaption className="mt-1 text-[10px] leading-tight text-neutral-gray truncate">
-                {photo.uploaded_by ?? '—'}
+                {photo.uploaded_by ?? '-'}
                 <span className="block text-neutral-gray/70">
                   {formatDateTime(photo.uploaded_at)}
                 </span>
@@ -252,7 +252,7 @@ function Lightbox({ photo, onClose }: { photo: InventoryWastagePhoto; onClose: (
         />
         <figcaption className="text-white/80 text-sm font-body mt-3 text-center">
           {photo.caption && <span className="block text-white">{photo.caption}</span>}
-          {photo.uploaded_by ?? '—'} · {formatDateTime(photo.uploaded_at)}
+          {photo.uploaded_by ?? '-'} · {formatDateTime(photo.uploaded_at)}
         </figcaption>
       </figure>
     </div>

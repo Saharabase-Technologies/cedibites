@@ -27,7 +27,7 @@ export function CatalogTabs() {
 }
 
 /**
- * Unified Catalog header — one "Inventory" title above the tabs, shared by the
+ * Unified Catalog header - one "Inventory" title above the tabs, shared by the
  * sub-pages (Items, Categories, Units, Suppliers, Recipes).
  */
 export function CatalogShell({ children }: { children: React.ReactNode }) {

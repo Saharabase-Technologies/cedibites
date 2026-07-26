@@ -7,7 +7,7 @@ const STATUS_STYLES: Record<WastageStatus, { label: string } & StatusTone> = {
   /** The goods are physically travelling back to the warehouse to be looked at. */
   pending_return: { label: 'Awaiting return', ...TONE.moving },
   pending_approval: { label: 'Awaiting approval', ...TONE.waiting },
-  /** Deliberately not "Approved" — what matters is that the stock is gone. */
+  /** Deliberately not "Approved" - what matters is that the stock is gone. */
   approved: { label: 'Written off', ...TONE.done },
   rejected: { label: 'Refused', ...TONE.problem },
   cancelled: { label: 'Withdrawn', ...TONE.neutral },

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import InventoryLocationsPage from './_components/InventoryLocationsPage';
 
-export const metadata: Metadata = { title: 'Locations — Inventory' };
+export const metadata: Metadata = { title: 'Locations - Inventory' };
 
 export default function Page() {
   return (

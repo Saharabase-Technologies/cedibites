@@ -53,7 +53,7 @@ export function WastageDetailPage({ id }: { id: number }) {
     wastage.status === 'pending_approval' && can('inventory.wastage.approve') && !isRecorder;
   // "Show me the food that has gone bad." Above the threshold there has to be
   // something to look at before anyone writes the stock off. Refusing stays
-  // available without a photo — a claim with no evidence is what refusal is for.
+  // available without a photo - a claim with no evidence is what refusal is for.
   const blockedOnEvidence = wastage.evidence_required && wastage.photo_count === 0;
   const canWithdraw = isRecorder && (wastage.status === 'pending_return' || wastage.status === 'pending_approval');
 
@@ -93,7 +93,7 @@ export function WastageDetailPage({ id }: { id: number }) {
             <WastageStatusBadge status={wastage.status} />
           </div>
           <p className="text-neutral-gray text-sm font-body mt-1">
-            {wastage.origin_label} · {wastage.location?.name ?? '—'}
+            {wastage.origin_label} · {wastage.location?.name ?? '-'}
           </p>
         </div>
 
@@ -124,7 +124,7 @@ export function WastageDetailPage({ id }: { id: number }) {
                 disabled={approve.isPending || blockedOnEvidence}
                 title={
                   blockedOnEvidence
-                    ? 'There is no photo of these goods — ask for one, or refuse the claim.'
+                    ? 'There is no photo of these goods - ask for one, or refuse the claim.'
                     : undefined
                 }
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold font-body min-h-11 bg-primary text-white hover:bg-primary/90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
@@ -144,7 +144,7 @@ export function WastageDetailPage({ id }: { id: number }) {
         <MetaCard
           icon={<MapPinIcon size={16} />}
           label="Loss belongs to"
-          value={wastage.location?.name ?? '—'}
+          value={wastage.location?.name ?? '-'}
           hint={
             wastage.disposal_location && wastage.disposal_location.id !== wastage.location?.id
               ? `Written off at ${wastage.disposal_location.name}`
@@ -164,13 +164,13 @@ export function WastageDetailPage({ id }: { id: number }) {
         <MetaCard
           icon={<UserIcon size={16} />}
           label="Recorded by"
-          value={wastage.recorded_by ?? '—'}
+          value={wastage.recorded_by ?? '-'}
           hint={formatDateTime(wastage.recorded_at)}
         />
         <MetaCard
           icon={<CheckCircleIcon size={16} />}
           label={wastage.rejected_by ? 'Refused by' : 'Approved by'}
-          value={wastage.rejected_by ?? wastage.approved_by ?? '—'}
+          value={wastage.rejected_by ?? wastage.approved_by ?? '-'}
           hint={formatDateTime(wastage.rejected_at ?? wastage.approved_at)}
         />
       </div>
@@ -284,7 +284,7 @@ export function WastageDetailPage({ id }: { id: number }) {
 /**
  * Says plainly what this record did to the stock, and what happens next.
  *
- * Without this an operator reasonably assumes every wastage deducted something —
+ * Without this an operator reasonably assumes every wastage deducted something -
  * but a closing-variance or shortfall record deliberately posts nothing, because
  * the ledger already carried that loss. Getting this wrong is how people
  * conclude the books are double-counting.
@@ -373,7 +373,7 @@ function RejectDialog({
 
   const submit = async () => {
     if (!reason.trim()) {
-      setError('Say why — a bare refusal tells the branch nothing.');
+      setError('Say why - a bare refusal tells the branch nothing.');
       return;
     }
     try {
@@ -390,7 +390,7 @@ function RejectDialog({
       <div className="p-5 space-y-4">
         <p className="text-neutral-gray text-sm font-body">
           Nothing will be written off. The goods stay on the books where they are, and the loss
-          stays with whoever declared it — it will surface at their next count as an unexplained
+          stays with whoever declared it - it will surface at their next count as an unexplained
           shortfall.
         </p>
         <FormField label="Why are you refusing this?" htmlFor="wst-reject-reason">
@@ -399,7 +399,7 @@ function RejectDialog({
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="e.g. Inspected on arrival — the chicken is fine."
+            placeholder="e.g. Inspected on arrival - the chicken is fine."
           />
         </FormField>
         {error && <p className="text-rose-700 text-sm font-body">{error}</p>}

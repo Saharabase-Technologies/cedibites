@@ -21,9 +21,9 @@ function fmtQty(n: number): string {
 }
 
 function fmtDateTime(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return '-';
   return d.toLocaleString('en-GB', {
     day: '2-digit',
     month: 'short',
@@ -53,7 +53,7 @@ function stockBadge(item: InventoryItem) {
   if (item.min_threshold != null && qty <= item.min_threshold)
     return { label: 'Critical', className: 'bg-rose-50 text-rose-700' };
   if (item.reorder_level != null && qty <= item.reorder_level)
-    return { label: 'Low — reorder', className: 'bg-amber-50 text-amber-700' };
+    return { label: 'Low - reorder', className: 'bg-amber-50 text-amber-700' };
   return { label: 'In stock', className: 'bg-emerald-50 text-emerald-700' };
 }
 
@@ -109,11 +109,11 @@ export default function ItemDetailPage({ id }: { id: number }) {
         <MetaCard label="Avg cost / unit" value={formatGHS(item.weighted_avg_cost)} />
         <MetaCard
           label="Reorder level"
-          value={item.reorder_level != null ? `${fmtQty(item.reorder_level)} ${unit}`.trim() : '—'}
+          value={item.reorder_level != null ? `${fmtQty(item.reorder_level)} ${unit}`.trim() : '-'}
         />
         <MetaCard
           label="Min threshold"
-          value={item.min_threshold != null ? `${fmtQty(item.min_threshold)} ${unit}`.trim() : '—'}
+          value={item.min_threshold != null ? `${fmtQty(item.min_threshold)} ${unit}`.trim() : '-'}
         />
       </div>
 
@@ -248,7 +248,7 @@ function MovementsTable({ movements, unit }: { movements: ItemMovement[]; unit: 
                   {fmtQty(m.balance_after)} {unit}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums text-text-dark">
-                  {m.unit_cost_at_time != null ? formatGHS(m.unit_cost_at_time) : '—'}
+                  {m.unit_cost_at_time != null ? formatGHS(m.unit_cost_at_time) : '-'}
                 </td>
                 <td className="px-5 py-3">
                   {m.reference?.type === 'purchase' ? (
@@ -279,10 +279,10 @@ function MovementsTable({ movements, unit }: { movements: ItemMovement[]; unit: 
                       {m.reference.order_number}
                     </Link>
                   ) : (
-                    <span className="text-neutral-gray/60">—</span>
+                    <span className="text-neutral-gray/60">-</span>
                   )}
                 </td>
-                <td className="px-5 py-3 text-neutral-gray">{m.user?.name ?? '—'}</td>
+                <td className="px-5 py-3 text-neutral-gray">{m.user?.name ?? '-'}</td>
               </tr>
             );
           })}

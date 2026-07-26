@@ -74,9 +74,9 @@ export function TransfersPage() {
       header: 'Route',
       cell: (t) => (
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-text-dark">{t.source_location?.name ?? '—'}</span>
+          <span className="text-text-dark">{t.source_location?.name ?? '-'}</span>
           <ArrowRightIcon size={13} weight="bold" className="text-neutral-gray/60 shrink-0" />
-          <span className="text-text-dark">{t.destination_location?.name ?? '—'}</span>
+          <span className="text-text-dark">{t.destination_location?.name ?? '-'}</span>
         </div>
       ),
     },
@@ -119,7 +119,7 @@ export function TransfersPage() {
             {formatGHS(value)}
           </span>
         ) : (
-          <span className="text-neutral-gray/60">—</span>
+          <span className="text-neutral-gray/60">-</span>
         );
       },
     },

@@ -6,7 +6,7 @@
  * Shared create + edit form for stock requisitions. A branch picks what it needs
  * and which warehouse to pull from; the warehouse manager grants quantities on
  * approval (which spawns the fulfilling transfer). Only draft requisitions are
- * editable — enforced here and on the backend.
+ * editable - enforced here and on the backend.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -137,7 +137,7 @@ export function RequisitionForm({ mode, id }: Props) {
   );
 
   // Ask the source whether it can actually cover this, while it is still being
-  // written — the check used to only fire at submit, after the whole form.
+  // written - the check used to only fire at submit, after the whole form.
   const { data: availability, isFetching: checkingStock } = useStockAvailability(
     sourceId === '' ? null : Number(sourceId),
     validLines.map((l) => ({ item_id: Number(l.item_id), qty: Number(l.requested_qty) })),
@@ -181,7 +181,7 @@ export function RequisitionForm({ mode, id }: Props) {
         });
         router.push(`/inventory/requisitions/${id}`);
       } else {
-        // Omit the branch when it is implied — the server resolves it from the
+        // Omit the branch when it is implied - the server resolves it from the
         // requester, which also stops a stale dropdown value from creating a
         // requisition the requester then cannot read.
         const payload: CreateRequisitionPayload = {
@@ -295,7 +295,7 @@ export function RequisitionForm({ mode, id }: Props) {
                 id="req-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional — anything the warehouse should know"
+                placeholder="Optional - anything the warehouse should know"
                 rows={2}
               />
             </FormField>
@@ -361,20 +361,34 @@ export function RequisitionForm({ mode, id }: Props) {
                     </Select>
                   </FormField>
 
-                  <FormField
-                    label={idx === 0 ? `Quantity${selectedItem ? ` (${selectedItem.base_unit.symbol})` : ''}` : ''}
-                    htmlFor={`req-qty-${line.tempId}`}
-                  >
-                    <TextInput
-                      id={`req-qty-${line.tempId}`}
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={line.requested_qty}
-                      onChange={(e) => updateLine(line.tempId, { requested_qty: e.target.value })}
-                      placeholder="0"
-                      required
-                    />
+                  {/*
+                    The unit belongs to the LINE, not the column. Every line can
+                    be measured differently (12 kg of cabbage, 33 pieces of
+                    juice), so a single header unit taken from the first line was
+                    wrong for every row under it. It now sits inside each input.
+                  */}
+                  <FormField label={idx === 0 ? 'Quantity' : ''} htmlFor={`req-qty-${line.tempId}`}>
+                    <div className="relative">
+                      <TextInput
+                        id={`req-qty-${line.tempId}`}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={line.requested_qty}
+                        onChange={(e) => updateLine(line.tempId, { requested_qty: e.target.value })}
+                        placeholder="0"
+                        required
+                        className={selectedItem ? 'pr-12' : undefined}
+                      />
+                      {selectedItem && (
+                        <span
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-neutral-gray pointer-events-none select-none"
+                          aria-hidden
+                        >
+                          {selectedItem.base_unit.symbol}
+                        </span>
+                      )}
+                    </div>
                   </FormField>
 
                   <button
@@ -392,7 +406,7 @@ export function RequisitionForm({ mode, id }: Props) {
           </div>
 
           {/* Whether the source can actually cover this, answered as you type
-              rather than sprung at submit. Advisory only — a short source does
+              rather than sprung at submit. Advisory only - a short source does
               not block the draft, since the warehouse may restock before it is
               approved. */}
           {validLines.length > 0 && sourceId !== '' && (
@@ -411,7 +425,7 @@ export function RequisitionForm({ mode, id }: Props) {
                   <div className="font-body text-xs">
                     <p className="font-semibold text-amber-700">
                       Short on {shortLines.length} item{shortLines.length === 1 ? '' : 's'} right
-                      now — you can still send the request.
+                      now - you can still send the request.
                     </p>
                     <ul className="mt-0.5 text-neutral-gray">
                       {shortLines.map((l) => (

@@ -58,7 +58,7 @@ function StatusBadge({ status }: { status: RecipeStatus }) {
 function recipeTitle(recipe: InventoryRecipe): string {
   const opt = recipe.menu_item_option;
   if (!opt) return `Recipe #${recipe.id}`;
-  // Display name only — avoids the long combo menu-item name.
+  // Display name only - avoids the long combo menu-item name.
   return opt.label || opt.menu_item?.name || 'Item';
 }
 
@@ -273,7 +273,7 @@ function RecipeEditor({
 
 function IngredientsModal({ recipe, onClose }: { recipe: InventoryRecipe; onClose: () => void }) {
   return (
-    <InventoryModal isOpen title={`Ingredients — ${recipeTitle(recipe)}`} onClose={onClose}>
+    <InventoryModal isOpen title={`Ingredients - ${recipeTitle(recipe)}`} onClose={onClose}>
       <div className="space-y-2">
         <p className="text-xs text-neutral-500 mb-3">
           Version {recipe.version} · {STATUS_LABELS[recipe.status]} · yields {recipe.yield_qty}
@@ -321,7 +321,7 @@ export default function RecipesPage() {
   const lock = useLockRecipe();
   const remove = useDeleteRecipe();
 
-  // Recipe authoring/locking is Admin-only — everyone else (e.g. Warehouse
+  // Recipe authoring/locking is Admin-only - everyone else (e.g. Warehouse
   // Manager) gets a read-only view. Mirrors the backend route middleware so the
   // page never shows an action the API would reject.
   const { can } = useStaffAuth();
@@ -366,7 +366,7 @@ export default function RecipesPage() {
       hideBelow: 'lg' as const,
       sortValue: (r) => r.locked_by?.name ?? '',
       cell: (r) =>
-        r.locked_by ? <span className="text-sm">{r.locked_by.name}</span> : <span className="text-neutral-gray/60">—</span>,
+        r.locked_by ? <span className="text-sm">{r.locked_by.name}</span> : <span className="text-neutral-gray/60">-</span>,
     },
     {
       key: 'actions',

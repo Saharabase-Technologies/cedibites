@@ -45,8 +45,13 @@ import { getErrorMessage } from '@/lib/utils/error-handler';
 import { toast } from '@/lib/utils/toast';
 
 function qtyLabel(qty: number | null, unit: string | null): string {
-  if (qty === null) return '—';
+  if (qty === null) return '-';
   return `${qty}${unit ? ` ${unit}` : ''}`;
+}
+
+/** Keep linked quantities free of floating-point dust (12 - 0.1 - 0.2 etc). */
+function round4(n: number): number {
+  return Math.round(n * 10000) / 10000;
 }
 
 export function TransferDetailPage({ id }: { id: number }) {
@@ -92,7 +97,7 @@ export function TransferDetailPage({ id }: { id: number }) {
               className="inline-flex items-center gap-1.5 mt-1.5 text-[11px] font-semibold text-amber-700 hover:underline"
             >
               <ArrowUUpLeftIcon size={13} weight="bold" />
-              Corrective transfer — view the disputed original
+              Corrective transfer - view the disputed original
             </Link>
           )}
         </div>
@@ -125,24 +130,24 @@ export function TransferDetailPage({ id }: { id: number }) {
         <MetaCard
           icon={<MapPinIcon size={16} />}
           label="From"
-          value={transfer.source_location?.name ?? '—'}
+          value={transfer.source_location?.name ?? '-'}
           hint={transfer.source_location?.type === 'warehouse' ? 'Warehouse' : 'Branch'}
         />
         <MetaCard
           icon={<TruckIcon size={16} />}
           label="To"
-          value={transfer.destination_location?.name ?? '—'}
+          value={transfer.destination_location?.name ?? '-'}
           hint={transfer.destination_location?.type === 'warehouse' ? 'Warehouse' : 'Branch'}
         />
         <MetaCard
           icon={<UserIcon size={16} />}
           label={transfer.sent_by ? 'Sent by' : transfer.approved_by ? 'Approved by' : 'Created by'}
-          value={transfer.sent_by ?? transfer.approved_by ?? transfer.created_by ?? '—'}
+          value={transfer.sent_by ?? transfer.approved_by ?? transfer.created_by ?? '-'}
         />
         <MetaCard
           icon={<PackageIcon size={16} />}
           label="Value (sent)"
-          value={value > 0 ? formatGHS(value) : '—'}
+          value={value > 0 ? formatGHS(value) : '-'}
           hint={value > 0 ? undefined : 'Costed at send time'}
         />
       </div>
@@ -217,7 +222,7 @@ function ActionBar({
   const iSentThis = transfer.sent_by_id !== null && transfer.sent_by_id === staffUser?.user_id;
 
   // Each end accounts for its own side, and a transfer has two. Everything
-  // OUTBOUND — submitting, approving, dispatching, calling it off — belongs to
+  // OUTBOUND - submitting, approving, dispatching, calling it off - belongs to
   // the source; only receiving belongs to the destination. A branch manager
   // expecting a delivery from the mother kitchen must not be able to declare
   // that the mother kitchen shipped it. `undefined`/`null` = admin, who belongs
@@ -407,7 +412,7 @@ function SendModal({
   const getVal = (line: InventoryTransferLine) =>
     qty[line.id] ?? String(line.requested_qty);
 
-  // Sending MORE than was asked for is allowed — the warehouse may round up to
+  // Sending MORE than was asked for is allowed - the warehouse may round up to
   // a whole crate, or throw in a little extra. It is not a dispute; a dispute
   // is for a shortfall at the receiving end. But it should never pass silently,
   // because the branch is about to be charged for stock it did not ask for.
@@ -497,7 +502,7 @@ function SendModal({
                 ))}
               </ul>
               <p className="mt-1 text-amber-700 text-xs">
-                That&apos;s fine — go ahead. The extra is recorded against the transfer so the
+                That&apos;s fine - go ahead. The extra is recorded against the transfer so the
                 difference is accounted for at the other end.
               </p>
             </div>
@@ -543,9 +548,9 @@ function ReceiveModal({
 
   // Three quantities per line, and the difference between them is who ends up
   // carrying the loss:
-  //   accepted — now the destination's to answer for
-  //   refused  — going back on the lorry; still the sender's
-  //   missing  — nobody can find it. Only this is a dispute.
+  //   accepted - now the destination's to answer for
+  //   refused  - going back on the lorry; still the sender's
+  //   missing  - nobody can find it. Only this is a dispute.
   const totals = transfer.lines.reduce(
     (acc, line) => {
       const sent = line.sent_qty ?? 0;
@@ -570,6 +575,42 @@ function ReceiveModal({
       return { ...prev, [lineId]: { ...current, ...patch } };
     });
 
+  /**
+   * Accept and send-back are two halves of one delivery, so they move together:
+   * typing 7 into send-back on a line of 12 makes accept 5 without being asked.
+   *
+   * Anything still left over after both is genuinely missing, and that is a
+   * dispute - so the link is only applied when it does not silently invent an
+   * answer. Typing into accept adjusts send-back the same way.
+   */
+  const setAcceptLinked = (line: InventoryTransferLine, value: string) => {
+    setQty((p) => ({ ...p, [line.id]: value }));
+
+    const sent = line.sent_qty ?? 0;
+    const accepted = Number(value);
+    if (value === '' || Number.isNaN(accepted)) return;
+
+    const back = Number(getRefused(line)) || 0;
+    // Only rebalance when the pair would otherwise over-account for the line.
+    if (accepted + back > sent) {
+      const remainder = Math.max(0, round4(sent - accepted));
+      setRefusal(line.id, { qty: remainder === 0 ? '' : String(remainder) });
+    }
+  };
+
+  const setRefusedLinked = (line: InventoryTransferLine, value: string) => {
+    setRefusal(line.id, { qty: value });
+
+    const sent = line.sent_qty ?? 0;
+    const back = Number(value);
+    if (value === '' || Number.isNaN(back)) return;
+    if (back > sent) return;
+
+    // Send back 7 of 12 and you are accepting 5. The operator can still type
+    // over it if some of the rest never turned up.
+    setQty((p) => ({ ...p, [line.id]: String(Math.max(0, round4(sent - back))) }));
+  };
+
   const handleReceive = async () => {
     setErr(null);
 
@@ -593,7 +634,7 @@ function ReceiveModal({
         return;
       }
       if (refused[line.id]?.reason === 'other' && !refused[line.id]?.note?.trim()) {
-        setErr('Choosing “Other” means saying what happened — add a note.');
+        setErr('Choosing “Other” means saying what happened - add a note.');
         return;
       }
     }
@@ -699,7 +740,7 @@ function ReceiveModal({
                         min="0"
                         max={sent}
                         value={getVal(line)}
-                        onChange={(e) => setQty((p) => ({ ...p, [line.id]: e.target.value }))}
+                        onChange={(e) => setAcceptLinked(line, e.target.value)}
                         className={missing > 0 ? 'border-amber-400 bg-amber-50/50' : ''}
                         aria-label={`Quantity accepted for ${line.item?.name ?? line.item_id}`}
                       />
@@ -711,7 +752,7 @@ function ReceiveModal({
                         min="0"
                         max={sent}
                         value={getRefused(line)}
-                        onChange={(e) => setRefusal(line.id, { qty: e.target.value })}
+                        onChange={(e) => setRefusedLinked(line, e.target.value)}
                         placeholder="0"
                         className={back > 0 ? 'border-rose-300 bg-rose-50/50' : ''}
                         aria-label={`Quantity refused for ${line.item?.name ?? line.item_id}`}
@@ -732,7 +773,7 @@ function ReceiveModal({
                 {totals.refused} going back to {transfer.source_location?.name ?? 'the sender'}.
               </span>{' '}
               It never enters your stock, and a wastage claim is raised at their end for them to
-              decide on — refusing at the door keeps the loss theirs.
+              decide on - refusing at the door keeps the loss theirs.
             </p>
           </div>
         )}
@@ -741,7 +782,7 @@ function ReceiveModal({
           <div className="flex flex-col gap-2 p-3 bg-amber-50 border border-amber-100 rounded-xl">
             <p className="text-amber-900 text-sm font-semibold font-body flex items-center gap-1.5">
               <WarningCircleIcon size={15} weight="fill" />
-              {totals.missing} unaccounted for — this raises a dispute
+              {totals.missing} unaccounted for - this raises a dispute
             </p>
             <FormField label="What is missing, and why?" htmlFor="tr-dispute-reason">
               <Textarea
@@ -840,7 +881,7 @@ function ResolveDisputeDialog({
 }) {
   const resolve = useResolveTransferDispute();
   const [notes, setNotes] = useState('');
-  // Default to chasing the shortfall — writing it off is the deliberate choice.
+  // Default to chasing the shortfall - writing it off is the deliberate choice.
   const [sendCorrective, setSendCorrective] = useState(true);
 
   const submit = async (e: React.FormEvent) => {
@@ -857,13 +898,13 @@ function ResolveDisputeDialog({
   };
 
   return (
-    <InventoryModal isOpen={isOpen} onClose={onClose} title={`Resolve dispute — ${transfer.reference}`} size="md">
+    <InventoryModal isOpen={isOpen} onClose={onClose} title={`Resolve dispute - ${transfer.reference}`} size="md">
       <form onSubmit={submit} className="flex flex-col gap-4">
         <p className="text-sm text-neutral-gray font-body">
           Resolving closes this transfer. The original record is never altered.
         </p>
 
-        {/* Chasing the shortfall is not always the right answer — sometimes the
+        {/* Chasing the shortfall is not always the right answer - sometimes the
             stock is simply gone. The ledger is identical either way; this
             records which decision was made. */}
         <div className="flex flex-col gap-2">
@@ -894,7 +935,7 @@ function ResolveDisputeDialog({
             </button>
           ))}
         </div>
-        <FormField label="Resolution notes" htmlFor="tr-resolve-notes" hint="Optional — how the shortfall was reconciled.">
+        <FormField label="Resolution notes" htmlFor="tr-resolve-notes" hint="Optional - how the shortfall was reconciled.">
           <Textarea
             id="tr-resolve-notes"
             value={notes}
@@ -924,7 +965,7 @@ function ResolveDisputeDialog({
 function LineagePanel({ transfer }: { transfer: InventoryTransfer }) {
   const chain = transfer.lineage ?? [];
 
-  // A transfer with no corrective history is a chain of one — nothing to show.
+  // A transfer with no corrective history is a chain of one - nothing to show.
   if (chain.length < 2) return null;
 
   return (
@@ -991,7 +1032,7 @@ function DisputePanel({ transfer }: { transfer: InventoryTransfer }) {
             {dispute.status === 'resolved' ? 'Dispute resolved' : 'Open dispute'}
           </p>
           <p className="text-rose-900 text-sm font-body">
-            {dispute.reason ?? 'Short receipt — received less than was sent.'}
+            {dispute.reason ?? 'Short receipt - received less than was sent.'}
           </p>
           <p className="text-rose-700/80 text-xs mt-2">
             Discrepancy: <span className="font-semibold tabular-nums">{dispute.discrepancy_qty}</span>
@@ -999,7 +1040,7 @@ function DisputePanel({ transfer }: { transfer: InventoryTransfer }) {
           {dispute.resolution === 'written_off' && (
             <p className="text-rose-700/80 text-xs mt-1">
               Written off as a loss:{' '}
-              <span className="font-semibold tabular-nums">{dispute.written_off_qty}</span> — no
+              <span className="font-semibold tabular-nums">{dispute.written_off_qty}</span> - no
               corrective transfer was sent.
             </p>
           )}
@@ -1073,10 +1114,14 @@ function LinesTable({ lines }: { lines: InventoryTransferLine[] }) {
         <tbody className="divide-y divide-[#f0e8d8]">
           {lines.map((line) => {
             const unit = line.item?.unit ?? null;
-            const short =
-              line.received_qty !== null &&
-              line.sent_qty !== null &&
-              line.received_qty < line.sent_qty;
+            const refused = line.refused_qty ?? 0;
+            // What nobody can account for: sent, not accepted, not sent back.
+            // Only this is a genuine shortfall.
+            const missing =
+              line.received_qty !== null && line.sent_qty !== null
+                ? Math.max(0, +(line.sent_qty - line.received_qty - refused).toFixed(4))
+                : 0;
+            const short = missing > 0;
             const lineValue = (line.sent_qty ?? 0) * (line.unit_cost_at_time ?? 0);
             return (
               <tr key={line.id} className="hover:bg-primary/5">
@@ -1086,7 +1131,7 @@ function LinesTable({ lines }: { lines: InventoryTransferLine[] }) {
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums text-text-dark">
                   {qtyLabel(line.sent_qty, unit)}
-                  {/* Sending over is allowed, but it stays on the record — the
+                  {/* Sending over is allowed, but it stays on the record - the
                       branch is receiving stock it did not ask for. */}
                   {line.sent_qty !== null && line.sent_qty > line.requested_qty && (
                     <span className="ml-1.5 text-[11px] font-semibold text-amber-700">
@@ -1094,16 +1139,43 @@ function LinesTable({ lines }: { lines: InventoryTransferLine[] }) {
                     </span>
                   )}
                 </td>
+                {/*
+                  A number in red with no explanation is the thing to avoid: 12
+                  sent and 5 received leaves 7 unaccounted for on the face of it,
+                  when in fact they were refused at the door for a stated reason.
+                  Both outcomes are spelled out here rather than left to be
+                  inferred from a colour.
+                */}
                 <td className="px-5 py-3 text-right tabular-nums">
                   <span className={short ? 'text-amber-700 font-semibold' : 'text-text-dark'}>
                     {qtyLabel(line.received_qty, unit)}
                   </span>
+                  {refused > 0 && (
+                    <span
+                      className="block text-[11px] font-semibold text-rose-700 mt-0.5"
+                      title={
+                        line.refuse_note
+                          ? `${line.refuse_reason_label}: ${line.refuse_note}`
+                          : (line.refuse_reason_label ?? 'Refused on delivery')
+                      }
+                    >
+                      {refused} sent back
+                      <span className="block font-normal text-neutral-gray">
+                        {line.refuse_reason_label ?? 'refused'}
+                      </span>
+                    </span>
+                  )}
+                  {missing > 0 && (
+                    <span className="block text-[11px] font-semibold text-amber-700 mt-0.5">
+                      {missing} unaccounted for
+                    </span>
+                  )}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums text-neutral-gray">
-                  {line.unit_cost_at_time !== null ? formatGHS(line.unit_cost_at_time) : '—'}
+                  {line.unit_cost_at_time !== null ? formatGHS(line.unit_cost_at_time) : '-'}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums text-text-dark font-semibold">
-                  {lineValue > 0 ? formatGHS(lineValue) : '—'}
+                  {lineValue > 0 ? formatGHS(lineValue) : '-'}
                 </td>
               </tr>
             );

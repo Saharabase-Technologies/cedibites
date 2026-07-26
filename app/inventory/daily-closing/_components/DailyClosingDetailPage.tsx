@@ -100,7 +100,7 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
     }
     const missingNote = enteredLines.find((l) => l.reason === 'other' && !l.reason_note);
     if (missingNote) {
-      toast.error('Choosing “Other” means saying what happened — add a note.');
+      toast.error('Choosing “Other” means saying what happened - add a note.');
       return;
     }
     try {
@@ -131,7 +131,7 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
             <DailyClosingStatusBadge status={closing.status} />
           </div>
           <p className="text-neutral-gray text-sm font-body mt-1">
-            {closing.location?.name ?? '—'}
+            {closing.location?.name ?? '-'}
           </p>
         </div>
 
@@ -139,7 +139,7 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
           <div className="flex items-center gap-2 flex-wrap">
             {/* "Match all to expected" used to live here. It was one click to a
                 perfect count, which is the exact opposite of what a stock count
-                is for — and it needed the expected figures on screen to work.
+                is for - and it needed the expected figures on screen to work.
                 Both are gone; the count is blind now. */}
             <button
               type="button"
@@ -171,7 +171,7 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
           <p className="text-sky-800 text-sm font-body">
             <span className="font-semibold">Count what is actually there.</span> The expected
             figures are hidden until you finish, so what you write down is what is on the shelf.
-            Completing the count sets the books to your numbers — tomorrow opens exactly where
+            Completing the count sets the books to your numbers - tomorrow opens exactly where
             tonight closes.
           </p>
         </div>
@@ -188,14 +188,14 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
             >
               {closing.wastage.reference}
             </Link>
-            . It records why — the stock itself was already corrected by this count.
+            . It records why - the stock itself was already corrected by this count.
           </p>
         </div>
       )}
 
       {/* Meta */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        <MetaCard icon={<MapPinIcon size={16} />} label="Location" value={closing.location?.name ?? '—'} />
+        <MetaCard icon={<MapPinIcon size={16} />} label="Location" value={closing.location?.name ?? '-'} />
         <MetaCard icon={<CalendarBlankIcon size={16} />} label="Business date" value={formatBusinessDate(closing.business_date)} />
         <MetaCard
           icon={<ListChecksIcon size={16} />}
@@ -206,7 +206,7 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
         <MetaCard
           icon={<UserIcon size={16} />}
           label={closing.completed_by ? 'Completed by' : 'Opened by'}
-          value={closing.completed_by ?? closing.opened_by ?? '—'}
+          value={closing.completed_by ?? closing.opened_by ?? '-'}
           hint={closing.completed_at ? formatDateTime(closing.completed_at) : undefined}
         />
       </div>
@@ -277,7 +277,7 @@ function CountTable({
         <thead>
           <tr className="text-left bg-neutral-light/60 text-[11px] font-semibold uppercase tracking-wider text-neutral-gray">
             <th className="px-5 py-2.5">Item</th>
-            {/* No "Expected" column while counting — see the blind-count notice. */}
+            {/* No "Expected" column while counting - see the blind-count notice. */}
             {!blind && <th className="px-5 py-2.5 text-right">Expected</th>}
             <th className="px-5 py-2.5 text-right w-40">Counted</th>
             {!blind && <th className="px-5 py-2.5 text-right">Variance</th>}
@@ -298,7 +298,7 @@ function CountTable({
 
                 {!blind && (
                   <td className="px-5 py-3 text-right tabular-nums text-neutral-gray">
-                    {line.expected_qty ?? '—'}
+                    {line.expected_qty ?? '-'}
                     {unit ? ` ${unit}` : ''}
                   </td>
                 )}
@@ -317,7 +317,7 @@ function CountTable({
                     />
                   ) : (
                     <span className="tabular-nums text-text-dark">
-                      {line.counted_qty !== null ? `${line.counted_qty}${unit ? ` ${unit}` : ''}` : '—'}
+                      {line.counted_qty !== null ? `${line.counted_qty}${unit ? ` ${unit}` : ''}` : '-'}
                     </span>
                   )}
                 </td>
@@ -325,7 +325,7 @@ function CountTable({
                 {!blind && (
                   <td className="px-5 py-3 text-right tabular-nums">
                     {variance === null ? (
-                      <span className="text-neutral-gray/50">—</span>
+                      <span className="text-neutral-gray/50">-</span>
                     ) : variance === 0 ? (
                       <span className="text-emerald-700 font-semibold">0</span>
                     ) : (
@@ -373,7 +373,7 @@ function CountTable({
                       )}
                     </div>
                   ) : (
-                    <span className="text-neutral-gray/50">—</span>
+                    <span className="text-neutral-gray/50">-</span>
                   )}
                 </td>
               </tr>

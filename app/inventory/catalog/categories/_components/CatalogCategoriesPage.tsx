@@ -64,7 +64,7 @@ function AddCategoryForm({
       <FormField
         label="Parent category"
         htmlFor="cat-parent"
-        hint="Optional — leave blank for top-level"
+        hint="Optional - leave blank for top-level"
       >
         <Select
           id="cat-parent"
@@ -154,7 +154,7 @@ export function CatalogCategoriesPage() {
         r.depth === 0 ? (
           <span className="tabular-nums">{r.childrenCount}</span>
         ) : (
-          <span className="text-neutral-gray/60">—</span>
+          <span className="text-neutral-gray/60">-</span>
         ),
     },
     {

@@ -104,7 +104,7 @@ function DetailContent({ id }: { id: number }) {
             <Link
               href={`/inventory/purchase-orders/verify/${encodeURIComponent(po.verification_code)}`}
               className="inline-flex items-center gap-1.5 mt-1.5 text-[11px] font-mono text-neutral-gray hover:text-primary"
-              title="Verification signature — scan the QR on the PO document or click to verify"
+              title="Verification signature - scan the QR on the PO document or click to verify"
             >
               <SealCheckIcon size={13} weight="bold" />
               {po.verification_code}
@@ -141,7 +141,7 @@ function DetailContent({ id }: { id: number }) {
         <MetaCard
           icon={<CalendarIcon size={16} />}
           label="Expected delivery"
-          value={po.expected_delivery_date ? formatShortDate(po.expected_delivery_date) : '—'}
+          value={po.expected_delivery_date ? formatShortDate(po.expected_delivery_date) : '-'}
         />
         <MetaCard
           icon={<UserIcon size={16} />}
@@ -219,7 +219,7 @@ function SentSuccessModal({
           <p className="text-sm text-text-dark font-body">
             <span className="font-mono font-semibold">{po.reference}</span>{' '}
             {approved ? 'has been approved and is now ' : 'is now '}
-            <span className="font-semibold">sent</span>. The PO document has been downloaded — forward
+            <span className="font-semibold">sent</span>. The PO document has been downloaded - forward
             it to <span className="font-semibold">{po.supplier.name}</span> to place the order.
           </p>
         </div>
@@ -491,7 +491,7 @@ function ItemsTable({ items }: { items: PurchaseOrderItem[] }) {
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums">
                   {line.received_qty === 0 ? (
-                    <span className="text-neutral-gray">—</span>
+                    <span className="text-neutral-gray">-</span>
                   ) : variance === 0 ? (
                     <span className="text-emerald-700 font-semibold">0</span>
                   ) : (

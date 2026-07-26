@@ -58,7 +58,7 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
   const [error, setError] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  // You can only declare a loss where you actually work — the same rule the
+  // You can only declare a loss where you actually work - the same rule the
   // server enforces, surfaced here so the picker never offers a dead end.
   const operating = staffUser?.operating_location_ids ?? null;
   const declarable = useMemo(
@@ -73,7 +73,7 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
     if (!locationId && declarable.length > 0) setLocationId(String(declarable[0].id));
   }, [declarable, locationId]);
 
-  // Only what the location actually holds — you cannot waste what you do not
+  // Only what the location actually holds - you cannot waste what you do not
   // have, and offering the full catalogue here just invites a server rejection.
   const locId = Number(locationId) || 0;
   const { data: items = [] } = useInventoryItems(
@@ -134,7 +134,7 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
 
     const needsNote = lines.find((l) => l.reason === 'other' && !l.note.trim());
     if (needsNote) {
-      setError('Choosing “Other” means saying what happened — add a note.');
+      setError('Choosing “Other” means saying what happened - add a note.');
       return;
     }
 
@@ -146,8 +146,8 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
       });
 
       // Photos go up after the claim exists, since they hang off its id. An
-      // upload failure must not lose the claim — it is already saved, and the
-      // detail page can always add more — so this degrades rather than throws.
+      // upload failure must not lose the claim - it is already saved, and the
+      // detail page can always add more - so this degrades rather than throws.
       for (const file of photos) {
         try {
           await addPhoto(wastage.id, file);
@@ -297,7 +297,7 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
         <div>
           <div className="flex items-center justify-between gap-3 mb-1.5">
             <label className="text-sm font-semibold font-body text-text-dark">
-              Photos {willNeedReturn && <span className="text-rose-600">— needed for approval</span>}
+              Photos {willNeedReturn && <span className="text-rose-600">- needed for approval</span>}
             </label>
             <input
               ref={photoInputRef}
@@ -322,7 +322,7 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
           </div>
           <p className="text-neutral-gray text-xs font-body mb-2">
             {willNeedReturn
-              ? 'Photograph the goods now — once they are on the lorry nobody can.'
+              ? 'Photograph the goods now - once they are on the lorry nobody can.'
               : 'Optional here, but it settles arguments later.'}
           </p>
 
@@ -378,7 +378,7 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
             <div className="flex items-start gap-2 mt-2">
               <ArrowUUpLeftIcon size={16} weight="bold" className="text-amber-600 shrink-0 mt-0.5" />
               <p className="text-amber-800 text-xs font-body">
-                Above {formatGhs(threshold)}. A return transfer will be raised — the goods must go
+                Above {formatGhs(threshold)}. A return transfer will be raised - the goods must go
                 back to the warehouse before the warehouse manager can write them off. Nothing
                 leaves your stock until you send them.
               </p>
@@ -386,7 +386,7 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
           ) : (
             <p className="text-neutral-gray text-xs font-body mt-1">
               {isWarehouse
-                ? 'Recorded and written off immediately — the warehouse answers for its own stock.'
+                ? 'Recorded and written off immediately - the warehouse answers for its own stock.'
                 : `Under ${formatGhs(threshold)}, so this is written off immediately.`}
             </p>
           )}

@@ -89,7 +89,7 @@ export function PurchaseDetailPage({ id }: { id: number }) {
         <MetaCard
           icon={<ReceiptIcon size={16} />}
           label="Invoice"
-          value={purchase.invoice_number ?? '—'}
+          value={purchase.invoice_number ?? '-'}
         />
       </div>
 
@@ -180,14 +180,14 @@ function ItemsTable({ items }: { items: PurchaseItem[] }) {
                   )}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums text-neutral-gray">
-                  {line.ordered_qty != null ? `${line.ordered_qty} ${line.unit.symbol}` : '—'}
+                  {line.ordered_qty != null ? `${line.ordered_qty} ${line.unit.symbol}` : '-'}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums text-text-dark">
                   {line.received_qty} {line.unit.symbol}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums">
                   {variance == null ? (
-                    <span className="text-neutral-gray">—</span>
+                    <span className="text-neutral-gray">-</span>
                   ) : variance === 0 ? (
                     <span className="text-emerald-700 font-semibold">0</span>
                   ) : (
@@ -197,14 +197,14 @@ function ItemsTable({ items }: { items: PurchaseItem[] }) {
                   )}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums text-neutral-gray">
-                  {line.expected_unit_cost != null ? formatGHS(line.expected_unit_cost) : '—'}
+                  {line.expected_unit_cost != null ? formatGHS(line.expected_unit_cost) : '-'}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums text-text-dark">
                   {formatGHS(line.unit_cost_paid)}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums">
                   {costVar == null ? (
-                    <span className="text-neutral-gray">—</span>
+                    <span className="text-neutral-gray">-</span>
                   ) : Math.abs(costVar) < 0.0001 ? (
                     <span className="text-emerald-700 font-semibold">0</span>
                   ) : (

@@ -21,6 +21,7 @@ import { useMemo } from 'react';
 import { useRequisitions } from './useRequisitions';
 import { useTransfers } from './useTransfers';
 import { usePurchaseOrders } from './usePurchaseOrders';
+import { useWastages } from './useWastages';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 
 export interface InventoryAttention {
@@ -34,12 +35,14 @@ export function useInventoryAttention(): InventoryAttention {
   const { data: requisitions } = useRequisitions();
   const { data: transfers } = useTransfers();
   const { data: purchaseOrders } = usePurchaseOrders();
+  const { data: wastages } = useWastages();
 
   const myUserId = staffUser?.user_id;
   const operating = staffUser?.operating_location_ids;
   const canApproveRequisitions = can('inventory.requisition.approve');
   const canReceive = can('inventory.transfer.receive');
   const canResolve = can('inventory.transfer.resolve_dispute');
+  const canApproveWastage = can('inventory.wastage.approve');
 
   return useMemo(() => {
     // null/undefined = acts anywhere (admins).
@@ -78,22 +81,50 @@ export function useInventoryAttention(): InventoryAttention {
       ? (purchaseOrders ?? []).filter((p) => p.status === 'pending_approval').length
       : 0;
 
+    // Two different jobs land on the wastage screen, and both are "yours".
+    //
+    // A claim awaiting approval belongs to whoever can sign it off, at the
+    // location carrying the loss, and never to the person who raised it.
+    //
+    // A claim stuck awaiting return belongs to the branch holding the goods:
+    // nothing moves until they put them on the lorry, and without a badge that
+    // sits unnoticed until the warehouse chases it.
+    const wastageCount = (wastages ?? []).filter((w) => {
+      if (w.status === 'pending_approval') {
+        return (
+          canApproveWastage &&
+          w.recorded_by_id !== myUserId &&
+          actsAt(w.disposal_location?.id ?? w.location?.id ?? null)
+        );
+      }
+      if (w.status === 'pending_return') {
+        return actsAt(w.location?.id ?? null);
+      }
+      return false;
+    }).length;
+
     const counts: Record<string, number> = {
       '/inventory/requisitions': requisitionCount,
       '/inventory/transfers': transferCount,
       '/inventory/purchase-orders': poCount,
+      '/inventory/wastage': wastageCount,
     };
 
-    return { counts, total: requisitionCount + transferCount + poCount };
+    return {
+      counts,
+      total: requisitionCount + transferCount + poCount + wastageCount,
+    };
   }, [
     requisitions,
     transfers,
     purchaseOrders,
+    wastages,
     myUserId,
     operating,
     canApproveRequisitions,
     canReceive,
     canResolve,
+    canApproveWastage,
     can,
   ]);
 }

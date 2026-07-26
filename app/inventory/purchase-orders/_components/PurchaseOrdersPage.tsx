@@ -115,7 +115,7 @@ export function PurchaseOrdersPage() {
             {formatShortDate(po.expected_delivery_date)}
           </span>
         ) : (
-          <span className="text-neutral-gray/60">—</span>
+          <span className="text-neutral-gray/60">-</span>
         ),
     },
     {

@@ -101,7 +101,7 @@ function AddLocationForm({ onClose }: { onClose: () => void }) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Code is assigned server-side (SK-001 / WH-001) — never sent from here.
+    // Code is assigned server-side (SK-001 / WH-001) - never sent from here.
     await create.mutateAsync({
       name,
       type,
@@ -128,7 +128,7 @@ function AddLocationForm({ onClose }: { onClose: () => void }) {
         <FormField
           label="Link to branch"
           htmlFor="loc-branch"
-          hint="Optional — pick an existing branch, or leave empty for a standalone satellite kitchen."
+          hint="Optional - pick an existing branch, or leave empty for a standalone satellite kitchen."
         >
           <Select
             id="loc-branch"

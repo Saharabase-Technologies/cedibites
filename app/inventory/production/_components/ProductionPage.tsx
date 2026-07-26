@@ -25,9 +25,9 @@ function fmtQty(n: number): string {
 }
 
 function fmtDateTime(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return '-';
   return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
@@ -143,7 +143,7 @@ function RecordProductionForm({ onClose }: { onClose: () => void }) {
           <TextInput id="prod-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </FormField>
         {outputItem?.expiry_tracked && (
-          <FormField label="Output expiry date" htmlFor="prod-expiry" hint="Tracked item — sets the produced batch's expiry.">
+          <FormField label="Output expiry date" htmlFor="prod-expiry" hint="Tracked item - sets the produced batch's expiry.">
             <TextInput id="prod-expiry" type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
           </FormField>
         )}
@@ -186,7 +186,7 @@ function RecordProductionForm({ onClose }: { onClose: () => void }) {
       <div className="flex items-center justify-between bg-neutral-light/50 border border-[#f0e8d8] rounded-xl px-4 py-2.5 text-sm font-body">
         <span className="text-neutral-gray">Input cost <span className="text-text-dark font-semibold">{formatGHS(inputCost)}</span></span>
         <span className="text-neutral-gray">Output cost/unit{' '}
-          <span className="text-text-dark font-semibold tabular-nums">{Number(outputQty) > 0 ? formatGHS(unitCost) : '—'}</span>
+          <span className="text-text-dark font-semibold tabular-nums">{Number(outputQty) > 0 ? formatGHS(unitCost) : '-'}</span>
         </span>
       </div>
 
@@ -218,7 +218,7 @@ export default function ProductionPage() {
       key: 'output',
       header: 'Produced',
       sortValue: (l) => l.output_item?.name ?? '',
-      cell: (l) => <span className="font-medium">{l.output_item?.name ?? '—'}</span>,
+      cell: (l) => <span className="font-medium">{l.output_item?.name ?? '-'}</span>,
     },
     {
       key: 'qty',
@@ -248,7 +248,7 @@ export default function ProductionPage() {
       header: 'By',
       hideBelow: 'lg' as const,
       sortValue: (l) => l.produced_by?.name ?? '',
-      cell: (l) => <span className="text-neutral-gray">{l.produced_by?.name ?? '—'}</span>,
+      cell: (l) => <span className="text-neutral-gray">{l.produced_by?.name ?? '-'}</span>,
     },
     {
       key: 'when',
@@ -263,7 +263,7 @@ export default function ProductionPage() {
     <div className="p-6 pb-24 md:pb-6 max-w-6xl mx-auto w-full">
       <FilterBar>
         <p className="text-sm font-body text-neutral-gray flex-1 min-w-0">
-          Mother-kitchen batch prep — consume raw items, produce prepared stock.
+          Mother-kitchen batch prep - consume raw items, produce prepared stock.
         </p>
         <button
           onClick={() => setOpen(true)}

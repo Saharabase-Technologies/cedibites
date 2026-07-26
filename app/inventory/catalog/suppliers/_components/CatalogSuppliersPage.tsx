@@ -181,19 +181,19 @@ export function CatalogSuppliersPage() {
       header: 'Contact',
       hideBelow: 'sm',
       sortValue: (s) => s.contact_name ?? '',
-      cell: (s) => s.contact_name ?? <span className="text-neutral-gray/60">—</span>,
+      cell: (s) => s.contact_name ?? <span className="text-neutral-gray/60">-</span>,
     },
     {
       key: 'phone',
       header: 'Phone',
       hideBelow: 'md',
-      cell: (s) => s.phone ?? <span className="text-neutral-gray/60">—</span>,
+      cell: (s) => s.phone ?? <span className="text-neutral-gray/60">-</span>,
     },
     {
       key: 'email',
       header: 'Email',
       hideBelow: 'lg',
-      cell: (s) => s.email ?? <span className="text-neutral-gray/60">—</span>,
+      cell: (s) => s.email ?? <span className="text-neutral-gray/60">-</span>,
     },
     {
       key: 'terms',
@@ -205,7 +205,7 @@ export function CatalogSuppliersPage() {
         s.payment_terms_days != null ? (
           <span className="tabular-nums">Net {s.payment_terms_days}d</span>
         ) : (
-          <span className="text-neutral-gray/60">—</span>
+          <span className="text-neutral-gray/60">-</span>
         ),
     },
     {

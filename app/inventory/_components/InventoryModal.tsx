@@ -8,7 +8,7 @@ interface InventoryModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  /** sm | md | lg — defaults to md (max-w-md) */
+  /** sm | md | lg - defaults to md (max-w-md) */
   size?: 'sm' | 'md' | 'lg';
 }
 
@@ -40,7 +40,7 @@ export function InventoryModal({
   if (!isOpen) return null;
 
   return (
-    // Backdrop deliberately does NOT close on click — accidental outside clicks
+    // Backdrop deliberately does NOT close on click - accidental outside clicks
     // must not discard an in-progress form. Close only via the ✕ or Escape.
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div

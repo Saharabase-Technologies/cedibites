@@ -36,7 +36,7 @@ import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 
 /**
  * `permission` is the single source of truth for both the sidebar and the route
- * guard below — a link a role cannot see is also a URL it cannot open. The
+ * guard below - a link a role cannot see is also a URL it cannot open. The
  * strings mirror the backend grants in RoleSeeder. The sections group the portal
  * by workflow so every role gets an appropriate menu once filtered: the Warehouse
  * Manager runs Operations + Purchasing (view) + the item Catalog she curates
@@ -45,12 +45,12 @@ import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
  */
 type NavItem = { href: string; label: string; icon: React.ElementType; permission: string };
 
-/** Home — always first, no section header. */
+/** Home - always first, no section header. */
 const DASHBOARD_NAV: NavItem[] = [
   { href: '/inventory/dashboard', label: 'Dashboard', icon: SquaresFourIcon, permission: 'access_inventory_portal' },
 ];
 
-/** Operational work — daily stock movement. */
+/** Operational work - daily stock movement. */
 const OPERATIONS_NAV: NavItem[] = [
   { href: '/inventory/production',    label: 'Production',    icon: CookingPotIcon,      permission: 'inventory.production.record'         },
   { href: '/inventory/transfers',     label: 'Transfers',     icon: ArrowsLeftRightIcon, permission: 'inventory.transfer.create'           },
@@ -60,7 +60,7 @@ const OPERATIONS_NAV: NavItem[] = [
   { href: '/inventory/reconciliation',label: 'Reconciliation',icon: ScalesIcon,          permission: 'inventory.reconciliation.open_cycle' },
 ];
 
-/** Purchasing — Purchasing Clerk authors POs; Warehouse Manager views them. */
+/** Purchasing - Purchasing Clerk authors POs; Warehouse Manager views them. */
 const PURCHASING_NAV: NavItem[] = [
   // Gated on `purchase.view` so the WM sees POs read-only; the create/edit
   // surfaces are separately gated on `inventory.purchase_order.*`.
@@ -73,25 +73,25 @@ const CATALOG_NAV: NavItem[] = [
   { href: '/inventory/catalog',            label: 'Items',      icon: PackageIcon,    permission: 'view_inventory_catalog'  },
   { href: '/inventory/catalog/categories', label: 'Categories', icon: TagIcon,        permission: 'inventory.category.manage' },
   { href: '/inventory/catalog/units',      label: 'Units',      icon: RulerIcon,      permission: 'inventory.unit.manage'   },
-  // Suppliers are a purchasing concern — Clerk/Admin only, not the WM.
+  // Suppliers are a purchasing concern - Clerk/Admin only, not the WM.
   { href: '/inventory/catalog/suppliers',  label: 'Suppliers',  icon: StorefrontIcon, permission: 'inventory.supplier.manage' },
   // Recipes/BOM authoring is Admin-only; Branch Managers keep view access.
   { href: '/inventory/catalog/recipes',    label: 'Recipes',    icon: ForkKnifeIcon,  permission: 'inventory.recipe.view'   },
 ];
 
-/** Reporting — its own section. */
+/** Reporting - its own section. */
 const REPORTS_NAV: NavItem[] = [
   { href: '/inventory/reports', label: 'Reports', icon: ChartBarIcon, permission: 'inventory.report.view' },
 ];
 
-/** System configuration — Admin-only, set once. */
+/** System configuration - Admin-only, set once. */
 const SYSTEM_NAV: NavItem[] = [
   { href: '/inventory/configure', label: 'Setup',     icon: SlidersIcon, permission: 'inventory.settings.manage' },
   { href: '/inventory/locations', label: 'Locations', icon: MapPinIcon,  permission: 'inventory.location.manage' },
   { href: '/inventory/settings',  label: 'Settings',  icon: GearSixIcon, permission: 'inventory.settings.manage' },
 ];
 
-/** Bottom mobile bar — 5 most accessed, filtered the same way. */
+/** Bottom mobile bar - 5 most accessed, filtered the same way. */
 const BOTTOM_NAV: NavItem[] = [
   { href: '/inventory/dashboard',    label: 'Home',     icon: SquaresFourIcon,     permission: 'access_inventory_portal'      },
   { href: '/inventory/catalog',      label: 'Catalog',  icon: PackageIcon,         permission: 'view_inventory_catalog'       },
@@ -101,7 +101,7 @@ const BOTTOM_NAV: NavItem[] = [
 ];
 
 /**
- * Route guard table — longest prefix wins, so `/inventory/catalog/suppliers`
+ * Route guard table - longest prefix wins, so `/inventory/catalog/suppliers`
  * is checked before `/inventory/catalog`. Anything unlisted only requires
  * portal access.
  */
@@ -115,7 +115,7 @@ const ROUTE_PERMISSIONS: Array<{ prefix: string; permission: string }> = [
     ...SYSTEM_NAV,
   ].map(({ href, permission }) => ({ prefix: href, permission })),
   // The PO list/detail are viewable (purchase.view), but authoring the new PO
-  // requires the create grant — longest prefix wins, so this overrides the list.
+  // requires the create grant - longest prefix wins, so this overrides the list.
   { prefix: '/inventory/purchase-orders/new', permission: 'inventory.purchase_order.create' },
 ].sort((a, b) => b.prefix.length - a.prefix.length);
 
@@ -343,7 +343,7 @@ function InventoryLayoutInner({ children }: { children: React.ReactNode }) {
 
   // One subscription for the whole portal, mounted here so every inventory
   // screen is live without each one wiring its own. Must stay ABOVE the
-  // loading/permission early returns below — those flip after the auth effect
+  // loading/permission early returns below - those flip after the auth effect
   // resolves, and a hook beneath them would change the hook count between
   // renders. No-ops until a staff token exists.
   useInventoryRealtime();
@@ -431,7 +431,7 @@ function InventoryLayoutMockInner({ children }: { children: React.ReactNode }) {
         userName="Mock User"
         userRole="Super Admin"
         onSignOut={() => setIsSignOutOpen(true)}
-        // Mock mode has no real grants — show the whole portal so every screen
+        // Mock mode has no real grants - show the whole portal so every screen
         // stays reachable while developing against fixtures.
         can={() => true}
       />

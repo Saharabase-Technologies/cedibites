@@ -89,7 +89,7 @@ export function ReconciliationPage() {
             {c.over_threshold_count}
           </span>
         ) : (
-          <span className="text-neutral-gray/60">—</span>
+          <span className="text-neutral-gray/60">-</span>
         ),
     },
     {
@@ -99,7 +99,7 @@ export function ReconciliationPage() {
       sortValue: (c) => c.net_variance_value ?? 0,
       cell: (c) =>
         c.net_variance_value === null ? (
-          <span className="text-neutral-gray/60">—</span>
+          <span className="text-neutral-gray/60">-</span>
         ) : (
           <span
             className={`tabular-nums text-sm font-semibold ${
@@ -120,7 +120,7 @@ export function ReconciliationPage() {
     <div className="p-6 pb-24 md:pb-6 max-w-6xl mx-auto w-full">
       <PageHeader
         title="Reconciliation"
-        subtitle="Count everything, cancel out the variance, and reset the books — then a new cycle begins."
+        subtitle="Count everything, cancel out the variance, and reset the books - then a new cycle begins."
       />
 
       {/* Location + open cycle */}
@@ -155,7 +155,7 @@ export function ReconciliationPage() {
         </div>
         <p className="text-neutral-gray text-xs font-body mt-2">
           {hasOpenCycle
-            ? 'A cycle is already open for this location — continue it below. Only one runs at a time.'
+            ? 'A cycle is already open for this location - continue it below. Only one runs at a time.'
             : 'Opening a cycle snapshots the expected quantities. Post it to write the adjustments and reset the books.'}
         </p>
       </div>

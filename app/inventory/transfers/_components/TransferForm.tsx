@@ -5,7 +5,7 @@
  *
  * Shared create + edit form for stock transfers. A multi-line item builder that
  * picks a source + destination location and the quantities to move. Cost is NOT
- * entered here — it is captured (FEFO-weighted) when the transfer is sent.
+ * entered here - it is captured (FEFO-weighted) when the transfer is sent.
  *
  * Only draft transfers are editable; the backend enforces this and the form
  * guards against it too.
@@ -46,7 +46,7 @@ interface LineDraft {
   requested_qty: string;
 }
 
-// Deterministic, monotonic line ids — Math.random() here caused SSR/client
+// Deterministic, monotonic line ids - Math.random() here caused SSR/client
 // hydration mismatches on the generated htmlFor/id attributes.
 let lineSeq = 0;
 
@@ -157,7 +157,7 @@ export function TransferForm({ mode, id }: Props) {
     }
   };
 
-  // Permission gate — block the dead-end where a role without transfer rights
+  // Permission gate - block the dead-end where a role without transfer rights
   // reaches this form (by URL or stale UI) and only fails on save.
   if (!allowed) return <NoPermission />;
 
@@ -242,7 +242,7 @@ export function TransferForm({ mode, id }: Props) {
               id="tr-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional — reason for the transfer, handling instructions, etc."
+              placeholder="Optional - reason for the transfer, handling instructions, etc."
               rows={2}
             />
           </FormField>

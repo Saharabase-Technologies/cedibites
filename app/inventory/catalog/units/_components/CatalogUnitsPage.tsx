@@ -104,7 +104,7 @@ function AddUnitForm({ onClose }: { onClose: () => void }) {
         <Toggle
           checked={isBase}
           onChange={setIsBase}
-          label={isBase ? 'Yes — this is the base unit' : 'No — this converts to a base unit'}
+          label={isBase ? 'Yes - this is the base unit' : 'No - this converts to a base unit'}
         />
       </FormField>
 
@@ -159,7 +159,7 @@ export function CatalogUnitsPage() {
         u.is_base_unit ? (
           <span className="text-text-dark">Yes</span>
         ) : (
-          <span className="text-neutral-gray/60">—</span>
+          <span className="text-neutral-gray/60">-</span>
         ),
     },
     {

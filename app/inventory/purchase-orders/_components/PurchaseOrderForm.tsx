@@ -53,7 +53,7 @@ interface LineDraft {
   estimated_unit_cost: string;
 }
 
-// Deterministic, monotonic line ids — Math.random() here caused SSR/client
+// Deterministic, monotonic line ids - Math.random() here caused SSR/client
 // hydration mismatches on the generated htmlFor/id attributes.
 let lineSeq = 0;
 
@@ -195,7 +195,7 @@ export function PurchaseOrderForm({ mode, id }: Props) {
     }
   };
 
-  // Permission gate — block the dead-end where a role without PO authoring
+  // Permission gate - block the dead-end where a role without PO authoring
   // rights reaches this form (by URL or stale UI) and only fails on save.
   if (!allowed) {
     return <NoPermission mode={mode} />;
@@ -212,7 +212,7 @@ export function PurchaseOrderForm({ mode, id }: Props) {
     return <EditLocked status={existingPO!.status} reference={existingPO!.reference} id={existingPO!.id} />;
   }
   // Editing a pending-approval PO approves + sends it on save, so it needs the
-  // approve right — `update` alone (e.g. WM, clerk) isn't enough.
+  // approve right - `update` alone (e.g. WM, clerk) isn't enough.
   if (isApprovalEdit && !can('inventory.purchase_order.approve')) {
     return <NoPermission mode="approve" />;
   }
@@ -249,7 +249,7 @@ export function PurchaseOrderForm({ mode, id }: Props) {
               <p className="text-emerald-900 text-sm font-semibold font-body">Approving on save</p>
               <p className="text-emerald-800/80 text-xs font-body mt-0.5">
                 This order is awaiting approval. Any edits you make here are approved on save and the
-                PO is sent to the supplier — the document downloads automatically.
+                PO is sent to the supplier - the document downloads automatically.
               </p>
             </div>
           </div>
@@ -294,7 +294,7 @@ export function PurchaseOrderForm({ mode, id }: Props) {
             <FormField
               label="Expected delivery date"
               htmlFor="po-expected"
-              hint="Optional — communicates the target receipt date."
+              hint="Optional - communicates the target receipt date."
             >
               <TextInput
                 id="po-expected"
@@ -495,7 +495,7 @@ function NoPermission({ mode }: { mode: 'create' | 'edit' | 'approve' }) {
   const verb = mode === 'approve' ? 'approve' : mode === 'edit' ? 'edit' : 'create';
   const reason =
     mode === 'approve'
-      ? 'This order is awaiting approval — editing it would approve and send it, which only an administrator can do.'
+      ? 'This order is awaiting approval - editing it would approve and send it, which only an administrator can do.'
       : "Your role doesn't have purchase-order authoring rights. Ask an administrator if you need access.";
   return (
     <div className="p-6 pb-24 md:pb-6 max-w-6xl mx-auto w-full">

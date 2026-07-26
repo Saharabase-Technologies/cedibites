@@ -153,18 +153,18 @@ export function ReconciliationDetailPage({ id }: { id: number }) {
 
       {/* Meta */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        <MetaCard icon={<MapPinIcon size={16} />} label="Location" value={cycle.location?.name ?? '—'} />
+        <MetaCard icon={<MapPinIcon size={16} />} label="Location" value={cycle.location?.name ?? '-'} />
         <MetaCard icon={<ListChecksIcon size={16} />} label="Counted" value={`${cycle.counted_count} / ${cycle.line_count}`} hint={`${cycle.variance_line_count} with variance`} />
         <MetaCard
           icon={<WarningIcon size={16} />}
           label="Over threshold"
-          value={cycle.over_threshold_count > 0 ? String(cycle.over_threshold_count) : '—'}
+          value={cycle.over_threshold_count > 0 ? String(cycle.over_threshold_count) : '-'}
           hint={cycle.threshold_amount ? `> ${formatGHS(cycle.threshold_amount)}` : undefined}
         />
         <MetaCard
           icon={<UserIcon size={16} />}
           label={cycle.closed_by ? 'Posted by' : 'Opened by'}
-          value={cycle.closed_by ?? cycle.opened_by ?? '—'}
+          value={cycle.closed_by ?? cycle.opened_by ?? '-'}
           hint={cycle.closed_at ? formatDateTime(cycle.closed_at) : undefined}
         />
       </div>
@@ -178,7 +178,7 @@ export function ReconciliationDetailPage({ id }: { id: number }) {
             <p className="text-emerald-800/80 text-xs font-body mt-0.5">
               Adjustments were posted to match the counts. Net variance value{' '}
               <span className="font-semibold">{formatGHS(cycle.net_variance_value ?? 0)}</span>. This
-              cycle is closed — a new one can be opened when you next count.
+              cycle is closed - a new one can be opened when you next count.
             </p>
           </div>
         </div>
@@ -260,7 +260,7 @@ function PostDialog({
       <div className="flex flex-col gap-4">
         <p className="text-sm text-neutral-gray font-body">
           This writes stock adjustments so the system matches your physical count, then closes the
-          cycle. It corrects the ledger and <span className="font-semibold text-text-dark">cannot be undone</span> —
+          cycle. It corrects the ledger and <span className="font-semibold text-text-dark">cannot be undone</span> -
           a new cycle would be needed to change anything.
         </p>
 
@@ -281,7 +281,7 @@ function PostDialog({
           </div>
         </div>
 
-        <FormField label="Notes" htmlFor="rec-post-notes" hint="Optional — record why the count differed.">
+        <FormField label="Notes" htmlFor="rec-post-notes" hint="Optional - record why the count differed.">
           <Textarea
             id="rec-post-notes"
             value={notes}
@@ -365,13 +365,13 @@ function CountTable({
                     />
                   ) : (
                     <span className="tabular-nums text-text-dark">
-                      {line.counted_qty !== null ? `${line.counted_qty}${unit ? ` ${unit}` : ''}` : '—'}
+                      {line.counted_qty !== null ? `${line.counted_qty}${unit ? ` ${unit}` : ''}` : '-'}
                     </span>
                   )}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums">
                   {variance === null ? (
-                    <span className="text-neutral-gray/50">—</span>
+                    <span className="text-neutral-gray/50">-</span>
                   ) : variance === 0 ? (
                     <span className="text-emerald-700 font-semibold">0</span>
                   ) : (
@@ -382,7 +382,7 @@ function CountTable({
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums">
                   {value === null || value === 0 ? (
-                    <span className="text-neutral-gray/50">—</span>
+                    <span className="text-neutral-gray/50">-</span>
                   ) : (
                     <span className={value < 0 ? 'text-rose-700' : 'text-amber-700'}>{formatGHS(value)}</span>
                   )}

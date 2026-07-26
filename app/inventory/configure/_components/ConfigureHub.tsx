@@ -110,12 +110,12 @@ export function ConfigureHub() {
   const steps: Step[] = [
     {
       n: 1, key: 'units', label: 'Units of measurement',
-      desc: 'How you measure stock — piece, kg, litre, crate.',
+      desc: 'How you measure stock - piece, kg, litre, crate.',
       href: '/inventory/catalog/units', icon: RulerIcon, done: units.length > 0,
     },
     {
       n: 2, key: 'categories', label: 'Categories',
-      desc: 'Group items — proteins, dry goods, packaging.',
+      desc: 'Group items - proteins, dry goods, packaging.',
       href: '/inventory/catalog/categories', icon: TagIcon, done: categories.length > 0,
     },
     {
@@ -168,7 +168,7 @@ export function ConfigureHub() {
           />
         </div>
         <p className="text-neutral-gray text-xs font-body mt-3">
-          Follow the steps in order — each one builds on the last. Recipes need items,
+          Follow the steps in order - each one builds on the last. Recipes need items,
           items need units and categories.
         </p>
       </div>

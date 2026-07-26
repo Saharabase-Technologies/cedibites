@@ -24,7 +24,7 @@ export type DataTableColumn<T> = {
 export type DataTableProps<T> = {
   data: T[];
   columns: DataTableColumn<T>[];
-  /** Stable row id resolver — defaults to index. */
+  /** Stable row id resolver - defaults to index. */
   rowKey?: (row: T, index: number) => string | number;
   /** Default sort key (must match a column key with sortValue defined). */
   defaultSortKey?: string;
@@ -38,10 +38,10 @@ export type DataTableProps<T> = {
   /**
    * Rows that are waiting on a person. Marked with a gold edge so what needs
    * doing is obvious on landing, instead of having to read every status badge.
-   * Matches the sidebar counters — same definition of "needs attention".
+   * Matches the sidebar counters - same definition of "needs attention".
    */
   needsAttention?: (row: T) => boolean;
-  /** Loading state — renders skeleton rows. */
+  /** Loading state - renders skeleton rows. */
   isLoading?: boolean;
   /** Show row index column ('#'). */
   showIndex?: boolean;
