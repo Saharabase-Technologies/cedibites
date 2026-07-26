@@ -11,6 +11,7 @@ import {
   createRequisition,
   updateRequisition,
   submitRequisition,
+  deleteRequisition,
   approveRequisition,
   rejectRequisition,
 } from '../../services/inventory/requisitions.service';
@@ -59,6 +60,17 @@ export function useUpdateRequisition(id: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: UpdateRequisitionPayload) => updateRequisition(id, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: KEY });
+    },
+  });
+}
+
+/** Discard a draft. Server enforces draft-only and author-only. */
+export function useDeleteRequisition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteRequisition(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: KEY });
     },

@@ -25,6 +25,7 @@ import type {
   ReceiveTransferPayload,
   CancelTransferPayload,
   ResolveTransferDisputePayload,
+  StockAvailability,
 } from '@/types/inventory';
 
 /** Unwrap the API envelope ({ data: ... }), tolerating a raw body. */
@@ -104,6 +105,21 @@ export async function resolveTransferDispute(
 ): Promise<InventoryTransfer> {
   const response = await apiClient.post(`/inventory/transfers/${id}/resolve-dispute`, payload);
   return extractData<InventoryTransfer>(response);
+}
+
+/**
+ * Can a location cover this demand right now? Answers while a requisition or
+ * transfer is still being written, rather than failing at submit.
+ */
+export async function checkStockAvailability(
+  locationId: number,
+  items: { item_id: number; qty: number }[],
+): Promise<StockAvailability> {
+  const response = await apiClient.post('/inventory/transfers/availability', {
+    location_id: locationId,
+    items,
+  });
+  return extractData<StockAvailability>(response);
 }
 
 export async function cancelTransfer(

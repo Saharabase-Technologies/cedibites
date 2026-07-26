@@ -17,6 +17,7 @@ import {
   PlusIcon,
   TrashIcon,
   WarningCircleIcon,
+  CheckCircleIcon,
 } from '@phosphor-icons/react';
 import {
   FormField,
@@ -33,6 +34,7 @@ import {
   useUpdateRequisition,
 } from '@/lib/api/hooks/inventory/useRequisitions';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { useStockAvailability } from '@/lib/api/hooks/inventory/useStockAvailability';
 import type {
   CreateRequisitionPayload,
   RequisitionLinePayload,
@@ -133,6 +135,14 @@ export function RequisitionForm({ mode, id }: Props) {
       ),
     [lines],
   );
+
+  // Ask the source whether it can actually cover this, while it is still being
+  // written — the check used to only fire at submit, after the whole form.
+  const { data: availability, isFetching: checkingStock } = useStockAvailability(
+    sourceId === '' ? null : Number(sourceId),
+    validLines.map((l) => ({ item_id: Number(l.item_id), qty: Number(l.requested_qty) })),
+  );
+  const shortLines = availability?.lines.filter((l) => !l.sufficient) ?? [];
 
   const sameLocation = requestingId !== '' && requestingId === sourceId;
   const canSubmit =
@@ -380,6 +390,41 @@ export function RequisitionForm({ mode, id }: Props) {
               );
             })}
           </div>
+
+          {/* Whether the source can actually cover this, answered as you type
+              rather than sprung at submit. Advisory only — a short source does
+              not block the draft, since the warehouse may restock before it is
+              approved. */}
+          {validLines.length > 0 && sourceId !== '' && (
+            <div className="mt-4 pt-3 border-t border-[#f0e8d8]">
+              {checkingStock ? (
+                <p className="font-body text-xs text-neutral-gray">Checking stock…</p>
+              ) : availability?.sufficient ? (
+                <p className="flex items-center gap-1.5 font-body text-xs text-secondary">
+                  <CheckCircleIcon size={14} weight="fill" />
+                  {warehouses.find((w) => String(w.id) === sourceId)?.name ?? 'The source'} has
+                  enough stock for everything requested.
+                </p>
+              ) : shortLines.length > 0 ? (
+                <div className="flex items-start gap-1.5">
+                  <WarningCircleIcon size={14} weight="fill" className="mt-0.5 shrink-0 text-amber-600" />
+                  <div className="font-body text-xs">
+                    <p className="font-semibold text-amber-700">
+                      Short on {shortLines.length} item{shortLines.length === 1 ? '' : 's'} right
+                      now — you can still send the request.
+                    </p>
+                    <ul className="mt-0.5 text-neutral-gray">
+                      {shortLines.map((l) => (
+                        <li key={l.item_id}>
+                          {l.name}: asked {l.required}, available {l.available}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
         </section>
 
         <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">

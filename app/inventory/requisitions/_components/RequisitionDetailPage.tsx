@@ -15,6 +15,7 @@ import {
   UserIcon,
   TagIcon,
   WarningCircleIcon,
+  TrashIcon,
   TruckIcon,
 } from '@phosphor-icons/react';
 import {
@@ -29,6 +30,7 @@ import {
 import {
   useRequisition,
   useSubmitRequisition,
+  useDeleteRequisition,
   useApproveRequisition,
   useRejectRequisition,
 } from '@/lib/api/hooks/inventory/useRequisitions';
@@ -188,6 +190,8 @@ function ActionBar({
   onAction: (m: ModalKind) => void;
 }) {
   const submit = useSubmitRequisition();
+  const remove = useDeleteRequisition();
+  const router = useRouter();
   const { can } = useStaffAuth();
 
   const s = req.status;
@@ -197,6 +201,18 @@ function ActionBar({
 
   const handleSubmit = () => {
     submit.mutateAsync(req.id).catch((e) => toast.error(getErrorMessage(e)));
+  };
+
+  // Drafts only — the server refuses anything that has become a record, and
+  // refuses a draft the caller did not start.
+  const handleDelete = () => {
+    remove
+      .mutateAsync(req.id)
+      .then(() => {
+        toast.success(`${req.reference} deleted.`);
+        router.push('/inventory/requisitions');
+      })
+      .catch((e) => toast.error(getErrorMessage(e)));
   };
 
   return (
@@ -213,6 +229,16 @@ function ActionBar({
       {canSubmit && (
         <ActionButton tone="primary" onClick={handleSubmit} loading={submit.isPending} icon={<PaperPlaneTiltIcon size={14} weight="bold" />}>
           Submit
+        </ActionButton>
+      )}
+      {canEdit && (
+        <ActionButton
+          tone="danger"
+          onClick={handleDelete}
+          loading={remove.isPending}
+          icon={<TrashIcon size={14} weight="bold" />}
+        >
+          Delete draft
         </ActionButton>
       )}
       {canDecide && (
