@@ -21,3 +21,4 @@ export { TransferStatusBadge } from './TransferStatusBadge';
 export { RequisitionStatusBadge } from './RequisitionStatusBadge';
 export { DailyClosingStatusBadge } from './DailyClosingStatusBadge';
 export { ReconciliationStatusBadge } from './ReconciliationStatusBadge';
+export { WastageStatusBadge } from './WastageStatusBadge';

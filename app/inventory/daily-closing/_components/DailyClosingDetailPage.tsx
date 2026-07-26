@@ -6,6 +6,8 @@ import {
   ArrowLeftIcon,
   MapPinIcon,
   CalendarBlankIcon,
+  ClipboardTextIcon,
+  EyeSlashIcon,
   UserIcon,
   WarningCircleIcon,
   CheckCircleIcon,
@@ -14,14 +16,20 @@ import {
 import {
   DailyClosingStatusBadge,
   PrimaryButton,
+  Select,
   TextInput,
 } from '../../_components';
 import {
   useDailyClosing,
   useSaveDailyClosing,
 } from '@/lib/api/hooks/inventory/useDailyClosings';
+import { useWastageReasons } from '@/lib/api/hooks/inventory/useWastages';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import type { InventoryDailyClosing, InventoryDailyClosingLine } from '@/types/inventory';
+import type {
+  InventoryDailyClosingLine,
+  SaveDailyClosingPayload,
+  WastageReasonOption,
+} from '@/types/inventory';
 import { formatBusinessDate, formatDateTime, formatVariance } from '../utils';
 import { getErrorMessage } from '@/lib/utils/error-handler';
 import { toast } from '@/lib/utils/toast';
@@ -30,18 +38,23 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
   const { data: closing, isLoading, error } = useDailyClosing(id);
   const { can } = useStaffAuth();
   const save = useSaveDailyClosing(id);
+  const { data: reasonCatalog } = useWastageReasons();
 
   const [counts, setCounts] = useState<Record<number, string>>({});
+  const [reasons, setReasons] = useState<Record<number, { reason: string; note: string }>>({});
   const [hydrated, setHydrated] = useState(false);
 
   // Hydrate inputs from any previously-saved counts once.
   useEffect(() => {
     if (!closing || hydrated) return;
-    const initial: Record<number, string> = {};
+    const initialCounts: Record<number, string> = {};
+    const initialReasons: Record<number, { reason: string; note: string }> = {};
     for (const line of closing.lines) {
-      if (line.counted_qty !== null) initial[line.id] = String(line.counted_qty);
+      if (line.counted_qty !== null) initialCounts[line.id] = String(line.counted_qty);
+      if (line.reason) initialReasons[line.id] = { reason: line.reason, note: line.reason_note ?? '' };
     }
-    setCounts(initial);
+    setCounts(initialCounts);
+    setReasons(initialReasons);
     setHydrated(true);
   }, [closing, hydrated]);
 
@@ -52,9 +65,14 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
       closing
         ? closing.lines
             .filter((l) => counts[l.id] !== undefined && counts[l.id] !== '')
-            .map((l) => ({ line_id: l.id, counted_qty: Number(counts[l.id]) }))
+            .map((l) => ({
+              line_id: l.id,
+              counted_qty: Number(counts[l.id]),
+              reason: (reasons[l.id]?.reason || null) as SaveDailyClosingPayload['lines'][number]['reason'],
+              reason_note: reasons[l.id]?.note?.trim() || null,
+            }))
         : [],
-    [closing, counts],
+    [closing, counts, reasons],
   );
 
   const allCounted = !!closing && enteredLines.length === closing.lines.length;
@@ -65,8 +83,11 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
   const setCount = (lineId: number, value: string) =>
     setCounts((prev) => ({ ...prev, [lineId]: value }));
 
-  const matchAllToExpected = () =>
-    setCounts(Object.fromEntries(closing.lines.map((l) => [l.id, String(l.expected_qty)])));
+  const setReason = (lineId: number, patch: Partial<{ reason: string; note: string }>) =>
+    setReasons((prev) => {
+      const current = prev[lineId] ?? { reason: '', note: '' };
+      return { ...prev, [lineId]: { ...current, ...patch } };
+    });
 
   const persist = async (complete: boolean) => {
     if (enteredLines.some((l) => Number.isNaN(l.counted_qty) || l.counted_qty < 0)) {
@@ -77,8 +98,14 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
       toast.error('Count every item before completing, or use "Save progress".');
       return;
     }
+    const missingNote = enteredLines.find((l) => l.reason === 'other' && !l.reason_note);
+    if (missingNote) {
+      toast.error('Choosing “Other” means saying what happened — add a note.');
+      return;
+    }
     try {
       await save.mutateAsync({ lines: enteredLines, complete });
+      if (complete) toast.success('Day closed. The books now read exactly what you counted.');
     } catch (e) {
       toast.error(getErrorMessage(e));
     }
@@ -110,14 +137,10 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
 
         {editable && (
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={matchAllToExpected}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold font-body min-h-11 bg-neutral-light text-text-dark hover:bg-neutral-light/70 border border-[#f0e8d8] cursor-pointer"
-            >
-              <ListChecksIcon size={14} weight="bold" />
-              Match all to expected
-            </button>
+            {/* "Match all to expected" used to live here. It was one click to a
+                perfect count, which is the exact opposite of what a stock count
+                is for — and it needed the expected figures on screen to work.
+                Both are gone; the count is blind now. */}
             <button
               type="button"
               onClick={() => persist(false)}
@@ -140,11 +163,46 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
         )}
       </div>
 
+      {/* Blind-count notice. The counter needs to know the missing "Expected"
+          column is deliberate, or they will report it as a bug. */}
+      {closing.blind && (
+        <div className="flex items-start gap-2.5 bg-sky-50 border border-sky-200 rounded-2xl px-4 py-3 mb-5">
+          <EyeSlashIcon size={18} weight="fill" className="text-sky-600 shrink-0 mt-0.5" />
+          <p className="text-sky-800 text-sm font-body">
+            <span className="font-semibold">Count what is actually there.</span> The expected
+            figures are hidden until you finish, so what you write down is what is on the shelf.
+            Completing the count sets the books to your numbers — tomorrow opens exactly where
+            tonight closes.
+          </p>
+        </div>
+      )}
+
+      {!closing.blind && closing.wastage && (
+        <div className="flex items-start gap-2.5 bg-neutral-light border border-[#f0e8d8] rounded-2xl px-4 py-3 mb-5">
+          <ClipboardTextIcon size={18} weight="bold" className="text-neutral-gray shrink-0 mt-0.5" />
+          <p className="text-neutral-gray text-sm font-body">
+            The explained shortfalls were filed as{' '}
+            <Link
+              href={`/inventory/wastage/${closing.wastage.id}`}
+              className="font-semibold text-primary hover:text-primary/80"
+            >
+              {closing.wastage.reference}
+            </Link>
+            . It records why — the stock itself was already corrected by this count.
+          </p>
+        </div>
+      )}
+
       {/* Meta */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <MetaCard icon={<MapPinIcon size={16} />} label="Location" value={closing.location?.name ?? '—'} />
         <MetaCard icon={<CalendarBlankIcon size={16} />} label="Business date" value={formatBusinessDate(closing.business_date)} />
-        <MetaCard icon={<ListChecksIcon size={16} />} label="Counted" value={`${closing.counted_count} / ${closing.line_count}`} hint={`${closing.discrepancy_count} discrepancies`} />
+        <MetaCard
+          icon={<ListChecksIcon size={16} />}
+          label="Counted"
+          value={`${closing.counted_count} / ${closing.line_count}`}
+          hint={closing.blind ? 'Variances shown once complete' : `${closing.discrepancy_count} discrepancies`}
+        />
         <MetaCard
           icon={<UserIcon size={16} />}
           label={closing.completed_by ? 'Completed by' : 'Opened by'}
@@ -159,7 +217,7 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
           <h2 className="text-sm font-semibold font-body text-text-dark">
             Items <span className="text-neutral-gray font-normal">({closing.lines.length})</span>
           </h2>
-          {closing.net_variance !== 0 && (
+          {!closing.blind && closing.net_variance !== 0 && (
             <p className="text-xs text-neutral-gray">
               Net variance ·{' '}
               <span className={`font-semibold tabular-nums ${closing.net_variance < 0 ? 'text-rose-700' : 'text-amber-700'}`}>
@@ -178,9 +236,13 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
         ) : (
           <CountTable
             lines={closing.lines}
+            blind={closing.blind}
             editable={editable}
             counts={counts}
+            reasons={reasons}
+            reasonOptions={reasonCatalog?.reasons ?? []}
             onChange={setCount}
+            onReasonChange={setReason}
           />
         )}
       </div>
@@ -192,14 +254,22 @@ export function DailyClosingDetailPage({ id }: { id: number }) {
 
 function CountTable({
   lines,
+  blind,
   editable,
   counts,
+  reasons,
+  reasonOptions,
   onChange,
+  onReasonChange,
 }: {
   lines: InventoryDailyClosingLine[];
+  blind: boolean;
   editable: boolean;
   counts: Record<number, string>;
+  reasons: Record<number, { reason: string; note: string }>;
+  reasonOptions: WastageReasonOption[];
   onChange: (lineId: number, value: string) => void;
+  onReasonChange: (lineId: number, patch: Partial<{ reason: string; note: string }>) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -207,30 +277,32 @@ function CountTable({
         <thead>
           <tr className="text-left bg-neutral-light/60 text-[11px] font-semibold uppercase tracking-wider text-neutral-gray">
             <th className="px-5 py-2.5">Item</th>
-            <th className="px-5 py-2.5 text-right">Expected</th>
+            {/* No "Expected" column while counting — see the blind-count notice. */}
+            {!blind && <th className="px-5 py-2.5 text-right">Expected</th>}
             <th className="px-5 py-2.5 text-right w-40">Counted</th>
-            <th className="px-5 py-2.5 text-right">Variance</th>
+            {!blind && <th className="px-5 py-2.5 text-right">Variance</th>}
+            <th className="px-5 py-2.5">{blind ? 'If something went wrong' : 'Reason'}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#f0e8d8]">
           {lines.map((line) => {
             const unit = line.item?.unit ?? null;
-            // Live variance in edit mode, persisted variance otherwise.
-            const liveInput = counts[line.id];
-            const counted =
-              editable && liveInput !== undefined && liveInput !== ''
-                ? Number(liveInput)
-                : line.counted_qty;
-            const variance = counted !== null && counted !== undefined && !Number.isNaN(counted)
-              ? Math.round((counted - line.expected_qty) * 10000) / 10000
-              : null;
+            const entry = reasons[line.id];
+            const needsNote = entry?.reason === 'other';
+            // Variance is only meaningful once the expected figure is revealed.
+            const variance = blind ? null : line.variance;
+
             return (
-              <tr key={line.id} className="hover:bg-primary/5">
+              <tr key={line.id} className="hover:bg-primary/5 align-top">
                 <td className="px-5 py-3 text-text-dark">{line.item?.name ?? `#${line.item_id}`}</td>
-                <td className="px-5 py-3 text-right tabular-nums text-neutral-gray">
-                  {line.expected_qty}
-                  {unit ? ` ${unit}` : ''}
-                </td>
+
+                {!blind && (
+                  <td className="px-5 py-3 text-right tabular-nums text-neutral-gray">
+                    {line.expected_qty ?? '—'}
+                    {unit ? ` ${unit}` : ''}
+                  </td>
+                )}
+
                 <td className="px-5 py-3 text-right">
                   {editable ? (
                     <TextInput
@@ -239,7 +311,7 @@ function CountTable({
                       min="0"
                       value={counts[line.id] ?? ''}
                       onChange={(e) => onChange(line.id, e.target.value)}
-                      placeholder={String(line.expected_qty)}
+                      placeholder="0"
                       aria-label={`Counted quantity for ${line.item?.name ?? line.item_id}`}
                       className="text-right"
                     />
@@ -249,15 +321,59 @@ function CountTable({
                     </span>
                   )}
                 </td>
-                <td className="px-5 py-3 text-right tabular-nums">
-                  {variance === null ? (
-                    <span className="text-neutral-gray/50">—</span>
-                  ) : variance === 0 ? (
-                    <span className="text-emerald-700 font-semibold">0</span>
+
+                {!blind && (
+                  <td className="px-5 py-3 text-right tabular-nums">
+                    {variance === null ? (
+                      <span className="text-neutral-gray/50">—</span>
+                    ) : variance === 0 ? (
+                      <span className="text-emerald-700 font-semibold">0</span>
+                    ) : (
+                      <span className={variance < 0 ? 'text-rose-700 font-semibold' : 'text-amber-700 font-semibold'}>
+                        {formatVariance(variance)}
+                        {line.adjusted && (
+                          <span className="block text-[10px] font-normal text-neutral-gray">
+                            books corrected
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </td>
+                )}
+
+                <td className="px-5 py-3 min-w-56">
+                  {editable ? (
+                    <div className="space-y-1.5">
+                      <Select
+                        value={entry?.reason ?? ''}
+                        onChange={(e) => onReasonChange(line.id, { reason: e.target.value })}
+                        aria-label={`Reason for ${line.item?.name ?? line.item_id}`}
+                      >
+                        <option value="">No reason / nothing wrong</option>
+                        {reasonOptions.map((r) => (
+                          <option key={r.value} value={r.value}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </Select>
+                      {needsNote && (
+                        <TextInput
+                          value={entry?.note ?? ''}
+                          onChange={(e) => onReasonChange(line.id, { note: e.target.value })}
+                          placeholder="Say what happened"
+                          aria-label={`Note for ${line.item?.name ?? line.item_id}`}
+                        />
+                      )}
+                    </div>
+                  ) : line.reason ? (
+                    <div>
+                      <span className="text-text-dark">{line.reason_label}</span>
+                      {line.reason_note && (
+                        <p className="text-neutral-gray text-xs mt-0.5">{line.reason_note}</p>
+                      )}
+                    </div>
                   ) : (
-                    <span className={variance < 0 ? 'text-rose-700 font-semibold' : 'text-amber-700 font-semibold'}>
-                      {formatVariance(variance)}
-                    </span>
+                    <span className="text-neutral-gray/50">—</span>
                   )}
                 </td>
               </tr>

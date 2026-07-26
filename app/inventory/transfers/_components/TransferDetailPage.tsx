@@ -23,6 +23,7 @@ import {
   PrimaryButton,
   InventoryModal,
   FormField,
+  Select,
   Textarea,
   TextInput,
   Toggle,
@@ -36,8 +37,9 @@ import {
   useCancelTransfer,
   useResolveTransferDispute,
 } from '@/lib/api/hooks/inventory/useTransfers';
+import { useWastageReasons } from '@/lib/api/hooks/inventory/useWastages';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import type { InventoryTransfer, InventoryTransferLine } from '@/types/inventory';
+import type { InventoryTransfer, InventoryTransferLine, WastageReason } from '@/types/inventory';
 import { formatGHS, formatDateTime, transferValue } from '../utils';
 import { getErrorMessage } from '@/lib/utils/error-handler';
 import { toast } from '@/lib/utils/toast';
@@ -529,38 +531,95 @@ function ReceiveModal({
   onClose: () => void;
 }) {
   const receive = useReceiveTransfer();
+  const { data: reasonCatalog } = useWastageReasons();
   const [qty, setQty] = useState<Record<number, string>>({});
+  const [refused, setRefused] = useState<Record<number, { qty: string; reason: string; note: string }>>({});
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
 
   const getVal = (line: InventoryTransferLine) =>
     qty[line.id] ?? String(line.sent_qty ?? 0);
+  const getRefused = (line: InventoryTransferLine) => refused[line.id]?.qty ?? '';
 
-  const isShort = transfer.lines.some((line) => {
-    const received = Number(getVal(line));
-    return received < (line.sent_qty ?? 0);
-  });
+  // Three quantities per line, and the difference between them is who ends up
+  // carrying the loss:
+  //   accepted — now the destination's to answer for
+  //   refused  — going back on the lorry; still the sender's
+  //   missing  — nobody can find it. Only this is a dispute.
+  const totals = transfer.lines.reduce(
+    (acc, line) => {
+      const sent = line.sent_qty ?? 0;
+      const accepted = Number(getVal(line)) || 0;
+      const back = Number(getRefused(line)) || 0;
+      acc.refused += back;
+      acc.missing += Math.max(0, sent - accepted - back);
+      acc.accepted += accepted;
+      acc.sent += sent;
+      return acc;
+    },
+    { accepted: 0, refused: 0, missing: 0, sent: 0 },
+  );
+
+  const isShort = totals.missing > 0;
+  const hasRefusal = totals.refused > 0;
+  const allRefused = hasRefusal && totals.accepted === 0 && totals.missing === 0;
+
+  const setRefusal = (lineId: number, patch: Partial<{ qty: string; reason: string; note: string }>) =>
+    setRefused((prev) => {
+      const current = prev[lineId] ?? { qty: '', reason: '', note: '' };
+      return { ...prev, [lineId]: { ...current, ...patch } };
+    });
 
   const handleReceive = async () => {
     setErr(null);
-    const lines = transfer.lines.map((line) => ({
-      line_id: line.id,
-      received_qty: Number(getVal(line)),
-    }));
-    if (lines.some((l) => l.received_qty < 0 || Number.isNaN(l.received_qty))) {
-      setErr('Received quantities must be zero or more.');
-      return;
-    }
+
     for (const line of transfer.lines) {
-      if (Number(getVal(line)) > (line.sent_qty ?? 0)) {
-        setErr('Received quantity cannot exceed what was sent.');
+      const sent = line.sent_qty ?? 0;
+      const accepted = Number(getVal(line));
+      const back = Number(getRefused(line)) || 0;
+
+      if (Number.isNaN(accepted) || accepted < 0 || back < 0) {
+        setErr('Quantities must be zero or more.');
+        return;
+      }
+      if (accepted + back > sent) {
+        setErr(
+          `More ${line.item?.name ?? 'stock'} accounted for than was sent: ${sent} sent, ${accepted} accepted plus ${back} refused.`,
+        );
+        return;
+      }
+      if (back > 0 && !refused[line.id]?.reason) {
+        setErr(`Say what is wrong with the ${line.item?.name ?? 'stock'} you are sending back.`);
+        return;
+      }
+      if (refused[line.id]?.reason === 'other' && !refused[line.id]?.note?.trim()) {
+        setErr('Choosing “Other” means saying what happened — add a note.');
         return;
       }
     }
+
+    const lines = transfer.lines.map((line) => {
+      const back = Number(getRefused(line)) || 0;
+      return {
+        line_id: line.id,
+        received_qty: Number(getVal(line)),
+        ...(back > 0
+          ? {
+              refused_qty: back,
+              refuse_reason: refused[line.id]?.reason as WastageReason,
+              refuse_note: refused[line.id]?.note?.trim() || undefined,
+            }
+          : {}),
+      };
+    });
+
     try {
       await receive.mutateAsync({
         id: transfer.id,
-        payload: { lines, dispute_reason: isShort ? reason.trim() || undefined : undefined },
+        payload: {
+          lines,
+          dispute_reason: isShort || allRefused ? reason.trim() || undefined : undefined,
+        },
       });
       onClose();
     } catch (e) {
@@ -574,7 +633,8 @@ function ReceiveModal({
         <p className="text-sm text-neutral-gray font-body">
           Confirm what actually arrived at{' '}
           <span className="font-semibold text-text-dark">{transfer.destination_location?.name}</span>.
-          Receiving less than was sent raises a dispute and a corrective transfer can be issued.
+          Anything you accept becomes yours to answer for; anything you refuse goes straight back to
+          the sender. Whatever is left over is missing, and that raises a dispute.
         </p>
 
         <div className="border border-[#f0e8d8] rounded-xl overflow-hidden">
@@ -583,16 +643,52 @@ function ReceiveModal({
               <tr className="text-left bg-neutral-light/60 text-[11px] font-semibold uppercase tracking-wider text-neutral-gray">
                 <th className="px-4 py-2.5">Item</th>
                 <th className="px-4 py-2.5 text-right">Sent</th>
-                <th className="px-4 py-2.5 text-right w-36">Received</th>
+                <th className="px-4 py-2.5 text-right w-32">Accept</th>
+                <th className="px-4 py-2.5 text-right w-32">Send back</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#f0e8d8]">
               {transfer.lines.map((line) => {
-                const received = Number(getVal(line));
-                const short = received < (line.sent_qty ?? 0);
+                const sent = line.sent_qty ?? 0;
+                const accepted = Number(getVal(line)) || 0;
+                const back = Number(getRefused(line)) || 0;
+                const missing = Math.max(0, sent - accepted - back);
+                const needsNote = refused[line.id]?.reason === 'other';
+
                 return (
-                  <tr key={line.id}>
-                    <td className="px-4 py-3 text-text-dark">{line.item?.name ?? `#${line.item_id}`}</td>
+                  <tr key={line.id} className="align-top">
+                    <td className="px-4 py-3 text-text-dark">
+                      {line.item?.name ?? `#${line.item_id}`}
+                      {missing > 0 && (
+                        <p className="text-amber-700 text-[11px] font-semibold mt-0.5">
+                          {missing} unaccounted for
+                        </p>
+                      )}
+                      {back > 0 && (
+                        <div className="mt-2 space-y-1.5 max-w-64">
+                          <Select
+                            value={refused[line.id]?.reason ?? ''}
+                            onChange={(e) => setRefusal(line.id, { reason: e.target.value })}
+                            aria-label={`Reason for refusing ${line.item?.name ?? line.item_id}`}
+                          >
+                            <option value="">What is wrong with it?</option>
+                            {(reasonCatalog?.reasons ?? []).map((r) => (
+                              <option key={r.value} value={r.value}>
+                                {r.label}
+                              </option>
+                            ))}
+                          </Select>
+                          {needsNote && (
+                            <TextInput
+                              value={refused[line.id]?.note ?? ''}
+                              onChange={(e) => setRefusal(line.id, { note: e.target.value })}
+                              placeholder="Say what happened"
+                              aria-label={`Note for refusing ${line.item?.name ?? line.item_id}`}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums text-neutral-gray">
                       {qtyLabel(line.sent_qty, line.item?.unit ?? null)}
                     </td>
@@ -601,11 +697,24 @@ function ReceiveModal({
                         type="number"
                         step="0.01"
                         min="0"
-                        max={line.sent_qty ?? undefined}
+                        max={sent}
                         value={getVal(line)}
                         onChange={(e) => setQty((p) => ({ ...p, [line.id]: e.target.value }))}
-                        className={short ? 'border-amber-400 bg-amber-50/50' : ''}
-                        aria-label={`Quantity received for ${line.item?.name ?? line.item_id}`}
+                        className={missing > 0 ? 'border-amber-400 bg-amber-50/50' : ''}
+                        aria-label={`Quantity accepted for ${line.item?.name ?? line.item_id}`}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <TextInput
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={sent}
+                        value={getRefused(line)}
+                        onChange={(e) => setRefusal(line.id, { qty: e.target.value })}
+                        placeholder="0"
+                        className={back > 0 ? 'border-rose-300 bg-rose-50/50' : ''}
+                        aria-label={`Quantity refused for ${line.item?.name ?? line.item_id}`}
                       />
                     </td>
                   </tr>
@@ -615,18 +724,31 @@ function ReceiveModal({
           </table>
         </div>
 
+        {hasRefusal && (
+          <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-100 rounded-xl">
+            <ArrowUUpLeftIcon size={15} weight="bold" className="text-rose-600 mt-0.5 shrink-0" />
+            <p className="text-rose-800 text-sm font-body">
+              <span className="font-semibold">
+                {totals.refused} going back to {transfer.source_location?.name ?? 'the sender'}.
+              </span>{' '}
+              It never enters your stock, and a wastage claim is raised at their end for them to
+              decide on — refusing at the door keeps the loss theirs.
+            </p>
+          </div>
+        )}
+
         {isShort && (
           <div className="flex flex-col gap-2 p-3 bg-amber-50 border border-amber-100 rounded-xl">
             <p className="text-amber-900 text-sm font-semibold font-body flex items-center gap-1.5">
               <WarningCircleIcon size={15} weight="fill" />
-              Short receipt — this raises a dispute
+              {totals.missing} unaccounted for — this raises a dispute
             </p>
-            <FormField label="Dispute reason" htmlFor="tr-dispute-reason">
+            <FormField label="What is missing, and why?" htmlFor="tr-dispute-reason">
               <Textarea
                 id="tr-dispute-reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="e.g. 2 crates missing on arrival, spoilage in transit"
+                placeholder="e.g. 2 crates never came off the van"
                 rows={2}
               />
             </FormField>
@@ -641,7 +763,13 @@ function ReceiveModal({
         )}
 
         <PrimaryButton type="button" onClick={handleReceive} loading={receive.isPending}>
-          {isShort ? 'Receive & raise dispute' : 'Confirm receipt'}
+          {allRefused
+            ? 'Refuse whole delivery'
+            : isShort
+              ? 'Receive & raise dispute'
+              : hasRefusal
+                ? 'Receive & send the rest back'
+                : 'Confirm receipt'}
         </PrimaryButton>
       </div>
     </InventoryModal>

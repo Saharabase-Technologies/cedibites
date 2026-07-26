@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import ComingSoon from '../_components/ComingSoon';
+import { WastagePage } from './_components/WastagePage';
 
 export const metadata: Metadata = { title: 'Wastage' };
 
-export default function WastagePage() {
-  return <ComingSoon title="Wastage" description="Wastage recording and approval coming soon." />;
+export default function Page() {
+  return <WastagePage />;
 }

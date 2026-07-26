@@ -22,6 +22,8 @@ export type MovementType =
   | 'transfer_out'
   | 'sales_deduction'
   | 'wastage'
+  /** Posted when a daily count is completed — brings the ledger to the count. */
+  | 'count_adjustment'
   | 'cycle_adjustment'
   | 'opening_balance'
   | 'return';
@@ -32,6 +34,8 @@ export type TransferStatus =
   | 'sent'
   | 'received'
   | 'disputed'
+  /** The whole consignment refused at the door; stock went back to the source. */
+  | 'rejected'
   | 'closed'
   | 'closed_disputed'
   | 'cancelled';
@@ -43,20 +47,9 @@ export type RequisitionStatus =
   | 'rejected';
 export type RequisitionPurpose = 'opening' | 'supplementary';
 export type RequisitionSourceType = 'warehouse' | 'branch';
-export type WastageStatus =
-  | 'auto_accepted'
-  | 'pending_approval'
-  | 'approved'
-  | 'rejected'
-  | 'awaiting_physical_return';
-export type WastageReason =
-  | 'spoiled'
-  | 'expired'
-  | 'damaged'
-  | 'over_production'
-  | 'spoiled_from_warehouse'
-  | 'other';
 export type RecipeStatus = 'draft' | 'observation' | 'locked';
+// WastageStatus / WastageReason / WastageOrigin live with the rest of the
+// wastage contract at the foot of this file.
 
 // ─── Catalog ─────────────────────────────────────────────────────────────────
 
@@ -230,8 +223,18 @@ export interface InventoryTransferLine {
   requested_qty: number;
   /** Populated once the transfer is sent. */
   sent_qty: number | null;
-  /** Populated once the transfer is received. */
+  /** Accepted onto the destination's shelf. Populated once received. */
   received_qty: number | null;
+  /**
+   * Arrived and was turned away — returned to the sender on the spot.
+   * Deliberately distinct from a shortfall: refused goods are accounted for and
+   * back with the sender, whereas anything missing is what nobody can find.
+   * Only the missing part is a dispute.
+   */
+  refused_qty: number | null;
+  refuse_reason: WastageReason | null;
+  refuse_reason_label: string | null;
+  refuse_note: string | null;
   /** Weighted per-unit cost captured at send time (FEFO-allocated). */
   unit_cost_at_time: number | null;
 }
@@ -282,8 +285,14 @@ export interface InventoryTransfer {
   /** Id as well as the name; gates the receive action. */
   sent_by_id: number | null;
   received_by: string | null;
+  rejected_by: string | null;
+  reject_reason: string | null;
+  reject_reason_code: WastageReason | null;
   cancelled_by: string | null;
   cancel_reason: string | null;
+  /** Set when this transfer is the return leg of a wastage claim. */
+  wastage: { id: number; reference: string; status: WastageStatus } | null;
+  rejected_at: string | null;
   submitted_at: string | null;
   approved_at: string | null;
   sent_at: string | null;
@@ -320,8 +329,21 @@ export interface SendTransferPayload {
 }
 
 export interface ReceiveTransferPayload {
-  /** Optional per-line received-qty; defaults to the sent qty. Short → dispute. */
-  lines?: { line_id: number; received_qty: number }[];
+  /**
+   * Optional per line; defaults to accepting everything sent.
+   *
+   * `received_qty` is accepted onto the destination's shelf. `refused_qty`
+   * arrived and is going straight back to the sender — it needs a reason, and
+   * raises a wastage claim at their end. Whatever is left over
+   * (sent − received − refused) never turned up, and only that is a dispute.
+   */
+  lines?: {
+    line_id: number;
+    received_qty: number;
+    refused_qty?: number;
+    refuse_reason?: WastageReason;
+    refuse_note?: string;
+  }[];
   dispute_reason?: string;
 }
 
@@ -443,35 +465,9 @@ export interface InventoryRequisitionFilters {
   per_page?: number;
 }
 
-// ─── Wastage ──────────────────────────────────────────────────────────────────
-
-export interface InventoryWastageLine {
-  id: number;
-  item_id: number;
-  item: Pick<InventoryItem, 'id' | 'sku' | 'name' | 'base_unit'>;
-  quantity: number;
-  unit: Pick<InventoryUnit, 'id' | 'symbol'>;
-  unit_cost_at_time: number;
-  line_total: number;
-}
-
-export interface InventoryWastageEvent {
-  id: number;
-  reference: string;
-  location_id: number;
-  location: Pick<InventoryLocation, 'id' | 'name' | 'type'>;
-  reason: WastageReason;
-  status: WastageStatus;
-  notes: string | null;
-  reported_by_id: number;
-  reported_by: { id: number; name: string };
-  approved_by_id: number | null;
-  approved_by: { id: number; name: string } | null;
-  lines: InventoryWastageLine[];
-  total_value: number;
-  created_at: string;
-  updated_at: string;
-}
+// Wastage lived here as a speculative scaffold shape (InventoryWastageEvent)
+// that never matched the backend and was referenced by nothing. The real
+// contract is at the foot of this file, next to the reason vocabulary.
 
 // ─── Daily closing ────────────────────────────────────────────────────────────
 //
@@ -487,10 +483,21 @@ export interface InventoryDailyClosingLine {
   id: number;
   item_id: number;
   item: { id: number; name: string; unit: string | null } | null;
-  expected_qty: number;
+  /**
+   * NULL while the count is open — a blind count. Showing the ledger's
+   * expectation next to the input turns counting into copying, so the API
+   * withholds it (and the variance, which gives it away) until completion.
+   */
+  expected_qty: number | null;
   counted_qty: number | null;
-  /** counted − expected; null until counted. */
+  /** counted − expected; null until counted AND the closing is completed. */
   variance: number | null;
+  /** Why the shortfall happened. Optional — a day must always be able to close. */
+  reason: WastageReason | null;
+  reason_label: string | null;
+  reason_note: string | null;
+  /** A count_adjustment movement was posted for this line at completion. */
+  adjusted: boolean;
 }
 
 export interface InventoryDailyClosing {
@@ -500,11 +507,16 @@ export interface InventoryDailyClosing {
   location: { id: number; name: string; type: LocationType } | null;
   notes: string | null;
   lines: InventoryDailyClosingLine[];
+  /** True while expected quantities and variances are withheld. */
+  blind: boolean;
   /** Summary (present whenever lines are loaded — always, from index/show). */
   line_count: number;
   counted_count: number;
+  /** Zero while blind — the counts are not revealed mid-count. */
   discrepancy_count: number;
   net_variance: number;
+  /** The classification record raised for this count's explained shortfalls. */
+  wastage: { id: number; reference: string; total_value: number } | null;
   opened_by: string | null;
   completed_by: string | null;
   completed_at: string | null;
@@ -517,7 +529,12 @@ export interface OpenDailyClosingPayload {
 }
 
 export interface SaveDailyClosingPayload {
-  lines: { line_id: number; counted_qty: number }[];
+  lines: {
+    line_id: number;
+    counted_qty: number;
+    reason?: WastageReason | null;
+    reason_note?: string | null;
+  }[];
   complete?: boolean;
 }
 
@@ -1032,4 +1049,174 @@ export interface PurchaseFilters {
   date_to?: string;
   page?: number;
   per_page?: number;
+}
+
+// ─── Wastage ──────────────────────────────────────────────────────────────────
+//
+// The named half of every loss. Stock that leaves without being sold goes out
+// one of two doors: this one, where somebody says what happened, or the variance
+// door, where nobody knows.
+//
+// TWO RULES the UI has to respect, both mirrored from the backend:
+//
+//  1. ONE MOVEMENT PER LOSS. A wastage either moves the stock (`posts_stock`) or
+//     labels a loss the ledger already carried — a closing variance, a stock-take
+//     variance, a transfer shortfall. Never both, or the same spoiled chicken is
+//     written off twice. Screens must say which they are looking at.
+//
+//  2. APPROVAL NEVER GATES THE LEDGER. Signing off decides classification and who
+//     carries the cost, not whether stock moves. That is what lets a branch close
+//     its day neutral tonight without waiting on the warehouse manager.
+//
+// Shape mirrors `App\Http\Resources\Inventory\WastageResource`.
+
+export type WastageReason =
+  | 'spoiled'
+  | 'expired'
+  | 'burnt'
+  | 'damaged_in_transit'
+  | 'damaged_in_storage'
+  | 'spillage'
+  | 'breakage'
+  | 'contamination'
+  | 'pest_damage'
+  | 'preparation_loss'
+  | 'customer_return'
+  | 'theft'
+  | 'count_error'
+  /** Stamped by the system when a disputed shortfall is written off. */
+  | 'transfer_shortfall'
+  /** Requires a note — that is the whole point of it. */
+  | 'other';
+
+export type WastageStatus =
+  /** Over threshold at a branch: the goods must physically go back first. */
+  | 'pending_return'
+  | 'pending_approval'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled';
+
+export type WastageOrigin =
+  | 'manual'
+  | 'delivery_rejection'
+  | 'daily_closing'
+  | 'reconciliation'
+  | 'transfer_shortfall';
+
+export interface WastageReasonOption {
+  value: WastageReason;
+  label: string;
+  requires_note: boolean;
+}
+
+export interface WastageReasonCatalog {
+  /** GHS. Measured on the value of the goods declared, per declaration. */
+  threshold: number;
+  reasons: WastageReasonOption[];
+}
+
+export interface InventoryWastageLine {
+  id: number;
+  item_id: number;
+  item: { id: number; name: string; unit: string | null } | null;
+  quantity: number;
+  unit_cost: number | null;
+  line_value: number;
+  reason: WastageReason;
+  reason_label: string;
+  reason_note: string | null;
+  /** A `wastage` movement was written for this line. False on classifications. */
+  posted: boolean;
+}
+
+/**
+ * Photo evidence — "show me the food that has gone bad".
+ *
+ * `stage` is what makes it evidence rather than decoration and is derived
+ * server-side, never sent by the client:
+ *   declared   — the claimant's photos, taken when the loss was raised.
+ *   inspection — the approver's, taken with the returned goods in front of them.
+ *
+ * Both sides stay on the record permanently and both are visible to both ends.
+ */
+export interface InventoryWastagePhoto {
+  id: number;
+  stage: 'declared' | 'inspection';
+  url: string;
+  caption: string | null;
+  uploaded_by: string | null;
+  uploaded_by_id: number | null;
+  uploaded_at: string | null;
+}
+
+export interface InventoryWastage {
+  id: number;
+  reference: string; // WST-YYMMDD-NNN
+  status: WastageStatus;
+  status_label: string;
+  origin: WastageOrigin;
+  origin_label: string;
+  /** Whether approving this record deducts stock, or merely names a known loss. */
+  posts_stock: boolean;
+  /** Where the loss originated and who answers for it. */
+  location: { id: number; name: string; type: LocationType } | null;
+  /** Where the write-off posts — the warehouse, once goods have been returned. */
+  disposal_location: { id: number; name: string; type: LocationType } | null;
+  total_value: number;
+  threshold_amount: number | null;
+  over_threshold: boolean;
+  requires_approval: boolean;
+  requires_return: boolean;
+  /** The branch → warehouse transfer carrying the goods back for inspection. */
+  return_transfer: { id: number; reference: string; status: TransferStatus } | null;
+  /** The document this was raised from (closing, transfer, cycle). */
+  source_type: string | null;
+  source_id: number | null;
+  notes: string | null;
+  lines: InventoryWastageLine[];
+  line_count: number;
+  photos: InventoryWastagePhoto[];
+  photo_count: number;
+  /** Evidence can only be added while the claim is live. */
+  accepts_evidence: boolean;
+  /**
+   * Above the threshold the approver cannot sign off on nothing. Surfaced so the
+   * UI can explain why approval is blocked rather than only failing on POST.
+   */
+  evidence_required: boolean;
+  recorded_by: string | null;
+  /** Id as well as the name — "did I record this?" gates the approve action. */
+  recorded_by_id: number | null;
+  recorded_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  rejected_by: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
+  created_at: string | null;
+}
+
+export interface RecordWastageLinePayload {
+  item_id: number;
+  quantity: number;
+  reason: WastageReason;
+  reason_note?: string | null;
+}
+
+export interface RecordWastagePayload {
+  location_id: number;
+  notes?: string | null;
+  lines: RecordWastageLinePayload[];
+}
+
+export interface WastageFilters {
+  status?: WastageStatus;
+  origin?: WastageOrigin;
+  location_id?: number;
+  date_from?: string;
+  date_to?: string;
+  search?: string;
 }

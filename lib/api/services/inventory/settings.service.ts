@@ -1,83 +1,51 @@
 /**
  * lib/api/services/inventory/settings.service.ts
  *
- * IMS settings and staff-role assignment service.
+ * IMS settings — currently the wastage threshold, and only that.
+ *
+ * Everyone reads it (the record form has to warn you before you cross it); only
+ * an admin holding `inventory.settings.manage` can move it. That permission is
+ * deliberately NOT `manage_settings`, which branch managers hold — the threshold
+ * decides when a branch manager's own losses stop being self-approvable, so
+ * letting them raise it would hand them the key to their own approval gate.
+ *
+ * Backed by the `system_settings` key/value store, the same one behind the
+ * service charge. There is no `inventory_settings` table and the threshold is
+ * not per-location; `location_id` comes back null and says so.
+ *
+ * This file used to call `/v1/inventory/settings` — an endpoint that did not
+ * exist, at a path that was double-prefixed anyway (the client's base URL
+ * already carries `/v1`). Every save failed silently and the figure on screen
+ * was fiction.
  */
 
 import apiClient from '../../client';
-import { MOCK_IMS_SETTINGS, MOCK_IMS_STAFF } from '../../mocks/inventory.mock';
-import type {
-  InventorySettings,
-  ImsStaffAssignment,
-  UpdateInventorySettingsPayload,
-  AssignImsRolePayload,
-} from '@/types/inventory';
+import type { InventorySettings, UpdateInventorySettingsPayload } from '@/types/inventory';
 
-const IS_MOCK = process.env.NEXT_PUBLIC_IMS_MOCK === 'true';
-
-function delay<T>(data: T, ms = 400): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(data), ms));
+/** Unwrap the API envelope ({ data: ... }), tolerating a raw body. */
+function extractData<T>(response: unknown): T {
+  const r = response as { data?: T };
+  return (r?.data ?? response) as T;
 }
-
-// Mutable in-memory state for mock mode
-let _mockSettings: InventorySettings = { ...MOCK_IMS_SETTINGS };
-let _mockStaff: ImsStaffAssignment[] = [...MOCK_IMS_STAFF];
-let _nextStaffId = _mockStaff.length + 1;
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export async function getInventorySettings(): Promise<InventorySettings> {
-  if (IS_MOCK) return delay({ ..._mockSettings });
-
-  const { data } = await apiClient.get<InventorySettings>('/v1/inventory/settings');
-  return data;
+  const response = await apiClient.get('/inventory/settings');
+  return extractData<InventorySettings>(response);
 }
 
 export async function updateInventorySettings(
   payload: UpdateInventorySettingsPayload,
 ): Promise<InventorySettings> {
-  if (IS_MOCK) {
-    _mockSettings = { ..._mockSettings, ...payload, updated_at: new Date().toISOString() };
-    return delay({ ..._mockSettings });
-  }
-
-  const { data } = await apiClient.put<InventorySettings>('/v1/inventory/settings', payload);
-  return data;
+  const response = await apiClient.put('/inventory/settings', payload);
+  return extractData<InventorySettings>(response);
 }
 
-// ─── IMS Staff ────────────────────────────────────────────────────────────────
-
-export async function getImsStaff(): Promise<ImsStaffAssignment[]> {
-  if (IS_MOCK) return delay([..._mockStaff]);
-
-  const { data } = await apiClient.get<ImsStaffAssignment[]>('/v1/inventory/staff');
-  return data;
-}
-
-export async function assignImsRole(payload: AssignImsRolePayload): Promise<ImsStaffAssignment> {
-  if (IS_MOCK) {
-    const newAssignment: ImsStaffAssignment = {
-      id: _nextStaffId++,
-      user_id: payload.user_id,
-      name: `User ${payload.user_id}`,
-      email: '',
-      phone: null,
-      ims_role: payload.role,
-      assigned_at: new Date().toISOString(),
-    };
-    _mockStaff = [..._mockStaff, newAssignment];
-    return delay({ ...newAssignment });
-  }
-
-  const { data } = await apiClient.post<ImsStaffAssignment>('/v1/inventory/staff', payload);
-  return data;
-}
-
-export async function removeImsRole(id: number): Promise<void> {
-  if (IS_MOCK) {
-    _mockStaff = _mockStaff.filter((s) => s.id !== id);
-    return delay(undefined as unknown as void);
-  }
-
-  await apiClient.delete(`/v1/inventory/staff/${id}`);
-}
+// The IMS staff-role functions that used to live here (getImsStaff /
+// assignImsRole / removeImsRole) are gone. They called `/inventory/staff`, an
+// endpoint that has never existed, so the settings page's staff table always
+// rendered empty — which reads as "nobody has access" rather than "this was
+// never built". IMS access is granted through the ordinary staff-role system in
+// the admin portal, which is where warehouse_manager and purchasing_clerk are
+// actually assigned.

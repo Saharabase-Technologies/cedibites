@@ -10,6 +10,8 @@ const STATUS_STYLES: Record<TransferStatus, { label: string } & StatusTone> = {
   sent: { label: 'In transit', ...TONE.moving },
   received: { label: 'Received', ...TONE.done },
   disputed: { label: 'Disputed', ...TONE.problem },
+  /** Refused at the door — never entered the destination's books. */
+  rejected: { label: 'Refused', ...TONE.problemSettled },
   closed: { label: 'Closed', ...TONE.settled },
   closed_disputed: { label: 'Closed (disputed)', ...TONE.problemSettled },
   cancelled: { label: 'Cancelled', ...TONE.problem },

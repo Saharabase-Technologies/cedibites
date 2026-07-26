@@ -1,16 +1,21 @@
 /**
  * lib/api/hooks/inventory/useInventorySettings.ts
+ *
+ * The wastage threshold, and only that. Read by anyone, written by an admin
+ * holding `inventory.settings.manage`.
+ *
+ * The IMS staff-role hooks that used to live here (useImsStaff /
+ * useAssignImsRole / useRemoveImsRole) are gone: they called `/inventory/staff`,
+ * which has never existed. IMS access is granted through the ordinary staff-role
+ * system in the admin portal.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getInventorySettings,
   updateInventorySettings,
-  getImsStaff,
-  assignImsRole,
-  removeImsRole,
 } from '../../services/inventory/settings.service';
-import type { UpdateInventorySettingsPayload, AssignImsRolePayload } from '@/types/inventory';
+import type { UpdateInventorySettingsPayload } from '@/types/inventory';
 
 export function useInventorySettings() {
   return useQuery({
@@ -30,30 +35,3 @@ export function useUpdateInventorySettings() {
   });
 }
 
-export function useImsStaff() {
-  return useQuery({
-    queryKey: ['inventory', 'ims-staff'],
-    queryFn: getImsStaff,
-    staleTime: 5 * 60_000,
-  });
-}
-
-export function useAssignImsRole() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (payload: AssignImsRolePayload) => assignImsRole(payload),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['inventory', 'ims-staff'] });
-    },
-  });
-}
-
-export function useRemoveImsRole() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => removeImsRole(id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['inventory', 'ims-staff'] });
-    },
-  });
-}

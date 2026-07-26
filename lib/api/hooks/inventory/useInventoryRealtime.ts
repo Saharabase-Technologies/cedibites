@@ -41,10 +41,13 @@ const STOCK_DERIVED: Key[] = [
 
 /** Broadcast name → every query prefix that change can invalidate. */
 const FANOUT: Record<string, Key[]> = {
-  // A transfer moves stock AND can complete the requisition that raised it.
+  // A transfer moves stock, can complete the requisition that raised it, and —
+  // when it is the return leg of a wastage claim, or carries goods refused at
+  // the door — advances a wastage too.
   'transfer.updated': [
     ['inventory', 'transfers'],
     ['inventory', 'requisitions'],
+    ['inventory', 'wastages'],
     ...STOCK_DERIVED,
   ],
   // Approving a requisition spawns a transfer.
@@ -63,6 +66,13 @@ const FANOUT: Record<string, Key[]> = {
     ['inventory', 'reconciliations'],
     ...STOCK_DERIVED,
   ],
+  // Approving a write-off deducts stock; declaring one over the threshold
+  // raises the return transfer that carries the goods back.
+  'wastage.updated': [
+    ['inventory', 'wastages'],
+    ['inventory', 'transfers'],
+    ...STOCK_DERIVED,
+  ],
   // The ledger itself — fired for every movement, whatever wrote it.
   'stock.updated': STOCK_DERIVED,
 };
@@ -73,6 +83,7 @@ const SUBSCRIPTIONS: Array<{ channel: string; events: string[] }> = [
   { channel: 'inventory.requisitions', events: ['requisition.updated'] },
   { channel: 'inventory.purchase-orders', events: ['purchase-order.updated'] },
   { channel: 'inventory.reconciliations', events: ['reconciliation.updated'] },
+  { channel: 'inventory.wastages', events: ['wastage.updated'] },
   { channel: 'inventory.stock', events: ['stock.updated'] },
 ];
 
