@@ -1163,7 +1163,16 @@ export interface InventoryWastageLine {
 export interface InventoryWastagePhoto {
   id: number;
   stage: 'declared' | 'inspection';
+  /**
+   * The ORIGINAL, exactly as the phone sent it. This is the evidence, and what
+   * "view full size" opens. Do not use it to draw a thumbnail - a claim's grid
+   * of six originals measured ~14 MB on production.
+   */
   url: string;
+  /** ~400px, for the grid. Falls back to `url` server-side. */
+  thumb_url: string;
+  /** ~1600px, for the lightbox. Falls back to `url` server-side. */
+  display_url: string;
   /**
    * A phone can send a clip as well as a still, so the gallery has to know
    * whether to render <img> or <video>. Derived server-side from the SNIFFED

@@ -232,30 +232,26 @@ function PhotoGroup({
                 className="block w-28 h-28 rounded-xl overflow-hidden border border-[#f0e8d8] bg-neutral-light cursor-zoom-in relative"
               >
                 {photo.kind === 'video' ? (
-                  <>
-                    {/* `preload="metadata"` fetches only the header, so a wall
-                        of clips does not pull tens of megabytes to draw a grid.
-                        `muted` + `playsInline` make Safari render a frame
-                        instead of a black rectangle. There is no poster image:
-                        generating one would need ffmpeg on the server. */}
-                    <video
-                      src={photo.url}
-                      className="w-full h-full object-cover"
-                      preload="metadata"
-                      muted
-                      playsInline
-                    />
-                    <span className="absolute inset-0 flex items-center justify-center bg-black/25 text-white">
-                      <PlayCircleIcon size={30} weight="fill" />
-                    </span>
-                  </>
+                  /* No <video> in the grid at all. `preload="metadata"` still
+                     fetches each clip's header, which on a claim holding several
+                     of them is real traffic spent to draw a static tile. The
+                     clip loads when the lightbox opens and not before. There is
+                     no poster frame - generating one would need ffmpeg. */
+                  <span className="flex h-full w-full items-center justify-center bg-brand-dark text-white/80">
+                    <PlayCircleIcon size={30} weight="fill" />
+                  </span>
                 ) : (
+                  /* The ~400px rendition, NOT the original. A grid of six phone
+                     photos was ~14 MB before this; it is about 250 KB now. */
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={photo.url}
+                    src={photo.thumb_url}
                     alt={photo.caption ?? `Evidence photo by ${photo.uploaded_by ?? 'staff'}`}
                     className="w-full h-full object-cover"
                     loading="lazy"
+                    decoding="async"
+                    width={112}
+                    height={112}
                   />
                 )}
               </button>
@@ -326,12 +322,28 @@ function Lightbox({ photo, onClose }: { photo: InventoryWastagePhoto; onClose: (
             </a>
           </>
         ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={photo.url}
-            alt={photo.caption ?? 'Evidence photo'}
-            className="w-full max-h-[75vh] object-contain rounded-xl"
-          />
+          <>
+            {/* The ~1600px rendition - plenty to read a label or see mould, at
+                a fraction of a 6 MB original. The original stays one click
+                away, because it is the evidence and somebody arguing over a
+                claim is entitled to all of it. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photo.display_url}
+              alt={photo.caption ?? 'Evidence photo'}
+              className="w-full max-h-[75vh] object-contain rounded-xl"
+            />
+            {photo.display_url !== photo.url && (
+              <a
+                href={photo.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-center text-white/70 text-xs font-body mt-2 underline"
+              >
+                View full size
+              </a>
+            )}
+          </>
         )}
         <figcaption className="text-white/80 text-sm font-body mt-3 text-center">
           {photo.caption && <span className="block text-white">{photo.caption}</span>}
