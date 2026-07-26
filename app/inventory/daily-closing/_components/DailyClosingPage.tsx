@@ -18,7 +18,7 @@ import {
 } from '@/lib/api/hooks/inventory/useDailyClosings';
 import { useInventoryLocations } from '@/lib/api/hooks/inventory/useInventoryLocations';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import type { InventoryDailyClosing } from '@/types/inventory';
+import type { DailyClosingCalendarDay, InventoryDailyClosing } from '@/types/inventory';
 import { formatBusinessDate, formatVariance, todayIso } from '../utils';
 import { getErrorMessage } from '@/lib/utils/error-handler';
 import { toast } from '@/lib/utils/toast';
@@ -41,15 +41,27 @@ export function DailyClosingPage() {
     [locations, operating],
   );
 
-  // Always today. See DailyClosingService::open - a count snapshots expected
-  // quantities from the ledger as it stands NOW, so a back-dated count reads
-  // every movement since as a discrepancy and then posts an adjustment to
-  // match. There is nothing for the user to choose here.
-  const date = todayIso();
-
   // Default to the first location once loaded.
   const effectiveLocationId = locationId || (countable[0] ? String(countable[0].id) : '');
   const locId = Number(effectiveLocationId) || 0;
+
+  // The 14-day strip, and with it the server's view of which day the business
+  // is currently on.
+  const { from, to } = useCoverageWindow();
+  const { data: calendar } = useClosingCalendar(locId, from, to);
+
+  /*
+   * Which day a count would be for. Comes from the SERVER.
+   *
+   * Before 03:00 the business day is still yesterday's, so a branch that trades
+   * late can count up after midnight and still be closing the day it worked.
+   * Computing that here would use `new Date()` - the device's clock and
+   * timezone - and a laptop left on the wrong zone, or simply used at 02:50,
+   * would show a different day from the one the server is about to open.
+   *
+   * `todayIso()` is only the placeholder until the first response lands.
+   */
+  const date = calendar?.business_date ?? todayIso();
 
   const { data: closings = [], isLoading } = useDailyClosings({
     location_id: locId || undefined,
@@ -175,14 +187,21 @@ export function DailyClosingPage() {
           )}
         </div>
         <p className="text-neutral-gray text-xs font-body mt-2">
-          Opening a count snapshots the expected quantities from the ledger, so it can only be done
-          for today - a back-dated count would read everything that has moved since as a
-          discrepancy. Re-opening today returns the same count.
+          A count is measured against the ledger as it stands, so it can only be opened for the
+          current business day - a back-dated one would read everything that has moved since as a
+          discrepancy. Counting after midnight is fine: the day does not roll over until 3am, so a
+          late finish still closes the day you worked. Re-opening returns the same count.
         </p>
       </div>
 
       {/* Coverage strip */}
-      {locId > 0 && <CoverageStrip locationId={locId} onPick={(id) => router.push(`/inventory/daily-closing/${id}`)} />}
+      {locId > 0 && (
+        <CoverageStrip
+          days={calendar?.days ?? []}
+          businessDate={date}
+          onPick={(id) => router.push(`/inventory/daily-closing/${id}`)}
+        />
+      )}
 
       {/* Recent closings */}
       {!isLoading && closings.length === 0 ? (
@@ -205,14 +224,9 @@ export function DailyClosingPage() {
 
 // ─── Coverage strip (last 14 days - flags missed days) ────────────────────────
 
-function CoverageStrip({
-  locationId,
-  onPick,
-}: {
-  locationId: number;
-  onPick: (id: number) => void;
-}) {
-  const { from, to } = useMemo(() => {
+/** The 14-day window the strip covers. Lifted out so the page owns the fetch. */
+function useCoverageWindow() {
+  return useMemo(() => {
     const end = new Date();
     const start = new Date();
     start.setDate(end.getDate() - 13);
@@ -222,10 +236,18 @@ function CoverageStrip({
     };
     return { from: iso(start), to: iso(end) };
   }, []);
+}
 
-  const { data: days = [] } = useClosingCalendar(locationId, from, to);
-  const today = todayIso();
-
+function CoverageStrip({
+  days,
+  businessDate,
+  onPick,
+}: {
+  days: DailyClosingCalendarDay[];
+  /** The server's current business day - NOT the calendar day. */
+  businessDate: string;
+  onPick: (id: number) => void;
+}) {
   if (days.length === 0) return null;
 
   return (
@@ -242,8 +264,11 @@ function CoverageStrip({
       </div>
       <div className="flex flex-wrap gap-1.5">
         {days.map((day) => {
-          const isToday = day.date === today;
-          const missed = day.status === null && !isToday && day.date < today;
+          // Reasoned in BUSINESS days. Between midnight and the 03:00 cutoff
+          // yesterday is still the current business day, and calling it
+          // "missed" while it is still perfectly countable is just wrong.
+          const isToday = day.date === businessDate;
+          const missed = day.status === null && !isToday && day.date < businessDate;
           const tone =
             day.status === 'completed'
               ? 'bg-emerald-500 text-white'

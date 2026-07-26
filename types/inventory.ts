@@ -558,6 +558,19 @@ export interface DailyClosingCalendarDay {
   id: number | null;
 }
 
+/**
+ * The coverage strip plus the server's view of which day the business is on.
+ *
+ * Before the 03:00 cutoff the business day is still yesterday's, so a branch
+ * that trades late can count up after midnight and still be closing the day it
+ * worked. The client must NOT compute this: `new Date()` is the device's clock
+ * and timezone, and would disagree with the server around the boundary.
+ */
+export interface ClosingCalendar {
+  business_date: string;
+  days: DailyClosingCalendarDay[];
+}
+
 // ─── Recipes (BOMs) ──────────────────────────────────────────────────────────
 
 export interface InventoryRecipeIngredient {

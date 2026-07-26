@@ -16,6 +16,7 @@ import type {
   OpenDailyClosingPayload,
   SaveDailyClosingPayload,
   DailyClosingCalendarDay,
+  ClosingCalendar,
 } from '@/types/inventory';
 
 /** Unwrap the API envelope ({ data: ... }), tolerating a raw body. */
@@ -39,15 +40,23 @@ export async function getDailyClosing(id: number): Promise<InventoryDailyClosing
 }
 
 /** Coverage calendar for a location — every date in range with its closing status (null = missed). */
+/**
+ * The coverage strip, plus which day the business is currently on.
+ *
+ * `business_date` comes from the server on purpose. Before 03:00 the business
+ * day is still yesterday's, and `new Date()` in the browser reports the DEVICE's
+ * clock and timezone - a laptop left on the wrong zone, or simply used at 02:50,
+ * would disagree with the server about which day is being counted.
+ */
 export async function getClosingCalendar(
   locationId: number,
   from: string,
   to: string,
-): Promise<DailyClosingCalendarDay[]> {
+): Promise<ClosingCalendar> {
   const response = await apiClient.get('/inventory/daily-closings/calendar', {
     params: { location_id: locationId, from, to },
   });
-  return extractData<DailyClosingCalendarDay[]>(response);
+  return extractData<ClosingCalendar>(response);
 }
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
