@@ -259,11 +259,6 @@ function ActionBar({
           {iRaisedThis ? 'Withdraw' : 'Reject'}
         </ActionButton>
       )}
-      {canDecide && iRaisedThis && (
-        <p className="font-body text-xs text-neutral-gray basis-full">
-          You raised this requisition, so someone at the fulfilling location has to approve it.
-        </p>
-      )}
     </div>
   );
 }

@@ -274,7 +274,10 @@ export default function InventoryItemsPage() {
       const level = stockLevel(i);
       if (stockFilter === 'reorder') return level !== 'ok';
       if (stockFilter === 'out')     return level === 'out';
-      if (stockFilter === 'in')      return level === 'ok';
+      // "In stock" means you have some, not that you have plenty — an item
+      // running low is still an item you hold, and excluding it read as though
+      // the stock had vanished.
+      if (stockFilter === 'in')      return level !== 'out';
       return true;
     });
   }, [items, stockFilter]);
