@@ -83,6 +83,16 @@ export function RequisitionForm({ mode, id }: Props) {
   // Distinguish "still loading" from "genuinely has no branch".
   const strandedNoBranch = !seesAllLocations && locations.length > 0 && branches.length === 0;
 
+  // A requisition always pulls from a warehouse, and there is currently exactly
+  // one - so the question has one possible answer and asking it is just a box to
+  // clear on the way to the real work. Shown locked rather than hidden, because
+  // "where is this coming from?" is still worth being able to read.
+  //
+  // The moment a second mother kitchen exists this reverts to a live selector on
+  // its own. Transfers are the opposite case and keep both ends selectable: there
+  // the source is a genuine choice, not a foregone conclusion.
+  const impliedSource = warehouses.length === 1 ? warehouses[0] : null;
+
   const editing = mode === 'edit' && typeof id === 'number';
   const { data: existing, isLoading: loadingReq, error: loadError } =
     useRequisition(editing ? id! : 0);
@@ -262,21 +272,34 @@ export function RequisitionForm({ mode, id }: Props) {
               </FormField>
             )}
 
-            <FormField label="Fulfil from" htmlFor="req-source" required>
-              <Select
-                id="req-source"
-                value={sourceId}
-                onChange={(e) => setSourceId(e.target.value)}
-                required
-              >
-                <option value="">Select source…</option>
-                {warehouses.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
+            {impliedSource ? (
+              <FormField label="Fulfil from" htmlFor="req-source">
+                <div
+                  id="req-source"
+                  className="flex items-center min-h-11 px-3 py-2 rounded-xl bg-neutral-light/60 border border-[#f0e8d8] text-sm font-body text-text-dark"
+                >
+                  {editing && existing?.source_location
+                    ? existing.source_location.name
+                    : impliedSource.name}
+                </div>
+              </FormField>
+            ) : (
+              <FormField label="Fulfil from" htmlFor="req-source" required>
+                <Select
+                  id="req-source"
+                  value={sourceId}
+                  onChange={(e) => setSourceId(e.target.value)}
+                  required
+                >
+                  <option value="">Select source…</option>
+                  {warehouses.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            )}
 
             <FormField label="Purpose" htmlFor="req-purpose" required>
               <Select

@@ -32,6 +32,7 @@ const STATUS_OPTIONS: { value: RequisitionStatus | ''; label: string }[] = [
   { value: 'submitted', label: 'Awaiting approval' },
   { value: 'approved',  label: 'Approved' },
   { value: 'fulfilled', label: 'Fulfilled' },
+  { value: 'fulfilled_short', label: 'Fulfilled short' },
   { value: 'rejected',  label: 'Rejected' },
 ];
 

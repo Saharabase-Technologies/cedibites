@@ -8,6 +8,9 @@ const STATUS_STYLES: Record<RequisitionStatus, { label: string } & StatusTone> =
   submitted: { label: 'Awaiting approval', ...TONE.waiting },
   approved: { label: 'Approved', ...TONE.decided },
   fulfilled: { label: 'Fulfilled', ...TONE.done },
+  // Terminal, but not the green of a clean delivery: something went back on
+  // the lorry, and the row should not read as fully served at a glance.
+  fulfilled_short: { label: 'Fulfilled short', ...TONE.partial },
   rejected: { label: 'Rejected', ...TONE.problem },
 };
 

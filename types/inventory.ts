@@ -43,6 +43,13 @@ export type RequisitionStatus =
   | 'draft'
   | 'submitted'
   | 'approved'
+  /**
+   * The delivery arrived but was not all kept - the branch refused spoiled or
+   * wrong goods at the door. Terminal, like `fulfilled`. Anything asking "was
+   * this request served?" must treat both as served, or short deliveries
+   * silently vanish from the count.
+   */
+  | 'fulfilled_short'
   | 'fulfilled'
   | 'rejected';
 export type RequisitionPurpose = 'opening' | 'supplementary';

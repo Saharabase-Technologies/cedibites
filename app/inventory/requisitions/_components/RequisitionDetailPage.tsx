@@ -108,7 +108,14 @@ export function RequisitionDetailPage({ id }: { id: number }) {
           <TruckIcon size={20} weight="fill" className="text-[#4f7a99] shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[#2f5570] mb-0.5">
-              {req.status === 'fulfilled' ? 'Fulfilled by transfer' : 'Fulfilling transfer'}
+              {/* A short delivery is still a delivery that happened - the
+                  heading must read in the past tense for both, or a refused
+                  run looks like it is still on the road. */}
+              {req.status === 'fulfilled'
+                ? 'Fulfilled by transfer'
+                : req.status === 'fulfilled_short'
+                  ? 'Delivered by transfer, partly refused'
+                  : 'Fulfilling transfer'}
             </p>
             <p className="text-[#24435a] text-sm font-body font-mono">
               {req.fulfilling_transfer.reference}
