@@ -15,7 +15,12 @@ export type { StaffRole };
 export type { StaffBranch };
 
 export interface StaffUser {
+    /** EMPLOYEE id, not the user id — see staff.service.ts. */
     id: string;
+    /** users-table id; the only safe basis for "was this me?" checks. */
+    user_id?: number;
+    /** Where this person may act. null = anywhere (admins). */
+    operating_location_ids?: number[] | null;
     name: string;
     role: StaffRole;
     branches: StaffBranch[];

@@ -202,7 +202,8 @@ function ActionBar({
   // the requester approve makes the fulfilling side's control decorative.
   // Rejecting your own is still allowed: that is withdrawing it.
   const { staffUser } = useStaffAuth();
-  const iRaisedThis = req.requested_by_id !== null && req.requested_by_id === Number(staffUser?.id);
+  // The USER id — `staffUser.id` is the employee id, a different table.
+  const iRaisedThis = req.requested_by_id !== null && req.requested_by_id === staffUser?.user_id;
   const canDecide  = s === 'submitted' && can('inventory.requisition.approve');
   const canApprove = canDecide && !iRaisedThis;
 

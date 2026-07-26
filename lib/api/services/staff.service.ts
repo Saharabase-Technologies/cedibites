@@ -8,7 +8,20 @@ export interface StaffBranch {
 }
 
 export interface StaffUser {
+  /** EMPLOYEE id, not the user id. Kept as-is: existing screens depend on it. */
   id: string;
+  /**
+   * The users-table id. Documents record actors by user id (requested_by,
+   * sent_by, …), so any "was this me?" check must use THIS — never `id`, and
+   * never the display name, since names are not unique.
+   */
+  user_id?: number;
+  /**
+   * Locations this person may physically act at — receive into, dispatch out
+   * of. null means anywhere (admins). Narrower than what they can SEE: a
+   * warehouse manager oversees every location but works the mother kitchen.
+   */
+  operating_location_ids?: number[] | null;
   name: string;
   role: StaffRole;
   branches: StaffBranch[];

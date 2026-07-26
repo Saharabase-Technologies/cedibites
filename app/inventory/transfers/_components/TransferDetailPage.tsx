@@ -219,8 +219,22 @@ function ActionBar({
   // delivery is only caught if the other end confirms it. The API enforces the
   // same rule; this keeps the button from being offered at all.
   const { staffUser } = useStaffAuth();
-  const iSentThis = transfer.sent_by_id !== null && transfer.sent_by_id === Number(staffUser?.id);
-  const canReceive = s === 'sent' && can('inventory.transfer.receive') && !iSentThis;
+  // `staffUser.id` is the EMPLOYEE id; documents record the USER id. Comparing
+  // the wrong one silently matched the wrong person.
+  const iSentThis = transfer.sent_by_id !== null && transfer.sent_by_id === staffUser?.user_id;
+
+  // Each end accounts for its own side. Overseeing every location is not the
+  // same as working at one — a warehouse manager fulfilling a branch's
+  // requisition dispatches it; the branch signs for it. `null` = admin, who
+  // belongs to no kitchen and may act at either end.
+  const operating = staffUser?.operating_location_ids;
+  const atDestination =
+    operating === null ||
+    operating === undefined ||
+    (transfer.destination_location !== null && operating.includes(transfer.destination_location.id));
+
+  const canReceive =
+    s === 'sent' && can('inventory.transfer.receive') && !iSentThis && atDestination;
   const canResolve = s === 'disputed' && can('inventory.transfer.resolve_dispute');
   const canCancel  = ['draft', 'submitted', 'approved'].includes(s) && can('inventory.transfer.create');
 
