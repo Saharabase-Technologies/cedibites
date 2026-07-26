@@ -206,37 +206,40 @@ function ActionBar({
   onAction: (m: ModalKind) => void;
 }) {
   const approve = useApproveTransfer();
-  const { can } = useStaffAuth();
+  const { can, staffUser } = useStaffAuth();
 
-  // Each action needs both the right status AND the matching permission — a role
-  // never sees an action it can't perform. The backend enforces the same rules.
   const s = transfer.status;
-  const canEdit    = s === 'draft' && can('inventory.transfer.create');
-  const canSubmit  = s === 'draft' && can('inventory.transfer.create');
-  const canApprove = s === 'submitted' && can('inventory.transfer.send');
-  const canSend    = s === 'approved' && can('inventory.transfer.send');
-  // Whoever dispatched the stock may not also sign for its arrival — a short
-  // delivery is only caught if the other end confirms it. The API enforces the
-  // same rule; this keeps the button from being offered at all.
-  const { staffUser } = useStaffAuth();
+
   // `staffUser.id` is the EMPLOYEE id; documents record the USER id. Comparing
   // the wrong one silently matched the wrong person.
   const iSentThis = transfer.sent_by_id !== null && transfer.sent_by_id === staffUser?.user_id;
 
-  // Each end accounts for its own side. Overseeing every location is not the
-  // same as working at one — a warehouse manager fulfilling a branch's
-  // requisition dispatches it; the branch signs for it. `null` = admin, who
-  // belongs to no kitchen and may act at either end.
+  // Each end accounts for its own side, and a transfer has two. Everything
+  // OUTBOUND — submitting, approving, dispatching, calling it off — belongs to
+  // the source; only receiving belongs to the destination. A branch manager
+  // expecting a delivery from the mother kitchen must not be able to declare
+  // that the mother kitchen shipped it. `undefined`/`null` = admin, who belongs
+  // to no kitchen and may act at either end. The API enforces the same rules;
+  // this stops the buttons being offered at all.
   const operating = staffUser?.operating_location_ids;
-  const atDestination =
-    operating === null ||
-    operating === undefined ||
-    (transfer.destination_location !== null && operating.includes(transfer.destination_location.id));
+  const worksAt = (id: number | null | undefined) =>
+    operating === null || operating === undefined
+      ? true
+      : id !== null && id !== undefined && operating.includes(id);
 
+  const atSource = worksAt(transfer.source_location?.id);
+  const atDestination = worksAt(transfer.destination_location?.id);
+
+  // Each action needs the right status, the matching permission, AND the right
+  // side of the movement.
+  const canEdit    = s === 'draft' && can('inventory.transfer.create') && atSource;
+  const canSubmit  = s === 'draft' && can('inventory.transfer.create') && atSource;
+  const canApprove = s === 'submitted' && can('inventory.transfer.send') && atSource;
+  const canSend    = s === 'approved' && can('inventory.transfer.send') && atSource;
   const canReceive =
     s === 'sent' && can('inventory.transfer.receive') && !iSentThis && atDestination;
   const canResolve = s === 'disputed' && can('inventory.transfer.resolve_dispute');
-  const canCancel  = ['draft', 'submitted', 'approved'].includes(s) && can('inventory.transfer.create');
+  const canCancel  = ['draft', 'submitted', 'approved'].includes(s) && can('inventory.transfer.create') && atSource;
 
   const handleApprove = () => {
     approve.mutateAsync(transfer.id).catch((e) => toast.error(getErrorMessage(e)));
@@ -402,6 +405,14 @@ function SendModal({
   const getVal = (line: InventoryTransferLine) =>
     qty[line.id] ?? String(line.requested_qty);
 
+  // Sending MORE than was asked for is allowed — the warehouse may round up to
+  // a whole crate, or throw in a little extra. It is not a dispute; a dispute
+  // is for a shortfall at the receiving end. But it should never pass silently,
+  // because the branch is about to be charged for stock it did not ask for.
+  const overs = transfer.lines
+    .map((line) => ({ line, over: Number(getVal(line)) - Number(line.requested_qty) }))
+    .filter(({ over }) => over > 0);
+
   const handleSend = async () => {
     setErr(null);
     const lines = transfer.lines.map((line) => ({
@@ -455,12 +466,41 @@ function SendModal({
                       onChange={(e) => setQty((p) => ({ ...p, [line.id]: e.target.value }))}
                       aria-label={`Quantity to send for ${line.item?.name ?? line.item_id}`}
                     />
+                    {Number(getVal(line)) > Number(line.requested_qty) && (
+                      <p className="mt-1 text-right text-[11px] font-body text-amber-700">
+                        +{+(Number(getVal(line)) - Number(line.requested_qty)).toFixed(2)} over
+                      </p>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        {overs.length > 0 && (
+          <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+            <WarningCircleIcon size={16} weight="fill" className="text-amber-600 mt-0.5 shrink-0" />
+            <div className="text-sm font-body">
+              <p className="text-amber-800 font-semibold">
+                You&apos;re sending more than was requested on {overs.length} line
+                {overs.length === 1 ? '' : 's'}.
+              </p>
+              <ul className="mt-0.5 text-amber-700 text-xs">
+                {overs.map(({ line, over }) => (
+                  <li key={line.id}>
+                    {line.item?.name ?? `#${line.item_id}`}: asked {line.requested_qty}, sending{' '}
+                    {getVal(line)} (+{+over.toFixed(2)})
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-amber-700 text-xs">
+                That&apos;s fine — go ahead. The extra is recorded against the transfer so the
+                difference is accounted for at the other end.
+              </p>
+            </div>
+          </div>
+        )}
 
         {err && (
           <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-100 rounded-xl">
@@ -918,6 +958,13 @@ function LinesTable({ lines }: { lines: InventoryTransferLine[] }) {
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums text-text-dark">
                   {qtyLabel(line.sent_qty, unit)}
+                  {/* Sending over is allowed, but it stays on the record — the
+                      branch is receiving stock it did not ask for. */}
+                  {line.sent_qty !== null && line.sent_qty > line.requested_qty && (
+                    <span className="ml-1.5 text-[11px] font-semibold text-amber-700">
+                      +{+(line.sent_qty - line.requested_qty).toFixed(2)}
+                    </span>
+                  )}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums">
                   <span className={short ? 'text-amber-700 font-semibold' : 'text-text-dark'}>
