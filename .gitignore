@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Scratch JSON from ad-hoc API/status polling — never part of the app.
+/*.json
+!/package.json
+!/package-lock.json
+!/tsconfig.json
+!/components.json
