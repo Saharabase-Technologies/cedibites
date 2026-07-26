@@ -60,6 +60,11 @@ export async function updateRequisition(
   return extractData<InventoryRequisition>(response);
 }
 
+/** Discard a draft. Only drafts, and only the author's own — enforced server-side. */
+export async function deleteRequisition(id: number): Promise<void> {
+  await apiClient.delete(`/inventory/requisitions/${id}`);
+}
+
 /** draft → submitted. */
 export async function submitRequisition(id: number): Promise<InventoryRequisition> {
   const response = await apiClient.post(`/inventory/requisitions/${id}/submit`);

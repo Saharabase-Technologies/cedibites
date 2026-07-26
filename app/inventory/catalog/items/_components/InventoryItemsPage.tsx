@@ -253,12 +253,15 @@ export default function InventoryItemsPage() {
   const [storageType, setStorageType] = useState('');
   const [status,      setStatus]      = useState('');
   const [stockFilter, setStockFilter] = useState('');
+  // "What do I actually hold?" versus "what exists in the catalogue?"
+  const [heldOnly, setHeldOnly] = useState(false);
 
   const { data: items = [], isLoading } = useInventoryItems({
     search:       search || undefined,
     category_id:  categoryId ? Number(categoryId) : undefined,
     storage_type: (storageType as StorageType) || undefined,
     is_active:    status === '' ? undefined : status === 'active',
+    in_stock_only: heldOnly || undefined,
   });
 
   const { data: categories = [] } = useInventoryCategories();
@@ -352,6 +355,21 @@ export default function InventoryItemsPage() {
             { value: 'inactive', label: 'Inactive' },
           ]}
         />
+        {/* Quantities are already scoped to the locations you run; this narrows
+            the LIST to what you hold. Off by default so the full catalogue stays
+            browsable — you request items precisely because you have none. */}
+        <button
+          type="button"
+          onClick={() => setHeldOnly((v) => !v)}
+          aria-pressed={heldOnly}
+          className={`px-4 py-2.5 rounded-xl text-sm font-semibold font-body min-h-11 cursor-pointer border transition-colors ${
+            heldOnly
+              ? 'bg-[#fff8ec] text-primary border-primary'
+              : 'bg-neutral-card text-neutral-gray border-[#f0e8d8] hover:bg-neutral-light'
+          }`}
+        >
+          Only what I hold
+        </button>
         {canManage && (
           <button
             onClick={() => setIsAddOpen(true)}

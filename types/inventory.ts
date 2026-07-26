@@ -239,10 +239,27 @@ export interface InventoryTransferLine {
 export interface InventoryTransferDispute {
   id: number;
   status: 'open' | 'resolved' | string;
+  /**
+   * How it was settled. `corrective` chased the shortfall with another
+   * transfer; `written_off` accepted it as a loss. Null on disputes resolved
+   * before the distinction existed, or where there was no shortfall.
+   */
+  resolution: 'corrective' | 'written_off' | null;
   reason: string | null;
   discrepancy_qty: number;
+  written_off_qty: number;
   /** The corrective draft transfer spawned on resolution, if any. */
   corrective_transfer_id: number | null;
+}
+
+/** One hop in a corrective chain. Returned oldest-first by the detail endpoint. */
+export interface TransferLineageNode {
+  id: number;
+  reference: string;
+  status: TransferStatus;
+  parent_transfer_id: number | null;
+  depth: number;
+  is_current: boolean;
 }
 
 export interface InventoryTransfer {
@@ -256,6 +273,8 @@ export interface InventoryTransfer {
   notes: string | null;
   lines: InventoryTransferLine[];
   dispute: InventoryTransferDispute | null;
+  /** The whole corrective chain this transfer belongs to. Detail view only. */
+  lineage?: TransferLineageNode[];
   /** Actor names (or null). The backend resource returns names, not objects. */
   created_by: string | null;
   approved_by: string | null;
@@ -310,6 +329,27 @@ export interface CancelTransferPayload {
 
 export interface ResolveTransferDisputePayload {
   notes?: string;
+  /**
+   * Spawn a corrective transfer for the shortfall (default), or omit it and
+   * accept the loss. The ledger is the same either way — the stock left the
+   * source and never arrived — so this records the decision.
+   */
+  send_corrective?: boolean;
+}
+
+/** Pre-flight: can a location cover this demand right now? */
+export interface StockAvailabilityLine {
+  item_id: number;
+  name: string;
+  required: number;
+  available: number;
+  sufficient: boolean;
+  shortfall: number;
+}
+
+export interface StockAvailability {
+  sufficient: boolean;
+  lines: StockAvailabilityLine[];
 }
 
 // ─── Requisitions ─────────────────────────────────────────────────────────────
@@ -650,6 +690,16 @@ export interface InventoryItemFilters {
   category_id?: number;
   storage_type?: StorageType;
   is_active?: boolean;
+  /**
+   * Sum `stock_on_hand` at one location instead of across everything the
+   * caller can see. Ignored when outside their scope.
+   */
+  location_id?: number;
+  /**
+   * Only items the caller actually holds. Off by default so pickers keep the
+   * full catalog — a branch has to be able to request what it does not have.
+   */
+  in_stock_only?: boolean;
   page?: number;
   per_page?: number;
 }

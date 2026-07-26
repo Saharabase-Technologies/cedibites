@@ -174,6 +174,8 @@ export function TransferDetailPage({ id }: { id: number }) {
         </div>
       )}
 
+      <LineagePanel transfer={transfer} />
+
       {/* Modals */}
       <SubmitDialog transfer={transfer} isOpen={modal === 'submit'} onClose={close} />
       <SendModal transfer={transfer} isOpen={modal === 'send'} onClose={close} />
@@ -213,7 +215,12 @@ function ActionBar({
   const canSubmit  = s === 'draft' && can('inventory.transfer.create');
   const canApprove = s === 'submitted' && can('inventory.transfer.send');
   const canSend    = s === 'approved' && can('inventory.transfer.send');
-  const canReceive = s === 'sent' && can('inventory.transfer.receive');
+  // Whoever dispatched the stock may not also sign for its arrival — a short
+  // delivery is only caught if the other end confirms it. The API enforces the
+  // same rule; this keeps the button from being offered at all.
+  const { staffUser } = useStaffAuth();
+  const iSentThis = transfer.sent_by !== null && transfer.sent_by === staffUser?.name;
+  const canReceive = s === 'sent' && can('inventory.transfer.receive') && !iSentThis;
   const canResolve = s === 'disputed' && can('inventory.transfer.resolve_dispute');
   const canCancel  = ['draft', 'submitted', 'approved'].includes(s) && can('inventory.transfer.create');
 
@@ -651,11 +658,16 @@ function ResolveDisputeDialog({
 }) {
   const resolve = useResolveTransferDispute();
   const [notes, setNotes] = useState('');
+  // Default to chasing the shortfall — writing it off is the deliberate choice.
+  const [sendCorrective, setSendCorrective] = useState(true);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await resolve.mutateAsync({ id: transfer.id, payload: { notes: notes.trim() || undefined } });
+      await resolve.mutateAsync({
+        id: transfer.id,
+        payload: { notes: notes.trim() || undefined, send_corrective: sendCorrective },
+      });
       onClose();
     } catch (e) {
       toast.error(getErrorMessage(e));
@@ -666,9 +678,40 @@ function ResolveDisputeDialog({
     <InventoryModal isOpen={isOpen} onClose={onClose} title={`Resolve dispute — ${transfer.reference}`} size="md">
       <form onSubmit={submit} className="flex flex-col gap-4">
         <p className="text-sm text-neutral-gray font-body">
-          Resolving closes this transfer and creates a corrective draft transfer for the shortfall,
-          so the destination can be topped up. The original record is never altered.
+          Resolving closes this transfer. The original record is never altered.
         </p>
+
+        {/* Chasing the shortfall is not always the right answer — sometimes the
+            stock is simply gone. The ledger is identical either way; this
+            records which decision was made. */}
+        <div className="flex flex-col gap-2">
+          {[
+            {
+              value: true,
+              label: 'Send a corrective transfer',
+              hint: 'Tops the destination up with what was missing.',
+            },
+            {
+              value: false,
+              label: 'Write the shortfall off as a loss',
+              hint: 'Nothing further is sent. Recorded against the dispute for wastage reporting.',
+            },
+          ].map((opt) => (
+            <button
+              key={String(opt.value)}
+              type="button"
+              onClick={() => setSendCorrective(opt.value)}
+              className={`flex flex-col items-start rounded-xl border px-3 py-2 text-left transition-colors cursor-pointer ${
+                sendCorrective === opt.value
+                  ? 'border-primary bg-[#fff8ec]'
+                  : 'border-[#f0e8d8] hover:bg-neutral-light'
+              }`}
+            >
+              <span className="font-body text-sm font-semibold text-text-dark">{opt.label}</span>
+              <span className="font-body text-[11px] text-neutral-gray">{opt.hint}</span>
+            </button>
+          ))}
+        </div>
         <FormField label="Resolution notes" htmlFor="tr-resolve-notes" hint="Optional — how the shortfall was reconciled.">
           <Textarea
             id="tr-resolve-notes"
@@ -679,10 +722,77 @@ function ResolveDisputeDialog({
           />
         </FormField>
         <PrimaryButton type="submit" loading={resolve.isPending}>
-          Resolve & create corrective transfer
+          {sendCorrective ? 'Resolve & create corrective transfer' : 'Resolve & write off shortfall'}
         </PrimaryButton>
       </form>
     </InventoryModal>
+  );
+}
+
+// ─── Corrective chain ─────────────────────────────────────────────────────────
+
+/**
+ * The whole corrective chain, oldest first.
+ *
+ * A short delivery spawns a corrective transfer, which can itself be received
+ * short and spawn another. The banners at the top only ever showed one hop in
+ * each direction, so from the middle of a chain you could not see what
+ * originally went wrong or how it ended. Every hop links, in both directions.
+ */
+function LineagePanel({ transfer }: { transfer: InventoryTransfer }) {
+  const chain = transfer.lineage ?? [];
+
+  // A transfer with no corrective history is a chain of one — nothing to show.
+  if (chain.length < 2) return null;
+
+  return (
+    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl p-5 mb-5">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-neutral-gray mb-3">
+        Corrective chain ({chain.length})
+      </p>
+      <ol className="flex flex-col">
+        {chain.map((node, i) => (
+          <li key={node.id} className="flex items-stretch gap-3">
+            {/* Rail: a dot per hop, joined except after the last. */}
+            <div className="flex flex-col items-center">
+              <span
+                className={`mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 ${
+                  node.is_current ? 'bg-primary' : 'bg-neutral-gray/40'
+                }`}
+                aria-hidden
+              />
+              {i < chain.length - 1 && <span className="w-px flex-1 bg-[#f0e8d8]" aria-hidden />}
+            </div>
+
+            <div className={`pb-3 min-w-0 ${i === chain.length - 1 ? 'pb-0' : ''}`}>
+              {node.is_current ? (
+                <span className="font-mono text-sm text-text-dark font-semibold">
+                  {node.reference}
+                  <span className="ml-2 font-body text-[11px] font-normal text-neutral-gray">
+                    you are here
+                  </span>
+                </span>
+              ) : (
+                <Link
+                  href={`/inventory/transfers/${node.id}`}
+                  className="font-mono text-sm text-primary hover:underline"
+                >
+                  {node.reference}
+                </Link>
+              )}
+              <div className="mt-1">
+                <TransferStatusBadge status={node.status} />
+              </div>
+              {node.depth > 0 && (
+                <p className="mt-1 font-body text-[11px] text-neutral-gray">
+                  Corrects the transfer above it.
+                </p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 
@@ -704,6 +814,13 @@ function DisputePanel({ transfer }: { transfer: InventoryTransfer }) {
           <p className="text-rose-700/80 text-xs mt-2">
             Discrepancy: <span className="font-semibold tabular-nums">{dispute.discrepancy_qty}</span>
           </p>
+          {dispute.resolution === 'written_off' && (
+            <p className="text-rose-700/80 text-xs mt-1">
+              Written off as a loss:{' '}
+              <span className="font-semibold tabular-nums">{dispute.written_off_qty}</span> — no
+              corrective transfer was sent.
+            </p>
+          )}
           {dispute.corrective_transfer_id && (
             <Link
               href={`/inventory/transfers/${dispute.corrective_transfer_id}`}
