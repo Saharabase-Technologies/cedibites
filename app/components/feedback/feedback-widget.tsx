@@ -27,6 +27,9 @@ import { VoiceRecorder } from './voice-recorder';
 
 const MAX_SHOTS = 5;
 
+/** Whether the user has shrunk the launcher. Survives reloads; see RichWidget. */
+const FEEDBACK_MINIMISED_KEY = 'cedibites_feedback_minimised';
+
 const SEVERITIES: Array<{ value: Severity; label: string; hint: string }> = [
   { value: 'blocking', label: 'Blocking', hint: "Can't continue" },
   { value: 'annoying', label: 'Annoying', hint: 'Works, but painful' },
@@ -133,6 +136,41 @@ function RichWidget() {
   // One note per page visited while the draft is open, keyed by route.
   const [notes, setNotes] = useState<PageNote[]>([]);
   const [prompted, setPrompted] = useState(false);
+
+  /*
+   * The launcher sits over the bottom-right corner of every screen, which is
+   * also where a lot of real work happens. Hovering it reveals an x that shrinks
+   * it to a small circle.
+   *
+   * Shrunk rather than removed, deliberately. This is the beta reporting
+   * channel; a control that makes it disappear with no way back quietly ends
+   * the feedback programme for whoever clicks it. Collapsed it takes about a
+   * fifth of the space and sits at low opacity until pointed at, which answers
+   * the actual complaint - the distraction - without closing the door.
+   *
+   * Persisted, because being asked the same question every morning is its own
+   * kind of nagging. Read in an effect rather than during render: localStorage
+   * does not exist on the server and reading it inline is a hydration mismatch.
+   */
+  const [minimised, setMinimised] = useState(false);
+
+  useEffect(() => {
+    try {
+      setMinimised(localStorage.getItem(FEEDBACK_MINIMISED_KEY) === '1');
+    } catch {
+      /* private mode, or storage disabled - the launcher simply stays open */
+    }
+  }, []);
+
+  const setLauncherMinimised = useCallback((next: boolean) => {
+    setMinimised(next);
+    try {
+      if (next) localStorage.setItem(FEEDBACK_MINIMISED_KEY, '1');
+      else localStorage.removeItem(FEEDBACK_MINIMISED_KEY);
+    } catch {
+      /* the preference just does not survive the session */
+    }
+  }, []);
   // Which shot pins attach to — the one captured on the page you're currently on.
   const [activeShot, setActiveShot] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -337,15 +375,47 @@ function RichWidget() {
 
       {/* Floating button */}
       {!open && !picking && (
-        <button
-          type="button"
-          onClick={openWidget}
-          aria-label="Send feedback"
-          className={`fixed ${fabPos} z-[2147482000] flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-105 hover:bg-primary-hover cursor-pointer font-body`}
-        >
-          <ChatCircleDotsIcon size={20} weight="fill" />
-          Feedback
-        </button>
+        <div className={`group fixed ${fabPos} z-[2147482000]`}>
+          {minimised ? (
+            /* Collapsed: icon only, and faded until pointed at. Still one click
+               from the full launcher, so nobody loses the channel. */
+            <button
+              type="button"
+              onClick={() => setLauncherMinimised(false)}
+              aria-label="Show the feedback button"
+              title="Send feedback"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-white opacity-40 shadow-md transition-opacity hover:opacity-100 focus-visible:opacity-100 cursor-pointer"
+            >
+              <ChatCircleDotsIcon size={16} weight="fill" />
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={openWidget}
+                aria-label="Send feedback"
+                className="flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-105 hover:bg-primary-hover cursor-pointer font-body"
+              >
+                <ChatCircleDotsIcon size={20} weight="fill" />
+                Feedback
+              </button>
+
+              {/* Revealed on hover or keyboard focus. `focus-within` on the
+                  group matters as much as hover: a hover-only control is
+                  unreachable by keyboard, and this is the only way to shrink
+                  the launcher. */}
+              <button
+                type="button"
+                onClick={() => setLauncherMinimised(true)}
+                aria-label="Shrink the feedback button"
+                title="Shrink - click the small circle to bring it back"
+                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-[#f0e8d8] bg-white text-neutral-gray opacity-0 shadow-sm transition-opacity hover:text-rose-600 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 cursor-pointer"
+              >
+                <XIcon size={10} weight="bold" />
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       {/* Element picker (hides the modal while active) */}

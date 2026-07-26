@@ -9,7 +9,6 @@ import {
   DailyClosingStatusBadge,
   FormField,
   Select,
-  TextInput,
   type DataTableColumn,
 } from '../../_components';
 import {
@@ -29,12 +28,27 @@ export function DailyClosingPage() {
   const { can } = useStaffAuth();
   const canEnter = can('inventory.daily_closing.enter');
 
+  const { staffUser } = useStaffAuth();
   const { data: locations = [] } = useInventoryLocations({ is_active: true });
   const [locationId, setLocationId] = useState<string>('');
-  const [date, setDate] = useState<string>(todayIso());
+
+  // You can only count stock where you actually work - the same rule the
+  // wastage form applies, and the same one the server enforces. A branch
+  // manager was being offered the mother kitchen's shelves to count.
+  const operating = staffUser?.operating_location_ids ?? null;
+  const countable = useMemo(
+    () => (operating === null ? locations : locations.filter((l) => operating.includes(l.id))),
+    [locations, operating],
+  );
+
+  // Always today. See DailyClosingService::open - a count snapshots expected
+  // quantities from the ledger as it stands NOW, so a back-dated count reads
+  // every movement since as a discrepancy and then posts an adjustment to
+  // match. There is nothing for the user to choose here.
+  const date = todayIso();
 
   // Default to the first location once loaded.
-  const effectiveLocationId = locationId || (locations[0] ? String(locations[0].id) : '');
+  const effectiveLocationId = locationId || (countable[0] ? String(countable[0].id) : '');
   const locId = Number(effectiveLocationId) || 0;
 
   const { data: closings = [], isLoading } = useDailyClosings({
@@ -130,7 +144,8 @@ export function DailyClosingPage() {
               value={effectiveLocationId}
               onChange={(e) => setLocationId(e.target.value)}
             >
-              {locations.map((l) => (
+              {countable.length === 0 && <option value="">No location available</option>}
+              {countable.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
                 </option>
@@ -139,13 +154,12 @@ export function DailyClosingPage() {
           </FormField>
 
           <FormField label="Business date" htmlFor="dc-date">
-            <TextInput
+            <div
               id="dc-date"
-              type="date"
-              max={todayIso()}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
+              className="flex items-center min-h-11 px-3 py-2 rounded-xl bg-neutral-light/60 border border-[#f0e8d8] text-sm font-body text-text-dark"
+            >
+              {formatBusinessDate(date)}
+            </div>
           </FormField>
 
           {canEnter && (
@@ -161,8 +175,9 @@ export function DailyClosingPage() {
           )}
         </div>
         <p className="text-neutral-gray text-xs font-body mt-2">
-          Opening a count snapshots the expected quantities from the ledger. Re-opening an existing
-          date returns the same count.
+          Opening a count snapshots the expected quantities from the ledger, so it can only be done
+          for today - a back-dated count would read everything that has moved since as a
+          discrepancy. Re-opening today returns the same count.
         </p>
       </div>
 

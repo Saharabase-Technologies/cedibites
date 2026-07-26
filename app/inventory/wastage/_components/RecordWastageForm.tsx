@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowUUpLeftIcon,
   CameraIcon,
+  DeviceMobileCameraIcon,
   PlusIcon,
   TrashIcon,
   WarningCircleIcon,
@@ -23,6 +24,7 @@ import { addWastagePhoto as addPhoto } from '@/lib/api/services/inventory/wastag
 import { useInventoryItems } from '@/lib/api/hooks/inventory/useInventoryCatalog';
 import { useInventoryLocations } from '@/lib/api/hooks/inventory/useInventoryLocations';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { PhoneCaptureDialog } from '@/app/components/upload/PhoneCaptureDialog';
 import type { WastageReason } from '@/types/inventory';
 import { getErrorMessage } from '@/lib/utils/error-handler';
 import { formatGhs, formatQty } from '../utils';
@@ -56,6 +58,9 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
   const [lines, setLines] = useState<DraftLine[]>([blankLine()]);
   const [photos, setPhotos] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Set once the claim has been saved specifically in order to photograph it
+  // from a phone. Holds the QR dialog open over this modal.
+  const [savedId, setSavedId] = useState<number | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   // You can only declare a loss where you actually work - the same rule the
@@ -111,7 +116,13 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
   const setLine = (key: string, patch: Partial<DraftLine>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
-  const submit = async () => {
+  /**
+   * @param thenCapture Save, then show the QR code here instead of navigating.
+   *   A phone cannot photograph a claim that does not exist yet - the upload
+   *   session is scoped to one document and there is no draft state to hang it
+   *   on - so "use phone" necessarily saves first. The button says so.
+   */
+  const submit = async ({ thenCapture = false }: { thenCapture?: boolean } = {}) => {
     setError(null);
 
     const payloadLines = lines
@@ -156,12 +167,28 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
         }
       }
 
+      if (thenCapture) {
+        // Stay put and hand over a QR code. The goods are in front of them now;
+        // sending them to another screen first is how evidence stops happening.
+        setSavedId(wastage.id);
+        return;
+      }
+
       reset();
       onClose();
       router.push(`/inventory/wastage/${wastage.id}`);
     } catch (e) {
       setError(getErrorMessage(e));
     }
+  };
+
+  /** Leave the capture step and go read the claim that was just saved. */
+  const finishCapture = () => {
+    const id = savedId;
+    setSavedId(null);
+    reset();
+    onClose();
+    if (id) router.push(`/inventory/wastage/${id}`);
   };
 
   const reasons = catalog?.reasons ?? [];
@@ -189,8 +216,9 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
           {lines.map((line, index) => {
             const item = itemsById.get(Number(line.itemId));
             const qty = Number(line.quantity);
+            const unitCost = item?.weighted_avg_cost ?? 0;
             const lineValue =
-              item && Number.isFinite(qty) && qty > 0 ? qty * (item.weighted_avg_cost ?? 0) : null;
+              item && Number.isFinite(qty) && qty > 0 ? qty * unitCost : null;
             const needsNote = line.reason === 'other';
 
             return (
@@ -231,16 +259,30 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
                   </FormField>
 
                   <FormField label="How much" htmlFor={`wst-qty-${line.key}`}>
-                    <TextInput
-                      id={`wst-qty-${line.key}`}
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={line.quantity}
-                      onChange={(e) => setLine(line.key, { quantity: e.target.value })}
-                      placeholder="0"
-                      className="text-right"
-                    />
+                    {/* The unit belongs in the box. "How much: 3" is ambiguous
+                        between 3 kg and 3 crates, and the two are a hundredfold
+                        apart in value - which is exactly the number that decides
+                        whether this needs the warehouse manager's signature. */}
+                    <div className="relative">
+                      <TextInput
+                        id={`wst-qty-${line.key}`}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={line.quantity}
+                        onChange={(e) => setLine(line.key, { quantity: e.target.value })}
+                        placeholder="0"
+                        className={`text-right ${item ? 'pr-12' : ''}`}
+                      />
+                      {item?.base_unit?.symbol && (
+                        <span
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-neutral-gray pointer-events-none select-none"
+                          aria-hidden
+                        >
+                          {item.base_unit.symbol}
+                        </span>
+                      )}
+                    </div>
                   </FormField>
                 </div>
 
@@ -272,9 +314,31 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
                   </FormField>
                 )}
 
-                {lineValue !== null && (
+                {/* Shown from the moment an item is picked, not only once a
+                    quantity is typed - the first line otherwise had no value
+                    label at all and the row looked broken. Naming the unit rate
+                    also makes a wrong total explicable instead of mysterious. */}
+                {item && (
                   <p className="text-neutral-gray text-xs font-body">
-                    Valued at {formatGhs(lineValue)}
+                    {unitCost > 0 ? (
+                      <>
+                        {formatGhs(unitCost)} per {item.base_unit?.symbol ?? 'unit'}
+                        {lineValue !== null && (
+                          <>
+                            {' · '}
+                            <span className="text-text-dark font-semibold">
+                              Valued at {formatGhs(lineValue)}
+                            </span>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      // Genuinely unpriced stock. Say so rather than showing a
+                      // confident GHS 0.00, which reads as "this loss is free".
+                      <span className="text-amber-700">
+                        No cost recorded for this item yet, so it cannot be valued.
+                      </span>
+                    )}
                   </p>
                 )}
               </div>
@@ -311,14 +375,29 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
                 if (photoInputRef.current) photoInputRef.current.value = '';
               }}
             />
-            <button
-              type="button"
-              onClick={() => photoInputRef.current?.click()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold font-body bg-neutral-light text-text-dark hover:bg-neutral-light/70 border border-[#f0e8d8] cursor-pointer"
-            >
-              <CameraIcon size={14} weight="bold" />
-              Add photo
-            </button>
+            <div className="flex items-center gap-2">
+              {/* The IMS runs on laptops and the spoiled food is on a floor
+                  somewhere else. This saves the claim first because an upload
+                  session must point at a document that exists - hence the
+                  wording, which promises exactly that and nothing more. */}
+              <button
+                type="button"
+                onClick={() => void submit({ thenCapture: true })}
+                disabled={record.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold font-body bg-primary text-white hover:bg-primary-hover cursor-pointer disabled:opacity-50"
+              >
+                <DeviceMobileCameraIcon size={14} weight="bold" />
+                Save and use phone
+              </button>
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold font-body bg-neutral-light text-text-dark hover:bg-neutral-light/70 border border-[#f0e8d8] cursor-pointer"
+              >
+                <CameraIcon size={14} weight="bold" />
+                Add photo
+              </button>
+            </div>
           </div>
           <p className="text-neutral-gray text-xs font-body mb-2">
             {willNeedReturn
@@ -408,10 +487,22 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
         >
           Cancel
         </button>
-        <PrimaryButton type="button" onClick={submit} loading={record.isPending}>
+        <PrimaryButton type="button" onClick={() => void submit()} loading={record.isPending}>
           {willNeedReturn ? 'Record and raise return' : 'Record wastage'}
         </PrimaryButton>
       </div>
+
+      {/* Sits over the form: the claim is saved, and closing this goes on to
+          read it rather than back to a form whose work is already banked. */}
+      {savedId !== null && (
+        <PhoneCaptureDialog
+          targetType="wastage"
+          targetId={savedId}
+          purpose="wastage_evidence"
+          title="The claim is saved. Scan to photograph the goods."
+          onClose={finishCapture}
+        />
+      )}
     </InventoryModal>
   );
 }
