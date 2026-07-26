@@ -3,30 +3,39 @@
 import { useRef, useState } from 'react';
 import {
   CameraIcon,
+  DeviceMobileCameraIcon,
   ImageSquareIcon,
+  PlayCircleIcon,
   TrashIcon,
   WarningCircleIcon,
   XIcon,
 } from '@phosphor-icons/react';
 import { useAddWastagePhoto, useRemoveWastagePhoto } from '@/lib/api/hooks/inventory/useWastages';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { PhoneCaptureDialog } from '@/app/components/upload/PhoneCaptureDialog';
 import type { InventoryWastage, InventoryWastagePhoto } from '@/types/inventory';
 import { getErrorMessage } from '@/lib/utils/error-handler';
 import { formatDateTime } from '../utils';
 
-const MAX_BYTES = 10 * 1024 * 1024; // matches the server's max:10240
+// Both match the server's caps in config/upload-sessions.php. Video gets far
+// more room because phone footage runs 15-30 MB per 15 seconds at 1080p.
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 
 /**
- * Photo evidence, both sides of it.
+ * Photo and video evidence, both sides of it.
  *
  * The client's rule: *"So show me the food that has gone bad."* A branch saying
  * goods arrived spoiled and a warehouse saying they left fine is an argument no
  * quantity settles - somebody has to look at the food.
  *
  * Both accounts stay on the record and both are visible to both ends, because
- * the claim itself is scoped to its origin AND disposal location. Photos are
+ * the claim itself is scoped to its origin AND disposal location. Files are
  * grouped by stage so the disagreement reads in the order it happened, and
  * nothing can be added or removed once the claim is settled.
+ *
+ * The QR button is the important one in practice. Everyone here works on a
+ * laptop, and the food is on a floor somewhere else.
  */
 export function EvidencePanel({ wastage }: { wastage: InventoryWastage }) {
   const { staffUser } = useStaffAuth();
@@ -36,6 +45,7 @@ export function EvidencePanel({ wastage }: { wastage: InventoryWastage }) {
 
   const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<InventoryWastagePhoto | null>(null);
+  const [phoneCapture, setPhoneCapture] = useState(false);
 
   const canAdd = wastage.accepts_evidence;
   const declared = wastage.photos.filter((p) => p.stage === 'declared');
@@ -47,8 +57,15 @@ export function EvidencePanel({ wastage }: { wastage: InventoryWastage }) {
     setError(null);
 
     for (const file of Array.from(files)) {
-      if (file.size > MAX_BYTES) {
-        setError(`${file.name} is over 10 MB. Take it again at a smaller size.`);
+      const isVideo = (file.type || '').startsWith('video/');
+      const cap = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+
+      if (file.size > cap) {
+        setError(
+          isVideo
+            ? `${file.name} is over 50 MB. Record about 15 seconds rather than a long video.`
+            : `${file.name} is over 10 MB. Take it again at a smaller size.`,
+        );
         continue;
       }
       try {
@@ -77,35 +94,47 @@ export function EvidencePanel({ wastage }: { wastage: InventoryWastage }) {
           <h2 className="text-sm font-semibold font-body text-text-dark">Evidence</h2>
           <p className="text-neutral-gray text-xs font-body mt-0.5">
             {canAdd
-              ? 'Both the branch and the warehouse can add photos while the claim is open.'
+              ? 'Both the branch and the warehouse can add photos and video while the claim is open.'
               : 'Locked - this is what the decision was made on.'}
           </p>
         </div>
 
         {canAdd && (
-          <>
+          <div className="flex items-center gap-2 shrink-0">
             {/* No `capture` attribute: on several Android browsers it forces the
                 camera and removes the option to attach a photo already taken,
                 which is exactly what a manager photographing goods before the
-                lorry left would have. `accept="image/*"` already offers both. */}
+                lorry left would have. `accept` already offers both. */}
             <input
               ref={inputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,video/*"
               multiple
               className="hidden"
               onChange={(e) => void handleFiles(e.target.files)}
             />
+
+            {/* The one people will actually use. The IMS lives on laptops and
+                the spoiled food does not. */}
+            <button
+              type="button"
+              onClick={() => setPhoneCapture(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold font-body min-h-10 bg-primary text-white hover:bg-primary-hover cursor-pointer"
+            >
+              <DeviceMobileCameraIcon size={15} weight="bold" />
+              Use phone
+            </button>
+
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
               disabled={add.isPending}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold font-body min-h-10 shrink-0 bg-neutral-light text-text-dark hover:bg-neutral-light/70 border border-[#f0e8d8] cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold font-body min-h-10 bg-neutral-light text-text-dark hover:bg-neutral-light/70 border border-[#f0e8d8] cursor-pointer disabled:opacity-50"
             >
               <CameraIcon size={15} weight="bold" />
-              {add.isPending ? 'Adding…' : 'Add photo'}
+              {add.isPending ? 'Adding…' : 'Upload'}
             </button>
-          </>
+          </div>
         )}
       </div>
 
@@ -130,7 +159,7 @@ export function EvidencePanel({ wastage }: { wastage: InventoryWastage }) {
       {wastage.photos.length === 0 && !missingRequired && (
         <div className="flex flex-col items-center text-center py-8">
           <ImageSquareIcon size={32} weight="thin" className="text-neutral-gray/40 mb-2" />
-          <p className="text-neutral-gray text-sm font-body">No photos on this claim.</p>
+          <p className="text-neutral-gray text-sm font-body">Nothing on this claim yet.</p>
         </div>
       )}
 
@@ -154,6 +183,16 @@ export function EvidencePanel({ wastage }: { wastage: InventoryWastage }) {
       />
 
       {lightbox && <Lightbox photo={lightbox} onClose={() => setLightbox(null)} />}
+
+      {phoneCapture && (
+        <PhoneCaptureDialog
+          targetType="wastage"
+          targetId={wastage.id}
+          purpose="wastage_evidence"
+          title={`Add evidence to ${wastage.reference} from a phone.`}
+          onClose={() => setPhoneCapture(false)}
+        />
+      )}
     </div>
   );
 }
@@ -190,15 +229,35 @@ function PhotoGroup({
               <button
                 type="button"
                 onClick={() => onOpen(photo)}
-                className="block w-28 h-28 rounded-xl overflow-hidden border border-[#f0e8d8] bg-neutral-light cursor-zoom-in"
+                className="block w-28 h-28 rounded-xl overflow-hidden border border-[#f0e8d8] bg-neutral-light cursor-zoom-in relative"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={photo.url}
-                  alt={photo.caption ?? `Evidence photo by ${photo.uploaded_by ?? 'staff'}`}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
+                {photo.kind === 'video' ? (
+                  <>
+                    {/* `preload="metadata"` fetches only the header, so a wall
+                        of clips does not pull tens of megabytes to draw a grid.
+                        `muted` + `playsInline` make Safari render a frame
+                        instead of a black rectangle. There is no poster image:
+                        generating one would need ffmpeg on the server. */}
+                    <video
+                      src={photo.url}
+                      className="w-full h-full object-cover"
+                      preload="metadata"
+                      muted
+                      playsInline
+                    />
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/25 text-white">
+                      <PlayCircleIcon size={30} weight="fill" />
+                    </span>
+                  </>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photo.url}
+                    alt={photo.caption ?? `Evidence photo by ${photo.uploaded_by ?? 'staff'}`}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                )}
               </button>
 
               {canRemove && mine && (
@@ -233,7 +292,7 @@ function Lightbox({ photo, onClose }: { photo: InventoryWastagePhoto; onClose: (
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Evidence photo"
+      aria-label="Evidence"
     >
       <button
         type="button"
@@ -244,12 +303,36 @@ function Lightbox({ photo, onClose }: { photo: InventoryWastagePhoto; onClose: (
         <XIcon size={18} weight="bold" />
       </button>
       <figure onClick={(e) => e.stopPropagation()} className="max-w-3xl w-full">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={photo.url}
-          alt={photo.caption ?? 'Evidence photo'}
-          className="w-full max-h-[75vh] object-contain rounded-xl"
-        />
+        {photo.kind === 'video' ? (
+          <>
+            {/* Played straight off the stored file - there is no transcoding,
+                which would need ffmpeg on the VPS. An iPhone .mov may therefore
+                refuse to play in some desktop browsers; the download link below
+                is the fallback rather than a nicety. */}
+            <video
+              src={photo.url}
+              controls
+              autoPlay
+              playsInline
+              className="w-full max-h-[75vh] rounded-xl bg-black"
+            />
+            <a
+              href={photo.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-center text-white/70 text-xs font-body mt-2 underline"
+            >
+              Will not play? Open the file directly
+            </a>
+          </>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photo.url}
+            alt={photo.caption ?? 'Evidence photo'}
+            className="w-full max-h-[75vh] object-contain rounded-xl"
+          />
+        )}
         <figcaption className="text-white/80 text-sm font-body mt-3 text-center">
           {photo.caption && <span className="block text-white">{photo.caption}</span>}
           {photo.uploaded_by ?? '-'} · {formatDateTime(photo.uploaded_at)}

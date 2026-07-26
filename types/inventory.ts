@@ -1144,6 +1144,15 @@ export interface InventoryWastagePhoto {
   id: number;
   stage: 'declared' | 'inspection';
   url: string;
+  /**
+   * A phone can send a clip as well as a still, so the gallery has to know
+   * whether to render <img> or <video>. Derived server-side from the SNIFFED
+   * mime type — never from the file extension, which a phone is free to lie
+   * about.
+   */
+  kind: 'image' | 'video';
+  mime_type: string | null;
+  size_bytes: number | null;
   caption: string | null;
   uploaded_by: string | null;
   uploaded_by_id: number | null;
