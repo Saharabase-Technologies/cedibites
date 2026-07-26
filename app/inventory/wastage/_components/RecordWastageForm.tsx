@@ -27,6 +27,7 @@ import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { PhoneCaptureDialog } from '@/app/components/upload/PhoneCaptureDialog';
 import type { WastageReason } from '@/types/inventory';
 import { getErrorMessage } from '@/lib/utils/error-handler';
+import { toast } from '@/lib/utils/toast';
 import { formatGhs, formatQty } from '../utils';
 
 interface DraftLine {
@@ -156,15 +157,30 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
         lines: payloadLines,
       });
 
-      // Photos go up after the claim exists, since they hang off its id. An
-      // upload failure must not lose the claim - it is already saved, and the
-      // detail page can always add more - so this degrades rather than throws.
+      /*
+       * Photos go up after the claim exists, since they hang off its id. A
+       * failure here must not lose the claim - it is already saved - so this
+       * degrades rather than throws.
+       *
+       * But it no longer degrades SILENTLY. Every under-threshold claim, and
+       * every claim at the warehouse, self-approves the instant it is recorded,
+       * and the server used to refuse evidence on an approved claim. So photos
+       * picked here were rejected and the rejection swallowed: the user chose
+       * three pictures, hit record, and they simply were not there afterwards.
+       * The server side is fixed; this says so when anything still fails.
+       */
+      const failed: string[] = [];
       for (const file of photos) {
         try {
           await addPhoto(wastage.id, file);
         } catch {
-          // Surfaced on the detail page, which shows what did and did not land.
+          failed.push(file.name);
         }
+      }
+      if (failed.length > 0) {
+        toast.error(
+          `The claim was saved, but ${failed.length} photo(s) did not upload. Add them from the claim page.`,
+        );
       }
 
       if (thenCapture) {

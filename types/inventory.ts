@@ -287,6 +287,8 @@ export interface InventoryTransfer {
   lineage?: TransferLineageNode[];
   /** Actor names (or null). The backend resource returns names, not objects. */
   created_by: string | null;
+  /** Id as well as the name; a draft stays manageable by whoever raised it. */
+  created_by_id: number | null;
   approved_by: string | null;
   sent_by: string | null;
   /** Id as well as the name; gates the receive action. */

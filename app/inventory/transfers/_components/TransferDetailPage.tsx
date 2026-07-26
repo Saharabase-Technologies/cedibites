@@ -239,14 +239,50 @@ function ActionBar({
 
   // Each action needs the right status, the matching permission, AND the right
   // side of the movement.
-  const canEdit    = s === 'draft' && can('inventory.transfer.create') && atSource;
-  const canSubmit  = s === 'draft' && can('inventory.transfer.create') && atSource;
+  /*
+   * A draft belongs to whoever raised it, wherever they work.
+   *
+   * The case: the warehouse manager brokering stock between two branches -
+   * Ashaiman has a surplus, Test Branch needs it, and they are nearer each other
+   * than either is to the mother kitchen. He raises it from Mother Kitchen, so
+   * `atSource` is false, and he was locked out of his own draft the moment he
+   * created it: no edit, no submit, no cancel, and nothing on screen saying why.
+   *
+   * Editing, submitting and cancelling move no stock, so the creator keeps them.
+   * Approve and send stay with the source - those declare goods physically gone.
+   */
+  const mine = staffUser?.user_id != null && transfer.created_by_id === staffUser.user_id;
+  const canManageDraft = s === 'draft' && can('inventory.transfer.create') && (atSource || mine);
+
+  const canEdit    = canManageDraft;
+  const canSubmit  = canManageDraft;
   const canApprove = s === 'submitted' && can('inventory.transfer.send') && atSource;
   const canSend    = s === 'approved' && can('inventory.transfer.send') && atSource;
   const canReceive =
     s === 'sent' && can('inventory.transfer.receive') && !iSentThis && atDestination;
   const canResolve = s === 'disputed' && can('inventory.transfer.resolve_dispute');
-  const canCancel  = ['draft', 'submitted', 'approved'].includes(s) && can('inventory.transfer.create') && atSource;
+
+  /*
+   * Who the ball is with, when it is not with the viewer. Dispatching belongs to
+   * the source, so anyone who is not there simply waits - and needs telling,
+   * rather than being shown an empty toolbar.
+   */
+  const sourceName = transfer.source_location?.name ?? 'the source location';
+  const destName = transfer.destination_location?.name ?? 'the destination';
+  const waitingOn =
+    s === 'submitted' && !atSource
+      ? { who: sourceName, what: 'approve it' }
+      : s === 'approved' && !atSource
+        ? { who: sourceName, what: 'send the goods' }
+        : s === 'sent' && !atDestination
+          ? { who: destName, what: 'receive the delivery' }
+          : s === 'draft' && !canManageDraft
+            ? { who: sourceName, what: 'submit it' }
+            : null;
+  const canCancel  =
+    ['draft', 'submitted', 'approved'].includes(s) &&
+    can('inventory.transfer.create') &&
+    (atSource || (s === 'draft' && mine));
 
   const handleApprove = () => {
     approve.mutateAsync(transfer.id).catch((e) => toast.error(getErrorMessage(e)));
@@ -292,6 +328,16 @@ function ActionBar({
         <ActionButton tone="danger" onClick={() => onAction('cancel')} icon={<XCircleIcon size={14} weight="bold" />}>
           Cancel
         </ActionButton>
+      )}
+
+      {/* When the next move is somebody else's, say so. A screen with no
+          buttons and no explanation reads as broken - which is exactly how the
+          warehouse manager's branch-to-branch transfer looked to him. */}
+      {waitingOn && (
+        <p className="w-full text-neutral-gray text-xs font-body">
+          Waiting on <span className="font-semibold text-text-dark">{waitingOn.who}</span> to{' '}
+          {waitingOn.what}.
+        </p>
       )}
     </div>
   );
