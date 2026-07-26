@@ -219,7 +219,7 @@ function ActionBar({
   // delivery is only caught if the other end confirms it. The API enforces the
   // same rule; this keeps the button from being offered at all.
   const { staffUser } = useStaffAuth();
-  const iSentThis = transfer.sent_by !== null && transfer.sent_by === staffUser?.name;
+  const iSentThis = transfer.sent_by_id !== null && transfer.sent_by_id === Number(staffUser?.id);
   const canReceive = s === 'sent' && can('inventory.transfer.receive') && !iSentThis;
   const canResolve = s === 'disputed' && can('inventory.transfer.resolve_dispute');
   const canCancel  = ['draft', 'submitted', 'approved'].includes(s) && can('inventory.transfer.create');

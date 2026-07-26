@@ -197,7 +197,14 @@ function ActionBar({
   const s = req.status;
   const canEdit    = s === 'draft' && can('inventory.requisition.create');
   const canSubmit  = s === 'draft' && can('inventory.requisition.create');
+  // A branch manager holds the approve grant so they can fulfil requests from
+  // OTHER branches drawing on their stock — not to sign off their own. Letting
+  // the requester approve makes the fulfilling side's control decorative.
+  // Rejecting your own is still allowed: that is withdrawing it.
+  const { staffUser } = useStaffAuth();
+  const iRaisedThis = req.requested_by_id !== null && req.requested_by_id === Number(staffUser?.id);
   const canDecide  = s === 'submitted' && can('inventory.requisition.approve');
+  const canApprove = canDecide && !iRaisedThis;
 
   const handleSubmit = () => {
     submit.mutateAsync(req.id).catch((e) => toast.error(getErrorMessage(e)));
@@ -241,15 +248,20 @@ function ActionBar({
           Delete draft
         </ActionButton>
       )}
+      {canApprove && (
+        <ActionButton tone="primary" onClick={() => onAction('approve')} icon={<CheckCircleIcon size={14} weight="bold" />}>
+          Approve
+        </ActionButton>
+      )}
       {canDecide && (
-        <>
-          <ActionButton tone="primary" onClick={() => onAction('approve')} icon={<CheckCircleIcon size={14} weight="bold" />}>
-            Approve
-          </ActionButton>
-          <ActionButton tone="danger" onClick={() => onAction('reject')} icon={<XCircleIcon size={14} weight="bold" />}>
-            Reject
-          </ActionButton>
-        </>
+        <ActionButton tone="danger" onClick={() => onAction('reject')} icon={<XCircleIcon size={14} weight="bold" />}>
+          {iRaisedThis ? 'Withdraw' : 'Reject'}
+        </ActionButton>
+      )}
+      {canDecide && iRaisedThis && (
+        <p className="font-body text-xs text-neutral-gray basis-full">
+          You raised this requisition, so someone at the fulfilling location has to approve it.
+        </p>
       )}
     </div>
   );

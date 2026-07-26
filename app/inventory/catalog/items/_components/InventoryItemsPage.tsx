@@ -255,6 +255,7 @@ export default function InventoryItemsPage() {
   const [stockFilter, setStockFilter] = useState('');
   // "What do I actually hold?" versus "what exists in the catalogue?"
   const [heldOnly, setHeldOnly] = useState(false);
+  const seesAllLocations = !can || can('inventory.view_all_locations');
 
   const { data: items = [], isLoading } = useInventoryItems({
     search:       search || undefined,
@@ -355,21 +356,26 @@ export default function InventoryItemsPage() {
             { value: 'inactive', label: 'Inactive' },
           ]}
         />
-        {/* Quantities are already scoped to the locations you run; this narrows
-            the LIST to what you hold. Off by default so the full catalogue stays
-            browsable — you request items precisely because you have none. */}
-        <button
-          type="button"
-          onClick={() => setHeldOnly((v) => !v)}
-          aria-pressed={heldOnly}
-          className={`px-4 py-2.5 rounded-xl text-sm font-semibold font-body min-h-11 cursor-pointer border transition-colors ${
-            heldOnly
-              ? 'bg-[#fff8ec] text-primary border-primary'
-              : 'bg-neutral-card text-neutral-gray border-[#f0e8d8] hover:bg-neutral-light'
-          }`}
-        >
-          Only what I hold
-        </button>
+        {/* Only for someone confined to a location. The warehouse manager is the
+            source — everything in the catalogue is already his, so the toggle
+            would be a no-op that just implies otherwise. Quantities are scoped
+            server-side either way; this narrows the LIST, and stays off by
+            default so the full catalogue is still browsable — a branch requests
+            an item precisely because it holds none. */}
+        {!seesAllLocations && (
+          <button
+            type="button"
+            onClick={() => setHeldOnly((v) => !v)}
+            aria-pressed={heldOnly}
+            className={`px-4 py-2.5 rounded-xl text-sm font-semibold font-body min-h-11 cursor-pointer border transition-colors ${
+              heldOnly
+                ? 'bg-[#fff8ec] text-primary border-primary'
+                : 'bg-neutral-card text-neutral-gray border-[#f0e8d8] hover:bg-neutral-light'
+            }`}
+          >
+            Only what I hold
+          </button>
+        )}
         {canManage && (
           <button
             onClick={() => setIsAddOpen(true)}

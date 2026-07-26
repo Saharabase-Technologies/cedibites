@@ -279,6 +279,8 @@ export interface InventoryTransfer {
   created_by: string | null;
   approved_by: string | null;
   sent_by: string | null;
+  /** Id as well as the name; gates the receive action. */
+  sent_by_id: number | null;
   received_by: string | null;
   cancelled_by: string | null;
   cancel_reason: string | null;
@@ -385,6 +387,9 @@ export interface InventoryRequisition {
   fulfilling_transfer: { id: number; reference: string; status: TransferStatus } | null;
   /** Actor names (or null). The backend resource returns names, not objects. */
   requested_by: string | null;
+  /** Id as well as the name — names are not unique, so "did I raise this?"
+   *  must not be decided by string comparison. */
+  requested_by_id: number | null;
   approved_by: string | null;
   rejection_reason: string | null;
   submitted_at: string | null;
