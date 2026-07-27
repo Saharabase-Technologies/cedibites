@@ -30,7 +30,7 @@ Everything below follows from these.
 |---|---|
 | 0 — Permissions foundation | **Done**, not committed. `ManagerScopeTest` — 36 tests. |
 | 1 — Access isolation (API) | **Done**, not committed. `BranchIsolationTest` — 42 tests. Frontend follow-up outstanding, see §1.6. |
-| 2 — Branch provisioning | Not started |
+| 2 — Branch provisioning | **Done**, except the menu half — see §2.3. `BranchProvisioningTest` — 12 tests. |
 | 3 — Menu unification | Not started |
 | 4 — No stock, no sale | Not started |
 
@@ -194,29 +194,39 @@ Unblocks the test branch **on the current schema**. Does not wait for Phase 3.
 
 ### 2.1 `BranchProvisioningService`
 
-One code path that runs on branch creation:
+- [x] Write the service, call it from `BranchController::store` inside the existing transaction so
+      a branch is never created half-provisioned
+- [x] `php artisan branch:provision-locations` (with `--dry-run`) to repair branches that predate it
+- [x] `inventory:scope-check` now names the command as the fix when it finds orphaned branches
+- [x] `Branch::inventoryLocations()` relation
 
-1. Create the branch (existing).
-2. Create its `inventory_locations` row (`type: satellite`, `branch_id` set). Nothing does this
-   today, which is why a new branch's manager is silently locked out of IMS.
-3. Make the menu available at the branch — clone rows under the current schema, or insert pivot
-   rows once Phase 3 lands.
-
-- [ ] Write the service, call it from `BranchController::store`
-- [ ] Backfill command for branches that already exist without a location
-- [ ] Extend `php artisan inventory:scope-check` to assert every active branch has a location
+Codes follow the catalog seeder's `SK-NNN`, derived from the highest existing suffix (including
+soft-deleted rows, which still hold their unique code) rather than a count, so a gap never hands
+out a code that is taken. A branch with a *deactivated* location is left alone rather than given a
+second one — that history is deliberate, and a second location would split its stock in two.
 
 ### 2.2 Stop the silent failures
 
-- [ ] `RecipeDeductionService::resolveDeductionLocation:190` falls back to the **warehouse** when
-      a branch has no location — a sale at a new branch quietly eats Mother Kitchen's stock.
-      Make it raise an alert, or refuse, rather than debit the wrong store.
-- [ ] POS shows a blank grid when a branch has no menu. Fix
-      [app/pos/terminal/page.tsx:265](../app/pos/terminal/page.tsx#L265) — `??` does not fire on
-      `[]`, so an empty list passes straight through the fallback. Show
-      **"No menu configured for this branch"**.
-- [ ] `MenuItemBranchOptionController::update()` `continue`s silently when a branch has no sibling
-      row — the UI reports success and writes nothing. Return which branches were skipped.
+- [x] `RecipeDeductionService::resolveDeductionLocation` still falls back to the warehouse so a
+      roll-out never stops deducting, but now raises a **critical** `misrouted_deduction` alert
+      naming the branch and the warehouse it is eating. Deduped per branch, not per sale. It was a
+      `Log::info` nobody reads.
+- [x] POS distinguishes "this branch has no menu" from "your search found nothing". The old state
+      said *No items found*, which reads as a typo and sends the cashier hunting.
+- [x] `MenuItemBranchOptionController::update()` returns `skipped_branch_ids` and names them in the
+      message instead of `continue`-ing in silence.
+
+### 2.3 The menu half — deliberately deferred to Phase 3
+
+Provisioning a branch's **menu** is not here, on purpose. Under the current schema that means
+duplicating every category, item, option and add-on — and Phase 3 then has to merge those
+duplicates back into one global menu. Cloning now would add rows for that migration to undo, plus
+more ratings to dedupe and more recipes to repoint.
+
+So a newly created branch today gets its location (and therefore working IMS, correct stock
+deduction, and a clear POS message) but still no menu until Phase 3. If a branch needs to sell
+**before** Phase 3 lands, the interim route is the existing
+`POST /admin/menu-items/bulk-import` with that `branch_id` — it works today and needs no new code.
 
 ---
 

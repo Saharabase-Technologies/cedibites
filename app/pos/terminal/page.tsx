@@ -671,11 +671,29 @@ export default function POSTerminalPage() {
             )}
           </div>
 
-          {((searchQuery && searchOptionResults.length === 0) || (!searchQuery && displayedItems.length === 0)) && (
-            <div className="flex flex-col items-center justify-center py-16 text-neutral-gray">
-              <MagnifyingGlassIcon className="w-12 h-12 mb-4 opacity-40" />
-              <p>No items found</p>
+          {/*
+            Two different empty states. A branch with no menu of its own reads
+            identically to a failed search unless we say so — menu_items carries
+            a branch_id, so a branch nobody gave a menu to returns nothing here
+            and "No items found" sends the cashier hunting for a typo. Name the
+            real cause instead.
+          */}
+          {!menuLoading && branchMenuItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-6 text-center text-neutral-gray">
+              <StorefrontIcon className="w-12 h-12 mb-4 opacity-40" />
+              <p className="font-medium text-text-dark">No menu configured for this branch</p>
+              <p className="mt-1 text-sm max-w-xs">
+                {branchInfo?.name ?? 'This branch'} has no menu items yet. An administrator needs to
+                set them up before you can take an order here.
+              </p>
             </div>
+          ) : (
+            ((searchQuery && searchOptionResults.length === 0) || (!searchQuery && displayedItems.length === 0)) && (
+              <div className="flex flex-col items-center justify-center py-16 text-neutral-gray">
+                <MagnifyingGlassIcon className="w-12 h-12 mb-4 opacity-40" />
+                <p>No items found</p>
+              </div>
+            )
           )}
         </div>
       </div>
