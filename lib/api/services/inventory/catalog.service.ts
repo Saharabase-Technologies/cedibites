@@ -43,9 +43,21 @@ export async function getInventoryItem(id: number): Promise<InventoryItem> {
   return extractData<InventoryItem>(response);
 }
 
-/** Supply/movement history (ledger + suppliers) for the item detail view. */
-export async function getInventoryItemMovements(id: number): Promise<ItemHistory> {
-  const response = await apiClient.get(`/inventory/items/${id}/movements`);
+/**
+ * Supply/movement history (ledger + suppliers) for the item detail view.
+ *
+ * `locationId` matters more than it looks. Without it, anyone who can see every
+ * location gets EVERY location's movements in one list with a running balance
+ * computed across all of them - which reads as one location being debited for
+ * another's stock. Pass the location being looked at.
+ */
+export async function getInventoryItemMovements(
+  id: number,
+  locationId?: number | null,
+): Promise<ItemHistory> {
+  const response = await apiClient.get(`/inventory/items/${id}/movements`, {
+    params: locationId ? { location_id: locationId } : undefined,
+  });
   return extractData<ItemHistory>(response);
 }
 

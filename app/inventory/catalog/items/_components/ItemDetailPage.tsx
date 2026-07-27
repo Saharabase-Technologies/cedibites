@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import Link from 'next/link';
 import {
   ArrowLeftIcon,
@@ -14,6 +16,7 @@ import {
 } from '@phosphor-icons/react';
 import { formatGHS } from '@/lib/utils/currency';
 import { useInventoryItemMovements } from '@/lib/api/hooks/inventory/useInventoryCatalog';
+import { useInventoryLocations } from '@/lib/api/hooks/inventory/useInventoryLocations';
 import type { InventoryItem, ItemMovement } from '@/types/inventory';
 
 function fmtQty(n: number): string {
@@ -60,7 +63,23 @@ function stockBadge(item: InventoryItem) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ItemDetailPage({ id }: { id: number }) {
-  const { data, isLoading, error } = useInventoryItemMovements(id);
+  /*
+   * Which location's ledger this is.
+   *
+   * Left unscoped, anyone who sees every location gets every location's
+   * movements in one list with a running balance computed across all of them -
+   * which reads as the mother kitchen being debited for a branch's stock. It
+   * was reported as exactly that.
+   *
+   * Empty string = everywhere, which is a legitimate thing to want; it is just
+   * no longer the silent default for people who can see more than one place.
+   */
+  const [locationId, setLocationId] = useState<string>('');
+  const { data: locations = [] } = useInventoryLocations({ is_active: true });
+  const { data, isLoading, error } = useInventoryItemMovements(
+    id,
+    locationId ? Number(locationId) : null,
+  );
 
   if (isLoading) return <DetailSkeleton />;
   if (error || !data) return <DetailMissing />;
@@ -194,7 +213,26 @@ export default function ItemDetailPage({ id }: { id: number }) {
             Supply history{' '}
             <span className="text-neutral-gray font-normal">({movements.length})</span>
           </h2>
-          <p className="text-xs text-neutral-gray">Newest first · running balance</p>
+          <div className="flex items-center gap-3">
+            {locations.length > 1 && (
+              <select
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+                aria-label="Filter the ledger by location"
+                className="rounded-lg border border-[#f0e8d8] bg-neutral-light/60 px-2.5 py-1.5 text-xs font-body text-text-dark"
+              >
+                <option value="">All locations</option>
+                {locations.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <p className="text-xs text-neutral-gray">
+              {locationId ? 'Running balance for this location' : 'Running balance across all locations'}
+            </p>
+          </div>
         </div>
         {movements.length === 0 ? (
           <div className="py-16 flex flex-col items-center text-center">

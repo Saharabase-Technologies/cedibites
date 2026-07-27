@@ -72,7 +72,17 @@ export function useInventoryAttention(): InventoryAttention {
        * the source rather than on who created the transfer.
        */
       if (t.status === 'submitted' || t.status === 'approved') {
-        return canDispatch && actsAt(t.source_location?.id ?? null);
+        // Yours to act on: you hold the stock.
+        if (canDispatch && actsAt(t.source_location?.id ?? null)) return true;
+
+        /*
+         * Coming TO you. No action is possible yet - the source still has to
+         * put it on a vehicle - but the warehouse manager wanted to know it was
+         * on the way, and for a wastage return that is not idle curiosity: a
+         * claim cannot be settled until those goods are physically in front of
+         * him, so an unnoticed return is a claim that never closes.
+         */
+        return actsAt(t.destination_location?.id ?? null);
       }
       // In transit: whoever is at the destination must sign for it. Never the
       // sender, and never a warehouse manager watching a branch delivery.
@@ -112,7 +122,11 @@ export function useInventoryAttention(): InventoryAttention {
         );
       }
       if (w.status === 'pending_return') {
-        return actsAt(w.location?.id ?? null);
+        // The branch holding the goods must send them...
+        if (actsAt(w.location?.id ?? null)) return true;
+        // ...and the warehouse that will have to sign for them should know a
+        // claim is coming, rather than discovering it when the lorry arrives.
+        return canApproveWastage && actsAt(w.disposal_location?.id ?? null);
       }
       return false;
     }).length;

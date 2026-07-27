@@ -53,10 +53,12 @@ export function useInventoryItem(id: number) {
   });
 }
 
-export function useInventoryItemMovements(id: number) {
+export function useInventoryItemMovements(id: number, locationId?: number | null) {
   return useQuery({
-    queryKey: ['inventory', 'items', id, 'movements'],
-    queryFn: () => getInventoryItemMovements(id),
+    // The location is part of the identity of this result, not a detail - two
+    // locations give genuinely different ledgers for the same item.
+    queryKey: ['inventory', 'items', id, 'movements', locationId ?? 'all'],
+    queryFn: () => getInventoryItemMovements(id, locationId),
     enabled: id > 0,
     staleTime: 0,
     refetchOnMount: 'always',
