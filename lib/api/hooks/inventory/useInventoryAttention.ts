@@ -42,6 +42,7 @@ export function useInventoryAttention(): InventoryAttention {
   const canApproveRequisitions = can('inventory.requisition.approve');
   const canReceive = can('inventory.transfer.receive');
   const canResolve = can('inventory.transfer.resolve_dispute');
+  const canDispatch = can('inventory.transfer.send');
   const canApproveWastage = can('inventory.wastage.approve');
 
   return useMemo(() => {
@@ -60,6 +61,19 @@ export function useInventoryAttention(): InventoryAttention {
       : 0;
 
     const transferCount = (transfers ?? []).filter((t) => {
+      /*
+       * Waiting on the SOURCE to act. These were missing entirely, which is how
+       * a branch-to-branch transfer went unnoticed: the warehouse manager
+       * raised and submitted it, it landed in Ashaiman's queue, and the sidebar
+       * said nothing at all. Somebody had to already know to go looking.
+       *
+       * `submitted` needs approving, `approved` needs putting on a vehicle -
+       * both belong to whoever holds the stock, which is why they are gated on
+       * the source rather than on who created the transfer.
+       */
+      if (t.status === 'submitted' || t.status === 'approved') {
+        return canDispatch && actsAt(t.source_location?.id ?? null);
+      }
       // In transit: whoever is at the destination must sign for it. Never the
       // sender, and never a warehouse manager watching a branch delivery.
       if (t.status === 'sent') {
@@ -117,6 +131,7 @@ export function useInventoryAttention(): InventoryAttention {
   }, [
     requisitions,
     transfers,
+    canDispatch,
     purchaseOrders,
     wastages,
     myUserId,

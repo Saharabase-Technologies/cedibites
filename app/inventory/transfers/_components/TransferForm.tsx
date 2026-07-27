@@ -62,15 +62,37 @@ interface Props {
 
 export function TransferForm({ mode, id }: Props) {
   const router = useRouter();
-  const { can } = useStaffAuth();
+  const { can, staffUser } = useStaffAuth();
   const allowed = can('inventory.transfer.create');
 
   const { data: locations = [] } = useInventoryLocations({ is_active: true });
   const { data: items = [] } = useInventoryItems({ is_active: true });
 
+  /*
+   * You can only dispatch stock you actually hold, so the source is where YOU
+   * work - not a free choice of anywhere in the company.
+   *
+   * A branch manager wanting stock that another branch holds does not create a
+   * transfer out of their shelf; they raise a REQUISITION on them, and the
+   * source fulfils it. Offering every location here invited the opposite, which
+   * makes no operational sense: nobody can load a lorry in a building they are
+   * not standing in.
+   *
+   * The warehouse manager and admins are unrestricted (`operating` null or
+   * spanning several), because brokering between two branches is a real
+   * supervisory job - see TransferService::submit().
+   */
+  const operating = staffUser?.operating_location_ids ?? null;
+  const sources = useMemo(
+    () => (operating === null ? locations : locations.filter((l) => operating.includes(l.id))),
+    [locations, operating],
+  );
+
   const editing = mode === 'edit' && typeof id === 'number';
   const { data: existing, isLoading: loadingTransfer, error: loadError } =
     useTransfer(editing ? id! : 0);
+
+  const impliedSource = !editing && sources.length === 1 ? sources[0] : null;
 
   const createTransfer = useCreateTransfer();
   const updateTransfer = useUpdateTransfer(id ?? 0);
@@ -78,6 +100,11 @@ export function TransferForm({ mode, id }: Props) {
   // ─── Form state ─────────────────────────────────────────────────────────
   const [sourceId, setSourceId]           = useState<string>('');
   const [destinationId, setDestinationId] = useState<string>('');
+
+  // One possible source is not a question worth asking - fill it in.
+  useEffect(() => {
+    if (impliedSource && sourceId === '') setSourceId(String(impliedSource.id));
+  }, [impliedSource, sourceId]);
   const [notes, setNotes]                 = useState<string>('');
   const [lines, setLines]                 = useState<LineDraft[]>(() => [emptyLine()]);
   const [hydrated, setHydrated]           = useState(false);
@@ -201,7 +228,7 @@ export function TransferForm({ mode, id }: Props) {
                 required
               >
                 <option value="">Select source…</option>
-                {locations.map((l) => (
+                {sources.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.name}
                   </option>

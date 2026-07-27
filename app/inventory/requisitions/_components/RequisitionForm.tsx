@@ -83,16 +83,6 @@ export function RequisitionForm({ mode, id }: Props) {
   // Distinguish "still loading" from "genuinely has no branch".
   const strandedNoBranch = !seesAllLocations && locations.length > 0 && branches.length === 0;
 
-  // A requisition always pulls from a warehouse, and there is currently exactly
-  // one - so the question has one possible answer and asking it is just a box to
-  // clear on the way to the real work. Shown locked rather than hidden, because
-  // "where is this coming from?" is still worth being able to read.
-  //
-  // The moment a second mother kitchen exists this reverts to a live selector on
-  // its own. Transfers are the opposite case and keep both ends selectable: there
-  // the source is a genuine choice, not a foregone conclusion.
-  const impliedSource = warehouses.length === 1 ? warehouses[0] : null;
-
   const editing = mode === 'edit' && typeof id === 'number';
   const { data: existing, isLoading: loadingReq, error: loadError } =
     useRequisition(editing ? id! : 0);
@@ -101,19 +91,43 @@ export function RequisitionForm({ mode, id }: Props) {
   const updateReq = useUpdateRequisition(id ?? 0);
 
   // ─── Form state ─────────────────────────────────────────────────────────
-  const [requestingId, setRequestingId] = useState<string>('');
+  const [requestingIdRaw, setRequestingId] = useState<string>('');
   const [sourceId, setSourceId]         = useState<string>('');
   const [purpose, setPurpose]           = useState<RequisitionPurpose>('supplementary');
   const [notes, setNotes]               = useState<string>('');
   const [lines, setLines]               = useState<LineDraft[]>(() => [emptyLine()]);
   const [hydrated, setHydrated]         = useState(false);
 
-  // Default the source to the (single) warehouse for the common case.
+  /*
+   * Where the stock is being asked FROM.
+   *
+   * This was briefly locked to the single warehouse, on the reasoning that a
+   * requisition always pulls from the mother kitchen. That was wrong: a branch
+   * can supply another branch, and often should - Ashaiman having a surplus that
+   * Test Branch needs, with the two nearer each other than either is to the
+   * mother kitchen.
+   *
+   * A requisition is the right verb for that, and a transfer is not: you can
+   * only dispatch stock you actually hold, so asking Test Branch to "create a
+   * transfer out of Ashaiman" inverts who is doing what.
+   *
+   * Excludes wherever the request is FOR - you cannot requisition from yourself,
+   * and the server refuses it anyway.
+   */
+  const requestingId = impliedBranch ? String(impliedBranch.id) : requestingIdRaw;
+  const sources = useMemo(
+    () => locations.filter((l) => String(l.id) !== requestingId),
+    [locations, requestingId],
+  );
+  const impliedSource = sources.length === 1 ? sources[0] : null;
+
+  // Default to the mother kitchen, which is where most requests go - but only
+  // as a starting point now that a branch can also be asked to supply.
   useEffect(() => {
-    if (!editing && sourceId === '' && warehouses.length > 0) {
-      setSourceId(String(warehouses[0].id));
-    }
-  }, [editing, sourceId, warehouses]);
+    if (editing || sourceId !== '') return;
+    const preferred = warehouses[0] ?? (sources.length === 1 ? sources[0] : null);
+    if (preferred) setSourceId(String(preferred.id));
+  }, [editing, sourceId, warehouses, sources]);
 
   // Hydrate edit-mode state once the requisition arrives.
   useEffect(() => {
@@ -257,7 +271,7 @@ export function RequisitionForm({ mode, id }: Props) {
               <FormField label="For branch" htmlFor="req-branch" required>
                 <Select
                   id="req-branch"
-                  value={requestingId}
+                  value={requestingIdRaw}
                   onChange={(e) => setRequestingId(e.target.value)}
                   required
                   disabled={editing}
@@ -292,7 +306,7 @@ export function RequisitionForm({ mode, id }: Props) {
                   required
                 >
                   <option value="">Select source…</option>
-                  {warehouses.map((l) => (
+                  {sources.map((l) => (
                     <option key={l.id} value={l.id}>
                       {l.name}
                     </option>
@@ -439,7 +453,7 @@ export function RequisitionForm({ mode, id }: Props) {
               ) : availability?.sufficient ? (
                 <p className="flex items-center gap-1.5 font-body text-xs text-secondary">
                   <CheckCircleIcon size={14} weight="fill" />
-                  {warehouses.find((w) => String(w.id) === sourceId)?.name ?? 'The source'} has
+                  {sources.find((w) => String(w.id) === sourceId)?.name ?? 'The source'} has
                   enough stock for everything requested.
                 </p>
               ) : shortLines.length > 0 ? (
