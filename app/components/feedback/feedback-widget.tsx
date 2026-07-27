@@ -331,6 +331,15 @@ function RichWidget() {
 
   if (!authenticated) return null;
 
+  /*
+   * Never on the phone-capture page. `/u/{token}` is a no-login page opened by
+   * scanning a QR code, on a handset, one-handed, over the goods being
+   * photographed - and the launcher sits exactly on top of the one button that
+   * page has. It also has nothing to report against: the visitor is not signed
+   * in and the page is not part of the portal.
+   */
+  if (pathname.startsWith('/u/')) return null;
+
   const buf = open && step === 'review' ? snapshot() : null;
   // You can only pin the page you're actually on, and only capture it once.
   const canPin = shots[activeShot]?.route === pathname;
@@ -697,6 +706,8 @@ function TextOnlyFallback() {
   const [submitting, setSubmitting] = useState(false);
 
   if (typeof window !== 'undefined' && !resolveReporterContext().authenticated) return null;
+  // Same as the rich widget: never over the phone-capture page.
+  if (pathname.startsWith('/u/')) return null;
 
   // Match the rich widget: keep the launcher clear of the POS Pay button / cart bar.
   const fabPos = pathname.startsWith('/pos')

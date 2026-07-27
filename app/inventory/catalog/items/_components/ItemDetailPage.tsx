@@ -222,6 +222,11 @@ function MovementsTable({ movements, unit }: { movements: ItemMovement[]; unit: 
           <tr className="text-left bg-neutral-light/60 text-[11px] font-semibold uppercase tracking-wider text-neutral-gray">
             <th className="px-5 py-2.5">Date</th>
             <th className="px-5 py-2.5">Type</th>
+            {/* Without this the ledger was unreadable for anyone who sees every
+                location. A user looking at the mother kitchen saw a branch's
+                transfer_out interleaved with no way to tell them apart, and
+                reasonably read it as the mother kitchen being deducted twice. */}
+            <th className="px-5 py-2.5">Location</th>
             <th className="px-5 py-2.5 text-right">Change</th>
             <th className="px-5 py-2.5 text-right">Balance</th>
             <th className="px-5 py-2.5 text-right">Unit cost</th>
@@ -237,6 +242,9 @@ function MovementsTable({ movements, unit }: { movements: ItemMovement[]; unit: 
                 <td className="px-5 py-3 text-text-dark whitespace-nowrap">{fmtDateTime(m.occurred_at)}</td>
                 <td className="px-5 py-3">
                   <span className="capitalize text-text-dark">{m.movement_type.replace(/_/g, ' ')}</span>
+                </td>
+                <td className="px-5 py-3 text-text-dark whitespace-nowrap">
+                  {m.location?.name ?? '-'}
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums">
                   <span className={`inline-flex items-center gap-0.5 font-semibold ${isIn ? 'text-emerald-700' : 'text-rose-700'}`}>
