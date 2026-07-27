@@ -173,7 +173,14 @@ export default function POSTerminalPage() {
   const { staffUser, logout } = useStaffAuth();
   const { branches } = useBranch();
   const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
-  const { items: menuItems, categories: menuCategories, isLoading: menuLoading } = useMenuItems({ is_available: true });
+  // Scoped to the till's own branch. This used to fetch every branch's menu and
+  // filter it down client-side, which shipped other branches' items and prices
+  // to every POS on every load. The API scopes it now (MenuItem::servedAt), so
+  // the branch filter below is a second pass over an already-correct list
+  // rather than the thing doing the work.
+  const { items: menuItems, categories: menuCategories, isLoading: menuLoading } = useMenuItems(
+    session?.branchId ? { branch_id: Number(session.branchId), is_available: true } : undefined
+  );
 
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');

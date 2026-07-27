@@ -67,6 +67,8 @@ function StaffDetailDrawer({ staff, onClose }: { staff: StaffMember; onClose: ()
     const [newNote, setNewNote] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
     const [isLoadingNotes, setIsLoadingNotes] = useState(false);
+    const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+    const [editDraft, setEditDraft] = useState('');
 
     useEffect(() => {
         setIsLoadingNotes(true);
@@ -86,6 +88,28 @@ function StaffDetailDrawer({ staff, onClose }: { staff: StaffMember; onClose: ()
             toast.success('Note added');
         } catch {
             toast.error('Failed to save note');
+        } finally {
+            setIsSavingNote(false);
+        }
+    }
+
+    // Only the author edits or deletes their own note — a note is one person's
+    // record of what they observed, and letting a second manager rewrite it
+    // would make the record worthless as a record. The API enforces this; the
+    // UI simply does not offer it (see `note.is_own`).
+    async function saveEdit(noteId: number) {
+        const trimmed = editDraft.trim();
+        if (!trimmed) return;
+
+        setIsSavingNote(true);
+        try {
+            const updated = await employeeService.updateNote(staff.id, noteId, trimmed);
+            setNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: updated.content ?? trimmed } : n));
+            setEditingNoteId(null);
+            setEditDraft('');
+            toast.success('Note updated');
+        } catch {
+            toast.error('Failed to update note');
         } finally {
             setIsSavingNote(false);
         }
@@ -329,14 +353,41 @@ function StaffDetailDrawer({ staff, onClose }: { staff: StaffMember; onClose: ()
                                                             {new Date(note.created_at).toLocaleDateString('en-GH', { month: 'short', day: 'numeric', year: 'numeric' })}
                                                         </span>
                                                     </div>
-                                                    {note.is_own && (
-                                                        <button type="button" onClick={() => void removeNote(note.id)}
-                                                            className="text-neutral-gray/40 hover:text-error transition-colors cursor-pointer shrink-0">
-                                                            <XIcon size={12} />
-                                                        </button>
+                                                    {note.is_own && editingNoteId !== note.id && (
+                                                        <div className="flex items-center gap-1.5 shrink-0">
+                                                            <button type="button"
+                                                                onClick={() => { setEditingNoteId(note.id); setEditDraft(note.content); }}
+                                                                className="text-neutral-gray/40 hover:text-primary transition-colors cursor-pointer text-[10px] font-body">
+                                                                Edit
+                                                            </button>
+                                                            <button type="button" onClick={() => void removeNote(note.id)}
+                                                                className="text-neutral-gray/40 hover:text-error transition-colors cursor-pointer">
+                                                                <XIcon size={12} />
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
-                                                <p className="text-text-dark text-sm font-body whitespace-pre-wrap">{note.content}</p>
+
+                                                {editingNoteId === note.id ? (
+                                                    <div className="flex flex-col gap-2">
+                                                        <textarea value={editDraft} onChange={e => setEditDraft(e.target.value)} rows={3}
+                                                            className="w-full px-3 py-2 bg-white border border-[#f0e8d8] rounded-lg text-text-dark text-sm font-body focus:outline-none focus:border-primary/40 resize-none" />
+                                                        <div className="flex items-center gap-2">
+                                                            <button type="button" onClick={() => void saveEdit(note.id)}
+                                                                disabled={isSavingNote || !editDraft.trim()}
+                                                                className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-medium font-body hover:bg-primary-hover transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                                                                {isSavingNote ? 'Saving…' : 'Save'}
+                                                            </button>
+                                                            <button type="button"
+                                                                onClick={() => { setEditingNoteId(null); setEditDraft(''); }}
+                                                                className="px-3 py-1.5 text-neutral-gray text-xs font-body hover:text-text-dark transition-colors cursor-pointer">
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-text-dark text-sm font-body whitespace-pre-wrap">{note.content}</p>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
