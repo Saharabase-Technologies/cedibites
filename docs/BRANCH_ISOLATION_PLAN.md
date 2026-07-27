@@ -31,12 +31,17 @@ Everything below follows from these.
 | 0 — Permissions foundation | **Done**, not committed. `ManagerScopeTest` — 36 tests. |
 | 1 — Access isolation (API) | **Done**, not committed. `BranchIsolationTest` — 42 tests. Frontend follow-up outstanding, see §1.6. |
 | 2 — Branch provisioning | **Done**, except the menu half — see §2.3. `BranchProvisioningTest` — 12 tests. |
-| 3 — Menu unification | Not started |
+| 3 — Menu unification | **Expand + migrate done**, not committed to prod. Contract (dropping `branch_id`) deliberately not run — see §3.6. `MenuUnifyTest` 18, `MenuAvailabilityTest` 10. |
 | 4 — No stock, no sale | Not started |
 
-Backend suite after Phases 0+1: **409 passed, 6 failed** — the same 6 pre-existing failures as
-before this work (4 `SmartCategoryTest`, `EXTRACT` is not SQLite-compatible; 2
-`SecurityHardeningTest`).
+Backend suite after Phases 0–3: **445 passed, 3 failed**, all pre-existing.
+
+> **The pre-existing failure count is not a constant.** It moves between 3 and 6 depending on the
+> time of day. `SmartCategoryTest` resolves whichever smart category's time window the wall clock
+> is currently inside, and those resolvers emit `EXTRACT(HOUR FROM …)`, which SQLite cannot parse.
+> Run at 13:33 you get 4 SmartCategory failures; run at 16:16 you get 1. The 2
+> `SecurityHardeningTest` failures are constant. Do not read a drop from 6 to 3 as having fixed
+> anything, and do not read 6 as a regression from 3.
 
 ---
 
@@ -260,20 +265,36 @@ Plan them as **one migration**, not three.
 
 Never leave prod mid-flight.
 
-1. **Expand.** Add `menu_item_branches`. Dual-write alongside `branch_id`.
-2. **Backfill.** Group by slug, pick a survivor per group, insert pivot rows for every branch that
-   had a sibling, and lift each sibling's option prices into `menu_item_option_branch_prices`.
-3. **Repoint** to the survivor: `order_items`, `cart_items`, `inventory_recipes`,
-   `promo_menu_items`, `menu_item_ratings` (merge and dedupe on `customer_id`),
-   `menu_item_menu_tag`, `menu_item_menu_add_on`.
-4. **Switch reads.** `MenuItemController`, `BranchResource`, `MenuItemBranchOptionController`,
-   POS terminal, `MenuDiscoveryProvider`, smart categories.
-5. **Contract.** Soft-delete the losers, drop `branch_id`, change `UNIQUE(branch_id, slug)` →
-   `UNIQUE(slug)`.
+1. **Expand.** — [x] `menu_item_branches` migration. Structural only, changes no behaviour.
+2. **Backfill + repoint.** — [x] `php artisan menu:unify --dry-run`. Picks the oldest row per slug
+   as survivor, records every serving branch in the pivot, lifts each branch's differing price into
+   `menu_item_option_branch_prices`, repoints `order_items`, `cart_items`, `inventory_recipes`,
+   `promo_menu_items`, `menu_item_ratings`, `menu_item_menu_tag` and `menu_item_menu_add_on`, then
+   soft-deletes the losers. Idempotent; a second run finds no duplicates.
+3. **Switch reads.** — [x] `MenuItem::scopeServedAt()`, used by `MenuItemController::index`,
+   `BranchController::getMenuItemIds` and `isItemAvailable`. `BranchResource` returns the union of
+   pivot-served and legacy `branch_id` items, deduped.
+4. **Contract.** — [ ] **Deliberately not done.** See §3.6.
 
-- [ ] Build step 2 as an artisan command with `--dry-run` that prints the merge plan — which slugs
-      have siblings, which prices diverge, which ratings collide — so it can be eyeballed against
-      prod before anything writes.
+### 3.3a Details worth knowing
+
+- **The scope reads correctly in both states.** `servedAt` matches "has a pivot row for this
+  branch" OR "has no pivot rows at all and its legacy `branch_id` is this branch". Without that
+  second clause, deploying the migration before running the command would empty every menu in the
+  business.
+- **A second branch's recipe becomes a real per-branch override.** Those recipes were written
+  `branch_id = null` — "global" — but were only ever that branch's, because the option ids belonged
+  to it alone. Repointed onto the survivor's option with `branch_id` set, they finally mean what
+  they always meant.
+- **A differing price is not a conflict.** It is that branch's price, and it becomes an override.
+  Identical prices write no override at all.
+- **A size only one branch sells is copied onto the survivor**, not dropped. Losing a size a branch
+  actually sells is worse than carrying one it does not.
+- **Soft-deleted rows still hold `UNIQUE(menu_item_id, option_key)`.** The command revives a
+  soft-deleted option rather than creating a colliding one — the same trap
+  `MenuItemController::syncSinglePriceOption` documents.
+- **One rating per customer.** A customer who rated the same dish at two branches keeps their most
+  recent score, and the survivor's average is recomputed from the merged set.
 
 ### 3.4 What this fixes for free
 
@@ -294,10 +315,46 @@ Never leave prod mid-flight.
 - **Top items stop being string-fragile.** They group by `menu_items.name`, so they merge across
   branches today — until someone types "Jollof rice" at a new branch and it splits in two.
 
-### 3.5 Frontend follow-up
+### 3.5 The manager's availability endpoint
 
-- [ ] Admin menu editor: one item, a branch availability matrix, and admin-only price fields
-- [ ] Manager menu screen: **availability toggles only**, for their own branches, no price inputs
+`menu.availability.manage` was granted in Phase 0 with nothing consuming it. It has an endpoint now:
+
+```
+GET   /v1/manager/branches/{branch}/menu-availability
+PATCH /v1/manager/branches/{branch}/menu-availability/{menuItem}   { "is_available": false }
+```
+
+Gated on `menu.availability.manage` + `branch.access`. Sold out at one branch leaves every other
+branch untouched, and `menu_items.is_available` (off everywhere) still wins over it. Nothing in the
+payload can change a price — tested.
+
+### 3.6 Contract — why it is not done
+
+Dropping `menu_items.branch_id` and changing `UNIQUE(branch_id, slug)` → `UNIQUE(slug)` is
+irreversible and migrations run automatically on deploy. It must not land until `menu:unify` has
+actually run against production data and been eyeballed. Order of operations:
+
+1. Deploy this branch. The pivot table appears; nothing changes behaviourally.
+2. `php artisan menu:unify --dry-run` on prod. **Read the output.** It reports every merge, every
+   price override it would write, every recipe it would move, and anything odd under "Needs a
+   human eye".
+3. `php artisan menu:unify` for real.
+4. Verify: the POS at each branch shows the right dishes at the right prices; recipes deduct.
+5. *Then* write and deploy the contract migration.
+
+- [ ] Contract migration (after steps 1–4)
+- [ ] `menu_categories` and `menu_add_ons` carry the same `branch_id` + `UNIQUE(branch_id, slug)`
+      shape and need the same treatment. Not yet touched — items were the ones breaking recipes,
+      promos and ratings.
+
+### 3.7 Frontend follow-up — outstanding
+
+The backend is transition-safe, so the existing admin menu editor keeps working unchanged while
+`branch_id` still exists. It needs reworking before the contract step:
+
+- [ ] Admin menu editor: one item, a branch availability matrix, admin-only price fields — the
+      current branch dropdown assumes one dish belongs to one branch
+- [ ] Manager menu screen: availability toggles only, no price inputs, wired to §3.5
 - [ ] POS: pass `branch_id` to the menu API instead of downloading every branch's menu and
       filtering client-side ([app/pos/terminal/page.tsx:176](../app/pos/terminal/page.tsx#L176))
 
