@@ -65,7 +65,10 @@ export function TransferForm({ mode, id }: Props) {
   const { can, staffUser } = useStaffAuth();
   const allowed = can('inventory.transfer.create');
 
-  const { data: locations = [] } = useInventoryLocations({ is_active: true });
+  // Destinations are counterparties - you may send to any location. The
+  // SOURCE is narrowed below to where you actually work, since you can only
+  // dispatch what you hold.
+  const { data: locations = [] } = useInventoryLocations({ is_active: true, counterparties: true });
   const { data: items = [] } = useInventoryItems({ is_active: true });
 
   /*

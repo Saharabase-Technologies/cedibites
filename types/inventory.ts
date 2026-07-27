@@ -751,6 +751,15 @@ export interface InventoryItemFilters {
 export interface InventoryLocationFilters {
   type?: LocationType;
   is_active?: boolean;
+  /**
+   * Every active location, not just the ones you work at (plus warehouses).
+   *
+   * For pickers that NAME a counterparty rather than read its records - the
+   * source of a requisition, the destination of a transfer. A branch can
+   * requisition from another branch, and the default narrow list made that
+   * impossible to express: the picker could only ever offer the mother kitchen.
+   */
+  counterparties?: boolean;
 }
 
 export interface InventoryTransferFilters {
@@ -1143,6 +1152,13 @@ export interface InventoryWastageLine {
   item_id: number;
   item: { id: number; name: string; unit: string | null } | null;
   quantity: number;
+  /**
+   * What the approver ALLOWED, once they have looked at the goods. Null until a
+   * decision is made. Deliberately separate from `quantity`: the gap between
+   * what a branch claims and what survives inspection is the record of how well
+   * that branch judges its own stock.
+   */
+  approved_qty: number | null;
   unit_cost: number | null;
   line_value: number;
   reason: WastageReason;

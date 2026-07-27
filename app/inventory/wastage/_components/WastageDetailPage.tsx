@@ -18,6 +18,7 @@ import {
   InventoryModal,
   FormField,
   Textarea,
+  TextInput,
   PrimaryButton,
   WastageStatusBadge,
   TransferStatusBadge,
@@ -57,14 +58,15 @@ export function WastageDetailPage({ id }: { id: number }) {
   const blockedOnEvidence = wastage.evidence_required && wastage.photo_count === 0;
   const canWithdraw = isRecorder && (wastage.status === 'pending_return' || wastage.status === 'pending_approval');
 
-  const handleApprove = async () => {
-    try {
-      await approve.mutateAsync(wastage.id);
-      toast.success('Written off.');
-    } catch (e) {
-      toast.error(getErrorMessage(e));
-    }
-  };
+  /*
+   * Approving now opens a dialog rather than writing the whole claim off.
+   *
+   * Sending the goods back is what buys the chance to LOOK at them, and looking
+   * has three answers, not two. 20 kg comes back declared spoiled, 10 kg turns
+   * out to be fine - writing off everything destroys good food on paper, and
+   * refusing calls an honest claim a lie.
+   */
+  const [approving, setApproving] = useState(false);
 
   const handleWithdraw = async () => {
     try {
@@ -120,7 +122,7 @@ export function WastageDetailPage({ id }: { id: number }) {
               </button>
               <button
                 type="button"
-                onClick={handleApprove}
+                onClick={() => setApproving(true)}
                 disabled={approve.isPending || blockedOnEvidence}
                 title={
                   blockedOnEvidence
@@ -136,6 +138,14 @@ export function WastageDetailPage({ id }: { id: number }) {
           )}
         </div>
       </div>
+
+      {approving && (
+        <ApproveDialog
+          wastage={wastage}
+          isOpen={approving}
+          onClose={() => setApproving(false)}
+        />
+      )}
 
       <StatusExplainer wastage={wastage} isRecorder={isRecorder} />
 
@@ -477,5 +487,128 @@ function DetailMissing() {
         </p>
       </div>
     </div>
+  );
+}
+
+
+// ─── Approve, in whole or in part ─────────────────────────────────────────────
+
+/**
+ * What the approver actually allows.
+ *
+ * Defaults to the full declared amount, so the common case is still one click.
+ * The declared figure stays on screen beside the input: the point of the crate
+ * coming back is to compare what was claimed against what is in front of you.
+ */
+function ApproveDialog({
+  wastage,
+  isOpen,
+  onClose,
+}: {
+  wastage: InventoryWastage;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const approve = useApproveWastage();
+  const [qty, setQty] = useState<Record<number, string>>(() =>
+    Object.fromEntries(wastage.lines.map((l) => [l.id, String(l.quantity)])),
+  );
+
+  const allowed = (lineId: number, declared: number) => {
+    const raw = Number(qty[lineId]);
+    return Number.isFinite(raw) && raw >= 0 ? Math.min(raw, declared) : 0;
+  };
+
+  const total = wastage.lines.reduce(
+    (sum, l) => sum + allowed(l.id, l.quantity) * (l.unit_cost ?? 0),
+    0,
+  );
+  const nothingAllowed = wastage.lines.every((l) => allowed(l.id, l.quantity) <= 0);
+  const partial = wastage.lines.some((l) => allowed(l.id, l.quantity) < l.quantity);
+
+  const submit = async () => {
+    try {
+      await approve.mutateAsync({
+        id: wastage.id,
+        approvedQty: Object.fromEntries(
+          wastage.lines.map((l) => [l.id, allowed(l.id, l.quantity)]),
+        ),
+      });
+      toast.success(partial ? 'Approved in part.' : 'Written off.');
+      onClose();
+    } catch (e) {
+      toast.error(getErrorMessage(e));
+    }
+  };
+
+  return (
+    <InventoryModal isOpen={isOpen} onClose={onClose} title={`Approve ${wastage.reference}`} size="md">
+      <div className="p-5 space-y-4">
+        <p className="text-neutral-gray text-sm font-body">
+          Write off only what is genuinely spoiled. Anything you leave out stays in stock where it
+          is now.
+        </p>
+
+        <div className="flex flex-col gap-2.5">
+          {wastage.lines.map((line) => (
+            <div
+              key={line.id}
+              className="grid grid-cols-[1fr_auto] gap-3 items-center bg-neutral-light/40 border border-[#f0e8d8] rounded-xl p-3"
+            >
+              <div className="min-w-0">
+                <p className="text-text-dark text-sm font-semibold font-body truncate">
+                  {line.item?.name ?? 'Item'}
+                </p>
+                <p className="text-neutral-gray text-xs font-body">
+                  Declared {formatQty(line.quantity)} {line.item?.unit ?? ''}
+                </p>
+              </div>
+              <div className="relative w-32">
+                <TextInput
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={line.quantity}
+                  value={qty[line.id] ?? ''}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setQty((p) => ({ ...p, [line.id]: e.target.value }))
+                  }
+                  className="text-right pr-10"
+                  aria-label={`Quantity to write off for ${line.item?.name ?? 'item'}`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-gray pointer-events-none">
+                  {line.item?.unit ?? ''}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-baseline justify-between border-t border-[#f0e8d8] pt-3">
+          <span className="text-sm font-body text-neutral-gray">Writing off</span>
+          <span className="tabular-nums text-lg font-bold text-text-dark">{formatGhs(total)}</span>
+        </div>
+
+        {nothingAllowed && (
+          <p className="text-amber-800 text-xs font-body bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+            You are allowing nothing, which is a refusal rather than an approval. Close this and
+            refuse the claim, so the reason goes on the record.
+          </p>
+        )}
+      </div>
+
+      <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-[#f0e8d8]">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2.5 rounded-xl text-sm font-semibold font-body min-h-11 text-neutral-gray hover:text-text-dark cursor-pointer"
+        >
+          Cancel
+        </button>
+        <PrimaryButton type="button" onClick={submit} loading={approve.isPending} disabled={nothingAllowed}>
+          {partial ? 'Approve what is spoiled' : 'Approve write-off'}
+        </PrimaryButton>
+      </div>
+    </InventoryModal>
   );
 }

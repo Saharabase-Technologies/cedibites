@@ -51,9 +51,22 @@ export async function recordWastage(payload: RecordWastagePayload): Promise<Inve
   return extractData<InventoryWastage>(response);
 }
 
-/** The approver has seen the goods and agrees the loss is real. */
-export async function approveWastage(id: number): Promise<InventoryWastage> {
-  const response = await apiClient.post(`/inventory/wastages/${id}/approve`);
+/**
+ * The approver has seen the goods and says how much of the loss is real.
+ *
+ * `approvedQty` is line id -> quantity allowed. Omit it, or omit a line, and
+ * that line is written off in full. Partial approval is the reason the goods
+ * travel back at all: 20 kg returns as spoiled, 10 kg turns out to be fine, and
+ * neither writing off everything nor calling the claim a lie is the truth.
+ */
+export async function approveWastage(
+  id: number,
+  approvedQty?: Record<number, number>,
+): Promise<InventoryWastage> {
+  const response = await apiClient.post(
+    `/inventory/wastages/${id}/approve`,
+    approvedQty && Object.keys(approvedQty).length > 0 ? { approved_qty: approvedQty } : undefined,
+  );
   return extractData<InventoryWastage>(response);
 }
 

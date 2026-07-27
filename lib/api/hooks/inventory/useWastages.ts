@@ -81,7 +81,10 @@ export function useRecordWastage() {
 export function useApproveWastage() {
   const invalidate = useWastageInvalidation();
   return useMutation({
-    mutationFn: (id: number) => approveWastage(id),
+    mutationFn: (vars: number | { id: number; approvedQty?: Record<number, number> }) =>
+      typeof vars === 'number'
+        ? approveWastage(vars)
+        : approveWastage(vars.id, vars.approvedQty),
     onSuccess: invalidate,
   });
 }

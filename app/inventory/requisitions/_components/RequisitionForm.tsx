@@ -66,7 +66,10 @@ export function RequisitionForm({ mode, id }: Props) {
   const { can } = useStaffAuth();
   const allowed = can('inventory.requisition.create');
 
-  const { data: locations = [] } = useInventoryLocations({ is_active: true });
+  // `counterparties`: a branch can requisition from another branch, so the
+  // source picker must be able to name one. Without it the list is your own
+  // locations plus warehouses, which offers only the mother kitchen.
+  const { data: locations = [] } = useInventoryLocations({ is_active: true, counterparties: true });
   const { data: items = [] } = useInventoryItems({ is_active: true });
 
   const branches = locations.filter((l) => l.type === 'satellite');
