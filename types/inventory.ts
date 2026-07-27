@@ -1266,6 +1266,11 @@ export interface RecordWastagePayload {
   location_id: number;
   notes?: string | null;
   lines: RecordWastageLinePayload[];
+  /**
+   * A staged upload session whose photographs should be attached to the claim
+   * this call creates. Set when the phone was used before the form was saved.
+   */
+  upload_session_id?: number;
 }
 
 export interface WastageFilters {

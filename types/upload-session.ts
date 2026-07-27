@@ -18,9 +18,28 @@ export type UploadSessionTargetType = 'wastage';
 export type UploadSessionPurpose = 'wastage_evidence';
 
 export interface CreateUploadSessionPayload {
-  target_type: UploadSessionTargetType;
-  target_id: number;
+  /**
+   * Omit BOTH target fields for a STAGED session - one with no document yet.
+   *
+   * That is what lets a form photograph the goods before it has been saved: the
+   * files wait on the session, and the form claims them when it finally
+   * creates the record. Without it, "use phone" had to save first, which closed
+   * the form and took the notes and any further items with it.
+   */
+  target_type?: UploadSessionTargetType;
+  target_id?: number;
   purpose: UploadSessionPurpose;
+}
+
+/** One file a phone sent to a staged session, before any document existed. */
+export interface StagedFile {
+  id: number;
+  url: string;
+  kind: 'image' | 'video';
+  mime_type: string | null;
+  original_name: string | null;
+  /** True once the document was created and this was attached for real. */
+  attached: boolean;
 }
 
 /**
@@ -42,6 +61,10 @@ export interface UploadSession {
 /** The desktop's "how is it going?" poll. Never the file list — the document carries that. */
 export interface UploadSessionStatus {
   id: number;
+  /** No document yet - the form that minted this has not saved. */
+  staging: boolean;
+  /** What the phone has sent so far, so the form can show thumbnails. */
+  files: StagedFile[];
   expires_at: string;
   expires_in_seconds: number;
   files_uploaded: number;

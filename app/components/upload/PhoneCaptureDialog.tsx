@@ -29,12 +29,21 @@ export function PhoneCaptureDialog({
   targetType,
   targetId,
   purpose,
+  session: existing,
   title,
   onClose,
 }: {
-  targetType: UploadSessionTargetType;
-  targetId: number;
-  purpose: UploadSessionPurpose;
+  targetType?: UploadSessionTargetType;
+  targetId?: number;
+  purpose?: UploadSessionPurpose;
+  /**
+   * An already-minted session to draw, rather than making one.
+   *
+   * Used by forms that stage photographs before their record exists: they hold
+   * the session so they can poll it for thumbnails, and this dialog only draws
+   * the code for it.
+   */
+  session?: UploadSession | null;
   /** What the code is for, in the user's words. Shown above it. */
   title: string;
   onClose: () => void;
@@ -58,11 +67,14 @@ export function PhoneCaptureDialog({
 
     (async () => {
       try {
-        const issued = await createUploadSession({
-          target_type: targetType,
-          target_id: targetId,
-          purpose,
-        });
+        // A caller that already holds a session just wants it drawn.
+        const issued =
+          existing ??
+          (await createUploadSession(
+            targetType && targetId
+              ? { target_type: targetType, target_id: targetId, purpose: purpose! }
+              : { purpose: purpose! },
+          ));
         if (cancelled) return;
         setSession(issued);
 
@@ -86,7 +98,7 @@ export function PhoneCaptureDialog({
     return () => {
       cancelled = true;
     };
-  }, [targetType, targetId, purpose]);
+  }, [targetType, targetId, purpose, existing]);
 
   /**
    * Poll while the dialog is open, so the person at the laptop can see the
@@ -95,7 +107,7 @@ export function PhoneCaptureDialog({
    * and the "has it died yet" check.
    */
   useEffect(() => {
-    if (!session || dead) return;
+    if (!session || dead || existing) return;
 
     const id = setInterval(async () => {
       try {
@@ -109,7 +121,7 @@ export function PhoneCaptureDialog({
     }, 5000);
 
     return () => clearInterval(id);
-  }, [session, dead]);
+  }, [session, dead, existing]);
 
   /** Kill it now - for when the screen turns out to have been visible to a room. */
   const cancelCode = useCallback(async () => {

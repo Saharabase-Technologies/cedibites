@@ -25,6 +25,11 @@ import { useInventoryItems } from '@/lib/api/hooks/inventory/useInventoryCatalog
 import { useInventoryLocations } from '@/lib/api/hooks/inventory/useInventoryLocations';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { PhoneCaptureDialog } from '@/app/components/upload/PhoneCaptureDialog';
+import {
+  createUploadSession,
+  getUploadSessionStatus,
+} from '@/lib/api/services/upload-sessions.service';
+import type { StagedFile, UploadSession } from '@/types/upload-session';
 import type { WastageReason } from '@/types/inventory';
 import { getErrorMessage } from '@/lib/utils/error-handler';
 import { toast } from '@/lib/utils/toast';
@@ -59,9 +64,18 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
   const [lines, setLines] = useState<DraftLine[]>([blankLine()]);
   const [photos, setPhotos] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
-  // Set once the claim has been saved specifically in order to photograph it
-  // from a phone. Holds the QR dialog open over this modal.
-  const [savedId, setSavedId] = useState<number | null>(null);
+  /*
+   * The staged upload session, if the phone has been brought in.
+   *
+   * It has no claim behind it - that is the point. Photographs are taken at the
+   * crate before anybody has finished typing, so the session holds them and the
+   * claim adopts them on save. Previously "use phone" had to save first, which
+   * closed this form and took the notes and any further items with it.
+   */
+  const [session, setSession] = useState<UploadSession | null>(null);
+  const [staged, setStaged] = useState<StagedFile[]>([]);
+  const [showCode, setShowCode] = useState(false);
+  const [startingSession, setStartingSession] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   // You can only declare a loss where you actually work - the same rule the
@@ -114,16 +128,62 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
     setError(null);
   };
 
+  /**
+   * Start a staged session and show the code.
+   *
+   * No claim is created. The session holds whatever the phone sends until this
+   * form is submitted, which is what lets the goods be photographed at the crate
+   * while the notes and any further items are still being typed.
+   */
+  const startPhoneCapture = async () => {
+    setError(null);
+
+    if (session) {
+      setShowCode(true);
+      return;
+    }
+
+    setStartingSession(true);
+    try {
+      setSession(await createUploadSession({ purpose: 'wastage_evidence' }));
+      setShowCode(true);
+    } catch (e) {
+      setError(getErrorMessage(e));
+    } finally {
+      setStartingSession(false);
+    }
+  };
+
+  /*
+   * Poll the session so photographs appear here as the phone sends them - the
+   * thing that makes this feel like one piece of work rather than two. Stops on
+   * its own once the session dies, and never while no session exists.
+   */
+  useEffect(() => {
+    if (!session) return;
+
+    let alive = true;
+    const tick = async () => {
+      try {
+        const status = await getUploadSessionStatus(session.id);
+        if (alive) setStaged(status.files);
+      } catch {
+        // A failed poll is not worth interrupting a half-typed form for.
+      }
+    };
+
+    void tick();
+    const id = setInterval(tick, 4000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [session]);
+
   const setLine = (key: string, patch: Partial<DraftLine>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
-  /**
-   * @param thenCapture Save, then show the QR code here instead of navigating.
-   *   A phone cannot photograph a claim that does not exist yet - the upload
-   *   session is scoped to one document and there is no draft state to hang it
-   *   on - so "use phone" necessarily saves first. The button says so.
-   */
-  const submit = async ({ thenCapture = false }: { thenCapture?: boolean } = {}) => {
+  const submit = async () => {
     setError(null);
 
     const payloadLines = lines
@@ -155,6 +215,9 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
         location_id: locId,
         notes: notes.trim() || null,
         lines: payloadLines,
+        // Anything the phone sent while this form was open. The server attaches
+        // them to the claim it has just created.
+        upload_session_id: session?.id ?? undefined,
       });
 
       /*
@@ -183,28 +246,12 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
         );
       }
 
-      if (thenCapture) {
-        // Stay put and hand over a QR code. The goods are in front of them now;
-        // sending them to another screen first is how evidence stops happening.
-        setSavedId(wastage.id);
-        return;
-      }
-
       reset();
       onClose();
       router.push(`/inventory/wastage/${wastage.id}`);
     } catch (e) {
       setError(getErrorMessage(e));
     }
-  };
-
-  /** Leave the capture step and go read the claim that was just saved. */
-  const finishCapture = () => {
-    const id = savedId;
-    setSavedId(null);
-    reset();
-    onClose();
-    if (id) router.push(`/inventory/wastage/${id}`);
   };
 
   const reasons = catalog?.reasons ?? [];
@@ -398,12 +445,12 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
                   wording, which promises exactly that and nothing more. */}
               <button
                 type="button"
-                onClick={() => void submit({ thenCapture: true })}
-                disabled={record.isPending}
+                onClick={() => void startPhoneCapture()}
+                disabled={startingSession}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold font-body bg-primary text-white hover:bg-primary-hover cursor-pointer disabled:opacity-50"
               >
                 <DeviceMobileCameraIcon size={14} weight="bold" />
-                Save and use phone
+                {startingSession ? 'Making a code…' : 'Use phone'}
               </button>
               <button
                 type="button"
@@ -415,11 +462,45 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
               </button>
             </div>
           </div>
+          {session && (
+            <p className="text-secondary text-xs font-body mb-2">
+              {staged.length === 0
+                ? 'Waiting for the phone. Anything it sends appears here and is saved with the claim.'
+                : `${staged.length} from the phone. They are attached when you record the wastage.`}
+            </p>
+          )}
           <p className="text-neutral-gray text-xs font-body mb-2">
             {willNeedReturn
               ? 'Photograph the goods now - once they are on the lorry nobody can.'
               : 'Optional here, but it settles arguments later.'}
           </p>
+
+          {/* What the phone has sent, appearing as it arrives. These are not on
+              the claim yet - there is no claim - they are held on the session
+              and attached the moment this form is submitted. */}
+          {staged.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {staged.map((f) => (
+                <div key={f.id} className="relative w-20">
+                  {f.kind === 'video' ? (
+                    <span className="flex w-20 h-20 items-center justify-center rounded-xl border border-[#f0e8d8] bg-brand-dark text-white/80 text-[10px] font-semibold">
+                      VIDEO
+                    </span>
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={f.url}
+                      alt={f.original_name ?? 'From the phone'}
+                      className="w-20 h-20 object-cover rounded-xl border border-[#f0e8d8]"
+                    />
+                  )}
+                  <span className="absolute -bottom-1 -right-1 rounded-full bg-secondary text-white text-[9px] font-bold px-1.5 py-0.5">
+                    phone
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {photos.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -510,13 +591,11 @@ export function RecordWastageForm({ isOpen, onClose }: { isOpen: boolean; onClos
 
       {/* Sits over the form: the claim is saved, and closing this goes on to
           read it rather than back to a form whose work is already banked. */}
-      {savedId !== null && (
+      {showCode && session && (
         <PhoneCaptureDialog
-          targetType="wastage"
-          targetId={savedId}
-          purpose="wastage_evidence"
-          title="The claim is saved. Scan to photograph the goods."
-          onClose={finishCapture}
+          session={session}
+          title="Photograph the goods. They appear here as they arrive."
+          onClose={() => setShowCode(false)}
         />
       )}
     </InventoryModal>
