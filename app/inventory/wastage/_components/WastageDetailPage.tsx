@@ -40,6 +40,20 @@ export function WastageDetailPage({ id }: { id: number }) {
   const { data: wastage, isLoading, error } = useWastage(id);
   const { can, staffUser } = useStaffAuth();
   const [rejecting, setRejecting] = useState(false);
+  /*
+   * Approving opens a dialog rather than writing the whole claim off. Sending
+   * the goods back is what buys the chance to LOOK at them, and looking has
+   * three answers, not two: 20 kg comes back declared spoiled, 10 kg turns out
+   * to be fine.
+   *
+   * MUST stay above the early returns below. This was briefly declared further
+   * down, where the old handler function had been - a function is fine there, a
+   * hook is not. The first render bailed at `isLoading` with two hooks and the
+   * second ran three, so React threw and the page went white in production.
+   * `react-hooks/rules-of-hooks` does not run in this repo, so nothing catches
+   * it but review.
+   */
+  const [approving, setApproving] = useState(false);
 
   const approve = useApproveWastage();
   const cancel = useCancelWastage();
@@ -57,16 +71,6 @@ export function WastageDetailPage({ id }: { id: number }) {
   // available without a photo - a claim with no evidence is what refusal is for.
   const blockedOnEvidence = wastage.evidence_required && wastage.photo_count === 0;
   const canWithdraw = isRecorder && (wastage.status === 'pending_return' || wastage.status === 'pending_approval');
-
-  /*
-   * Approving now opens a dialog rather than writing the whole claim off.
-   *
-   * Sending the goods back is what buys the chance to LOOK at them, and looking
-   * has three answers, not two. 20 kg comes back declared spoiled, 10 kg turns
-   * out to be fine - writing off everything destroys good food on paper, and
-   * refusing calls an honest claim a lie.
-   */
-  const [approving, setApproving] = useState(false);
 
   const handleWithdraw = async () => {
     try {
