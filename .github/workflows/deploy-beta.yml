@@ -28,6 +28,15 @@ jobs:
             git fetch origin "$DEPLOY_BRANCH"
             git reset --hard "origin/$DEPLOY_BRANCH"
             npm ci
+
+            # Hook-order violations white-screen a route at runtime and are
+            # invisible to tsc AND to next build - both pass happily on code
+            # that throws "Rendered more hooks than during the previous render".
+            # This has taken production down twice. `set -e` means a failure
+            # here stops the deploy BEFORE pm2 restarts, so the running build
+            # stays up.
+            npm run lint:hooks
+
             npm run build
             pm2 restart cedibites-beta-frontend
 
