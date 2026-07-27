@@ -57,6 +57,8 @@ function round4(n: number): number {
 export function TransferDetailPage({ id }: { id: number }) {
   const router = useRouter();
   const { data: transfer, isLoading, error } = useTransfer(id);
+  // Above the early returns, and it must stay there - see lint:hooks.
+  const { staffUser } = useStaffAuth();
 
   const [modal, setModal] = useState<
     null | 'submit' | 'send' | 'receive' | 'cancel' | 'resolve'
@@ -64,6 +66,21 @@ export function TransferDetailPage({ id }: { id: number }) {
 
   if (isLoading) return <DetailSkeleton />;
   if (error || !transfer) return <DetailMissing />;
+
+  /*
+   * The wastage-return warning is addressed to whoever RECEIVES the goods -
+   * "puts them in front of you to inspect", "your stock rises". The branch
+   * sending them back was seeing it, which is simply the wrong person: nothing
+   * arrives on their shelf and nothing of theirs rises.
+   *
+   * Unrestricted users (admin) see it, since they may be standing at either end.
+   */
+  const operating = staffUser?.operating_location_ids;
+  const atDestination =
+    operating === null || operating === undefined
+      ? true
+      : transfer.destination_location?.id != null &&
+        operating.includes(transfer.destination_location.id);
 
   const close = () => setModal(null);
   const value = transferValue(transfer);
@@ -107,7 +124,7 @@ export function TransferDetailPage({ id }: { id: number }) {
           write-off has been undone. It has not: receiving only puts the goods
           in front of the approver, and the write-off posts when the claim is
           signed. Say so before the button is pressed, not after. */}
-      {transfer.wastage && (
+      {transfer.wastage && atDestination && (
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5">
           <WarningCircleIcon size={20} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
           <div className="min-w-0">
