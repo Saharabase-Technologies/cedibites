@@ -32,9 +32,9 @@ Everything below follows from these.
 | 1 — Access isolation (API) | **Done**, not committed. `BranchIsolationTest` — 42 tests. Frontend follow-up outstanding, see §1.6. |
 | 2 — Branch provisioning | **Done**, except the menu half — see §2.3. `BranchProvisioningTest` — 12 tests. |
 | 3 — Menu unification | **Expand + migrate done**, not committed to prod. Contract (dropping `branch_id`) deliberately not run — see §3.6. `MenuUnifyTest` 18, `MenuAvailabilityTest` 10. |
-| 4 — No stock, no sale | Not started |
+| 4 — No stock, no sale | **Built**, must not deploy before the merge has run — see §4.1. `StockGateTest` — 14 tests. |
 
-Backend suite after Phases 0–3: **445 passed, 3 failed**, all pre-existing.
+Backend suite after Phases 0–4: **459 passed, 3 failed**, all pre-existing.
 
 > **The pre-existing failure count is not a constant.** It moves between 3 and 6 depending on the
 > time of day. `SmartCategoryTest` resolves whichever smart category's time window the wall clock
@@ -396,13 +396,33 @@ Mitigations to build in from the start, not bolt on later:
 
 ### 4.3 Build
 
-- [ ] `StockAvailabilityService` — given branch + menu option + quantity, resolve the recipe,
-      resolve the location, and report which ingredients (if any) fall short
-- [ ] POS: call it as the cart is built; disable the item and show the short ingredient
-- [ ] `PosOrderController::store` — re-check server-side before the order is written. The client
-      check is UX; this one is the rule.
-- [ ] Supervisor override path with an activity-log entry
-- [ ] Decide and document the add-on exemption
+- [x] `StockAvailabilityService` + `StockCheckResult` — resolve the recipe (branch override first,
+      then global, mirroring `RecipeDeductionService` so the check and the deduction can never
+      disagree), resolve the location, aggregate demand across the whole cart, report shortfalls
+      by ingredient name
+- [x] `PosOrderController::store` re-checks server-side before the order is written. **This is the
+      rule**; the client check is a courtesy, because the till's copy of the balances is always a
+      moment stale and two tills can sell the last portion at once.
+- [x] `GET /v1/pos/stock-gate?branch_id=` — per-option map so the POS can grey an item out as the
+      cart is built
+- [x] `POST /v1/pos/stock-gate/check` — judge a specific basket before the customer commits
+- [x] Override behind a new `inventory.stock_gate.override`, granted to manager and admin, **not**
+      the cashier. Logged with who, why and what was short.
+- [x] Add-ons exempt — they carry no recipe, so they can never short anything. Now stated in code
+      and pinned by a test rather than being silently true.
+- [ ] **Frontend**: the POS does not call either endpoint yet. Until it does, a cashier finds out
+      at checkout instead of while building the cart — which §4.2 says is the worse moment.
+
+### 4.4 The three states, and why "unjudged" passes
+
+`StockCheckResult` has three states, not two. `judged` separates *we looked and it is fine* from
+*we could not look*. A branch with no inventory location, or a dish with no recipe, produces no
+verdict — and **no verdict never means refuse**.
+
+Refusing on a configuration gap would stop a branch trading over a data problem, which is worse
+than the gap. Both gaps are already visible elsewhere: a location-less branch raises
+`misrouted_deduction` on every sale (Phase 2), and a recipe-less dish shows in the IMS recipe
+coverage report. Half of `StockGateTest` exists to pin this down.
 
 ---
 
