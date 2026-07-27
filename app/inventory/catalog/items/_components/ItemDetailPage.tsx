@@ -50,12 +50,19 @@ function batchExpiry(date: string | null): { label: string; className: string } 
 
 // ─── Stock level ────────────────────────────────────────────────────────────────
 
+/**
+ * Judged against the EFFECTIVE thresholds — the ones that apply where the
+ * viewer is standing. `stock_on_hand` is scoped to their locations, so a branch
+ * compared to a central warehouse's reorder point reads Critical almost always.
+ */
 function stockBadge(item: InventoryItem) {
   const qty = item.stock_on_hand;
+  const min = item.effective_min_threshold ?? item.min_threshold;
+  const reorder = item.effective_reorder_level ?? item.reorder_level;
   if (qty <= 0) return { label: 'Out of stock', className: 'bg-rose-100 text-rose-700' };
-  if (item.min_threshold != null && qty <= item.min_threshold)
+  if (min != null && qty <= min)
     return { label: 'Critical', className: 'bg-rose-50 text-rose-700' };
-  if (item.reorder_level != null && qty <= item.reorder_level)
+  if (reorder != null && qty <= reorder)
     return { label: 'Low - reorder', className: 'bg-amber-50 text-amber-700' };
   return { label: 'In stock', className: 'bg-emerald-50 text-emerald-700' };
 }
@@ -126,13 +133,24 @@ export default function ItemDetailPage({ id }: { id: number }) {
           value={`${fmtQty(item.stock_on_hand)} ${unit}`.trim()}
         />
         <MetaCard label="Avg cost / unit" value={formatGHS(item.weighted_avg_cost)} />
+        {/* The effective figures, so the reorder point and the quantity beside
+            it describe the same shelf. Labelled when they are this location's
+            own rather than the item default. */}
         <MetaCard
-          label="Reorder level"
-          value={item.reorder_level != null ? `${fmtQty(item.reorder_level)} ${unit}`.trim() : '-'}
+          label={item.has_location_thresholds ? 'Reorder level (this location)' : 'Reorder level'}
+          value={
+            item.effective_reorder_level != null
+              ? `${fmtQty(item.effective_reorder_level)} ${unit}`.trim()
+              : '-'
+          }
         />
         <MetaCard
-          label="Min threshold"
-          value={item.min_threshold != null ? `${fmtQty(item.min_threshold)} ${unit}`.trim() : '-'}
+          label={item.has_location_thresholds ? 'Min threshold (this location)' : 'Min threshold'}
+          value={
+            item.effective_min_threshold != null
+              ? `${fmtQty(item.effective_min_threshold)} ${unit}`.trim()
+              : '-'
+          }
         />
       </div>
 

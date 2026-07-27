@@ -114,8 +114,20 @@ export interface InventoryItem {
   storage_type: StorageType;
   is_consumable: boolean;
   expiry_tracked: boolean;
+  /** The item's company-wide figures. What the edit form writes back to. */
   reorder_level: number | null;
   min_threshold: number | null;
+  /**
+   * The figures `stock_on_hand` should be judged against. When the view is
+   * scoped to one location that sets its own reorder point, these are its
+   * numbers; otherwise they equal the globals above. Always compare against
+   * these — a branch measured against warehouse-scale thresholds reads Critical
+   * on almost every line whatever it is holding.
+   */
+  effective_reorder_level: number | null;
+  effective_min_threshold: number | null;
+  /** True when the figures above came from this location rather than the item. */
+  has_location_thresholds: boolean;
   /** Option A — label of the pack the item is bought in (e.g. "crate"). */
   purchase_pack_label: string | null;
   /** How many base units are in one pack (e.g. 30 pieces per crate). */
