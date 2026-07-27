@@ -102,7 +102,33 @@ export function TransferDetailPage({ id }: { id: number }) {
           )}
         </div>
 
-        <ActionBar transfer={transfer} onAction={setModal} />
+        {/* A wastage return is NOT an ordinary delivery, and receiving it without
+          knowing that is alarming - the stock goes up, which looks like the
+          write-off has been undone. It has not: receiving only puts the goods
+          in front of the approver, and the write-off posts when the claim is
+          signed. Say so before the button is pressed, not after. */}
+      {transfer.wastage && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5">
+          <WarningCircleIcon size={20} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-amber-900 text-sm font-semibold font-body">
+              These goods are coming back to be written off, not restocked.
+            </p>
+            <p className="text-amber-800/90 text-xs font-body mt-1 leading-snug">
+              Receiving puts them in front of you to inspect. Your stock rises until you settle{' '}
+              <Link
+                href={`/inventory/wastage/${transfer.wastage.id}`}
+                className="font-mono underline hover:text-amber-900"
+              >
+                {transfer.wastage.reference}
+              </Link>
+              , where you decide how much is genuinely spoiled - it does not have to be all of it.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <ActionBar transfer={transfer} onAction={setModal} />
       </div>
 
       {/* Cancelled banner */}
