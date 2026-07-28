@@ -361,6 +361,22 @@ export const employeeService = {
     return outer?.data?.data ?? (response as unknown as EmployeeNoteResponse);
   },
 
+  // Editing and deleting are the note's own author's — a note is one person's
+  // record of what they saw, and a second manager rewriting it would make the
+  // record worthless. The API enforces it; the UI just avoids offering it.
+  updateNote: async (
+    employeeId: string,
+    noteId: number,
+    content: string,
+  ): Promise<EmployeeNoteResponse> => {
+    const response = await apiClient.patch(
+      `/admin/employees/${employeeId}/notes/${noteId}`,
+      { content },
+    );
+    const outer = response as { data?: { data?: EmployeeNoteResponse } };
+    return outer?.data?.data ?? (response as unknown as EmployeeNoteResponse);
+  },
+
   deleteNote: async (employeeId: string, noteId: number): Promise<void> => {
     await apiClient.delete(`/admin/employees/${employeeId}/notes/${noteId}`);
   },

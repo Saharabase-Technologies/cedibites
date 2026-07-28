@@ -32,6 +32,7 @@ import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
 import type { MenuTag } from '@/types/api';
 import { toast } from '@/lib/utils/toast';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { menuAvailabilityService } from '@/lib/api/services/menuAvailability.service';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -668,6 +669,14 @@ export default function ManagerMenuPage() {
     const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
     const branchName = staffUser?.branches[0]?.name ?? 'Branch';
 
+    // The menu is one menu across every branch, so creating, renaming, repricing
+    // and deleting are the Admin's. A branch manager holds only
+    // menu.availability.manage and would get a 403 from all of it — so the
+    // affordances are hidden rather than left to fail at the point of saving.
+    // Gated on the permission itself, not the role, so an admin visiting this
+    // page keeps full use of it.
+    const canEditMenu = staffUser?.permissions?.includes('manage_menu') ?? false;
+
     const { items: menuItems, isLoading: menuLoading, refetch: refetchMenuItems } = useMenuItems(
         branchId ? { branch_id: branchId } : undefined
     );
@@ -877,15 +886,30 @@ export default function ManagerMenuPage() {
             .catch(error => { toast.error(`Failed to delete: ${error.message || 'Unknown error'}`); });
     }
 
+    /**
+     * Sold out here, not withdrawn everywhere.
+     *
+     * This used to go through menuService.updateItem, which writes
+     * menu_items.is_available and takes the dish off EVERY branch — and needs
+     * `manage_menu`, which a branch manager no longer holds. The dedicated
+     * endpoint writes the branch pivot instead, so one branch running out does
+     * not close the dish company-wide.
+     */
     async function toggleAvailability(item: ManagerMenuItem) {
-        if (!item.numericId) return;
+        if (!item.numericId || !branchId) return;
+
+        const newAvail = item.available === false;
+
+        // Optimistic: the toggle should feel instant at a counter.
+        setItems(prev => prev.map(x => x.id === item.id ? { ...x, available: newAvail } : x));
+
         try {
-            const newAvail = item.available === false;
-            await menuService.updateItem(item.numericId, { is_available: newAvail });
-            setItems(prev => prev.map(x => x.id === item.id ? { ...x, available: newAvail } : x));
+            await menuAvailabilityService.setAvailable(branchId, item.numericId, newAvail);
+            toast.success(newAvail ? `${item.name} is back on.` : `${item.name} marked sold out.`);
             refetchMenuItems();
         } catch {
-            toast.error('Failed to update availability.');
+            setItems(prev => prev.map(x => x.id === item.id ? { ...x, available: !newAvail } : x));
+            toast.error('Could not update availability.');
         }
     }
 
@@ -898,17 +922,30 @@ export default function ManagerMenuPage() {
                     <h1 className="text-text-dark text-2xl font-bold font-body">Menu Management</h1>
                     <p className="text-neutral-gray text-sm font-body mt-0.5">{branchName} · {active.length} item{active.length !== 1 ? 's' : ''}</p>
                 </div>
-                <div className="flex gap-2">
-                    <button type="button" onClick={() => setShowImport(true)}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-neutral-card border border-[#f0e8d8] text-text-dark rounded-xl text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer">
-                        <UploadSimpleIcon size={15} weight="bold" className="text-primary" /> Bulk Import
-                    </button>
-                    <button type="button" onClick={() => setEditItem('new')} disabled={categoriesLoading}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium font-body hover:bg-primary-hover transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                        <PlusIcon size={15} weight="bold" /> {categoriesLoading ? 'Loading...' : 'Add Item'}
-                    </button>
-                </div>
+                {canEditMenu && (
+                    <div className="flex gap-2">
+                        <button type="button" onClick={() => setShowImport(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-neutral-card border border-[#f0e8d8] text-text-dark rounded-xl text-sm font-medium font-body hover:border-primary/40 transition-colors cursor-pointer">
+                            <UploadSimpleIcon size={15} weight="bold" className="text-primary" /> Bulk Import
+                        </button>
+                        <button type="button" onClick={() => setEditItem('new')} disabled={categoriesLoading}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium font-body hover:bg-primary-hover transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                            <PlusIcon size={15} weight="bold" /> {categoriesLoading ? 'Loading...' : 'Add Item'}
+                        </button>
+                    </div>
+                )}
             </div>
+
+            {!canEditMenu && (
+                <div className="mb-4 px-4 py-3 bg-neutral-card border border-[#f0e8d8] rounded-xl">
+                    <p className="text-text-dark text-sm font-body">
+                        Every branch serves the same menu, so items and prices are set by an administrator.
+                    </p>
+                    <p className="text-neutral-gray text-xs font-body mt-0.5">
+                        You can mark a dish sold out at {branchName} using the status column — it stays on the menu at other branches.
+                    </p>
+                </div>
+            )}
 
             <MenuSubTabs />
 
@@ -980,7 +1017,10 @@ export default function ManagerMenuPage() {
                                 }
                             </button>
 
-                            <ActionMenu onEdit={() => setEditItem(item)} onDelete={() => setDeleteItem(item)} />
+                            {canEditMenu
+                                ? <ActionMenu onEdit={() => setEditItem(item)} onDelete={() => setDeleteItem(item)} />
+                                : <span />
+                            }
                         </div>
                     ))
                 )}
