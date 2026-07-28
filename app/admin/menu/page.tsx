@@ -105,7 +105,7 @@ export default function AdminMenuItemsPage() {
             const savedId = response.data.id;
 
             if (isSimple) {
-                if (form.imageFile) await uploadStandardImage(savedId, form.imageFile);
+                await syncStandardImage(savedId, form);
             } else {
                 await syncOptions(savedId, form);
             }
@@ -128,12 +128,20 @@ export default function AdminMenuItemsPage() {
         }
     }
 
-    async function uploadStandardImage(itemId: number, file: File) {
+    async function syncStandardImage(itemId: number, form: ItemFormState) {
+        if (!form.imageFile && !form.imageRemoved) return;
+
         const response = await apiClient.get(`/admin/menu-items/${itemId}/options`);
         // One unwrap — the interceptor already returns the body.
         const existing = (response as { data?: Array<{ id: number; option_key: string }> }).data ?? [];
         const standard = existing.find(o => o.option_key === 'standard');
-        if (standard) await menuService.uploadOptionImage(itemId, standard.id, file);
+        if (!standard) return;
+
+        if (form.imageFile) {
+            await menuService.uploadOptionImage(itemId, standard.id, form.imageFile);
+        } else {
+            await menuService.deleteOptionImage(itemId, standard.id);
+        }
     }
 
     async function syncOptions(itemId: number, form: ItemFormState) {
@@ -146,6 +154,7 @@ export default function AdminMenuItemsPage() {
                 price: Number(o.price),
                 order: i,
                 imageFile: o.imageFile,
+                imageRemoved: o.imageRemoved ?? false,
             }));
 
         const response = await apiClient.get(`/admin/menu-items/${itemId}/options`);
@@ -173,8 +182,12 @@ export default function AdminMenuItemsPage() {
                 optionId = created.data?.id;
             }
 
-            if (optionId && opt.imageFile) {
-                await menuService.uploadOptionImage(itemId, optionId, opt.imageFile);
+            if (optionId) {
+                if (opt.imageFile) {
+                    await menuService.uploadOptionImage(itemId, optionId, opt.imageFile);
+                } else if (opt.imageRemoved) {
+                    await menuService.deleteOptionImage(itemId, optionId);
+                }
             }
         }
 
