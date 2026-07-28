@@ -2,12 +2,35 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CaretDownIcon, CaretRightIcon, PackageIcon, ReceiptIcon } from '@phosphor-icons/react';
+import { CaretDownIcon, CaretLeftIcon, CaretRightIcon, PackageIcon, ReceiptIcon } from '@phosphor-icons/react';
 import { PageHeader } from '../../_components';
 import { getDailyConsumption, type ConsumedItem } from '@/lib/api/services/inventory/reports.service';
 
+/** Today as YYYY-MM-DD. Ghana runs on UTC+0, so the ISO date is the local one. */
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Step a YYYY-MM-DD by whole days, never past today. */
+function shiftDay(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  const next = d.toISOString().slice(0, 10);
+  return next > today() ? today() : next;
+}
+
+/** "Monday, 27 July" — the weekday matters when reading a trading pattern. */
+function longDate(date: string): string {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GH', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  });
+}
+
 /**
- * What the kitchen used today.
+ * What the kitchen used on a given day.
  *
  * Reads the sale movements the recipe deduction writes, so this is the ledger's
  * own account of consumption rather than a guess from the order list. A dish
@@ -18,7 +41,7 @@ import { getDailyConsumption, type ConsumedItem } from '@/lib/api/services/inven
  * wrong can be traced to the sales that produced it without leaving the page.
  */
 export function DailyConsumptionReport() {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(today);
   const [expanded, setExpanded] = useState<number | null>(null);
 
   const { data, isLoading, isError } = useQuery({
@@ -28,7 +51,7 @@ export function DailyConsumptionReport() {
   });
 
   const items = data?.items ?? [];
-  const isToday = date === new Date().toISOString().slice(0, 10);
+  const isToday = date === today();
 
   return (
     <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
@@ -42,21 +65,68 @@ export function DailyConsumptionReport() {
       />
 
       <div className="flex flex-wrap items-center gap-3 mb-5">
-        <input
-          type="date"
-          value={date}
-          max={new Date().toISOString().slice(0, 10)}
-          onChange={(e) => setDate(e.target.value)}
-          className="px-3 py-2.5 bg-neutral-card border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40"
-        />
-        {data && (
-          <p className="text-neutral-gray text-sm font-body">
-            <span className="font-semibold text-text-dark">{data.totals.items}</span> item
-            {data.totals.items !== 1 ? 's' : ''} across{' '}
-            <span className="font-semibold text-text-dark">{data.totals.orders}</span> order
-            {data.totals.orders !== 1 ? 's' : ''}
-          </p>
-        )}
+        {/* Arrows for walking back through the week, the picker for jumping. */}
+        <div className="flex items-center gap-1 bg-neutral-card border border-[#f0e8d8] rounded-xl p-1">
+          <button
+            type="button"
+            onClick={() => setDate(shiftDay(date, -1))}
+            aria-label="Previous day"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-gray hover:text-text-dark hover:bg-neutral-light transition-colors cursor-pointer"
+          >
+            <CaretLeftIcon size={14} weight="bold" />
+          </button>
+          <input
+            type="date"
+            value={date}
+            max={today()}
+            onChange={(e) => e.target.value && setDate(e.target.value)}
+            className="px-2 py-1.5 bg-transparent text-text-dark text-sm font-body focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => setDate(shiftDay(date, 1))}
+            disabled={isToday}
+            aria-label="Next day"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-gray hover:text-text-dark hover:bg-neutral-light transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          >
+            <CaretRightIcon size={14} weight="bold" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {(
+            [
+              ['Today', today()],
+              ['Yesterday', shiftDay(today(), -1)],
+            ] as const
+          ).map(([label, value]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setDate(value)}
+              className={`px-3 py-2 rounded-xl text-xs font-medium font-body transition-colors cursor-pointer ${
+                date === value
+                  ? 'bg-primary text-white'
+                  : 'bg-neutral-card border border-[#f0e8d8] text-neutral-gray hover:text-text-dark'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <p className="text-neutral-gray text-sm font-body">
+          <span className="text-text-dark font-medium">{longDate(date)}</span>
+          {data && (
+            <>
+              {' · '}
+              <span className="font-semibold text-text-dark">{data.totals.items}</span> item
+              {data.totals.items !== 1 ? 's' : ''} across{' '}
+              <span className="font-semibold text-text-dark">{data.totals.orders}</span> order
+              {data.totals.orders !== 1 ? 's' : ''}
+            </>
+          )}
+        </p>
       </div>
 
       <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden">
