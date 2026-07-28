@@ -26,7 +26,6 @@ import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import { useMenuCategories } from '@/lib/api/hooks/useMenuCategories';
 import { menuService, type CreateMenuItemData } from '@/lib/api/services/menu.service';
 import { menuTagService } from '@/lib/api/services/menuTag.service';
-import { menuAddOnService } from '@/lib/api/services/menuAddOn.service';
 import apiClient from '@/lib/api/client';
 import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
 import type { MenuTag } from '@/types/api';
@@ -49,7 +48,6 @@ interface ManagerMenuItem extends Omit<DisplayMenuItem, 'tags'> {
 type PricingType = 'simple' | 'options';
 interface OptionRow { label: string; displayName: string; price: string; image?: string; imageFile?: File; }
 interface OptionTemplate { id: string; name: string; options: Array<{ label: string; price: string }>; }
-interface AddOn { id: string; name: string; price: string; perPiece?: boolean; }
 
 interface ItemFormState {
     name: string;
@@ -60,7 +58,6 @@ interface ItemFormState {
     image?: string;
     imageFile?: File;
     options: OptionRow[];
-    addOns: string[];
     tags: string[];
     available: boolean;
 }
@@ -121,7 +118,6 @@ function itemToForm(item: ManagerMenuItem): ItemFormState {
         simplePrice: !isMulti && item.price != null ? String(item.price) : '',
         image: item.image,
         options: isMulti ? getOptionRows(item) : [{ label: '', displayName: '', price: '' }, { label: '', displayName: '', price: '' }],
-        addOns: item.availableAddOns ?? [],
         tags: item.tags,
         available: item.available !== false,
     };
@@ -133,7 +129,7 @@ function blankForm(categoryOptions: string[]): ItemFormState {
         name: '', description: '', category: defaultCategory,
         pricingType: 'simple', simplePrice: '',
         options: [{ label: '', displayName: '', price: '' }, { label: '', displayName: '', price: '' }],
-        addOns: [], tags: [], available: true,
+        tags: [], available: true,
     };
 }
 
@@ -147,11 +143,13 @@ function formToItem(form: ItemFormState, branchId: number, existing?: ManagerMen
         category: form.category as DisplayMenuItem['category'],
         url: existing?.url ?? `/menu?item=${id}`,
         image: form.image ?? existing?.image,
-        availableAddOns: form.addOns.length > 0 ? form.addOns : undefined,
         branchId: branchId,
         tags: form.tags,
         sortOrder: existing?.sortOrder ?? 0,
+        // available = sold out here, today. isAvailable = on sale company-wide,
+        // which is the admin's to set — carried through unchanged.
         available: form.available,
+        isAvailable: existing?.isAvailable ?? true,
     };
 
     let imageFile = form.imageFile;
@@ -281,11 +279,10 @@ function ImagePicker({ value, onChange, size = 'md' }: { value?: string; onChang
 // ─── Item edit modal ──────────────────────────────────────────────────────────
 
 function ItemModal({
-    item, optionTemplates, addOns, menuTags, categoryOptions, onClose, onSave, isSaving = false,
+    item, optionTemplates, menuTags, categoryOptions, onClose, onSave, isSaving = false,
 }: {
     item: ManagerMenuItem | null;
     optionTemplates: OptionTemplate[];
-    addOns: AddOn[];
     menuTags: MenuTag[];
     categoryOptions: string[];
     onClose: () => void;
@@ -339,7 +336,6 @@ function ItemModal({
 
     function addOption() { set('options', [...form.options, { label: '', displayName: '', price: '' }]); }
     function removeOption(i: number) { if (form.options.length <= 1) return; set('options', form.options.filter((_, idx) => idx !== i)); }
-    function toggleAddOn(id: string) { set('addOns', form.addOns.includes(id) ? form.addOns.filter(a => a !== id) : [...form.addOns, id]); }
     function toggleTag(tag: string) { set('tags', form.tags.includes(tag) ? form.tags.filter(t => t !== tag) : [...form.tags, tag]); }
 
     function loadTemplate(tpl: OptionTemplate) {
@@ -489,30 +485,6 @@ function ItemModal({
                     </div>
 
                     {/* ── Add-ons ─────────────────────────────────────────────── */}
-                    {addOns.length > 0 && (
-                        <div>
-                            <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Available Add-ons</p>
-                            <div className="flex flex-col gap-2">
-                                {addOns.map(addon => (
-                                    <button key={addon.id} type="button" onClick={() => toggleAddOn(addon.id)}
-                                        className="flex items-center gap-3 cursor-pointer w-fit">
-                                        <div className={`w-4.5 h-4.5 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${form.addOns.includes(addon.id) ? 'bg-primary border-primary' : 'border-[#d0c8b8]'}`}>
-                                            {form.addOns.includes(addon.id) && (
-                                                <svg width="9" height="7" viewBox="0 0 10 8" fill="none">
-                                                    <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                </svg>
-                                            )}
-                                        </div>
-                                        <span className="text-sm font-body text-text-dark">
-                                            {addon.name}
-                                            <span className="text-neutral-gray ml-1.5 text-xs">₵{addon.price}{addon.perPiece ? '/pc' : ''}</span>
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
                     {/* ── Tags ────────────────────────────────────────────────── */}
                     <div>
                         <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Tags</p>
@@ -681,8 +653,10 @@ export default function ManagerMenuPage() {
         branchId ? { branch_id: branchId } : undefined
     );
     const { data: menuCategories = [], isLoading: categoriesLoading } = useMenuCategories({ is_active: true, branch_id: branchId });
-    const [items, setItems] = useState<ManagerMenuItem[]>([]);
-    const hasInitialized = useRef(false);
+
+    // Bumped after a successful toggle so the branch's sold-out list is re-read
+    // rather than trusted to the optimistic update alone.
+    const [availabilityVersion, setAvailabilityVersion] = useState(0);
 
     const categoryMap = useMemo(() => {
         const map = new Map<string, number>();
@@ -695,19 +669,46 @@ export default function ManagerMenuPage() {
         return ['All', ...uniqueCategories];
     }, [menuCategories]);
 
-    useEffect(() => { hasInitialized.current = false; }, [branchId]);
+    /**
+     * What this branch has marked sold out today.
+     *
+     * The sold-out toggle wrote correctly and read nothing: items were built
+     * straight from the menu adapter, which carries no per-branch availability,
+     * so `available` was always undefined and every row rendered green however
+     * many things the branch had marked off. The state survived the click and
+     * died on the next refresh. `menuAvailabilityService.list()` — built for
+     * exactly this — was never called.
+     */
+    const [availability, setAvailability] = useState<Record<number, boolean>>({});
 
     useEffect(() => {
-        if (!hasInitialized.current && menuItems.length > 0) {
-            hasInitialized.current = true;
-            setItems(menuItems.map((item, i) => ({
-                ...item,
-                branchId: item.branchId ?? 0,
-                tags: item.tags?.map(t => t.slug) ?? [],
-                sortOrder: i,
-            })));
-        }
-    }, [menuItems]);
+        if (!branchId) return;
+
+        let cancelled = false;
+        menuAvailabilityService.list(branchId)
+            .then(rows => {
+                if (cancelled) return;
+                setAvailability(Object.fromEntries(
+                    rows.map(row => [row.id, row.available_everywhere && row.available_here]),
+                ));
+            })
+            .catch(() => { if (!cancelled) setAvailability({}); });
+
+        return () => { cancelled = true; };
+    }, [branchId, availabilityVersion]);
+
+    // Derived, not copied into state behind an effect. The old version latched
+    // on first load and gated on a non-empty response, so a branch that served
+    // nothing kept the previous branch's rows on screen under the new branch's
+    // name. Deriving means the query is the single source and there is nothing
+    // to go stale.
+    const items = useMemo<ManagerMenuItem[]>(() => menuItems.map((item, i) => ({
+        ...item,
+        branchId: item.branchId ?? 0,
+        tags: item.tags?.map(t => t.slug) ?? [],
+        sortOrder: i,
+        available: availability[item.numericId] ?? true,
+    })), [menuItems, availability]);
 
     const [category, setCategory] = useState('All');
     const [search, setSearch] = useState('');
@@ -716,29 +717,9 @@ export default function ManagerMenuPage() {
     const [showImport, setShowImport] = useState(false);
     const [savingItem, setSavingItem] = useState(false);
     const [menuTags, setMenuTags] = useState<MenuTag[]>([]);
-    const [addOns, setAddOns] = useState<AddOn[]>([]);
 
     const optionTemplates: OptionTemplate[] = [];
     useEffect(() => { menuTagService.list().then(setMenuTags).catch(() => {}); }, []);
-
-    useEffect(() => {
-        if (!branchId) { setAddOns([]); return; }
-        menuAddOnService
-            .list(branchId)
-            .then((response) => {
-                setAddOns(
-                    response
-                        .filter((addOn) => addOn.is_active)
-                        .map((addOn) => ({
-                            id: String(addOn.id),
-                            name: addOn.name,
-                            price: String(addOn.price),
-                            perPiece: addOn.is_per_piece,
-                        })),
-                );
-            })
-            .catch(() => setAddOns([]));
-    }, [branchId]);
 
     const active = useMemo(() => {
         let list = items;
@@ -765,7 +746,6 @@ export default function ManagerMenuPage() {
             description: item.description || undefined,
             is_available: item.available !== false,
             tag_ids: selectedTagIds,
-            add_on_ids: (item.availableAddOns ?? []).map(x => Number(x)).filter(Number.isFinite),
             ...(isSinglePrice ? { pricing_type: 'simple', price: item.price } : {}),
         };
 
@@ -837,14 +817,6 @@ export default function ManagerMenuPage() {
                 };
 
                 const afterSave = () => {
-                    setItems(prev => {
-                        if (isNew) {
-                            const idx = prev.findIndex(x => x.id === item.id);
-                            if (idx >= 0) { const n = [...prev]; n[idx] = { ...item, numericId: savedId }; return n; }
-                            return [...prev, { ...item, numericId: savedId }];
-                        }
-                        return prev.map(x => x.id === item.id ? item : x);
-                    });
                     refetchMenuItems();
                     toast.success(`Menu item ${isNew ? 'created' : 'updated'} successfully!`);
                     setEditItem(null);
@@ -871,14 +843,12 @@ export default function ManagerMenuPage() {
 
     function deleteItemFn(item: ManagerMenuItem) {
         if (!item.numericId || item.id.startsWith('item-')) {
-            setItems(prev => prev.filter(x => x.id !== item.id));
             setDeleteItem(null);
             toast.success('Menu item deleted successfully!');
             return;
         }
         menuService.deleteItem(item.numericId)
             .then(() => {
-                setItems(prev => prev.filter(x => x.id !== item.id));
                 refetchMenuItems();
                 setDeleteItem(null);
                 toast.success('Menu item deleted successfully!');
@@ -901,14 +871,14 @@ export default function ManagerMenuPage() {
         const newAvail = item.available === false;
 
         // Optimistic: the toggle should feel instant at a counter.
-        setItems(prev => prev.map(x => x.id === item.id ? { ...x, available: newAvail } : x));
+        setAvailability(prev => ({ ...prev, [item.numericId]: newAvail }));
 
         try {
             await menuAvailabilityService.setAvailable(branchId, item.numericId, newAvail);
             toast.success(newAvail ? `${item.name} is back on.` : `${item.name} marked sold out.`);
-            refetchMenuItems();
+            setAvailabilityVersion(v => v + 1);
         } catch {
-            setItems(prev => prev.map(x => x.id === item.id ? { ...x, available: !newAvail } : x));
+            setAvailability(prev => ({ ...prev, [item.numericId]: !newAvail }));
             toast.error('Could not update availability.');
         }
     }
@@ -1031,7 +1001,6 @@ export default function ManagerMenuPage() {
                 <ItemModal
                     item={editItem === 'new' ? null : editItem as ManagerMenuItem}
                     optionTemplates={optionTemplates}
-                    addOns={addOns}
                     menuTags={menuTags}
                     categoryOptions={categoryOptions}
                     onClose={() => setEditItem(null)}

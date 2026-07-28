@@ -14,23 +14,38 @@ export interface CreateMenuItemData {
   branch_id: number;
   category_id?: number;
   name: string;
-  slug: string;
+  /**
+   * Create only. Never send this on an update: the editor used to append
+   * Date.now() to it on every save, so each edit silently rewrote the item's
+   * slug — breaking its customer URL and the slug-matched lookups behind it.
+   */
+  slug?: string;
   description?: string;
   is_available?: boolean;
   tag_ids?: number[];
-  add_on_ids?: number[];
   pricing_type?: 'simple' | 'options';
   price?: number;
 }
 
-export interface UpdateMenuItemData extends Partial<CreateMenuItemData> {}
+export interface UpdateMenuItemData extends Omit<Partial<CreateMenuItemData>, 'slug'> {}
 
 export const menuService = {
   /**
-   * Get all menu items with optional filters
+   * Get all menu items with optional filters.
+   *
+   * The storefront's endpoint — unauthenticated, and its branch filter runs
+   * through servedAt(). For the admin catalogue use `getAdminItems`.
    */
   getItems: (params?: MenuItemsParams): Promise<{ data: MenuItem[] }> => {
     return apiClient.get('/menu-items', { params });
+  },
+
+  /**
+   * The admin catalogue: one row per dish, company-wide, each carrying the
+   * branches that serve it rather than being filtered down to one of them.
+   */
+  getAdminItems: (params?: { category_id?: number; is_available?: boolean }): Promise<{ data: MenuItem[] }> => {
+    return apiClient.get('/admin/menu-items', { params });
   },
 
   /**
