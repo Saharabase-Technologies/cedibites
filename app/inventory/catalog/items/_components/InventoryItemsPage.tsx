@@ -196,14 +196,22 @@ function AddItemForm({ onClose }: { onClose: () => void }) {
 type StockLevel = 'out' | 'critical' | 'low' | 'ok';
 
 /**
- * Reorder signal from the on-hand quantity against the item's thresholds:
- * out (≤0) → critical (≤ min_threshold) → low (≤ reorder_level) → ok.
+ * Reorder signal from the on-hand quantity against the thresholds that apply
+ * where the viewer is standing:
+ * out (≤0) → critical (≤ min) → low (≤ reorder) → ok.
+ *
+ * Judged against the EFFECTIVE thresholds, not the item's global ones.
+ * `stock_on_hand` is already scoped to the viewer's locations, so comparing a
+ * branch's day of cover to a central warehouse's reorder point painted almost
+ * the whole board red and buried the one line that had genuinely run out.
  */
 function stockLevel(item: InventoryItem): StockLevel {
   const qty = item.stock_on_hand;
+  const min = item.effective_min_threshold ?? item.min_threshold;
+  const reorder = item.effective_reorder_level ?? item.reorder_level;
   if (qty <= 0) return 'out';
-  if (item.min_threshold != null && qty <= item.min_threshold) return 'critical';
-  if (item.reorder_level != null && qty <= item.reorder_level) return 'low';
+  if (min != null && qty <= min) return 'critical';
+  if (reorder != null && qty <= reorder) return 'low';
   return 'ok';
 }
 

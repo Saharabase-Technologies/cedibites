@@ -80,7 +80,16 @@ export const MOCK_LOCATIONS: InventoryLocation[] = [
 
 // ─── Items ────────────────────────────────────────────────────────────────────
 
-export const MOCK_ITEMS: InventoryItem[] = [
+/**
+ * Mock items carry no location thresholds, so their effective figures are just
+ * their globals. Derived below rather than written out 33 times.
+ */
+type MockItemSeed = Omit<
+  InventoryItem,
+  'effective_reorder_level' | 'effective_min_threshold' | 'has_location_thresholds'
+>;
+
+const MOCK_ITEM_SEEDS: MockItemSeed[] = [
   { id: 1,  sku: 'ITM-000001', name: 'Chicken Thighs (Bone-in)',  description: 'Fresh bone-in thighs, 1kg packs',    category_id: 1, category: { id: 1, name: 'Proteins', slug: 'proteins' },      base_unit_id: 1, base_unit: { id: 1, name: 'Kilogram', symbol: 'kg' }, default_supplier_id: 1, default_supplier: { id: 1, name: 'Accra Meat Depot' },    storage_type: 'cold',    is_consumable: true,  expiry_tracked: true,  reorder_level: 20,  min_threshold: 8,   weighted_avg_cost: 42.50, stock_on_hand: 40, purchase_pack_label: null, purchase_pack_size: null, is_active: true,  created_at: '2026-02-01T00:00:00Z', updated_at: '2026-05-01T00:00:00Z' },
   { id: 2,  sku: 'ITM-000002', name: 'Chicken Breast (Boneless)', description: null,                                 category_id: 1, category: { id: 1, name: 'Proteins', slug: 'proteins' },      base_unit_id: 1, base_unit: { id: 1, name: 'Kilogram', symbol: 'kg' }, default_supplier_id: 1, default_supplier: { id: 1, name: 'Accra Meat Depot' },    storage_type: 'cold',    is_consumable: true,  expiry_tracked: true,  reorder_level: 15,  min_threshold: 5,   weighted_avg_cost: 58.00, stock_on_hand: 30, purchase_pack_label: null, purchase_pack_size: null, is_active: true,  created_at: '2026-02-01T00:00:00Z', updated_at: '2026-05-01T00:00:00Z' },
   { id: 3,  sku: 'ITM-000003', name: 'Tilapia (Fresh)',           description: 'Whole tilapia from Volta River',    category_id: 1, category: { id: 1, name: 'Proteins', slug: 'proteins' },      base_unit_id: 1, base_unit: { id: 1, name: 'Kilogram', symbol: 'kg' }, default_supplier_id: 1, default_supplier: { id: 1, name: 'Accra Meat Depot' },    storage_type: 'cold',    is_consumable: true,  expiry_tracked: true,  reorder_level: 10,  min_threshold: 3,   weighted_avg_cost: 35.00, stock_on_hand: 20, purchase_pack_label: null, purchase_pack_size: null, is_active: true,  created_at: '2026-02-01T00:00:00Z', updated_at: '2026-05-01T00:00:00Z' },
@@ -116,6 +125,13 @@ export const MOCK_ITEMS: InventoryItem[] = [
   { id: 32, sku: 'ITM-000032', name: 'Whole Chicken',            description: 'Broiler whole bird ~1.4kg avg',     category_id: 1, category: { id: 1, name: 'Proteins', slug: 'proteins' },      base_unit_id: 5, base_unit: { id: 5, name: 'Piece', symbol: 'pc' }, default_supplier_id: 1, default_supplier: { id: 1, name: 'Accra Meat Depot' }, storage_type: 'frozen', is_consumable: true, expiry_tracked: true, reorder_level: 10, min_threshold: 4, weighted_avg_cost: 95.00, stock_on_hand: 20, purchase_pack_label: null, purchase_pack_size: null, is_active: true, created_at: '2026-02-01T00:00:00Z', updated_at: '2026-05-01T00:00:00Z' },
   { id: 33, sku: 'ITM-000033', name: 'Kpokpoi (Corn Kenkey)',    description: 'Fermented corn kenkey as kɔkɔɔ side', category_id: 2, category: { id: 2, name: 'Grains & Starch', slug: 'grains-starch' }, base_unit_id: 5, base_unit: { id: 5, name: 'Piece', symbol: 'pc' }, default_supplier_id: 2, default_supplier: { id: 2, name: 'Tema Port Fresh Veg' }, storage_type: 'ambient', is_consumable: true, expiry_tracked: true, reorder_level: 20, min_threshold: 5, weighted_avg_cost: 5.00, stock_on_hand: 40, purchase_pack_label: null, purchase_pack_size: null, is_active: true, created_at: '2026-02-01T00:00:00Z', updated_at: '2026-05-01T00:00:00Z' },
 ];
+
+export const MOCK_ITEMS: InventoryItem[] = MOCK_ITEM_SEEDS.map((item) => ({
+  ...item,
+  effective_reorder_level: item.reorder_level,
+  effective_min_threshold: item.min_threshold,
+  has_location_thresholds: false,
+}));
 
 // ─── Dashboard stats ──────────────────────────────────────────────────────────
 
