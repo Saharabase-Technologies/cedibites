@@ -58,7 +58,17 @@ export class ApiError extends Error {
     public status: number,
     message: string,
     public errors?: Record<string, string[]>,
-    public code?: string
+    public code?: string,
+    /**
+     * The response body as the server sent it.
+     *
+     * `status`/`message`/`errors`/`code` cover most failures, but anything else
+     * an endpoint returns used to be dropped here — a caller could see that a
+     * request failed and read the sentence, and nothing more. The POS stock gate
+     * returns the ingredients that fell short so the till can list them; without
+     * this that payload never left the interceptor.
+     */
+    public payload?: unknown
   ) {
     super(message);
     this.name = 'ApiError';
@@ -209,7 +219,10 @@ apiClient.interceptors.response.use(
     if (status === 403) {
       throw new ApiError(
         status,
-        data?.message || 'You do not have permission to perform this action.'
+        data?.message || 'You do not have permission to perform this action.',
+        undefined,
+        (data as any).code,
+        data
       );
     }
 
@@ -219,7 +232,8 @@ apiClient.interceptors.response.use(
         status,
         data.message || 'Validation failed',
         data.errors,
-        (data as any).code
+        (data as any).code,
+        data
       );
     }
 
@@ -228,7 +242,8 @@ apiClient.interceptors.response.use(
       status,
       data?.message || 'An error occurred. Please try again.',
       undefined,
-      (data as any).code
+      (data as any).code,
+      data
     );
   }
 );

@@ -409,7 +409,11 @@ export default function POSTerminalPage() {
         message?: string;
         errors?: Record<string, string[]>;
         code?: string;
-        // The stock gate's 422 payload — see RefusesShortStock on the API.
+        payload?: unknown;
+      };
+      // ApiError flattens the response to status/message/errors/code, so the
+      // stock gate's shortfalls only survive on `payload` — the raw body.
+      const body = (apiErr.payload ?? {}) as {
         error?: string;
         shortfalls?: StockShortfall[];
         can_override?: boolean;
@@ -418,14 +422,14 @@ export default function POSTerminalPage() {
 
       if (apiErr.code === 'branch_closed') {
         setBranchClosedNotice(apiErr.message || 'This branch is currently closed and cannot accept orders.');
-      } else if (apiErr.error === 'insufficient_stock') {
+      } else if (body.error === 'insufficient_stock' || apiErr.code === 'insufficient_stock') {
         // A refusal at the counter needs reading, not a toast that slides away
         // while the cashier is looking at the customer. The shortfalls name the
         // ingredient, because "out of stock" is nothing they can act on.
         setStockShortNotice({
           message: apiErr.message || 'Not enough stock to make this order.',
-          shortfalls: apiErr.shortfalls ?? [],
-          canOverride: apiErr.can_override ?? false,
+          shortfalls: body.shortfalls ?? [],
+          canOverride: body.can_override ?? false,
         });
         refreshStockGate();
       } else {

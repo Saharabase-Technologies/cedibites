@@ -36,17 +36,21 @@ export const stockGateService = {
      * judge, so treat a missing key as sellable.
      */
     sellableMap: async (branchId: number): Promise<Record<number, boolean>> => {
-        const response = await apiClient.get('/pos/stock-gate', { params: { branch_id: branchId } });
-        const outer = response as { data?: { data?: { sellable?: Record<number, boolean> } } };
-        return outer?.data?.data?.sellable ?? {};
+        // The response interceptor already returns the body, so the shape here
+        // is { data: { branch_id, sellable } } — one unwrap, not two. Getting
+        // that wrong returns {} and silently greys out nothing, which is exactly
+        // how this shipped the first time.
+        const body = await apiClient.get('/pos/stock-gate', { params: { branch_id: branchId } });
+        const outer = body as { data?: { sellable?: Record<number, boolean> } };
+        return outer?.data?.sellable ?? {};
     },
 
     check: async (
         branchId: number,
         items: { menu_item_option_id: number; quantity: number }[],
     ): Promise<StockCheckResult | null> => {
-        const response = await apiClient.post('/pos/stock-gate/check', { branch_id: branchId, items });
-        const outer = response as { data?: { data?: StockCheckResult } };
-        return outer?.data?.data ?? null;
+        const body = await apiClient.post('/pos/stock-gate/check', { branch_id: branchId, items });
+        const outer = body as { data?: StockCheckResult };
+        return outer?.data ?? null;
     },
 };
