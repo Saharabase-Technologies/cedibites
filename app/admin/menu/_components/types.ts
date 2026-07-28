@@ -18,6 +18,12 @@ export interface OptionRow {
     price: string;
     image?: string;
     imageFile?: File;
+    /**
+     * Clearing `image` alone cannot say "delete the stored photo" — an option
+     * that never had one looks identical. This is the intent, and it survives
+     * until the save that acts on it.
+     */
+    imageRemoved?: boolean;
 }
 
 export interface ItemFormState {
@@ -28,6 +34,8 @@ export interface ItemFormState {
     simplePrice: string;
     image?: string;
     imageFile?: File;
+    /** Same intent as OptionRow.imageRemoved, for the single-price photo. */
+    imageRemoved?: boolean;
     options: OptionRow[];
     tags: string[];
     isAvailable: boolean;

@@ -158,6 +158,11 @@ export const menuService = {
     });
   },
 
+  /** Take the photo off an option. Upload could only ever replace it. */
+  deleteOptionImage: (menuItemId: number, optionId: number): Promise<void> => {
+    return apiClient.delete(`/admin/menu-items/${menuItemId}/options/${optionId}/image`);
+  },
+
   /**
    * Delete a menu item
    */

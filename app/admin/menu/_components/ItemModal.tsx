@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ImageIcon, PlusIcon, XCircleIcon } from '@phosphor-icons/react';
+import { ImageIcon, PlusIcon, XCircleIcon, XIcon } from '@phosphor-icons/react';
 import {
     FormField,
     InventoryModal,
@@ -20,26 +20,50 @@ import { blankForm, itemToForm } from './types';
 function ImagePicker({
     value,
     onChange,
+    onRemove,
     size = 'md',
 }: {
     value?: string;
     onChange: (url: string, file: File) => void;
+    onRemove: () => void;
     size?: 'sm' | 'md';
 }) {
     const ref = useRef<HTMLInputElement>(null);
     const dim = size === 'sm' ? 'w-10 h-10 rounded-lg' : 'w-20 h-20 rounded-xl';
+
     return (
-        <>
+        // Relative wrapper so the remove badge can sit on the corner of the
+        // thumbnail. Picking a photo used to be one-way — the only way to undo
+        // a photo on the wrong option was to have another one to hand.
+        <div className="relative shrink-0">
             <button
                 type="button"
                 onClick={() => ref.current?.click()}
-                aria-label="Choose photo"
-                className={`${dim} border-2 border-dashed border-[#e3e1de] hover:border-primary/50 flex items-center justify-center overflow-hidden shrink-0 transition-colors cursor-pointer bg-[#f5f4f2]`}
+                aria-label={value ? 'Replace photo' : 'Choose photo'}
+                className={`${dim} border-2 border-dashed border-[#e3e1de] hover:border-primary/50 flex items-center justify-center overflow-hidden transition-colors cursor-pointer bg-[#f5f4f2]`}
             >
                 {value
                     ? <img src={value} alt="" className="w-full h-full object-cover" />
                     : <ImageIcon size={size === 'sm' ? 15 : 22} className="text-neutral-gray/40" />}
             </button>
+
+            {value && (
+                <button
+                    type="button"
+                    onClick={() => {
+                        onRemove();
+                        // Without this, re-picking the same file fires no change
+                        // event and the photo appears not to come back.
+                        if (ref.current) ref.current.value = '';
+                    }}
+                    aria-label="Remove photo"
+                    title="Remove photo"
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white border border-[#e3e1de] shadow-sm flex items-center justify-center text-neutral-gray hover:text-red-500 hover:border-red-300 transition-colors cursor-pointer"
+                >
+                    <XIcon size={11} weight="bold" />
+                </button>
+            )}
+
             <input
                 type="file"
                 ref={ref}
@@ -50,7 +74,7 @@ function ImagePicker({
                     if (f) onChange(URL.createObjectURL(f), f);
                 }}
             />
-        </>
+        </div>
     );
 }
 
@@ -110,7 +134,16 @@ export function ItemModal({
     function updateOptionImage(i: number, url: string, file: File) {
         setForm(prev => ({
             ...prev,
-            options: prev.options.map((o, idx) => (idx === i ? { ...o, image: url, imageFile: file } : o)),
+            options: prev.options.map((o, idx) =>
+                idx === i ? { ...o, image: url, imageFile: file, imageRemoved: false } : o),
+        }));
+    }
+
+    function removeOptionImage(i: number) {
+        setForm(prev => ({
+            ...prev,
+            options: prev.options.map((o, idx) =>
+                idx === i ? { ...o, image: undefined, imageFile: undefined, imageRemoved: true } : o),
         }));
     }
 
@@ -198,7 +231,8 @@ export function ItemModal({
                             <div className="flex flex-col items-center gap-1">
                                 <ImagePicker
                                     value={form.image}
-                                    onChange={(url, file) => setForm(p => ({ ...p, image: url, imageFile: file }))}
+                                    onChange={(url, file) => setForm(p => ({ ...p, image: url, imageFile: file, imageRemoved: false }))}
+                                    onRemove={() => setForm(p => ({ ...p, image: undefined, imageFile: undefined, imageRemoved: true }))}
                                 />
                                 <span className="text-[10px] text-neutral-gray font-body">Photo</span>
                             </div>
@@ -215,6 +249,7 @@ export function ItemModal({
                                         <ImagePicker
                                             value={opt.image}
                                             onChange={(url, file) => updateOptionImage(i, url, file)}
+                                            onRemove={() => removeOptionImage(i)}
                                             size="sm"
                                         />
                                         <div className="flex-1 grid grid-cols-1 sm:grid-cols-[1fr_1fr_100px] gap-2 min-w-0">
