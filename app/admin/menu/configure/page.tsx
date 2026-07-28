@@ -1,8 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { usePathname } from 'next/navigation';
-import Link from 'next/link';
 import {
     PlusIcon,
     PencilSimpleIcon,
@@ -25,40 +23,6 @@ import {
 import type { MenuCategory, CreateMenuCategoryData } from '@/lib/api/services/menuCategory.service';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import SmartCategoriesSection from './SmartCategoriesSection';
-
-// ─── Menu sub-tabs (shared pattern) ──────────────────────────────────────────
-
-const MENU_SUB_TABS = [
-    { href: '/admin/menu',                    label: 'Items'            },
-    { href: '/admin/menu-add-ons',            label: 'Add-ons'          },
-    { href: '/admin/menu-tags',               label: 'Tags'             },
-    { href: '/admin/menu/configure',          label: 'Configure'        },
-];
-
-function MenuSubTabs() {
-    const pathname = usePathname();
-    const isActive = (href: string) => {
-        if (href === '/admin/menu') return pathname === '/admin/menu';
-        return pathname === href || pathname.startsWith(href + '/');
-    };
-    return (
-        <div className="flex gap-6 border-b border-[#f0e8d8] mb-5">
-            {MENU_SUB_TABS.map(tab => (
-                <Link
-                    key={tab.href}
-                    href={tab.href}
-                    className={`pb-2.5 text-sm font-medium font-body transition-colors border-b-2 -mb-px ${
-                        isActive(tab.href)
-                            ? 'text-primary border-primary'
-                            : 'text-neutral-gray border-transparent hover:text-text-dark'
-                    }`}
-                >
-                    {tab.label}
-                </Link>
-            ))}
-        </div>
-    );
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -167,9 +131,7 @@ export default function AdminMenuConfigurePage() {
     }
 
     return (
-        <div className="max-w-5xl mx-auto px-4 md:px-8 py-6">
-            <MenuSubTabs />
-
+        <>
             {/* Branch selector */}
             {branches.length > 1 && (
                 <div className="flex items-center gap-3 mb-6">
@@ -388,6 +350,6 @@ export default function AdminMenuConfigurePage() {
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
 }

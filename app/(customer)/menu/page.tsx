@@ -18,7 +18,7 @@ import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryPro
 import Navbar from '../../components/layout/Navbar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type SortKey = 'default' | 'price_asc' | 'price_desc' | 'popular';
+type SortKey = 'default' | 'price_asc' | 'price_desc';
 type ViewMode = 'grid' | 'list';
 // ─── Category icon map ────────────────────────────────────────────────────────
 const CATEGORY_ICONS: Record<string, string> = {
@@ -33,15 +33,17 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 // ─── Sort options ─────────────────────────────────────────────────────────────
+// "Most Popular" used to sort by a hand-applied `popular` tag. Popularity is
+// computed now — the Most Popular smart category resolves it from 30 days of
+// order frequency, and already has its own row on this page. Two answers to one
+// question, and the hand-set one went stale the day after it was set.
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
     { key: 'default', label: 'Featured' },
-    { key: 'popular', label: 'Most Popular' },
     { key: 'price_asc', label: 'Price: Low to High' },
     { key: 'price_desc', label: 'Price: High to Low' },
 ];
 
 function sortItems(items: SearchableItem[], sort: SortKey): SearchableItem[] {
-    if (sort === 'popular') return [...items].sort((a, b) => (b.tags?.some(t => t.slug === 'popular') ? 1 : 0) - (a.tags?.some(t => t.slug === 'popular') ? 1 : 0));
     if (sort === 'price_asc') return [...items].sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
     if (sort === 'price_desc') return [...items].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
     return items;

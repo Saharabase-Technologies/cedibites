@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { CaretLeftIcon, CaretRightIcon, DotsThreeIcon } from '@phosphor-icons/react';
 
@@ -45,6 +45,15 @@ export type DataTableProps<T> = {
   isLoading?: boolean;
   /** Show row index column ('#'). */
   showIndex?: boolean;
+  /**
+   * Detail panel revealed beneath a row when its caret is clicked. Adds a
+   * chevron column and makes rows accordions.
+   *
+   * For content that belongs to the row but is too wide or too repetitive to
+   * live in a cell - a menu item's pricing options, a PO's line items. Return
+   * null for rows with nothing to show and they render without a caret.
+   */
+  expandedContent?: (row: T) => ReactNode;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -61,10 +70,22 @@ export function DataTable<T>({
   needsAttention,
   isLoading,
   showIndex,
+  expandedContent,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | undefined>(defaultSortKey);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultSortDir);
   const [page, setPage] = useState(1);
+  // Keyed by row key so expansion survives a sort or a re-render, and so more
+  // than one row can be open at once - comparing two items' options is the
+  // reason to expand in the first place.
+  const [expandedKeys, setExpandedKeys] = useState<Set<string | number>>(new Set());
+
+  const toggleExpanded = (key: string | number) =>
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
 
   // ── Sort ──
   const sorted = useMemo(() => {
@@ -138,6 +159,7 @@ export function DataTable<T>({
         <table className="w-full text-sm font-body">
           <thead>
             <tr className="border-b border-[#f0e8d8]">
+              {expandedContent && <th className="w-9 py-3 px-2" aria-label="Expand" />}
               {showIndex && (
                 <th className="text-neutral-gray text-[10px] font-bold uppercase tracking-wider py-3 px-4 text-left w-10 select-none">
                   #
@@ -169,34 +191,65 @@ export function DataTable<T>({
           <tbody>
             {paged.map((row, idx) => {
               const key = rowKey ? rowKey(row, sliceStart + idx) : sliceStart + idx;
+              const detail = expandedContent?.(row);
+              const isExpanded = expandedKeys.has(key);
+              const colSpan = columns.length + (showIndex ? 1 : 0) + (expandedContent ? 1 : 0);
               return (
-                <tr
-                  key={key}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={`
-                    border-b border-[#f0e8d8] last:border-0 transition-colors
-                    ${onRowClick ? 'cursor-pointer hover:bg-primary/5' : 'hover:bg-primary/5'}
-                    ${needsAttention?.(row) ? 'bg-primary/6 shadow-[inset_3px_0_0_0_var(--color-primary)]' : ''}
-                  `}
-                >
-                  {showIndex && (
-                    <td className="py-3 px-4 text-neutral-gray/60 text-xs">
-                      {sliceStart + idx + 1}
-                    </td>
+                <Fragment key={key}>
+                  <tr
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    className={`
+                      border-b border-[#f0e8d8] transition-colors
+                      ${isExpanded ? 'bg-primary/5' : ''}
+                      ${onRowClick ? 'cursor-pointer hover:bg-primary/5' : 'hover:bg-primary/5'}
+                      ${needsAttention?.(row) ? 'bg-primary/6 shadow-[inset_3px_0_0_0_var(--color-primary)]' : ''}
+                    `}
+                  >
+                    {expandedContent && (
+                      <td className="py-3 pl-3 pr-0 align-middle">
+                        {detail ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleExpanded(key); }}
+                            aria-expanded={isExpanded}
+                            aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
+                            className="w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer text-neutral-gray hover:text-text-dark hover:bg-neutral-light transition-colors"
+                          >
+                            <CaretRightIcon
+                              size={12}
+                              weight="bold"
+                              className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                            />
+                          </button>
+                        ) : null}
+                      </td>
+                    )}
+                    {showIndex && (
+                      <td className="py-3 px-4 text-neutral-gray/60 text-xs">
+                        {sliceStart + idx + 1}
+                      </td>
+                    )}
+                    {columns.map((col) => (
+                      <td
+                        key={col.key}
+                        className={`
+                          py-3 px-4 text-text-dark
+                          ${col.align === 'right' ? 'text-right' : 'text-left'}
+                          ${hideClass(col)}
+                        `}
+                      >
+                        {col.cell(row, sliceStart + idx)}
+                      </td>
+                    ))}
+                  </tr>
+                  {isExpanded && detail && (
+                    <tr className="border-b border-[#f0e8d8]">
+                      <td colSpan={colSpan} className="bg-neutral-light/40 px-4 py-3">
+                        {detail}
+                      </td>
+                    </tr>
                   )}
-                  {columns.map((col) => (
-                    <td
-                      key={col.key}
-                      className={`
-                        py-3 px-4 text-text-dark
-                        ${col.align === 'right' ? 'text-right' : 'text-left'}
-                        ${hideClass(col)}
-                      `}
-                    >
-                      {col.cell(row, sliceStart + idx)}
-                    </td>
-                  ))}
-                </tr>
+                </Fragment>
               );
             })}
           </tbody>

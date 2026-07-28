@@ -14,11 +14,21 @@ export interface DisplayMenuItem {
   price?: number;
   sizes?: { id: number; key: string; label: string; displayName?: string; price: number; image?: string }[];
   hasVariants?: boolean;
-  availableAddOns?: string[];
   variants?: { plain?: number; assorted?: number };
   image?: string;
   url: string;
   tags?: { slug: string; name: string }[];
+  /**
+   * On sale company-wide. Was dropped here for months, which is why the admin
+   * list showed every item as available whatever the database said — and why
+   * saving an item put it back on sale, since the editor sent that same
+   * hardcoded true straight back.
+   */
+  isAvailable: boolean;
+  rating?: number | null;
+  ratingCount?: number;
+  /** Which branches serve this dish. Only present on the admin catalogue. */
+  branches?: { id: number; name: string; isAvailable: boolean }[];
 }
 
 export interface DisplayMenuCategory {
@@ -73,6 +83,16 @@ export function apiMenuItemToDisplayItem(api: ApiMenuItem): DisplayMenuItem {
     image: defaultImage,
     url: `/menu?item=${slug}`,
     tags: api.tags?.map(t => ({ slug: t.slug, name: t.name })) ?? [],
+    // Default true, not false: the storefront endpoint only ever returns items
+    // it is willing to sell, and a missing flag there must not read as "off".
+    isAvailable: api.is_available ?? true,
+    rating: api.rating ?? null,
+    ratingCount: api.rating_count ?? 0,
+    branches: api.branches?.map(b => ({
+      id: b.id,
+      name: b.name,
+      isAvailable: b.is_available,
+    })),
   };
 }
 

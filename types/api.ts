@@ -130,16 +130,6 @@ export interface MenuTag {
   rule_description?: string | null;
 }
 
-export interface MenuAddOn {
-  id: number;
-  branch_id: number;
-  slug: string;
-  name: string;
-  price: number;
-  is_per_piece: boolean;
-  is_active: boolean;
-}
-
 export interface MenuItem {
   id: number;
   branch_id?: number;
@@ -155,7 +145,8 @@ export interface MenuItem {
   thumbnail_url?: string;
   options?: MenuItemOption[];
   tags?: MenuTag[];
-  add_ons?: MenuAddOn[];
+  /** Which branches serve this dish. Admin catalogue only. */
+  branches?: { id: number; name: string; is_available: boolean }[];
   created_at: string;
   updated_at: string;
 }

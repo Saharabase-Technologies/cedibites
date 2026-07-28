@@ -87,13 +87,11 @@ const BOTTOM_NAV = ADMIN_NAV.filter(n =>
     ['/admin/dashboard', '/admin/orders', '/admin/branches', '/admin/menu', '/admin/settings'].includes(n.href)
 );
 
-// Active-state check, incl. Menu's sibling sub-routes (add-ons / tags)
+// Every menu tab is now a genuine child of /admin/menu, so the prefix match is
+// enough. The special case that used to sit here existed because add-ons and
+// tags were siblings pretending to be children.
 function isNavActive(pathname: string, href: string) {
-    return (
-        pathname === href ||
-        pathname.startsWith(href + '/') ||
-        (href === '/admin/menu' && (pathname === '/admin/menu-add-ons' || pathname === '/admin/menu-tags'))
-    );
+    return pathname === href || pathname.startsWith(href + '/');
 }
 
 const ADMIN_DISPLAYS = [
