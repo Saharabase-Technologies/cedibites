@@ -35,8 +35,16 @@ const MANAGER_NAV_MAIN = [
 
 const MANAGER_NAV_TOOLS = [
     { href: '/staff/manager/analytics', label: 'Analytics', icon: ChartBarIcon,   permission: 'view_analytics' },
-    { href: '/staff/manager/menu',      label: 'Menu',       icon: ForkKnifeIcon,  permission: 'manage_menu' },
-    { href: '/staff/manager/staff',     label: 'Staff',      icon: UsersThreeIcon, permission: 'manage_employees' },
+    // Gated on viewing, not managing. The branch manager reads the menu and
+    // marks a dish sold out at his own branch; he does not create, rename,
+    // reprice or delete, because every branch serves the same menu. Gating
+    // this on `manage_menu` hid the section from him entirely the moment that
+    // permission moved to the Admin — along with the sold-out toggle, which is
+    // the one thing he needs from it during service.
+    { href: '/staff/manager/menu',      label: 'Menu',       icon: ForkKnifeIcon,  permission: 'view_menu' },
+    // Same story: he reads his branch's roster and keeps notes on his own
+    // people. Hiring, roles and access are the Admin's.
+    { href: '/staff/manager/staff',     label: 'Staff',      icon: UsersThreeIcon, permission: 'view_employees' },
     { href: '/staff/manager/staff-sales', label: 'Staff Sales', icon: CurrencyCircleDollarIcon, permission: 'view_orders' },
     { href: '/staff/manager/shifts',    label: 'Shifts',     icon: ClockIcon,      permission: 'manage_shifts' },
     { href: '/staff/manager/settings',  label: 'Configure',  icon: GearSixIcon,    permission: 'manage_settings' },
