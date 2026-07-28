@@ -36,6 +36,8 @@ import type { PaymentMethod, Order } from '@/types/order';
 import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
+import { useStockGate } from '@/lib/api/hooks/useStockGate';
+import type { StockShortfall } from '@/lib/api/services/stockGate.service';
 import { printReceipt } from '@/lib/utils/printReceipt';
 import { getPromoService, type Promo } from '@/lib/services/promos/promo.service';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
@@ -182,6 +184,13 @@ export default function POSTerminalPage() {
     session?.branchId ? { branch_id: Number(session.branchId), is_available: true } : undefined
   );
 
+  // Which dishes the kitchen can still make. Advisory — the server decides at
+  // the moment the order is written — but it is what stops a cashier promising
+  // something the branch has run out of.
+  const { isBlocked: isOptionBlocked, refresh: refreshStockGate } = useStockGate(
+    session?.branchId ? Number(session.branchId) : undefined
+  );
+
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showOrderDetails, setShowOrderDetails] = useState(false);
@@ -197,6 +206,11 @@ export default function POSTerminalPage() {
   const [backgroundMomoToken, setBackgroundMomoToken] = useState<string | null>(null);
   const [backgroundConfirmedOrder, setBackgroundConfirmedOrder] = useState<Order | null>(null);
   const [branchClosedNotice, setBranchClosedNotice] = useState<string | null>(null);
+  const [stockShortNotice, setStockShortNotice] = useState<{
+    message: string;
+    shortfalls: StockShortfall[];
+    canOverride: boolean;
+  } | null>(null);
 
   // Pending checkout sessions count for badge
   const { data: pendingSessionsData } = usePosCheckoutSessions(
@@ -386,12 +400,34 @@ export default function POSTerminalPage() {
       } else {
         setCompletedOrder(order);
       }
+      // That sale just moved the balances. Without this the grid keeps offering
+      // the portion it has only now consumed.
+      refreshStockGate();
     } catch (err: unknown) {
-      const apiErr = err as { status?: number; message?: string; errors?: Record<string, string[]>; code?: string };
+      const apiErr = err as {
+        status?: number;
+        message?: string;
+        errors?: Record<string, string[]>;
+        code?: string;
+        // The stock gate's 422 payload — see RefusesShortStock on the API.
+        error?: string;
+        shortfalls?: StockShortfall[];
+        can_override?: boolean;
+      };
       console.error('[POS] Order creation failed:', { status: apiErr.status, message: apiErr.message, errors: apiErr.errors, err });
 
       if (apiErr.code === 'branch_closed') {
         setBranchClosedNotice(apiErr.message || 'This branch is currently closed and cannot accept orders.');
+      } else if (apiErr.error === 'insufficient_stock') {
+        // A refusal at the counter needs reading, not a toast that slides away
+        // while the cashier is looking at the customer. The shortfalls name the
+        // ingredient, because "out of stock" is nothing they can act on.
+        setStockShortNotice({
+          message: apiErr.message || 'Not enough stock to make this order.',
+          shortfalls: apiErr.shortfalls ?? [],
+          canOverride: apiErr.can_override ?? false,
+        });
+        refreshStockGate();
       } else {
         toast.error(apiErr.message || 'Failed to create order. Please try again.');
       }
@@ -606,26 +642,35 @@ export default function POSTerminalPage() {
                   )
                   .reduce((sum, c) => sum + c.quantity, 0);
                 const isSelected = cartQty > 0;
+                const outOfStock = isOptionBlocked(option.sizeId);
                 return (
                   <button
                     key={`${item.id}-${option.key}`}
                     onClick={() => handleOptionAdd(option)}
+                    disabled={outOfStock}
+                    title={outOfStock ? 'Not enough stock to make this' : undefined}
                     className={`
                       rounded-2xl p-4 text-left shadow-sm min-h-22
                       active:scale-[0.97] transition-all duration-100
                       flex flex-col justify-between gap-2
-                      ${isSelected
-                        ? 'bg-primary/10 border-2 border-primary shadow-primary/10'
-                        : 'bg-white border border-neutral-gray/15 hover:border-primary/30 hover:shadow-md'
+                      ${outOfStock
+                        ? 'bg-neutral-light border border-neutral-gray/15 opacity-55 grayscale cursor-not-allowed active:scale-100'
+                        : isSelected
+                          ? 'bg-primary/10 border-2 border-primary shadow-primary/10'
+                          : 'bg-white border border-neutral-gray/15 hover:border-primary/30 hover:shadow-md'
                       }
                     `}
                   >
-                    <p className={`font-semibold text-base leading-snug line-clamp-2 ${isSelected ? 'text-primary' : 'text-text-dark'}`}>
+                    <p className={`font-semibold text-base leading-snug line-clamp-2 ${outOfStock ? 'text-neutral-gray' : isSelected ? 'text-primary' : 'text-text-dark'}`}>
                       {option.name}
                     </p>
                     <div className="flex items-center justify-between">
-                      <p className="text-primary font-bold text-base">{formatGHS(option.price)}</p>
-                      {isSelected && (
+                      {outOfStock ? (
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-gray">Out of stock</p>
+                      ) : (
+                        <p className="text-primary font-bold text-base">{formatGHS(option.price)}</p>
+                      )}
+                      {isSelected && !outOfStock && (
                         <span className="min-w-6 h-6 px-1.5 rounded-full bg-primary text-brown text-xs font-bold flex items-center justify-center">
                           {cartQty}
                         </span>
@@ -642,31 +687,45 @@ export default function POSTerminalPage() {
               const minPrice = item.sizes?.length
                 ? Math.min(...item.sizes.map(size => size.price))
                 : item.price ?? 0;
+              // A dish is only out when every size of it is. One sold-out size
+              // must not hide the ones the kitchen can still make.
+              const sizes = item.sizes ?? [];
+              const outOfStock = sizes.length > 0 && sizes.every(size => isOptionBlocked(size.id));
               return (
                 <button
                   key={item.id}
                   onClick={() => handleItemTap(item)}
+                  disabled={outOfStock}
+                  title={outOfStock ? 'Not enough stock to make this' : undefined}
                   className={`
                     rounded-2xl p-4 text-left shadow-sm min-h-22
                     active:scale-[0.97] transition-all duration-100
                     flex flex-col justify-between gap-2
-                    ${isSelected
-                      ? 'bg-primary/10 border-2 border-primary shadow-primary/10'
-                      : 'bg-white border border-neutral-gray/15 hover:border-primary/30 hover:shadow-md'
+                    ${outOfStock
+                      ? 'bg-neutral-light border border-neutral-gray/15 opacity-55 grayscale cursor-not-allowed active:scale-100'
+                      : isSelected
+                        ? 'bg-primary/10 border-2 border-primary shadow-primary/10'
+                        : 'bg-white border border-neutral-gray/15 hover:border-primary/30 hover:shadow-md'
                     }
                   `}
                 >
-                  <p className={`font-semibold text-base leading-snug line-clamp-2 ${isSelected ? 'text-primary' : 'text-text-dark'}`}>
+                  <p className={`font-semibold text-base leading-snug line-clamp-2 ${outOfStock ? 'text-neutral-gray' : isSelected ? 'text-primary' : 'text-text-dark'}`}>
                     {item.name}
                   </p>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-primary font-bold text-base">{formatGHS(minPrice)}</p>
-                      {hasOptions && (
-                        <p className="text-[11px] text-neutral-gray">Tap to choose option</p>
+                      {outOfStock ? (
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-gray">Out of stock</p>
+                      ) : (
+                        <>
+                          <p className="text-primary font-bold text-base">{formatGHS(minPrice)}</p>
+                          {hasOptions && (
+                            <p className="text-[11px] text-neutral-gray">Tap to choose option</p>
+                          )}
+                        </>
                       )}
                     </div>
-                    {isSelected && (
+                    {isSelected && !outOfStock && (
                       <span className="min-w-6 h-6 px-1.5 rounded-full bg-primary text-brown text-xs font-bold flex items-center justify-center">
                         {cartQty}
                       </span>
@@ -1159,6 +1218,7 @@ export default function POSTerminalPage() {
       {optionPickerItem && (
         <POSItemOptionModal
           item={optionPickerItem}
+          branchId={session?.branchId ? Number(session.branchId) : undefined}
           cart={cart}
           onClose={() => setOptionPickerItem(null)}
           onAdd={handleOptionAdd}
@@ -1185,6 +1245,62 @@ export default function POSTerminalPage() {
           </div>
         </div>
       )}
+
+      {/*
+        No stock, no sale.
+
+        A modal rather than a toast: this appears while the cashier is facing a
+        customer, and it has to survive being looked away from. Each shortfall
+        is listed with what is needed against what is there, because the useful
+        instruction is "go and check the plantain", not "out of stock".
+      */}
+      {stockShortNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setStockShortNotice(null)}>
+          <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-6 flex flex-col gap-4" onClick={e => e.stopPropagation()}>
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center">
+                <ProhibitIcon weight="fill" size={32} className="text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-text-dark">Not enough stock</h3>
+                <p className="text-sm text-neutral-gray mt-1 leading-relaxed">
+                  This order cannot be made with what the branch has on hand.
+                </p>
+              </div>
+            </div>
+
+            {stockShortNotice.shortfalls.length > 0 && (
+              <div className="flex flex-col gap-2 rounded-2xl bg-neutral-light p-3">
+                {stockShortNotice.shortfalls.map(s => (
+                  <div key={s.item_id} className="flex items-baseline justify-between gap-3">
+                    <span className="text-sm font-medium text-text-dark truncate">{s.item_name}</span>
+                    <span className="text-xs font-body text-neutral-gray whitespace-nowrap">
+                      need {s.required}{s.unit ? ` ${s.unit}` : ''} · have{' '}
+                      <span className={s.available < 0 ? 'text-red-600 font-semibold' : ''}>
+                        {s.available}{s.unit ? ` ${s.unit}` : ''}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {stockShortNotice.canOverride && (
+              <p className="text-xs text-neutral-gray font-body leading-relaxed">
+                If the stock is on the shelf and simply has not been recorded, receive it in the
+                inventory portal first — an override is logged against your name.
+              </p>
+            )}
+
+            <button
+              onClick={() => setStockShortNotice(null)}
+              className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3 rounded-2xl transition-all active:scale-[0.98]"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1192,12 +1308,16 @@ export default function POSTerminalPage() {
 interface POSItemOptionModalProps {
   item: DisplayMenuItem;
   cart: ReturnType<typeof usePOS>['cart'];
+  branchId?: number;
   onClose: () => void;
   onAdd: (option: ItemOption) => void;
 }
 
-function POSItemOptionModal({ item, cart, onClose, onAdd }: POSItemOptionModalProps) {
+function POSItemOptionModal({ item, cart, branchId, onClose, onAdd }: POSItemOptionModalProps) {
   const options = getItemOptions(item);
+  // Same verdict as the grid behind it, so a size cannot be picked here after
+  // being greyed out there.
+  const { isBlocked: isOptionBlocked } = useStockGate(branchId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40" onClick={onClose}>
@@ -1219,19 +1339,29 @@ function POSItemOptionModal({ item, cart, onClose, onAdd }: POSItemOptionModalPr
             const qty = cart
               .filter(c => c.menuItemId === option.menuItemId && (c.variantKey ?? '') === (option.variantKey ?? ''))
               .reduce((sum, c) => sum + c.quantity, 0);
+            const outOfStock = isOptionBlocked(option.sizeId);
             return (
               <button
                 key={option.key}
                 onClick={() => onAdd(option)}
-                className="w-full px-4 py-3 rounded-xl border border-neutral-gray/20 hover:border-primary/50 hover:bg-primary/5 transition-colors flex items-center justify-between text-left"
+                disabled={outOfStock}
+                className={`w-full px-4 py-3 rounded-xl border transition-colors flex items-center justify-between text-left ${
+                  outOfStock
+                    ? 'border-neutral-gray/15 bg-neutral-light opacity-55 cursor-not-allowed'
+                    : 'border-neutral-gray/20 hover:border-primary/50 hover:bg-primary/5'
+                }`}
               >
                 <div>
-                  <p className="font-medium text-text-dark">{option.label}</p>
+                  <p className={`font-medium ${outOfStock ? 'text-neutral-gray' : 'text-text-dark'}`}>{option.label}</p>
                   <p className="text-xs text-neutral-gray">{option.name}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-primary">{formatGHS(option.price)}</p>
-                  {qty > 0 && <p className="text-xs text-neutral-gray">In cart: {qty}</p>}
+                  {outOfStock ? (
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-gray">Out of stock</p>
+                  ) : (
+                    <p className="font-semibold text-primary">{formatGHS(option.price)}</p>
+                  )}
+                  {qty > 0 && !outOfStock && <p className="text-xs text-neutral-gray">In cart: {qty}</p>}
                 </div>
               </button>
             );
