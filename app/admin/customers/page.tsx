@@ -18,7 +18,7 @@ import {
     CurrencyCircleDollarIcon,
     TrendUpIcon,
 } from '@phosphor-icons/react';
-import { useCustomers, useCustomerOrders } from '@/lib/api/hooks/useCustomers';
+import { useCustomers, useCustomer, useCustomerOrders } from '@/lib/api/hooks/useCustomers';
 import { mapApiCustomerToDisplay } from '@/lib/api/adapters/customer.adapter';
 import { customerService, type ContactSegment } from '@/lib/api/services/customer.service';
 import { useQueryClient } from '@tanstack/react-query';
@@ -126,6 +126,25 @@ function CustomerDetailPanel({ customer, onClose, onSuspend, onUnsuspend, onDele
                         <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1">Most Ordered</p>
                         <p className="text-text-dark text-sm font-semibold font-body">{customer.mostOrderedItem}</p>
                     </div>
+
+                    {/* Also known as — names given on orders that differ from the
+                        account name. The account is never renamed by an order, so
+                        this is how a caller who gives a different name is matched. */}
+                    {customer.alsoKnownAs.length > 0 && (
+                        <div>
+                            <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Also Ordered As</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {customer.alsoKnownAs.map((alias) => (
+                                    <span
+                                        key={alias}
+                                        className="px-2.5 py-1 bg-neutral-light rounded-full text-neutral-gray text-xs font-body"
+                                    >
+                                        {alias}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Saved addresses */}
                     {customer.addresses.length > 0 && (
@@ -243,6 +262,7 @@ export default function AdminCustomersPage() {
     });
 
     const { orders: customerOrders } = useCustomerOrders(selected?.id ?? null);
+    const { customer: selectedDetail } = useCustomer(selected?.id ?? null);
 
     const customers: DisplayCustomer[] = useMemo(() => {
         return apiCustomers.map((api) => mapApiCustomerToDisplay(api, []));
@@ -290,10 +310,12 @@ export default function AdminCustomersPage() {
 
     const selectedWithOrders = useMemo(() => {
         if (!selected) return null;
-        const api = apiCustomers.find((c) => c.id === selected.id);
+        // Prefer the detail payload — it carries fields the list omits (aliases).
+        // Fall back to the list row so the panel still renders while it loads.
+        const api = selectedDetail ?? apiCustomers.find((c) => c.id === selected.id);
         if (!api) return selected;
         return mapApiCustomerToDisplay(api, Array.isArray(customerOrders) ? customerOrders : []);
-    }, [selected, apiCustomers, customerOrders]);
+    }, [selected, selectedDetail, apiCustomers, customerOrders]);
 
     async function suspend(c: DisplayCustomer) {
         try {

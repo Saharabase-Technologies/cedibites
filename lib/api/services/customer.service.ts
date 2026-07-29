@@ -14,6 +14,8 @@ export interface ApiCustomer {
   join_date: string;
   addresses: string[];
   most_ordered_item?: string;
+  /** Other names given at the counter. Detail endpoint only — absent in the list. */
+  also_known_as?: string[];
   created_at: string;
   updated_at: string;
 }

@@ -732,16 +732,48 @@ function StepProcessing({ sessionToken, onSuccess, onFail, onAbandon }: {
 function StepDone({ orderNumber, orderType, contact }: {
     orderNumber: string; orderType: OrderType; contact: ContactDetails;
 }) {
-    const { isLoggedIn, saveFromCheckout } = useAuth();
+    const { isLoggedIn, requestCheckoutSaveOTP, confirmCheckoutSaveOTP } = useAuth();
     const { selectedBranch } = useBranch();
-    const [promptState, setPromptState] = useState<'idle' | 'saving' | 'saved' | 'dismissed'>(
+    // Saving the details means claiming the account behind this number, which
+    // carries its past orders and addresses — so it goes through an OTP rather
+    // than trusting that whoever typed the number owns it.
+    const [promptState, setPromptState] = useState<'idle' | 'sending' | 'code' | 'verifying' | 'saved' | 'dismissed'>(
         isLoggedIn ? 'saved' : 'idle'
     );
+    const [code, setCode] = useState('');
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const [resendIn, setResendIn] = useState(0);
 
-    const handleSave = async () => {
-        setPromptState('saving');
-        await new Promise(r => setTimeout(r, 600));
-        saveFromCheckout(contact.name, contact.phone);
+    useEffect(() => {
+        if (resendIn <= 0) return;
+        const t = setTimeout(() => setResendIn(s => s - 1), 1000);
+        return () => clearTimeout(t);
+    }, [resendIn]);
+
+    const sendCode = async () => {
+        setPromptState('sending');
+        setSaveError(null);
+        const result = await requestCheckoutSaveOTP(contact.phone);
+        if (!result.success) {
+            setSaveError(result.error ?? 'Could not send the code. Please try again.');
+            setPromptState('idle');
+            return;
+        }
+        setCode('');
+        setResendIn(30);
+        setPromptState('code');
+    };
+
+    const submitCode = async () => {
+        if (code.length !== 6) return;
+        setPromptState('verifying');
+        setSaveError(null);
+        const result = await confirmCheckoutSaveOTP(contact.name, contact.phone, code);
+        if (!result.success) {
+            setSaveError(result.error ?? 'That code did not work. Please try again.');
+            setPromptState('code');
+            return;
+        }
         setPromptState('saved');
     };
 
@@ -814,17 +846,72 @@ function StepDone({ orderNumber, orderType, contact }: {
                             <p className="text-xs text-neutral-gray">{contact.phone}</p>
                         </div>
                     </div>
-                    <button onClick={handleSave}
+                    {saveError && (
+                        <p className="text-xs text-error mb-3 text-left">{saveError}</p>
+                    )}
+                    <button onClick={sendCode}
                         className="w-full py-3 rounded-xl bg-secondary hover:bg-secondary/90 text-white font-bold text-sm transition-all active:scale-[0.98] cursor-pointer">
                         Yes, save my info
                     </button>
                 </div>
             )}
 
-            {promptState === 'saving' && (
+            {promptState === 'sending' && (
                 <div className="w-full bg-white dark:bg-brand-dark rounded-2xl p-4 shadow-sm flex items-center justify-center gap-2 text-sm text-neutral-gray">
                     <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    Saving your details...
+                    Sending your code...
+                </div>
+            )}
+
+            {/* ── Code entry ── */}
+            {(promptState === 'code' || promptState === 'verifying') && (
+                <div className="w-full bg-white dark:bg-brand-dark rounded-2xl p-4 shadow-sm border border-primary/15 relative">
+                    <button onClick={() => setPromptState('dismissed')}
+                        className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors cursor-pointer">
+                        <XIcon size={13} weight="bold" className="text-neutral-gray" />
+                    </button>
+                    <div className="text-left mb-4">
+                        <p className="text-sm font-bold text-text-dark dark:text-text-light">Enter the code we sent</p>
+                        <p className="text-xs text-neutral-gray mt-0.5">
+                            Sent to <strong>{contact.phone}</strong> — this confirms the number is yours.
+                        </p>
+                    </div>
+
+                    <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        value={code}
+                        disabled={promptState === 'verifying'}
+                        onChange={e => { setCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setSaveError(null); }}
+                        onKeyDown={e => { if (e.key === 'Enter') submitCode(); }}
+                        placeholder="------"
+                        className="w-full h-12 text-center tracking-[0.5em] font-mono text-lg rounded-xl bg-neutral-light dark:bg-brown/30 text-text-dark dark:text-text-light border border-neutral-gray/20 focus:border-primary/50 outline-none transition-colors disabled:opacity-60"
+                    />
+
+                    {saveError && (
+                        <p className="text-xs text-error mt-2 text-left">{saveError}</p>
+                    )}
+
+                    <button
+                        onClick={submitCode}
+                        disabled={code.length !== 6 || promptState === 'verifying'}
+                        className="w-full mt-4 py-3 rounded-xl bg-secondary hover:bg-secondary/90 disabled:bg-neutral-gray/30 disabled:cursor-not-allowed text-white font-bold text-sm transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
+                    >
+                        {promptState === 'verifying' && (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        )}
+                        {promptState === 'verifying' ? 'Confirming...' : 'Confirm'}
+                    </button>
+
+                    <button
+                        onClick={sendCode}
+                        disabled={resendIn > 0 || promptState === 'verifying'}
+                        className="w-full mt-2 py-2 text-xs font-semibold text-neutral-gray hover:text-primary disabled:hover:text-neutral-gray disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    >
+                        {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
+                    </button>
                 </div>
             )}
 
@@ -833,10 +920,10 @@ function StepDone({ orderNumber, orderType, contact }: {
                     <CheckCircleIcon weight="fill" size={20} className="text-secondary shrink-0" />
                     <div>
                         <p className="text-sm font-bold text-text-dark dark:text-text-light">
-                            {isLoggedIn ? "You're already signed in" : 'Details saved!'}
+                            {isLoggedIn ? "You're already signed in" : "Saved — you're signed in"}
                         </p>
                         <p className="text-xs text-neutral-gray">
-                            {isLoggedIn ? 'Your info is pre-filled on every order.' : 'Your next checkout will be instant.'}
+                            {isLoggedIn ? 'Your info is pre-filled on every order.' : 'Your next checkout will be instant, and your order history is now yours.'}
                         </p>
                     </div>
                 </div>

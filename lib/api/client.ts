@@ -217,6 +217,24 @@ apiClient.interceptors.response.use(
 
     // Handle 403 - Forbidden
     if (status === 403) {
+      // A token that predates staff/customer token abilities, or one minted by
+      // the customer OTP login, cannot open the staff surface (EnsureStaffToken).
+      // That is a stale credential rather than a missing permission, so it is
+      // treated like a 401: drop the token and send them to sign in properly.
+      // Without this the screen reads "you do not have permission" and no amount
+      // of clicking recovers it, because the bad token is still in storage.
+      if ((data as any)?.error === 'staff_token_required' && typeof window !== 'undefined') {
+        const pathname = window.location.pathname;
+        const isOnLoginPage = pathname.includes('/login') || pathname === '/pos';
+
+        localStorage.removeItem('cedibites_staff_token');
+        localStorage.removeItem('cedibites-staff-session');
+
+        if (!isOnLoginPage) {
+          navigateTo('/staff/login');
+        }
+      }
+
       throw new ApiError(
         status,
         data?.message || 'You do not have permission to perform this action.',

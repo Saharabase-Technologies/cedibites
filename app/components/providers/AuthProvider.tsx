@@ -7,6 +7,7 @@ import { cartService } from '@/lib/api/services/cart.service';
 import { GUEST_SESSION_KEY, ApiError } from '@/lib/api/client';
 import { disconnectCustomerEcho, getCustomerEcho } from '@/lib/echo';
 import { getErrorMessage } from '@/lib/utils/error-handler';
+import { normalizeGhanaPhone } from '@/app/lib/phone';
 import type { User } from '@/types/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -41,8 +42,9 @@ interface AuthContextType {
     saveProfile: (name: string, phone: string) => Promise<{ success: boolean; error?: string }>;
     updateProfile: (data: { name?: string; email?: string | null }) => Promise<{ success: boolean; error?: string }>;
 
-    // Post-order quick save (from checkout)
-    saveFromCheckout: (name: string, phone: string) => void;
+    // Post-order account claim (from checkout) — OTP-verified, two steps
+    requestCheckoutSaveOTP: (phone: string) => Promise<{ success: boolean; error?: string }>;
+    confirmCheckoutSaveOTP: (name: string, phone: string, code: string) => Promise<{ success: boolean; error?: string }>;
 
     // Loading states
     isLoading: boolean;
@@ -263,22 +265,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, [requiresRegistration, pendingPhone, pendingEmail, queryClient]);
 
-    // ── Quick save from checkout (no OTP needed — they just ordered) ──────────
-    // Called from StepDone "Save for next time" prompt
-    const saveFromCheckout = useCallback(async (name: string, phone: string) => {
-        if (!name.trim() || !phone.trim()) return;
-        
+    // ── Save from checkout, step 1: send the code ─────────────────────────────
+    // Placing an order does not prove you own the number you typed. Claiming an
+    // account merges you into whatever record already holds that phone, along
+    // with its order history and saved addresses, so it has to be earned with an
+    // OTP like any other sign-in. Deliberately does NOT touch authStep — that
+    // drives the global login sheet, and this flow runs inside the checkout page.
+    const requestCheckoutSaveOTP = useCallback(async (phone: string): Promise<{ success: boolean; error?: string }> => {
         try {
-            // Register user in the backend using quick registration (no OTP)
-            const response = await authService.quickRegister({
-                name,
-                phone,
-                email: undefined,
-            });
+            await authService.sendOTP({ phone: normalizeGhanaPhone(phone) });
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: getErrorMessage(error) };
+        }
+    }, []);
 
-            const { token, user: apiUser } = response.data;
+    // ── Save from checkout, step 2: verify and claim ──────────────────────────
+    const confirmCheckoutSaveOTP = useCallback(async (name: string, phone: string, code: string): Promise<{ success: boolean; error?: string }> => {
+        const normalized = normalizeGhanaPhone(phone);
 
-            // Claim any guest cart
+        try {
+            // Their order already created a passwordless account behind this
+            // phone, so verify-otp normally returns a session outright and marks
+            // the customer as claimed. quick-register is the fallback for when it
+            // does not — an order placed against a different number, say.
+            const verified = await authService.verifyOTP({ phone: normalized, otp: code });
+
+            let token: string;
+            let apiUser: User;
+
+            if ('requires_registration' in verified.data && verified.data.requires_registration) {
+                const registered = await authService.quickRegister({ name, phone: normalized, email: undefined });
+                token = registered.data.token;
+                apiUser = registered.data.user;
+            } else {
+                ({ token, user: apiUser } = verified.data as { token: string; user: User });
+            }
+
             const guestSession = localStorage.getItem(GUEST_SESSION_KEY);
             localStorage.setItem('cedibites_auth_token', token);
 
@@ -292,14 +315,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
             localStorage.removeItem(GUEST_SESSION_KEY);
 
-            // Convert and store user
-            const authUser = mapApiUserToAuthUser(apiUser);
-            persistUser(authUser);
+            persistUser(mapApiUserToAuthUser(apiUser));
+            return { success: true };
         } catch (error) {
-            // If registration fails (e.g., user already exists), just save locally
-            console.error('Failed to register user from checkout:', error);
-            const newUser: AuthUser = { name, phone, savedAddresses: [], createdAt: Date.now() };
-            persistUser(newUser);
+            // Nothing is persisted locally on failure. Saving an unverified name
+            // and phone to the device is what made the old flow feel like it had
+            // worked when it had not.
+            return { success: false, error: getErrorMessage(error) };
         }
     }, [queryClient]);
 
@@ -331,7 +353,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             verifyOTP,
             saveProfile,
             updateProfile,
-            saveFromCheckout,
+            requestCheckoutSaveOTP,
+            confirmCheckoutSaveOTP,
             isLoading,
         }}>
             {children}

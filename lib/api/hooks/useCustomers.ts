@@ -24,6 +24,24 @@ export const useCustomers = (params?: CustomersParams) => {
   };
 };
 
+/**
+ * A single customer from the detail endpoint.
+ *
+ * The list payload deliberately omits per-customer detail that costs a query per
+ * row — `also_known_as` among it — so the detail panel has to ask for the record
+ * properly rather than reusing the row it was opened from.
+ */
+export const useCustomer = (customerId: string | null) => {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['customer', customerId],
+    queryFn: () => customerService.getCustomer(Number(customerId!)),
+    enabled: !!customerId,
+    staleTime: 60 * 1000,
+  });
+
+  return { customer: data?.data ?? null, isLoading, error };
+};
+
 export const useCustomerOrders = (customerId: string | null, params?: { status?: string; page?: number }) => {
   const {
     data: ordersData,

@@ -26,6 +26,8 @@ export interface DisplayCustomer {
   orders: DisplayCustomerOrder[];
   mostOrderedItem: string;
   avgOrderValue: number;
+  /** Other names this person has used on orders. Empty unless loaded from the detail endpoint. */
+  alsoKnownAs: string[];
 }
 
 function formatRelativeDate(iso?: string): string {
@@ -67,5 +69,6 @@ export function mapApiCustomerToDisplay(api: ApiCustomer, orders?: Array<{ id: n
     orders: displayOrders,
     mostOrderedItem: api.most_ordered_item || '—',
     avgOrderValue,
+    alsoKnownAs: api.also_known_as ?? [],
   };
 }
