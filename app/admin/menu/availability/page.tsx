@@ -75,12 +75,27 @@ export default function MenuAvailabilityPage() {
         return item.branches[key] ? 'served' : 'sold-out';
     }
 
+    /**
+     * One click, and it always moves toward "on sale here" — except when it is
+     * already there, when it takes the dish off the branch.
+     *
+     *   not served → served
+     *   sold out   → served      (clears the branch's flag)
+     *   served     → not served
+     *
+     * The middle case used to compute `served = current === 'not-served'`,
+     * which for a sold-out cell is `false` — so the only click available on an
+     * amber cell *removed the dish from the branch*. Combined with the API
+     * having no way to clear the flag at all, a branch that read sold out could
+     * only be fixed by removing the dish and adding it back.
+     */
     async function toggleCell(itemId: number, branchId: number, current: CellState) {
         const key = `${itemId}:${branchId}`;
         if (pending.has(key)) return;
 
-        const served = current === 'not-served';
         setPending(prev => new Set(prev).add(key));
+
+        const next: CellState = current === 'served' ? 'not-served' : 'served';
 
         // Optimistic — the grid is the only place this state is visible, and a
         // lag on a cell click reads as a click that did not register.
@@ -89,22 +104,26 @@ export default function MenuAvailabilityPage() {
             items: prev.items.map(item => {
                 if (item.id !== itemId) return item;
                 const branches = { ...item.branches };
-                if (served) branches[String(branchId)] = true;
+                if (next === 'served') branches[String(branchId)] = true;
                 else delete branches[String(branchId)];
                 return { ...item, branches };
             }),
         }));
 
         try {
-            await menuBranchAvailabilityService.setServed(itemId, branchId, served);
+            if (current === 'sold-out') {
+                await menuBranchAvailabilityService.setAvailableHere(itemId, branchId, true);
+            } else {
+                await menuBranchAvailabilityService.setServed(itemId, branchId, next === 'served');
+            }
         } catch {
             toast.error('Could not change that. Reloading.');
             reload();
         } finally {
             setPending(prev => {
-                const next = new Set(prev);
-                next.delete(key);
-                return next;
+                const nextPending = new Set(prev);
+                nextPending.delete(key);
+                return nextPending;
             });
         }
     }
@@ -250,7 +269,7 @@ function Cell({
 
     const titles: Record<CellState, string> = {
         'served': `Served — ${label}. Click to remove from this branch.`,
-        'sold-out': `Sold out today — ${label}. Set by the branch; click to remove from this branch.`,
+        'sold-out': `Sold out today — ${label}. Set by the branch; click to put it back on sale here.`,
         'not-served': `Not served — ${label}. Click to add to this branch.`,
     };
 

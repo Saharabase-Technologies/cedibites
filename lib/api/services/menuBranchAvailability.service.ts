@@ -45,9 +45,23 @@ export const menuBranchAvailabilityService = {
         return { branches: body?.branches ?? [], items: body?.items ?? [] };
     },
 
-    /** Serve / stop serving one dish at one branch. */
+    /** Put one dish on / take it off one branch's menu. Leaves today's sold-out flag alone. */
     setServed: async (menuItemId: number, branchId: number, served: boolean): Promise<void> => {
         await apiClient.patch(`/admin/menu-items/${menuItemId}/branches/${branchId}`, { served });
+    },
+
+    /**
+     * Put a dish the branch has marked sold out back on sale there.
+     *
+     * A separate verb from `setServed` on purpose. "This is on the menu here"
+     * and "we have it today" are different statements, and re-serving must not
+     * silently overrule a branch that ran out this morning — so clearing the
+     * flag has to be asked for. It previously could not be asked for at all,
+     * which is how branches ended up stuck sold out after `menu:unify` stamped
+     * the flag from the company-wide one.
+     */
+    setAvailableHere: async (menuItemId: number, branchId: number, available: boolean): Promise<void> => {
+        await apiClient.patch(`/admin/menu-items/${menuItemId}/branches/${branchId}`, { available });
     },
 
     /** Serve / stop serving one dish everywhere — the row-level action. */

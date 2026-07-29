@@ -18,7 +18,13 @@ export interface BranchMenuAvailability {
     category: string | null;
     /** False when the dish is withdrawn company-wide — a branch cannot put that back. */
     available_everywhere: boolean;
-    /** False when this branch has marked it sold out today. */
+    /**
+     * The branch's own word: false when it has marked the dish sold out today.
+     *
+     * Reported on its own, not ANDed with `available_everywhere`. A dish the
+     * admin has withdrawn and one the branch has run out of look identical once
+     * they are combined, and only one of them has a toggle that does anything.
+     */
     available_here: boolean;
 }
 
