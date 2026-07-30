@@ -16,8 +16,6 @@ import {
     WarningCircleIcon,
     BuildingsIcon,
     ClockIcon,
-    ToggleLeftIcon,
-    ToggleRightIcon,
     IdentificationCardIcon,
     EnvelopeSimpleIcon,
     PhoneIcon,
@@ -36,15 +34,19 @@ import {
     type StaffStatus,
     type EmploymentStatus,
     type SystemAccess,
-    type StaffPermissions,
+    ROLE_RULES,
+    ASSIGNABLE_ROLES,
     roleDisplayName,
+    roleNeedsBranch,
+    roleAllowsManyBranches,
+    branchRuleLabel,
+    validateBranchSelection,
+    permissionDisplayName,
     employmentStatusLabel,
-    defaultPermissions,
 } from '@/types/staff';
 import { useEmployees } from '@/lib/api/hooks/useEmployees';
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
-import { useRoles, usePermissions } from '@/lib/api/hooks/useRoles';
-import { employeeService, staffRoleToBackendRole, mapPermissionsToBackend, type EmployeeNoteResponse } from '@/lib/api/services/employee.service';
+import { employeeService, staffRoleToBackendRole, type EmployeeNoteResponse } from '@/lib/api/services/employee.service';
 import { toast } from '@/lib/utils/toast';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
@@ -89,25 +91,6 @@ function AvatarCircle({ name }: { name: string }) {
     return (
         <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
             <span className="text-primary text-xs font-bold font-body">{initials(name)}</span>
-        </div>
-    );
-}
-
-// ─── Toggle switch ────────────────────────────────────────────────────────────
-
-function Toggle({ checked, onChange, label, sub }: { checked: boolean; onChange: (v: boolean) => void; label: string; sub?: string }) {
-    return (
-        <div className="flex items-center justify-between gap-3 py-1.5">
-            <div className="flex-1 cursor-pointer" onClick={() => onChange(!checked)}>
-                <p className="text-text-dark text-sm font-medium font-body">{label}</p>
-                {sub && <p className="text-neutral-gray text-xs font-body">{sub}</p>}
-            </div>
-            <button type="button" onClick={() => onChange(!checked)} className="shrink-0 cursor-pointer">
-                {checked
-                    ? <ToggleRightIcon size={28} weight="fill" className="text-secondary" />
-                    : <ToggleLeftIcon  size={28} weight="fill" className="text-neutral-gray/40" />
-                }
-            </button>
         </div>
     );
 }
@@ -363,17 +346,19 @@ function StaffDetailDrawer({ staff, onClose, onEdit, onSuspend, onReinstate, onT
 
                             <div className="h-px bg-[#f0e8d8]" />
 
-                            {/* Permissions summary */}
+                            {/* What this person can do — read-only. Set by the role,
+                                never edited here. */}
                             <div>
-                                <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-3">Permissions</p>
+                                <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1">Permissions</p>
+                                <p className="text-neutral-gray text-[10px] font-body mb-3">
+                                    Set by the <strong className="text-text-dark">{roleDisplayName(staff.role)}</strong> role. To change these, change the role.
+                                </p>
                                 <div className="flex flex-wrap gap-1.5">
-                                    {Object.entries(staff.permissions)
-                                        .filter(([, v]) => v)
-                                        .map(([key]) => (
-                                            <span key={key} className="text-[10px] font-body text-neutral-gray bg-neutral-light px-2 py-1 rounded-lg">
-                                                {key.replace(/^can/, '').replace(/([A-Z])/g, ' $1').trim()}
-                                            </span>
-                                        ))}
+                                    {staff.permissions.map(name => (
+                                        <span key={name} className="text-[10px] font-body text-neutral-gray bg-neutral-light px-2 py-1 rounded-lg">
+                                            {permissionDisplayName(name)}
+                                        </span>
+                                    ))}
                                 </div>
                             </div>
                         </div>
@@ -508,7 +493,12 @@ function StaffDetailDrawer({ staff, onClose, onEdit, onSuspend, onReinstate, onT
 
 // ─── Staff modal ──────────────────────────────────────────────────────────────
 
-type ModalTab = 'profile' | 'access' | 'permissions' | 'hr';
+// The Permissions tab is gone. It read a person's effective permissions, showed
+// them as checkboxes, and wrote the lot back as grants attached to the user —
+// which is how a branch manager kept getting `manage_employees` back after it
+// had been taken off the manager role. What someone can do is decided by their
+// role on the server; this form picks the role and nothing else.
+type ModalTab = 'profile' | 'access' | 'hr';
 
 interface StaffFormState {
     name:             string;
@@ -518,10 +508,11 @@ interface StaffFormState {
     passwordConfirm:  string;
     passwordMode:     'auto' | 'custom' | 'prompt';
     role:             StaffRole;
-    branch:           string | string[];
+    /** Branch IDs, always. The form used to carry branch *names* and look their
+     *  IDs back up on save, which threw "Invalid branch selected" whenever a
+     *  branch was renamed or a name contained a comma. */
+    branchIds:        string[];
     employmentStatus: EmploymentStatus;
-    systemAccess:     SystemAccess;
-    permissions:      StaffPermissions;
     forcePasswordReset: boolean;
     // HR
     ssnit:            string;
@@ -535,28 +526,6 @@ interface StaffFormState {
 }
 
 function memberToForm(s: StaffMember): StaffFormState {
-    // Handle branch data properly - convert string to array if needed
-    let branchValue: string | string[];
-    if (MULTI_BRANCH_ROLES.includes(s.role)) {
-        // For multi-branch roles, ensure branch is an array
-        if (typeof s.branch === 'string') {
-            // Split comma-separated string into array
-            branchValue = s.branch.split(',').map(b => b.trim()).filter(b => b.length > 0);
-        } else {
-            branchValue = Array.isArray(s.branch) ? s.branch : [s.branch];
-        }
-    } else {
-        // For single-branch roles, ensure branch is a string
-        if (Array.isArray(s.branch)) {
-            branchValue = s.branch[0] || '';
-        } else if (typeof s.branch === 'string') {
-            // If it's a comma-separated string, take the first branch
-            branchValue = s.branch.split(',')[0]?.trim() || '';
-        } else {
-            branchValue = s.branch || '';
-        }
-    }
-
     return {
         name: s.name,
         phone: s.phone ?? '',
@@ -565,10 +534,12 @@ function memberToForm(s: StaffMember): StaffFormState {
         passwordConfirm: '',
         passwordMode: 'auto' as const,
         role: s.role,
-        branch: branchValue,
+        // Trim to what the role allows, so opening a record that predates the
+        // rules does not silently resubmit an illegal set.
+        branchIds: roleNeedsBranch(s.role)
+            ? (roleAllowsManyBranches(s.role) ? s.branchIds : s.branchIds.slice(0, 1))
+            : [],
         employmentStatus: s.employmentStatus,
-        systemAccess: s.systemAccess,
-        permissions: { ...s.permissions },
         forcePasswordReset: false, // Always default to false for existing staff
         ssnit: s.ssnit ?? '',
         ghanaCard: s.ghanaCard ?? '',
@@ -581,145 +552,57 @@ function memberToForm(s: StaffMember): StaffFormState {
     };
 }
 
-// Roles that can span multiple branches
-const MULTI_BRANCH_ROLES: StaffRole[] = ['call_center', 'branch_partner', 'admin', 'tech_admin'];
-
 function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onClose: () => void; onSave: (s: StaffMember) => void | Promise<void> }) {
     const { branches, isLoading: branchesLoading } = useBranchesApi();
-    const { roles, isLoading: rolesLoading } = useRoles();
-    const { permissions, isLoading: permissionsLoading } = usePermissions();
-    const ALL_BRANCHES = branches.map((b) => b.name);
-    const BRANCH_ID_MAP: Record<string, string> = Object.fromEntries(branches.map((b) => [b.name, String(b.id)]));
     const isNew = !staff;
-    
-    // Create a dynamic blank form that uses the first available branch
+
     const createBlankForm = (): StaffFormState => ({
         name: '', phone: '', email: '', password: '', passwordConfirm: '',
         passwordMode: 'auto' as const,
         role: 'sales_staff',
-        branch: ALL_BRANCHES[0] || '',
+        branchIds: [],
         employmentStatus: 'active',
-        systemAccess: 'enabled',
-        permissions: defaultPermissions('sales_staff'),
         forcePasswordReset: false,
         ssnit: '', ghanaCard: '', tinNumber: '',
         dateOfBirth: '', nationality: 'Ghanaian',
         emergencyName: '', emergencyPhone: '', emergencyRel: '',
     });
-    
+
     const [form, setForm] = useState<StaffFormState>(staff ? memberToForm(staff) : createBlankForm());
     const [modalTab, setModalTab] = useState<ModalTab>('profile');
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [isSaving, setIsSaving] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
-    
-    // Update form branch when branches load (for new staff only)
-    React.useEffect(() => {
-        if (isNew && ALL_BRANCHES.length > 0 && !form.branch) {
-            setForm(f => ({ ...f, branch: ALL_BRANCHES[0] }));
-        }
-    }, [ALL_BRANCHES, isNew, form.branch]);
 
-    // Convert database role name to StaffRole
-    const dbRoleToStaffRole = (dbRoleName: string): StaffRole => {
-        const mapping: Record<string, StaffRole> = {
-            'tech_admin': 'tech_admin',
-            'admin': 'admin',
-            'branch_partner': 'branch_partner',
-            'manager': 'manager',
-            'call_center': 'call_center',
-            'sales_staff': 'sales_staff',
-            'kitchen': 'kitchen',
-            'rider': 'rider',
-            'employee': 'sales_staff', // Map legacy employee to sales_staff
-        };
-        return mapping[dbRoleName] ?? 'sales_staff';
-    };
+    const rule = ROLE_RULES[form.role];
+    const needsBranch = roleNeedsBranch(form.role);
+    const allowsMany = roleAllowsManyBranches(form.role);
 
-    // Convert StaffRole to database role name
-    const staffRoleToDbRole = (staffRole: StaffRole): string => {
-        const mapping: Record<StaffRole, string> = {
-            'tech_admin': 'tech_admin',
-            'admin': 'admin',
-            'branch_partner': 'branch_partner',
-            'manager': 'manager',
-            'call_center': 'call_center',
-            'sales_staff': 'sales_staff',
-            'kitchen': 'kitchen',
-            'rider': 'rider',
-            'warehouse_manager': 'warehouse_manager',
-            'purchasing_clerk': 'purchasing_clerk',
-        };
-        return mapping[staffRole] ?? 'sales_staff';
-    };
-
-    // Get available roles for the dropdown (filter to only show roles that map to valid StaffRole)
-    const availableRoles = roles.filter(role => {
-        const staffRole = dbRoleToStaffRole(role.name);
-        return ['admin', 'branch_partner', 'manager', 'call_center', 'sales_staff', 'kitchen', 'rider'].includes(staffRole);
-    });
-
-    // Map *every* backend permission to its frontend key/label/description.
-    // The UI already filters out permissions the selected role already grants,
-    // so the admin sees only the extras they can toggle per-user.
-    const BACKEND_TO_FRONTEND: Record<string, keyof StaffPermissions> = {
-        view_orders:           'canViewOrders',
-        create_orders:         'canPlaceOrders',
-        update_orders:         'canAdvanceOrders',
-        delete_orders:         'canDeleteOrders',
-        view_menu:             'canViewMenu',
-        manage_menu:           'canManageMenu',
-        view_branches:         'canViewBranches',
-        manage_branches:       'canManageBranches',
-        view_customers:        'canViewCustomers',
-        manage_customers:      'canManageCustomers',
-        view_employees:        'canViewEmployees',
-        manage_employees:      'canManageStaff',
-        view_analytics:        'canViewReports',
-        view_activity_log:     'canViewActivityLog',
-        access_admin_panel:    'canAccessAdminPanel',
-        access_manager_portal: 'canAccessManagerPortal',
-        access_sales_portal:   'canAccessSalesPortal',
-        access_partner_portal: 'canAccessPartnerPortal',
-        access_pos:            'canAccessPOS',
-        access_kitchen:        'canAccessKitchen',
-        access_order_manager:  'canAccessOrderManager',
-        manage_shifts:         'canManageShifts',
-        manage_settings:       'canManageSettings',
-        view_my_shifts:        'canViewMyShifts',
-        view_my_sales:         'canViewMySales',
-    };
-
-    const getPermissionMapping = () => {
-        const mapping: Record<string, { key: keyof StaffPermissions; label: string; description: string }> = {};
-
-        permissions.forEach(perm => {
-            const frontendKey = BACKEND_TO_FRONTEND[perm.name];
-            if (frontendKey) {
-                mapping[perm.name] = { key: frontendKey, label: perm.display_name, description: perm.description };
-            }
-        });
-
-        return mapping;
-    };
-
-    const permissionMapping = getPermissionMapping();
-    // Only show permissions not already granted by the selected role
-    const rolePermissions = new Set(roles.find(r => r.name === staffRoleToBackendRole(form.role))?.permissions ?? []);
-    const displayPermissions = Object.entries(permissionMapping).filter(([permName]) => !rolePermissions.has(permName));
-
-    const isMultiBranch = MULTI_BRANCH_ROLES.includes(form.role);
-
-    // When role changes, reset permissions to role defaults
+    /**
+     * Changing the role changes what the account is, so the branch selection has
+     * to be re-fitted to the new rule rather than carried over: a manager
+     * becoming an admin loses the branch entirely, a rider becoming a manager
+     * keeps only the first of theirs and has to confirm it.
+     */
     function handleRoleChange(newRole: StaffRole) {
         setForm(f => ({
             ...f,
             role: newRole,
-            permissions: defaultPermissions(newRole),
-            branch: MULTI_BRANCH_ROLES.includes(newRole)
-                ? (Array.isArray(f.branch) ? f.branch : [f.branch as string])
-                : (Array.isArray(f.branch) ? f.branch[0] : f.branch),
+            branchIds: !roleNeedsBranch(newRole)
+                ? []
+                : roleAllowsManyBranches(newRole) ? f.branchIds : f.branchIds.slice(0, 1),
         }));
+        setErrors(e => ({ ...e, branchIds: '' }));
+    }
+
+    function toggleBranch(id: string) {
+        setForm(f => ({
+            ...f,
+            branchIds: allowsMany
+                ? (f.branchIds.includes(id) ? f.branchIds.filter(b => b !== id) : [...f.branchIds, id])
+                : [id],
+        }));
+        setErrors(e => ({ ...e, branchIds: '' }));
     }
 
     function validate() {
@@ -731,6 +614,12 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
             if (!form.password || form.password.length < 8) e.password = 'Min 8 characters';
             else if (form.password !== form.passwordConfirm) e.passwordConfirm = 'Passwords do not match';
         }
+        // The role decides how many branches, so the form asks the role rather
+        // than applying one rule to everyone. Mirrors the server, which enforces
+        // the same thing whatever the client sends.
+        const branchError = validateBranchSelection(form.role, form.branchIds);
+        if (branchError) e.branchIds = branchError;
+
         setErrors(e);
         return Object.keys(e).length === 0;
     }
@@ -738,46 +627,17 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
     async function handleSave() {
         setSubmitError(null);
         if (!validate()) return;
-        
-        // Ensure branches are loaded
-        if (branches.length === 0) {
+
+        if (needsBranch && branches.length === 0) {
             setSubmitError('Branches are still loading. Please wait and try again.');
             return;
         }
-        
-        // Process branch data properly
-        let branchNames: string[] = [];
-        if (Array.isArray(form.branch)) {
-            // If it's already an array, flatten any comma-separated strings
-            branchNames = form.branch.flatMap(b => 
-                typeof b === 'string' ? b.split(',').map(name => name.trim()).filter(name => name.length > 0) : []
-            );
-        } else if (typeof form.branch === 'string') {
-            // If it's a string, split by comma
-            branchNames = form.branch.split(',').map(name => name.trim()).filter(name => name.length > 0);
-        }
-        
-        // Remove duplicates
-        branchNames = [...new Set(branchNames)];
-        
-        // Validate that all selected branches exist in the branch map
-        const branchIds = branchNames.map(branchName => {
-            const branchId = BRANCH_ID_MAP[branchName];
-            if (!branchId) {
-                console.error(`Branch "${branchName}" not found in BRANCH_ID_MAP:`, BRANCH_ID_MAP);
-                console.error('Available branches:', Object.keys(BRANCH_ID_MAP));
-                console.error('Processed branch names:', branchNames);
-                console.error('Original form.branch:', form.branch);
-                throw new Error(`Invalid branch selected: ${branchName}`);
-            }
-            return branchId;
-        });
-        
-        if (branchIds.length === 0) {
-            setSubmitError('Please select at least one branch.');
-            return;
-        }
-        
+
+        const branchIds = [...new Set(form.branchIds)];
+        const branchNames = branchIds
+            .map(id => branches.find(b => String(b.id) === id)?.name)
+            .filter((n): n is string => Boolean(n));
+
         const updated: StaffMember = {
             ...(staff ?? {
                 id:          `u${Date.now()}`,
@@ -785,16 +645,19 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
                 joinedAt:    new Date().toLocaleDateString('en-GH', { month: 'short', year: 'numeric' }),
                 lastLogin:   'Never',
                 ordersToday: 0,
+                permissions: [],
             }),
             name:             form.name.trim(),
             phone:            normalizeGhanaPhone(form.phone.trim()),
             email:            form.email.trim(),
             role:             form.role,
-            branch:           isMultiBranch ? branchNames : branchNames[0],
+            branch:           allowsMany ? branchNames : branchNames[0] ?? '',
             branchIds:        branchIds,
             employmentStatus: form.employmentStatus,
-            systemAccess:     form.systemAccess,
-            permissions:      form.permissions,
+            // Access follows employment, rather than being a second switch that
+            // could disagree with it. The server treats anything but active as
+            // no access, so the UI says the same.
+            systemAccess:     (form.employmentStatus === 'active' ? 'enabled' : 'disabled') as SystemAccess,
             ...(isNew ? { password: form.password, passwordMode: form.passwordMode } : {}),
             ssnit:            form.ssnit || undefined,
             ghanaCard:        form.ghanaCard || undefined,
@@ -828,7 +691,6 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
     const MODAL_TABS: { id: ModalTab; label: string }[] = [
         { id: 'profile',     label: 'Profile' },
         { id: 'access',      label: 'Access' },
-        { id: 'permissions', label: 'Permissions' },
         { id: 'hr',          label: 'HR Info' },
     ];
 
@@ -866,63 +728,77 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
                                 <FieldInput label="Email" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} placeholder="name@example.com" error={errors.email} />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1.5">Role</label>
-                                    <select
-                                        value={form.role}
-                                        onChange={e => handleRoleChange(e.target.value as StaffRole)}
-                                        className="w-full px-3 py-2.5 bg-neutral-light border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40"
-                                        disabled={rolesLoading}
-                                    >
-                                        {rolesLoading ? (
-                                            <option>Loading roles...</option>
-                                        ) : (
-                                            availableRoles.map(role => {
-                                                const staffRole = dbRoleToStaffRole(role.name);
-                                                return (
-                                                    <option key={role.name} value={staffRole}>
-                                                        {role.display_name}
-                                                    </option>
-                                                );
-                                            })
-                                        )}
-                                    </select>
+                            {/* Role, and what it means. The role is the only thing
+                                that decides a person's powers, so the form says
+                                out loud what is being handed over. */}
+                            <div>
+                                <label className="block text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1.5">Role</label>
+                                <select
+                                    value={form.role}
+                                    onChange={e => handleRoleChange(e.target.value as StaffRole)}
+                                    className="w-full px-3 py-2.5 bg-neutral-light border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40"
+                                >
+                                    {ASSIGNABLE_ROLES.map(role => (
+                                        <option key={role} value={role}>{roleDisplayName(role)}</option>
+                                    ))}
+                                </select>
+                                <div className="mt-2 p-3 bg-neutral-light border border-[#f0e8d8] rounded-xl">
+                                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                                        <p className="text-text-dark text-[11px] font-bold font-body">{rule.portal}</p>
+                                        <span className="text-[10px] font-body text-neutral-gray">{branchRuleLabel(form.role)}</span>
+                                    </div>
+                                    <ul className="flex flex-col gap-1">
+                                        {rule.can.map(line => (
+                                            <li key={line} className="text-neutral-gray text-[11px] font-body leading-snug">· {line}</li>
+                                        ))}
+                                    </ul>
+                                    <p className="text-neutral-gray text-[10px] font-body mt-2 pt-2 border-t border-[#f0e8d8]">
+                                        Permissions come from the role. There is nothing to tick — to change what this person can do, change their role.
+                                    </p>
                                 </div>
+                            </div>
+
+                            {/* Branch — asked for only when the role has one. Head
+                                office, the warehouse and the call centre serve the
+                                whole company, so pinning them to a branch would be
+                                asking a question with no answer. */}
+                            {needsBranch ? (
                                 <div>
                                     <label className="block text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1.5">
-                                        {isMultiBranch ? 'Branches' : 'Branch'}
+                                        {allowsMany ? 'Branches' : 'Branch'}
                                     </label>
                                     {branchesLoading ? (
                                         <div className="w-full px-3 py-2.5 bg-neutral-light border border-[#f0e8d8] rounded-xl text-neutral-gray text-sm font-body">
                                             Loading branches...
                                         </div>
-                                    ) : isMultiBranch ? (
+                                    ) : (
                                         <div className="grid grid-cols-2 gap-1.5">
-                                            {ALL_BRANCHES.map((b, i) => {
-                                                const arr = Array.isArray(form.branch) ? form.branch : [form.branch as string];
+                                            {branches.map(b => {
+                                                const id = String(b.id);
                                                 return (
-                                                    <label key={`${b}-${i}`} className="flex items-center gap-1.5 cursor-pointer">
-                                                        <input type="checkbox" checked={arr.includes(b)} onChange={e => {
-                                                            const branches = Array.isArray(form.branch) ? form.branch : [form.branch as string];
-                                                            setForm(f => ({ ...f, branch: e.target.checked ? [...branches, b] : branches.filter(x => x !== b) }));
-                                                        }} className="accent-primary" />
-                                                        <span className="text-text-dark text-xs font-body">{b}</span>
+                                                    <label key={id} className="flex items-center gap-1.5 cursor-pointer">
+                                                        <input
+                                                            type={allowsMany ? 'checkbox' : 'radio'}
+                                                            name="staff-branch"
+                                                            checked={form.branchIds.includes(id)}
+                                                            onChange={() => toggleBranch(id)}
+                                                            className="accent-primary"
+                                                        />
+                                                        <span className="text-text-dark text-xs font-body">{b.name}</span>
                                                     </label>
                                                 );
                                             })}
                                         </div>
-                                    ) : (
-                                        <select
-                                            value={Array.isArray(form.branch) ? form.branch[0] : form.branch}
-                                            onChange={e => setForm(f => ({ ...f, branch: e.target.value }))}
-                                            className="w-full px-3 py-2.5 bg-neutral-light border border-[#f0e8d8] rounded-xl text-text-dark text-sm font-body focus:outline-none focus:border-primary/40"
-                                        >
-                                            {ALL_BRANCHES.map((b, i) => <option key={`${b}-${i}`} value={b}>{b}</option>)}
-                                        </select>
                                     )}
+                                    {errors.branchIds && <p className="text-error text-[10px] font-body mt-1">{errors.branchIds}</p>}
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="px-3 py-2.5 bg-neutral-light border border-[#f0e8d8] rounded-xl">
+                                    <p className="text-neutral-gray text-[11px] font-body">
+                                        <strong className="text-text-dark">{roleDisplayName(form.role)}</strong> works across the whole company, so there is no branch to assign.
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Password mode — new employees only */}
                             {isNew && (
@@ -990,20 +866,19 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
                             <div className="p-4 bg-neutral-light rounded-xl flex flex-col gap-3 border border-[#f0e8d8]">
                                 <div>
                                     <p className="text-text-dark text-sm font-bold font-body">System Access</p>
-                                    <p className="text-neutral-gray text-xs font-body">Controls whether this person can log in to the staff portal or POS terminal.</p>
+                                    <p className="text-neutral-gray text-xs font-body">
+                                        Follows employment status — it is not a second switch that can disagree with it.
+                                    </p>
                                 </div>
-                                <div className="flex gap-2">
-                                    {(['enabled', 'disabled'] as SystemAccess[]).map(a => (
-                                        <button key={a} type="button"
-                                            onClick={() => setForm(f => ({ ...f, systemAccess: a }))}
-                                            className={`flex-1 py-2 rounded-xl text-xs font-bold font-body cursor-pointer transition-colors ${form.systemAccess === a
-                                                ? a === 'enabled' ? 'bg-secondary text-white' : 'bg-error/10 text-error border border-error/30'
-                                                : 'bg-neutral-card text-neutral-gray border border-[#f0e8d8]'
-                                            }`}>
-                                            {a === 'enabled' ? 'Enabled' : 'Disabled'}
-                                        </button>
-                                    ))}
-                                </div>
+                                {form.employmentStatus === 'active' ? (
+                                    <p className="text-secondary text-xs font-bold font-body">
+                                        Enabled — can sign in to the staff portal and POS.
+                                    </p>
+                                ) : (
+                                    <p className="text-error text-xs font-bold font-body">
+                                        Disabled — saving this signs them out everywhere and blocks sign-in.
+                                    </p>
+                                )}
                             </div>
 
                             <label className="flex items-center gap-3 cursor-pointer p-3 bg-warning/5 border border-warning/20 rounded-xl">
@@ -1019,42 +894,6 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
                                 </div>
                             </label>
                         </>
-                    )}
-
-                    {/* ── Permissions tab ── */}
-                    {modalTab === 'permissions' && (
-                        <div className="flex flex-col gap-0.5">
-                            <p className="text-neutral-gray text-xs font-body mb-2">
-                                Permissions already included in the <strong className="text-text-dark">{roleDisplayName(form.role)}</strong> role are not shown. These are extras you can grant individually.
-                            </p>
-                            {permissionsLoading ? (
-                                <div className="text-center py-4">
-                                    <p className="text-neutral-gray text-sm font-body">Loading permissions...</p>
-                                </div>
-                            ) : displayPermissions.length === 0 ? (
-                                <p className="text-center text-neutral-gray text-sm font-body py-6">
-                                    All available permissions are already included in the {roleDisplayName(form.role)} role.
-                                </p>
-                            ) : (
-                                <div className="divide-y divide-[#f0e8d8]">
-                                    {displayPermissions.map(([permName, permConfig]) => (
-                                        <Toggle
-                                            key={permName}
-                                            checked={form.permissions[permConfig.key]}
-                                            onChange={v => setForm(f => ({ 
-                                                ...f, 
-                                                permissions: { 
-                                                    ...f.permissions, 
-                                                    [permConfig.key]: v
-                                                },
-                                                            }))}
-                                            label={permConfig.label}
-                                            sub={permConfig.description}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
                     )}
 
                     {/* ── HR Info tab ── */}
@@ -1097,8 +936,8 @@ function StaffModal({ staff, onClose, onSave }: { staff: StaffMember | null; onC
 
                 <div className="flex gap-3 px-6 py-4 border-t border-[#f0e8d8]">
                     <button type="button" onClick={onClose} disabled={isSaving} className="flex-1 px-4 py-2.5 bg-neutral-light text-text-dark rounded-xl text-sm font-medium font-body cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">Cancel</button>
-                    <button type="button" onClick={() => void handleSave()} disabled={isSaving || branchesLoading || rolesLoading} className="flex-1 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium font-body cursor-pointer hover:bg-primary-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
-                        {isSaving ? (isNew ? 'Creating…' : 'Saving…') : branchesLoading || rolesLoading ? 'Loading...' : (isNew ? 'Create Account' : 'Save Changes')}
+                    <button type="button" onClick={() => void handleSave()} disabled={isSaving || (needsBranch && branchesLoading)} className="flex-1 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium font-body cursor-pointer hover:bg-primary-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                        {isSaving ? (isNew ? 'Creating…' : 'Saving…') : needsBranch && branchesLoading ? 'Loading...' : (isNew ? 'Create Account' : 'Save Changes')}
                     </button>
                 </div>
             </div>
@@ -1122,20 +961,31 @@ function FieldInput({ label, value, onChange, placeholder, error, span }: {
 
 // ─── Tab types ────────────────────────────────────────────────────────────────
 
-type FilterTab = 'All' | 'Admin' | 'Branch Partner' | 'Branch Manager' | 'Sales Staff' | 'Call Center' | 'Support Staff' | 'Suspended' | 'Terminated';
+type FilterTab = 'All' | 'Admin' | 'Branch Partner' | 'Branch Manager' | 'Sales Staff' | 'Call Center' | 'Inventory' | 'Support Staff' | 'Suspended' | 'Terminated';
 
 const SUPPORT_ROLES: StaffRole[] = ['kitchen', 'rider'];
+// The warehouse and purchasing roles used to appear under "All" and nowhere
+// else — no tab matched them, so they were invisible unless you scrolled the
+// whole roster.
+const INVENTORY_ROLES: StaffRole[] = ['warehouse_manager', 'purchasing_clerk'];
+// Platform admins sit in the Admin tab alongside admins: they are the same job
+// with the platform tools attached, and they are rare enough that a tab of
+// their own would usually be empty.
+const ADMIN_ROLES: StaffRole[] = ['admin', 'tech_admin'];
 
 function matchesTab(s: StaffMember, tab: FilterTab): boolean {
     if (tab === 'Suspended')  return s.status === 'suspended';
     if (tab === 'Terminated') return s.status === 'terminated';
     if (tab === 'All')        return s.status !== 'terminated';
-    if (tab === 'Admin')         return s.role === 'admin'          && s.status !== 'terminated';
-    if (tab === 'Branch Partner') return s.role === 'branch_partner' && s.status !== 'terminated';
-    if (tab === 'Branch Manager') return s.role === 'manager'        && s.status !== 'terminated';
-    if (tab === 'Sales Staff')    return s.role === 'sales_staff'    && s.status !== 'terminated';
-    if (tab === 'Call Center')    return s.role === 'call_center'    && s.status !== 'terminated';
-    if (tab === 'Support Staff')  return SUPPORT_ROLES.includes(s.role) && s.status !== 'terminated';
+    if (s.status === 'terminated') return false;
+
+    if (tab === 'Admin')          return ADMIN_ROLES.includes(s.role);
+    if (tab === 'Branch Partner') return s.role === 'branch_partner';
+    if (tab === 'Branch Manager') return s.role === 'manager';
+    if (tab === 'Sales Staff')    return s.role === 'sales_staff';
+    if (tab === 'Call Center')    return s.role === 'call_center';
+    if (tab === 'Inventory')      return INVENTORY_ROLES.includes(s.role);
+    if (tab === 'Support Staff')  return SUPPORT_ROLES.includes(s.role);
     return false;
 }
 
@@ -1169,7 +1019,7 @@ export default function AdminStaffPage() {
     const [revealCreds, setRevealCreds] = useState<{ name: string; identifier: string; password: string } | null>(null);
 
     const PER_PAGE = 10;
-    const TABS: FilterTab[] = ['All', 'Admin', 'Branch Partner', 'Branch Manager', 'Sales Staff', 'Call Center', 'Support Staff', 'Suspended', 'Terminated'];
+    const TABS: FilterTab[] = ['All', 'Admin', 'Branch Partner', 'Branch Manager', 'Sales Staff', 'Call Center', 'Inventory', 'Support Staff', 'Suspended', 'Terminated'];
 
     const filtered = useMemo(() => {
         let list = staff.filter(s => matchesTab(s, tab));
@@ -1196,7 +1046,6 @@ export default function AdminStaffPage() {
         let generatedPassword: string | null = null;
         try {
             if (isNew) {
-                if (branchIds.length === 0) throw new Error('Select at least one branch.');
                 const created = await employeeService.createEmployee({
                     name: s.name,
                     email: s.email || null,
@@ -1215,8 +1064,6 @@ export default function AdminStaffPage() {
                     emergency_contact_name: s.emergencyContact?.name || undefined,
                     emergency_contact_phone: s.emergencyContact?.phone || undefined,
                     emergency_contact_relationship: s.emergencyContact?.relationship || undefined,
-                    // Individual permissions
-                    permissions: mapPermissionsToBackend(s.permissions),
                 });
                 generatedPassword = created.generatedPassword;
             } else {
@@ -1224,8 +1071,15 @@ export default function AdminStaffPage() {
                     name: s.name,
                     email: s.email || null,
                     phone: s.phone,
-                    ...(branchIds.length > 0 && { branch_ids: branchIds.map((id) => Number(id)) }),
+                    // Always sent, including empty: switching a branch manager
+                    // to a company-wide role has to clear the branch, and
+                    // omitting the key would silently leave it attached.
+                    branch_ids: branchIds.map((id) => Number(id)),
                     role: staffRoleToBackendRole(s.role),
+                    // Employment status is saved from the form. It used to be
+                    // collected in the Access tab and then never sent, so
+                    // suspending someone from the editor did nothing at all.
+                    status: s.employmentStatus,
                     hire_date: s.joinedAt || undefined,
                     // HR fields
                     ssnit_number: s.ssnit || undefined,
@@ -1236,8 +1090,6 @@ export default function AdminStaffPage() {
                     emergency_contact_name: s.emergencyContact?.name || undefined,
                     emergency_contact_phone: s.emergencyContact?.phone || undefined,
                     emergency_contact_relationship: s.emergencyContact?.relationship || undefined,
-                    // Individual permissions
-                    permissions: mapPermissionsToBackend(s.permissions),
                 });
             }
             const result = await refetch();

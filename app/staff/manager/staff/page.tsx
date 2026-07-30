@@ -23,6 +23,7 @@ import {
     type StaffMember,
     type StaffRole,
     roleDisplayName,
+    permissionDisplayName,
 } from '@/types/staff';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { employeeService, type EmployeeNoteResponse } from '@/lib/api/services/employee.service';
@@ -286,17 +287,18 @@ function StaffDetailDrawer({ staff, onClose }: { staff: StaffMember; onClose: ()
 
                             <div className="h-px bg-[#f0e8d8]" />
 
-                            {/* Permissions summary */}
+                            {/* What this person can do — set by their role. */}
                             <div>
-                                <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-3">Permissions</p>
+                                <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1">Permissions</p>
+                                <p className="text-neutral-gray text-[10px] font-body mb-3">
+                                    Set by the <strong className="text-text-dark">{roleDisplayName(staff.role)}</strong> role.
+                                </p>
                                 <div className="flex flex-wrap gap-1.5">
-                                    {Object.entries(staff.permissions)
-                                        .filter(([, v]) => v)
-                                        .map(([key]) => (
-                                            <span key={key} className="text-[10px] font-body text-neutral-gray bg-neutral-light px-2 py-1 rounded-lg">
-                                                {key.replace(/^can/, '').replace(/([A-Z])/g, ' $1').trim()}
-                                            </span>
-                                        ))}
+                                    {staff.permissions.map(name => (
+                                        <span key={name} className="text-[10px] font-body text-neutral-gray bg-neutral-light px-2 py-1 rounded-lg">
+                                            {permissionDisplayName(name)}
+                                        </span>
+                                    ))}
                                 </div>
                             </div>
                         </div>

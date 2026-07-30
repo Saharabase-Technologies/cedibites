@@ -96,10 +96,20 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (!staffUser) return;
 
+        // `staffUser.id` is the EMPLOYEE id (see StaffUser above). The backend
+        // broadcasts StaffSessionEvent on App.Models.User.{users.id} and the
+        // channel authorises on the same, so subscribing with the employee id
+        // was rejected for everyone whose two ids happened not to match —
+        // which is nearly everyone. Force-logout and live permission updates
+        // never arrived; force-logout only appeared to work because the server
+        // deletes the token as well.
+        const userId = staffUser.user_id;
+        if (!userId) return;
+
         const echo = getEcho();
         if (!echo) return;
 
-        const channel = echo.private(`App.Models.User.${staffUser.id}`);
+        const channel = echo.private(`App.Models.User.${userId}`);
 
         channel.listen('.staff.session', (event: { type: string; user?: StaffUser }) => {
             if (event.type === 'session.revoked') {
@@ -117,9 +127,9 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
         });
 
         return () => {
-            echo.leave(`App.Models.User.${staffUser.id}`);
+            echo.leave(`App.Models.User.${userId}`);
         };
-    }, [staffUser?.id, router]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [staffUser?.user_id, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const login = useCallback((user: StaffUser) => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(user));

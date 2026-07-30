@@ -217,13 +217,16 @@ apiClient.interceptors.response.use(
 
     // Handle 403 - Forbidden
     if (status === 403) {
-      // A token that predates staff/customer token abilities, or one minted by
-      // the customer OTP login, cannot open the staff surface (EnsureStaffToken).
-      // That is a stale credential rather than a missing permission, so it is
-      // treated like a 401: drop the token and send them to sign in properly.
-      // Without this the screen reads "you do not have permission" and no amount
-      // of clicking recovers it, because the bad token is still in storage.
-      if ((data as any)?.error === 'staff_token_required' && typeof window !== 'undefined') {
+      // Two 403s are really dead sessions rather than missing permissions, and
+      // both have to drop the token: one minted by the customer OTP login or
+      // predating token abilities (EnsureStaffToken), and one belonging to a
+      // staff account that is no longer active (EnsureStaffActive). Left in
+      // storage, either reads as "you do not have permission" forever, because
+      // no amount of clicking replaces the credential that is the problem.
+      const deadSession = ['staff_token_required', 'staff_account_inactive']
+        .includes((data as any)?.error);
+
+      if (deadSession && typeof window !== 'undefined') {
         const pathname = window.location.pathname;
         const isOnLoginPage = pathname.includes('/login') || pathname === '/pos';
 

@@ -1,5 +1,5 @@
 import apiClient from '../client';
-import type { StaffMember, StaffRole, StaffPermissions } from '@/types/staff';
+import type { StaffMember, StaffRole } from '@/types/staff';
 
 export interface EmployeeListParams {
   branch_id?: number;
@@ -77,36 +77,9 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
   const branchNames = api.branches?.map((b) => b.name) ?? (api.branch ? [api.branch.name] : []);
   const branchDisplay = branchNames.length > 1 ? branchNames.join(', ') : branchNames[0] ?? '';
 
-  // Map permissions from API to frontend permissions structure
-  const permissions = api.user.permissions ?? [];
-  const staffPermissions: StaffPermissions = {
-    canViewOrders:         permissions.includes('view_orders'),
-    canPlaceOrders:        permissions.includes('create_orders'),
-    canAdvanceOrders:      permissions.includes('update_orders'),
-    canDeleteOrders:       permissions.includes('delete_orders'),
-    canViewMenu:           permissions.includes('view_menu'),
-    canManageMenu:         permissions.includes('manage_menu'),
-    canViewBranches:       permissions.includes('view_branches'),
-    canManageBranches:     permissions.includes('manage_branches'),
-    canViewCustomers:      permissions.includes('view_customers'),
-    canManageCustomers:    permissions.includes('manage_customers'),
-    canViewEmployees:      permissions.includes('view_employees'),
-    canManageStaff:        permissions.includes('manage_employees'),
-    canViewReports:        permissions.includes('view_analytics'),
-    canViewActivityLog:    permissions.includes('view_activity_log'),
-    canAccessAdminPanel:   permissions.includes('access_admin_panel'),
-    canAccessManagerPortal: permissions.includes('access_manager_portal'),
-    canAccessSalesPortal:  permissions.includes('access_sales_portal'),
-    canAccessPartnerPortal: permissions.includes('access_partner_portal'),
-    canAccessPOS:          permissions.includes('access_pos'),
-    canAccessKitchen:      permissions.includes('access_kitchen'),
-    canAccessOrderManager: permissions.includes('access_order_manager'),
-    canAccessInventoryPortal: permissions.includes('access_inventory_portal'),
-    canManageShifts:       permissions.includes('manage_shifts'),
-    canManageSettings:     permissions.includes('manage_settings'),
-    canViewMyShifts:       permissions.includes('view_my_shifts'),
-    canViewMySales:        permissions.includes('view_my_sales'),
-  };
+  // Read-only. The server decides what a person can do from their role; this is
+  // carried so the admin can see it, and it is never sent back.
+  const permissions = [...(api.user.permissions ?? [])].sort();
 
   return {
     id: String(api.id),
@@ -119,7 +92,7 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
     status,
     employmentStatus: status,
     systemAccess: status === 'active' ? 'enabled' : 'disabled',
-    permissions: staffPermissions,
+    permissions,
     joinedAt: api.hire_date ?? api.created_at ?? '',
     lastLogin: '',
     ordersToday: 0,
@@ -157,42 +130,6 @@ export function staffRoleToBackendRole(role: StaffRole): BackendRole {
   return map[role] ?? 'sales_staff';
 }
 
-/** Map frontend permissions to backend permission names */
-export function mapPermissionsToBackend(permissions: StaffPermissions): string[] {
-  const map: Record<keyof StaffPermissions, string> = {
-    canViewOrders:         'view_orders',
-    canPlaceOrders:        'create_orders',
-    canAdvanceOrders:      'update_orders',
-    canDeleteOrders:       'delete_orders',
-    canViewMenu:           'view_menu',
-    canManageMenu:         'manage_menu',
-    canViewBranches:       'view_branches',
-    canManageBranches:     'manage_branches',
-    canViewCustomers:      'view_customers',
-    canManageCustomers:    'manage_customers',
-    canViewEmployees:      'view_employees',
-    canManageStaff:        'manage_employees',
-    canViewReports:        'view_analytics',
-    canViewActivityLog:    'view_activity_log',
-    canAccessAdminPanel:   'access_admin_panel',
-    canAccessManagerPortal: 'access_manager_portal',
-    canAccessSalesPortal:  'access_sales_portal',
-    canAccessPartnerPortal: 'access_partner_portal',
-    canAccessPOS:          'access_pos',
-    canAccessKitchen:      'access_kitchen',
-    canAccessOrderManager: 'access_order_manager',
-    canAccessInventoryPortal: 'access_inventory_portal',
-    canManageShifts:       'manage_shifts',
-    canManageSettings:     'manage_settings',
-    canViewMyShifts:       'view_my_shifts',
-    canViewMySales:        'view_my_sales',
-  };
-
-  return (Object.entries(map) as [keyof StaffPermissions, string][])
-    .filter(([key]) => permissions[key])
-    .map(([, backend]) => backend);
-}
-
 export interface CreateEmployeePayload {
   name: string;
   email: string | null;
@@ -214,8 +151,6 @@ export interface CreateEmployeePayload {
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   emergency_contact_relationship?: string;
-  // Individual permissions
-  permissions?: string[];
 }
 
 export interface UpdateEmployeePayload {
@@ -235,8 +170,6 @@ export interface UpdateEmployeePayload {
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   emergency_contact_relationship?: string;
-  // Individual permissions
-  permissions?: string[];
 }
 
 export interface EmployeeNoteResponse {
@@ -299,8 +232,6 @@ export const employeeService = {
       ...(payload.emergency_contact_name && { emergency_contact_name: payload.emergency_contact_name }),
       ...(payload.emergency_contact_phone && { emergency_contact_phone: payload.emergency_contact_phone }),
       ...(payload.emergency_contact_relationship && { emergency_contact_relationship: payload.emergency_contact_relationship }),
-      // Individual permissions
-      ...(payload.permissions && { permissions: payload.permissions }),
     });
     const outer = response as { data?: { data?: { employee?: ApiEmployee; generated_password?: string | null } } & { employee?: ApiEmployee; generated_password?: string | null } };
     const payload2 = outer?.data?.data ?? outer?.data ?? (response as unknown as { employee?: ApiEmployee; generated_password?: string | null });
@@ -327,8 +258,6 @@ export const employeeService = {
       ...(payload.emergency_contact_name !== undefined && { emergency_contact_name: payload.emergency_contact_name }),
       ...(payload.emergency_contact_phone !== undefined && { emergency_contact_phone: payload.emergency_contact_phone }),
       ...(payload.emergency_contact_relationship !== undefined && { emergency_contact_relationship: payload.emergency_contact_relationship }),
-      // Individual permissions
-      ...(payload.permissions !== undefined && { permissions: payload.permissions }),
     });
     const outer = response as { data?: { data?: ApiEmployee } };
     const api = outer?.data?.data ?? outer?.data ?? (response as unknown as ApiEmployee);
