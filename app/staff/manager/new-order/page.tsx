@@ -1,12 +1,17 @@
 'use client';
 
-import { NewOrderProvider } from '@/app/staff/new-order/context';
-import NewOrderFlow from '@/app/staff/new-order/NewOrderFlow';
+import { POSProvider } from '@/app/pos/context';
+import POSTerminal from '@/app/pos/terminal/page';
+import '@/app/pos/pos-animations.css';
 
+/**
+ * The manager's order entry — the same screen as the tills and the call centre.
+ * See app/staff/sales/new-order/page.tsx for why there is only one of these.
+ */
 export default function ManagerNewOrderPage() {
     return (
-        <NewOrderProvider>
-            <NewOrderFlow />
-        </NewOrderProvider>
+        <POSProvider>
+            <POSTerminal embedded />
+        </POSProvider>
     );
 }

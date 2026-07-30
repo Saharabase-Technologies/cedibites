@@ -71,6 +71,8 @@ export const checkoutSessionService = {
     customer_notes?: string;
     discount?: number;
     delivery_fee?: number;
+    /** Channel the order came in on. Omitted means the till. */
+    order_source?: string;
   }): Promise<CheckoutSession> => {
     return apiClient.post('/pos/checkout-sessions', data);
   },

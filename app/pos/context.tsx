@@ -9,11 +9,12 @@ import {
   useEffect,
   ReactNode
 } from 'react';
-import type { Order, PaymentMethod, CreateOrderInput } from '@/types/order';
+import type { Order, PaymentMethod, CreateOrderInput, OrderSource } from '@/types/order';
 import type { POSSession, POSCartItem } from './types';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { roleNeedsBranch } from '@/types/staff';
 import { getShiftService } from '@/lib/services/shifts/shift.service';
 import { checkoutSessionService } from '@/lib/api/services/checkout-session.service';
 import { normalizeGhanaPhone } from '@/app/lib/phone';
@@ -30,6 +31,24 @@ interface POSContextValue {
   isSessionLoaded: boolean;
   isNeedsBranchSelection: boolean;
   selectBranch: (branchId: string) => void;
+  /**
+   * Whether this operator works across the whole company rather than one
+   * branch — the call centre, and head office. Mirrors the backend's
+   * User::isCompanyWide, which is what actually decides whether an order may
+   * be written against a branch. The screen reads it to know whether the
+   * branch is a property of the shift or of each individual order.
+   */
+  isCompanyWide: boolean;
+
+  /**
+   * Which channel this order came in on. A till order is 'pos'; the call
+   * centre picks the channel they took the call on. Collected here because
+   * this is where the order is assembled — the old wizard asked for it, then
+   * dropped it on the floor, and every call-centre order in the database is
+   * recorded as a walk-in as a result.
+   */
+  orderSource: OrderSource;
+  setOrderSource: (source: OrderSource) => void;
 
   // Cart
   cart: POSCartItem[];
@@ -99,6 +118,10 @@ export function POSProvider({ children }: POSProviderProps) {
   const [customerPhone, setCustomerPhone] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery'>('dine_in');
+  // Null means "not chosen" rather than a value, so the default can follow the
+  // operator without an effect syncing one piece of state to another — there is
+  // no render where the source disagrees with who is looking at the screen.
+  const [chosenSource, setOrderSource] = useState<OrderSource | null>(null);
   const [deliveryFee, setDeliveryFee] = useState(0);
 
   // Payment modal
@@ -142,6 +165,17 @@ export function POSProvider({ children }: POSProviderProps) {
     }
     setIsSessionLoaded(true);
   }, [staffUser, isAuthLoading]);
+
+  // The role decides, not the branch list: an agent with no branches assigned
+  // and an agent whose assignment has not loaded yet look identical otherwise.
+  const isCompanyWide = useMemo(
+    () => (staffUser ? !roleNeedsBranch(staffUser.role) : false),
+    [staffUser],
+  );
+
+  // A till order is a till order; anyone working across the company took the
+  // order through some channel, and the phone is the common one.
+  const orderSource: OrderSource = chosenSource ?? (isCompanyWide ? 'phone' : 'pos');
 
   const isSessionValid = useMemo(() => {
     if (!session || !session.branchId) return false;
@@ -269,6 +303,8 @@ export function POSProvider({ children }: POSProviderProps) {
       customer_notes: orderNotes || undefined,
       discount: discount && discount > 0 ? discount : undefined,
       delivery_fee: effectiveDeliveryFee > 0 ? effectiveDeliveryFee : undefined,
+      // The channel, so the order is not filed as a walk-in at the counter.
+      order_source: orderSource,
     };
 
     // 1. Create checkout session via API
@@ -359,8 +395,18 @@ export function POSProvider({ children }: POSProviderProps) {
     setIsPaymentOpen(false);
     if (isManualEntry) setIsManualEntry(false);
 
+    // A branch till stays on its branch — that is the whole shift. Someone
+    // working across the company took this order for one branch and the next
+    // call is very likely a different one, so the choice is not carried over:
+    // a branch quietly inherited from the last call sends food to the wrong
+    // kitchen, and nothing on the screen would have looked wrong.
+    if (isCompanyWide) {
+      localStorage.removeItem(POS_BRANCH_KEY);
+      setSession(prev => (prev ? { ...prev, branchId: '' } : prev));
+    }
+
     return order;
-  }, [cart, customerName, customerPhone, orderNotes, orderType, deliveryFee, session, branches, addLocalOrder, clearCart, staffUser, isManualEntry]);
+  }, [cart, customerName, customerPhone, orderNotes, orderType, orderSource, deliveryFee, session, branches, addLocalOrder, clearCart, staffUser, isManualEntry, isCompanyWide]);
 
   const updateOrderStatus = useCallback((orderId: string, status: Order['status']) => {
     const timestamps: Partial<Pick<Order, 'acceptedAt' | 'startedAt' | 'readyAt' | 'completedAt'>> = {};
@@ -442,6 +488,9 @@ export function POSProvider({ children }: POSProviderProps) {
     isSessionLoaded,
     isNeedsBranchSelection,
     selectBranch,
+    isCompanyWide,
+    orderSource,
+    setOrderSource,
     cart,
     cartTotal,
     cartCount,

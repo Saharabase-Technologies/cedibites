@@ -32,7 +32,22 @@ import { usePOS } from '../context';
 import { formatGHS } from '@/lib/utils/currency';
 import apiClient from '@/lib/api/client';
 import { toast } from '@/lib/utils/toast';
-import type { PaymentMethod, Order } from '@/types/order';
+import type { PaymentMethod, Order, OrderSource } from '@/types/order';
+import {
+  PhoneIcon,
+  WhatsappLogoIcon,
+  ShareNetworkIcon,
+} from '@phosphor-icons/react';
+
+/**
+ * The channels a remote order arrives on. `pos` is not here because it is not a
+ * choice — it is what an order is when nobody took a call to place it.
+ */
+const ORDER_SOURCE_OPTIONS: { id: OrderSource; label: string; icon: React.ElementType }[] = [
+  { id: 'phone', label: 'Phone', icon: PhoneIcon },
+  { id: 'whatsapp', label: 'WhatsApp', icon: WhatsappLogoIcon },
+  { id: 'social_media', label: 'Social', icon: ShareNetworkIcon },
+];
 import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
@@ -139,7 +154,14 @@ function itemMatchesSearch(item: DisplayMenuItem, query: string): boolean {
   return item.name.toLowerCase().includes(q);
 }
 
-export default function POSTerminalPage() {
+/**
+ * @param embedded Rendered inside the staff portal rather than as the standalone
+ *   till. The portal already provides the frame — its own scroll container, its
+ *   sidebar, and its sign-out — so the terminal drops the chrome that would be a
+ *   second copy of it and sizes itself to the space it is given instead of to
+ *   the viewport.
+ */
+export default function POSTerminalPage({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const {
     session,
@@ -147,6 +169,9 @@ export default function POSTerminalPage() {
     isSessionLoaded,
     isNeedsBranchSelection,
     selectBranch,
+    isCompanyWide,
+    orderSource,
+    setOrderSource,
     cart,
     cartTotal,
     cartCount,
@@ -520,7 +545,7 @@ export default function POSTerminalPage() {
   }
 
   return (
-    <div className="h-dvh flex flex-col lg:flex-row bg-neutral-light overflow-hidden">
+    <div className={`${embedded ? 'h-full min-h-[calc(100dvh-8rem)]' : 'h-dvh'} flex flex-col lg:flex-row bg-neutral-light overflow-hidden`}>
       {/* Main Content - Menu Grid */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
         {/* Header */}
@@ -587,7 +612,10 @@ export default function POSTerminalPage() {
               )}
             </button>
 
-            {/* Orders link with active badge */}
+            {/* Orders link with active badge. Embedded, the portal's own Orders
+                page is the one in the sidebar — sending someone into the till's
+                order list would drop them out of the portal. */}
+            {!embedded && (
             <Link
               href="/pos/orders"
               className="relative w-10 h-10 rounded-xl bg-neutral-gray/10 flex items-center justify-center text-neutral-gray hover:text-primary hover:bg-primary/10 transition-colors"
@@ -600,14 +628,18 @@ export default function POSTerminalPage() {
                 </span>
               )}
             </Link>
+            )}
 
-            <button
-              onClick={() => setIsSignOutOpen(true)}
-              className="w-10 h-10 rounded-xl bg-neutral-gray/10 flex items-center justify-center text-neutral-gray hover:text-error hover:bg-error/10 transition-colors"
-              title="Sign Out"
-            >
-              <SignOutIcon className="w-5 h-5" />
-            </button>
+            {/* The portal has its own sign-out; two would be one too many. */}
+            {!embedded && (
+              <button
+                onClick={() => setIsSignOutOpen(true)}
+                className="w-10 h-10 rounded-xl bg-neutral-gray/10 flex items-center justify-center text-neutral-gray hover:text-error hover:bg-error/10 transition-colors"
+                title="Sign Out"
+              >
+                <SignOutIcon className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </header>
 
@@ -886,6 +918,34 @@ export default function POSTerminalPage() {
             </div>
           )}
         </div>
+
+        {/* Where the order came in on. Only asked of someone working across the
+            whole company — a till order is a till order, and asking a cashier
+            would be a question with one answer. */}
+        {isCompanyWide && (
+          <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15">
+            <p className="text-[10px] font-bold text-neutral-gray uppercase tracking-wider mb-2">
+              How did this order come in?
+            </p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {ORDER_SOURCE_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setOrderSource(opt.id)}
+                  className={`flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${
+                    orderSource === opt.id
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-neutral-light text-neutral-gray border-neutral-gray/20 hover:border-primary/40'
+                  }`}
+                >
+                  <opt.icon className="w-4 h-4" />
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Customer Info — always visible at top */}
         <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15 space-y-2">
