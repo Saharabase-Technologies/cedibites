@@ -12,6 +12,7 @@ import {
   UserIcon,
   NoteIcon,
   CaretRightIcon,
+  CaretDownIcon,
   CheckCircleIcon,
   StorefrontIcon,
   SignOutIcon,
@@ -218,6 +219,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
 
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
   const [pendingMomoOrder, setPendingMomoOrder] = useState<Order | null>(null);
@@ -560,43 +562,144 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
               <StorefrontIcon className="w-5 h-5 text-primary" />
             </div>
             <div className="text-left">
-              <p className="text-text-dark font-medium text-sm">{branchInfo?.name ?? 'Branch'}</p>
+              <p className="text-text-dark font-medium text-sm flex items-center gap-1">
+                {branchInfo?.name ?? 'Branch'}
+                {/* Nothing said this was changeable, so nobody changed it. */}
+                {switchableBranches.length > 1 && (
+                  <CaretDownIcon weight="bold" className="w-3 h-3 text-neutral-gray" />
+                )}
+              </p>
               <p className="text-neutral-gray text-xs">{session.staffName}</p>
             </div>
           </button>
 
-          {/* Center - Search */}
-          <div className="flex-1">
-            <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-gray" />
-              <input
-                type="text"
-                placeholder="Quick search..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="
-                  w-full h-11 pl-10 pr-4 rounded-xl
-                  bg-neutral-light text-text-dark placeholder:text-neutral-gray/60
-                  border border-neutral-gray/20 focus:border-primary/50
-                  outline-none transition-colors
-                "
-              />
+          {/* Center. A till has the row to spare for a search box. A call centre
+              agent is typing a name and a phone number while someone talks, so
+              the row belongs to them and search collapses to an icon. */}
+          {isCompanyWide ? (
+            <div className="flex-1 flex items-center gap-2 min-w-0">
+              <div className="relative flex-1 min-w-0">
+                <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
+                <input
+                  type="text"
+                  placeholder="Customer name *"
+                  value={customerName}
+                  onChange={e => setCustomerName(e.target.value)}
+                  className="w-full h-10 pl-9 pr-3 rounded-lg bg-neutral-light text-text-dark placeholder:text-neutral-gray/60 border border-neutral-gray/20 focus:border-primary/50 outline-none text-sm transition-colors"
+                />
+              </div>
+              <div className="relative flex-1 min-w-0">
+                <DeviceMobileIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="Phone *"
+                  value={customerPhone}
+                  onChange={e => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  className={`w-full h-10 pl-9 pr-3 rounded-lg bg-neutral-light text-text-dark placeholder:text-neutral-gray/60 border outline-none text-sm transition-colors ${
+                    customerPhone && !isValidGhanaPhone(customerPhone)
+                      ? 'border-error/60 focus:border-error'
+                      : 'border-neutral-gray/20 focus:border-primary/50'
+                  }`}
+                />
+              </div>
+              {/* Is the caller coming for it, or is it going to them? The only
+                  two answers a phone order has. */}
+              <div className="flex gap-1 shrink-0">
+                {([
+                  { id: 'pickup' as const, label: 'Pickup' },
+                  { id: 'delivery' as const, label: 'Delivery' },
+                ]).map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setOrderType(opt.id)}
+                    className={`h-10 px-4 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                      orderType === opt.id
+                        ? 'bg-primary text-brown'
+                        : 'bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex-1">
+              <div className="relative">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-gray" />
+                <input
+                  type="text"
+                  placeholder="Quick search..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="
+                    w-full h-11 pl-10 pr-4 rounded-xl
+                    bg-neutral-light text-text-dark placeholder:text-neutral-gray/60
+                    border border-neutral-gray/20 focus:border-primary/50
+                    outline-none transition-colors
+                  "
+                />
+              </div>
+            </div>
+          )}
 
           {/* Right - Stats & Actions */}
           <div className="flex items-center gap-2">
-            <div className="hidden lg:flex items-center gap-4 px-4 py-2 rounded-xl bg-neutral-gray/10">
-              <div className="text-center">
-                <p className="text-xs text-neutral-gray">Orders</p>
-                <p className="text-lg font-medium text-text-dark">{todayStats.orderCount}</p>
+            {/* The day's counts are reporting, and this screen is for placing an
+                order. A till has room for both; the call centre's row does not,
+                and the numbers live on the dashboard. */}
+            {!isCompanyWide && (
+              <div className="hidden lg:flex items-center gap-4 px-4 py-2 rounded-xl bg-neutral-gray/10">
+                <div className="text-center">
+                  <p className="text-xs text-neutral-gray">Orders</p>
+                  <p className="text-lg font-medium text-text-dark">{todayStats.orderCount}</p>
+                </div>
+                <div className="w-px h-8 bg-neutral-gray/20" />
+                <div className="text-center">
+                  <p className="text-xs text-neutral-gray">Revenue</p>
+                  <p className="text-lg font-medium text-primary">{formatGHS(todayStats.revenue)}</p>
+                </div>
               </div>
-              <div className="w-px h-8 bg-neutral-gray/20" />
-              <div className="text-center">
-                <p className="text-xs text-neutral-gray">Revenue</p>
-                <p className="text-lg font-medium text-primary">{formatGHS(todayStats.revenue)}</p>
-              </div>
-            </div>
+            )}
+
+            {/* Search, collapsed. Expands over the row when asked for, so the
+                agent gets the field without it living there permanently. */}
+            {isCompanyWide && (
+              isSearchOpen ? (
+                <div className="relative w-56">
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Search menu..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    onBlur={() => { if (!searchQuery) setIsSearchOpen(false); }}
+                    className="w-full h-10 pl-9 pr-8 rounded-lg bg-neutral-light text-text-dark placeholder:text-neutral-gray/60 border border-neutral-gray/20 focus:border-primary/50 outline-none text-sm transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { setSearchQuery(''); setIsSearchOpen(false); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-gray hover:text-text-dark"
+                    title="Close search"
+                  >
+                    <XIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsSearchOpen(true)}
+                  className="w-10 h-10 rounded-xl bg-neutral-gray/10 flex items-center justify-center text-neutral-gray hover:text-primary hover:bg-primary/10 transition-colors"
+                  title="Search menu"
+                >
+                  <MagnifyingGlassIcon className="w-5 h-5" />
+                </button>
+              )
+            )}
 
             {/* Pending payments button */}
             <button
@@ -847,9 +950,13 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
           </div>
         </div>
 
-        {/* Order Type Toggle */}
-        <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15">
-          <div className="flex gap-2">
+        {/* Order Type Toggle. For the call centre this lives in the top bar —
+            pickup or delivery, the only two a phone order has — and all that is
+            left here is the fee that follows from choosing delivery. */}
+        <div className={`shrink-0 px-4 py-3 border-b border-neutral-gray/15 ${
+          isCompanyWide && orderType !== 'delivery' ? 'hidden' : ''
+        }`}>
+          <div className={`flex gap-2 ${isCompanyWide ? 'hidden' : ''}`}>
             {/* Map POS order types to DB keys: dine_in→dine_in, takeaway→pickup */}
             {(branchInfo?.orderTypes?.['dine_in']?.is_enabled !== false) && (
             <button
@@ -900,7 +1007,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
 
           {/* Delivery fee — editable, only for delivery orders */}
           {orderType === 'delivery' && (
-            <div className="mt-3">
+            <div className={isCompanyWide ? '' : 'mt-3'}>
               <label className="block text-xs font-medium text-neutral-gray mb-1">Delivery fee</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray text-sm font-medium">₵</span>
@@ -947,8 +1054,9 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
           </div>
         )}
 
-        {/* Customer Info — always visible at top */}
-        <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15 space-y-2">
+        {/* Customer Info — in the panel for a till, in the top bar for the call
+            centre, who are typing it while the caller is talking. */}
+        <div className={`shrink-0 px-4 py-3 border-b border-neutral-gray/15 space-y-2 ${isCompanyWide ? 'hidden' : ''}`}>
           <div className="relative">
             <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
             <input

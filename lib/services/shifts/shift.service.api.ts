@@ -63,10 +63,15 @@ export class ApiShiftService implements ShiftService {
   async startShift(
     _staffId: string,
     _staffName: string,
-    branchId: string,
+    branchId: string | null,
     _branchName: string
   ): Promise<StaffShift> {
-    const response = await apiClient.post('/shifts', { branch_id: Number(branchId) || branchId });
+    // Omitted, not empty. The call centre works a shift and belongs to no
+    // branch; sending '' had the API reject every shift they ever tried to
+    // start. See the shifts.branch_id nullable migration.
+    const response = await apiClient.post('/shifts', {
+      branch_id: branchId ? (Number(branchId) || branchId) : null,
+    });
     const raw = extractData<ApiShift>(response);
     return toStaffShift(raw);
   }

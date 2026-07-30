@@ -66,8 +66,13 @@ interface POSContextValue {
   setCustomerPhone: (phone: string) => void;
   orderNotes: string;
   setOrderNotes: (notes: string) => void;
-  orderType: 'dine_in' | 'takeaway' | 'delivery';
-  setOrderType: (type: 'dine_in' | 'takeaway' | 'delivery') => void;
+  /**
+   * `pickup` is the call centre's: the caller collects it from the branch
+   * themselves. Distinct from `takeaway`, which is someone already standing at
+   * the counter — the branch needs to know whether to expect anyone.
+   */
+  orderType: 'dine_in' | 'takeaway' | 'pickup' | 'delivery';
+  setOrderType: (type: 'dine_in' | 'takeaway' | 'pickup' | 'delivery') => void;
   deliveryFee: number;
   setDeliveryFee: (fee: number) => void;
 
@@ -117,7 +122,7 @@ export function POSProvider({ children }: POSProviderProps) {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
-  const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery'>('dine_in');
+  const [chosenType, setOrderType] = useState<'dine_in' | 'takeaway' | 'pickup' | 'delivery' | null>(null);
   // Null means "not chosen" rather than a value, so the default can follow the
   // operator without an effect syncing one piece of state to another — there is
   // no render where the source disagrees with who is looking at the screen.
@@ -176,6 +181,12 @@ export function POSProvider({ children }: POSProviderProps) {
   // A till order is a till order; anyone working across the company took the
   // order through some channel, and the phone is the common one.
   const orderSource: OrderSource = chosenSource ?? (isCompanyWide ? 'phone' : 'pos');
+
+  // A caller either collects it themselves or has it delivered. Dine-in and
+  // takeaway are things you pick while standing in the shop, so they are not
+  // where a phone order starts. Derived rather than synced, so there is no
+  // render where the default disagrees with who is looking at the screen.
+  const orderType = chosenType ?? (isCompanyWide ? 'pickup' : 'dine_in');
 
   const isSessionValid = useMemo(() => {
     if (!session || !session.branchId) return false;

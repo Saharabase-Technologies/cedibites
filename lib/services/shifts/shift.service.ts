@@ -23,7 +23,7 @@ export interface StaffShift {
 export interface ShiftService {
     getAll(): Promise<StaffShift[]>;
     getActive(staffId: string): Promise<StaffShift | null>;
-    startShift(staffId: string, staffName: string, branchId: string, branchName: string): Promise<StaffShift>;
+    startShift(staffId: string, staffName: string, branchId: string | null, branchName: string): Promise<StaffShift>;
     endShift(shiftId: string): Promise<StaffShift>;
     addOrder(shiftId: string, orderId: string, orderTotal: number): Promise<void>;
     getByDate(date: string): Promise<StaffShift[]>;     // date: 'YYYY-MM-DD'

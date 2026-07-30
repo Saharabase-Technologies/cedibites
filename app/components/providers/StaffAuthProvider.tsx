@@ -136,15 +136,17 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
         setStaffUser(user);
         // Start shift tracking for staff/manager/admin portals (not kitchen/rider).
         //
-        // A shift belongs to a branch — `shifts.branch_id` is NOT NULL — so this
-        // only fires for someone who has one. It used to send `''` for anyone
-        // working across the company, which the API rejected on every single
-        // login: a guaranteed-failing request, swallowed by the catch, on the
-        // busiest code path there is.
+        // The branch is omitted rather than faked when the person has none. The
+        // call centre works a shift like anyone else and belongs to no branch;
+        // this used to send `''`, which the API rejected on every single login —
+        // a guaranteed-failing request, swallowed by the catch, so they simply
+        // never had a shift and My Sales was always empty.
         const portalPermissions = ['access_manager_portal', 'access_sales_portal', 'access_admin_panel'];
         const branch = user.branches[0];
-        if (branch?.id && user.permissions?.some(p => portalPermissions.includes(p))) {
-            getShiftService().startShift(user.id, user.name, branch.id, branch.name ?? '').catch(() => {});
+        if (user.permissions?.some(p => portalPermissions.includes(p))) {
+            getShiftService()
+                .startShift(user.id, user.name, branch?.id ?? null, branch?.name ?? '')
+                .catch(() => {});
         }
     }, []);
 
