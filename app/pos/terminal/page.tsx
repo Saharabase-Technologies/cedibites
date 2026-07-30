@@ -171,6 +171,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     isNeedsBranchSelection,
     selectBranch,
     isCompanyWide,
+    resetBranchForNextOrder,
     orderSource,
     setOrderSource,
     cart,
@@ -228,6 +229,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
+  const [isBranchMenuOpen, setIsBranchMenuOpen] = useState(false);
   const [optionPickerItem, setOptionPickerItem] = useState<DisplayMenuItem | null>(null);
   const [isPendingDrawerOpen, setIsPendingDrawerOpen] = useState(false);
   const [backgroundMomoToken, setBackgroundMomoToken] = useState<string | null>(null);
@@ -552,26 +554,65 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
       <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
         {/* Header */}
         <header className="shrink-0 px-4 py-3 border-b border-neutral-gray/20 flex items-center justify-between gap-4 bg-white">
-          {/* Left - Branch & Staff */}
-          <button
-            onClick={() => switchableBranches.length > 1 ? setIsBranchSwitcherOpen(true) : undefined}
-            className={`flex items-center gap-3 shrink-0 rounded-xl transition-colors ${switchableBranches.length > 1 ? 'hover:bg-neutral-light active:bg-neutral-gray/20 cursor-pointer px-2 py-1 -mx-2 -my-1' : 'cursor-default'}`}
-            title={switchableBranches.length > 1 ? 'Switch Branch' : undefined}
-          >
-            <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-              <StorefrontIcon className="w-5 h-5 text-primary" />
-            </div>
-            <div className="text-left">
-              <p className="text-text-dark font-medium text-sm flex items-center gap-1">
-                {branchInfo?.name ?? 'Branch'}
-                {/* Nothing said this was changeable, so nobody changed it. */}
-                {switchableBranches.length > 1 && (
-                  <CaretDownIcon weight="bold" className="w-3 h-3 text-neutral-gray" />
-                )}
-              </p>
-              <p className="text-neutral-gray text-xs">{session.staffName}</p>
-            </div>
-          </button>
+          {/* Left - Branch & Staff. Switching opens a list under the name rather
+              than a modal over the whole screen: changing branch is a choice
+              between two or three things, not an interruption. */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => switchableBranches.length > 1 ? setIsBranchMenuOpen(o => !o) : undefined}
+              className={`flex items-center gap-3 rounded-xl transition-colors ${switchableBranches.length > 1 ? 'hover:bg-neutral-light active:bg-neutral-gray/20 cursor-pointer px-2 py-1 -mx-2 -my-1' : 'cursor-default'}`}
+              title={switchableBranches.length > 1 ? 'Switch Branch' : undefined}
+            >
+              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                <StorefrontIcon className="w-5 h-5 text-primary" />
+              </div>
+              <div className="text-left">
+                <p className="text-text-dark font-medium text-sm flex items-center gap-1">
+                  {branchInfo?.name ?? 'Branch'}
+                  {/* Nothing said this was changeable, so nobody changed it. */}
+                  {switchableBranches.length > 1 && (
+                    <CaretDownIcon
+                      weight="bold"
+                      className={`w-3 h-3 text-neutral-gray transition-transform ${isBranchMenuOpen ? 'rotate-180' : ''}`}
+                    />
+                  )}
+                </p>
+                <p className="text-neutral-gray text-xs">{session.staffName}</p>
+              </div>
+            </button>
+
+            {isBranchMenuOpen && switchableBranches.length > 1 && (
+              <>
+                {/* Click anywhere else to dismiss. */}
+                <div className="fixed inset-0 z-40" onClick={() => setIsBranchMenuOpen(false)} />
+                <div className="absolute left-0 top-full mt-2 z-50 w-72 max-h-80 overflow-y-auto rounded-xl border border-neutral-gray/20 bg-white shadow-xl py-1.5">
+                  {switchableBranches.map(b => {
+                    const isCurrent = b.id === session?.branchId;
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => { selectBranch(b.id); setIsBranchMenuOpen(false); }}
+                        className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition-colors ${
+                          isCurrent ? 'bg-primary/10' : 'hover:bg-neutral-light'
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className={`block text-sm font-medium truncate ${isCurrent ? 'text-primary' : 'text-text-dark'}`}>
+                            {b.name}
+                          </span>
+                          {b.address && (
+                            <span className="block text-xs text-neutral-gray truncate">{b.address}</span>
+                          )}
+                        </span>
+                        {isCurrent && <CheckCircleIcon weight="fill" className="w-4 h-4 text-primary shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Center. A till has the row to spare for a search box. A call centre
               agent is typing a name and a phone number while someone talks, so
@@ -617,7 +658,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
                     onClick={() => setOrderType(opt.id)}
                     className={`h-10 px-4 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
                       orderType === opt.id
-                        ? 'bg-primary text-brown'
+                        ? 'bg-primary text-white'
                         : 'bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20'
                     }`}
                   >
@@ -883,7 +924,13 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
             and "No items found" sends the cashier hunting for a typo. Name the
             real cause instead.
           */}
-          {!menuLoading && branchMenuItems.length === 0 ? (
+          {menuLoading ? (
+            <div className="flex flex-col items-center justify-center py-16 text-neutral-gray">
+              <div className="w-10 h-10 mb-4 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+              <p className="font-medium text-text-dark">Loading menu…</p>
+              <p className="mt-1 text-sm">Fetching what this branch is serving.</p>
+            </div>
+          ) : branchMenuItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-6 text-center text-neutral-gray">
               <StorefrontIcon className="w-12 h-12 mb-4 opacity-40" />
               <p className="font-medium text-text-dark">No menu configured for this branch</p>
@@ -1323,7 +1370,13 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
         <OrderSuccessModal
           order={completedOrder}
           branch={{ name: branchInfo?.name ?? 'CediBites', address: branchInfo?.address, phone: branchInfo?.phone }}
-          onClose={() => setCompletedOrder(null)}
+          onClose={() => {
+            setCompletedOrder(null);
+            // Now, not at payment time. Clearing the branch mid-transaction
+            // swapped the terminal for the branch picker and the confirmation
+            // never got read.
+            resetBranchForNextOrder();
+          }}
         />
       )}
 
@@ -2160,8 +2213,12 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
           <p className="text-neutral-gray mb-2">
             A payment prompt has been sent to
           </p>
+          {/* The number the prompt actually went to — the momo number that was
+              entered and verified at payment, which is not necessarily the
+              customer's own. This showed contact.phone, so a caller paying from
+              a second number was told the prompt went somewhere it had not. */}
           <p className="text-lg font-semibold text-text-dark mb-6">
-            {order.contact.phone}
+            {order.momoNumber ?? order.contact.phone}
           </p>
 
           <div className="bg-neutral-light rounded-2xl p-4 mb-6">

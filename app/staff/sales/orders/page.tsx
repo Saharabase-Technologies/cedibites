@@ -21,6 +21,7 @@ import OrderPeriodSummary from '@/app/components/ui/OrderPeriodSummary';
 import { useRequestCancel, useCancelOrder } from '@/lib/api/hooks/useOrders';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
 import { formatPrice, type OrderStatus, type Order } from '@/types/order';
+import { roleNeedsBranch } from '@/types/staff';
 import { STATUS_CONFIG } from '@/lib/constants/order.constants';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
@@ -171,6 +172,11 @@ export default function SalesOrdersPage() {
     const { staffUser } = useStaffAuth();
     const branchId = staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : undefined;
     const isAdmin = staffUser?.permissions?.includes('access_admin_panel') ?? false;
+    // The call centre works across every branch and holds none. Omitting
+    // branch_id lets the server scope the list, which for them is all branches
+    // and for everyone else is their own. Only someone who should have a branch
+    // and does not is actually misconfigured.
+    const isCompanyWide = staffUser ? !roleNeedsBranch(staffUser.role) : false;
 
     const today = useMemo(() => todayISO(), []);
 
@@ -182,7 +188,7 @@ export default function SalesOrdersPage() {
     });
 
     const { summary: periodSummary, isLoading: summaryLoading } = useEmployeeOrdersPeriodSummary(
-        branchId
+        branchId || isCompanyWide
             ? { branch_id: branchId, date_from: today, date_to: today }
             : undefined,
     );
@@ -231,7 +237,7 @@ export default function SalesOrdersPage() {
         }
     }, [cancelTarget, isAdmin, cancelOrder, requestCancel]);
 
-    if (!branchId) {
+    if (!branchId && !isCompanyWide) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 px-4">
                 <WarningIcon size={32} weight="fill" className="text-warning" />

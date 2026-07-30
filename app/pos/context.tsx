@@ -40,6 +40,9 @@ interface POSContextValue {
    */
   isCompanyWide: boolean;
 
+  /** Forget the branch so the next order names its own. See the implementation. */
+  resetBranchForNextOrder: () => void;
+
   /**
    * Which channel this order came in on. A till order is 'pos'; the call
    * centre picks the channel they took the call on. Collected here because
@@ -341,7 +344,7 @@ export function POSProvider({ children }: POSProviderProps) {
       id: apiOrder ? String(apiOrder.id) : csSession.session_token,
       orderNumber: apiOrder?.order_number ?? csSession.session_token,
       status: apiOrder ? (apiOrder.status as Order['status']) : 'received',
-      source: isManualEntry ? 'manual_entry' : 'pos',
+      source: isManualEntry ? 'manual_entry' : orderSource,
       fulfillmentType: orderType,
       paymentMethod: method,
       paymentStatus: csSession.status === 'confirmed' ? 'completed' : 'pending',
@@ -406,18 +409,25 @@ export function POSProvider({ children }: POSProviderProps) {
     setIsPaymentOpen(false);
     if (isManualEntry) setIsManualEntry(false);
 
-    // A branch till stays on its branch — that is the whole shift. Someone
-    // working across the company took this order for one branch and the next
-    // call is very likely a different one, so the choice is not carried over:
-    // a branch quietly inherited from the last call sends food to the wrong
-    // kitchen, and nothing on the screen would have looked wrong.
-    if (isCompanyWide) {
-      localStorage.removeItem(POS_BRANCH_KEY);
-      setSession(prev => (prev ? { ...prev, branchId: '' } : prev));
-    }
-
     return order;
-  }, [cart, customerName, customerPhone, orderNotes, orderType, orderSource, deliveryFee, session, branches, addLocalOrder, clearCart, staffUser, isManualEntry, isCompanyWide]);
+  }, [cart, customerName, customerPhone, orderNotes, orderType, orderSource, deliveryFee, session, branches, addLocalOrder, clearCart, staffUser, isManualEntry]);
+
+  /**
+   * Forget the branch so the next order has to name its own.
+   *
+   * Called when the operator starts the next order, not when they finish the
+   * last one. Clearing it at payment time tore the screen down mid-transaction:
+   * `isNeedsBranchSelection` flips the terminal to the branch picker, which
+   * replaced the "order placed" confirmation before anyone could read it.
+   *
+   * Only for someone working across the company. A branch till stays on its
+   * branch — that is the whole shift.
+   */
+  const resetBranchForNextOrder = useCallback(() => {
+    if (!isCompanyWide) return;
+    localStorage.removeItem(POS_BRANCH_KEY);
+    setSession(prev => (prev ? { ...prev, branchId: '' } : prev));
+  }, [isCompanyWide]);
 
   const updateOrderStatus = useCallback((orderId: string, status: Order['status']) => {
     const timestamps: Partial<Pick<Order, 'acceptedAt' | 'startedAt' | 'readyAt' | 'completedAt'>> = {};
@@ -500,6 +510,7 @@ export function POSProvider({ children }: POSProviderProps) {
     isNeedsBranchSelection,
     selectBranch,
     isCompanyWide,
+    resetBranchForNextOrder,
     orderSource,
     setOrderSource,
     cart,
