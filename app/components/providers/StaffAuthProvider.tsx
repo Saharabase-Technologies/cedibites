@@ -134,10 +134,17 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
     const login = useCallback((user: StaffUser) => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
         setStaffUser(user);
-        // Start shift tracking for staff/manager/admin portals (not kitchen/rider)
+        // Start shift tracking for staff/manager/admin portals (not kitchen/rider).
+        //
+        // A shift belongs to a branch — `shifts.branch_id` is NOT NULL — so this
+        // only fires for someone who has one. It used to send `''` for anyone
+        // working across the company, which the API rejected on every single
+        // login: a guaranteed-failing request, swallowed by the catch, on the
+        // busiest code path there is.
         const portalPermissions = ['access_manager_portal', 'access_sales_portal', 'access_admin_panel'];
-        if (user.permissions?.some(p => portalPermissions.includes(p))) {
-            getShiftService().startShift(user.id, user.name, user.branches[0]?.id ?? '', user.branches[0]?.name ?? '').catch(() => {});
+        const branch = user.branches[0];
+        if (branch?.id && user.permissions?.some(p => portalPermissions.includes(p))) {
+            getShiftService().startShift(user.id, user.name, branch.id, branch.name ?? '').catch(() => {});
         }
     }, []);
 
