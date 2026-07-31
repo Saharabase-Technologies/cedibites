@@ -1,11 +1,12 @@
 /**
- * Build-time feature flags. The feedback widget defaults ON (the inverse of a
- * usual flag) so it's available to every logged-in role during beta — one env
- * flip (`NEXT_PUBLIC_FEEDBACK=false`) turns the whole thing off after beta with
- * no code change. Backend endpoints stay live regardless, for support use.
+ * Build-time feature flags. The feedback widget is OFF — the floating button and
+ * the silent-capture layer behind it are both disabled for now. Set
+ * `NEXT_PUBLIC_FEEDBACK=true` to bring them back with no code change. The admin
+ * inbox (/admin/feedback), /my-feedback and the backend endpoints stay live
+ * regardless, so existing reports remain readable.
  */
 export const FEATURES = {
   feedback:
-    process.env.NEXT_PUBLIC_FEEDBACK !== 'false' &&
-    process.env.NEXT_PUBLIC_FEEDBACK !== '0',
+    process.env.NEXT_PUBLIC_FEEDBACK === 'true' ||
+    process.env.NEXT_PUBLIC_FEEDBACK === '1',
 } as const;

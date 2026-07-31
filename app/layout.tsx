@@ -10,6 +10,7 @@ import { QueryProvider } from "./components/providers/QueryProvider";
 import { RouterInitializer } from "./components/providers/RouterInitializer";
 import { FeedbackCapture } from "./components/feedback/feedback-capture";
 import { FeedbackWidget } from "./components/feedback/feedback-widget";
+import { FEATURES } from "@/lib/constants/features";
 
 const caprasimo = Caprasimo({
   weight: '400',
@@ -95,12 +96,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         />
         <QueryProvider>
           <RouterInitializer />
-          <FeedbackCapture />
+          {FEATURES.feedback && <FeedbackCapture />}
           <LocationProvider autoRequest={false}>
             <BranchProvider>
               <OrderStoreProvider>
                 {children}
-                <FeedbackWidget />
+                {FEATURES.feedback && <FeedbackWidget />}
               </OrderStoreProvider>
             </BranchProvider>
           </LocationProvider>
