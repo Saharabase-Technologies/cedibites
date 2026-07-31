@@ -16,6 +16,18 @@ export const useSystemHealth = () => {
   return { health: data?.data ?? null, isLoading, error, refetch };
 };
 
+export const useSmsHealth = (windowHours = 24) => {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['platform-sms-health', windowHours],
+    queryFn: () => platformService.getSmsHealth(windowHours),
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000,
+    enabled: staffTokenEnabled(),
+  });
+
+  return { sms: data?.data ?? null, isLoading, error, refetch };
+};
+
 export const useErrorFeed = (limit = 50) => {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['platform-errors', limit],

@@ -2,6 +2,38 @@ import apiClient from '../client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type SmsHealthStatus = 'healthy' | 'warning' | 'critical' | 'unknown';
+
+export interface SmsHealth {
+  status: SmsHealthStatus;
+  window_hours: number;
+  sent: number;
+  failed: number;
+  failure_rate: number;
+  consecutive_failures: number;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+  /** App\Enums\SmsFailureReason, e.g. 'no_credit'. Null when nothing is failing. */
+  reason: string | null;
+  reason_label: string | null;
+  /** What the reader should actually do about it. */
+  remedy: string | null;
+  /** True when the cause will keep failing every message until someone acts. */
+  systemic: boolean;
+  affected: { notification: string; failures: number }[];
+}
+
+export interface SmsHealthDetail extends SmsHealth {
+  recent_failures: {
+    id: number;
+    notification: string | null;
+    recipient: string;
+    reason: string | null;
+    error: string | null;
+    failed_at: string;
+  }[];
+}
+
 export interface SystemHealth {
   status: 'healthy' | 'degraded';
   php: { version: string; memory_limit: string; max_execution_time: string; upload_max_filesize: string; extensions: string };
@@ -9,6 +41,7 @@ export interface SystemHealth {
   database: { status: string; driver: string; latency_ms: number; database: string; size: string | null };
   cache: { status: string; driver: string };
   queue: { driver: string; pending_jobs: number; failed_jobs: number; status: string };
+  sms: SmsHealth;
   disk: { total: string; used: string; free: string; percent_used: string; status: string };
   uptime: string;
 }
@@ -104,6 +137,10 @@ export const platformService = {
   // System health
   getHealth: (): Promise<{ data: SystemHealth }> =>
     apiClient.get('/platform/health'),
+
+  // SMS delivery health, with the recent failures behind the verdict
+  getSmsHealth: (windowHours = 24): Promise<{ data: SmsHealthDetail }> =>
+    apiClient.get('/platform/sms-health', { params: { window: windowHours } }),
 
   // Error feed
   getErrors: (limit = 50): Promise<{ data: ErrorFeed }> =>

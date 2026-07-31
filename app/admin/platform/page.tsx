@@ -12,9 +12,10 @@ import {
     BroomIcon,
     WrenchIcon,
     CircleNotchIcon,
+    ChatCircleTextIcon,
 } from '@phosphor-icons/react';
 import { useSystemHealth, useActiveSessions } from '@/lib/api/hooks/usePlatform';
-import { platformService } from '@/lib/api/services/platform.service';
+import { platformService, type SmsHealth } from '@/lib/api/services/platform.service';
 import { toast } from '@/lib/utils/toast';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -53,6 +54,87 @@ function Row({ label, value }: { label: string; value: string | number }) {
         <div className="flex justify-between">
             <span>{label}</span>
             <span className="text-text-dark font-medium">{value}</span>
+        </div>
+    );
+}
+
+function relativeTime(iso: string | null) {
+    if (!iso) return 'never';
+
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.round(diffMs / 60000);
+
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    if (mins < 60 * 24) return `${Math.round(mins / 60)}h ago`;
+    return `${Math.round(mins / 1440)}d ago`;
+}
+
+/**
+ * The banner for a broken SMS pipe.
+ *
+ * Deliberately loud and deliberately at the top: SMS failed silently in
+ * production for three weeks because nothing in the product ever said so — the
+ * forgot-password screen reports success whether or not the code was sent, and
+ * has to, so as not to leak which accounts exist. This is the one place the
+ * truth is allowed to show.
+ */
+function SmsAlertBanner({ sms }: { sms: SmsHealth }) {
+    if (sms.status !== 'critical' && sms.status !== 'warning') return null;
+
+    const critical = sms.status === 'critical';
+
+    return (
+        <div
+            role="alert"
+            className={`rounded-2xl border p-5 ${
+                critical ? 'bg-error/5 border-error/30' : 'bg-warning/5 border-warning/30'
+            }`}
+        >
+            <div className="flex items-start gap-3">
+                <WarningIcon
+                    size={20}
+                    weight="fill"
+                    className={`shrink-0 mt-0.5 ${critical ? 'text-error' : 'text-warning'}`}
+                />
+                <div className="min-w-0 flex-1">
+                    <h3 className={`text-sm font-bold font-body ${critical ? 'text-error' : 'text-warning'}`}>
+                        {sms.reason_label ?? 'SMS delivery is failing'}
+                    </h3>
+
+                    <p className="text-xs font-body text-text-dark mt-1">
+                        {sms.failed} message{sms.failed === 1 ? '' : 's'} failed in the last {sms.window_hours}h
+                        {sms.sent > 0 && ` (${sms.failure_rate}% of ${sms.sent + sms.failed} attempts)`}. Last
+                        successful message {relativeTime(sms.last_success_at)}.
+                    </p>
+
+                    {sms.remedy && (
+                        <p className="text-xs font-body text-neutral-gray mt-2">
+                            <span className="font-semibold text-text-dark">What to do: </span>
+                            {sms.remedy}
+                        </p>
+                    )}
+
+                    {sms.affected.length > 0 && (
+                        <div className="mt-3">
+                            <p className="text-[11px] font-semibold font-body text-text-dark mb-1">
+                                Messages being lost
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {sms.affected.slice(0, 6).map(a => (
+                                    <span
+                                        key={a.notification}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-[#f0e8d8] text-[10px] font-body text-neutral-gray"
+                                    >
+                                        {a.notification.replace(/Notification$/, '')}
+                                        <span className="font-bold text-text-dark">{a.failures}</span>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }
@@ -181,6 +263,10 @@ export default function PlatformHealthPage() {
                 </div>
             </div>
 
+            {/* SMS outage banner — above the grid, because a dead SMS pipe is
+                invisible everywhere else in the product. */}
+            {health.sms && <SmsAlertBanner sms={health.sms} />}
+
             {/* Health grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {/* PHP */}
@@ -218,6 +304,20 @@ export default function PlatformHealthPage() {
                     <Row label="Pending Jobs" value={health.queue.pending_jobs} />
                     <Row label="Failed Jobs" value={health.queue.failed_jobs} />
                 </HealthCard>
+
+                {/* SMS */}
+                {health.sms && (
+                    <HealthCard title="SMS Delivery" icon={ChatCircleTextIcon} status={health.sms.status}>
+                        <Row label="Status" value={health.sms.status} />
+                        <Row label={`Sent (${health.sms.window_hours}h)`} value={health.sms.sent} />
+                        <Row label={`Failed (${health.sms.window_hours}h)`} value={health.sms.failed} />
+                        <Row label="Failure Rate" value={`${health.sms.failure_rate}%`} />
+                        <Row label="Last Success" value={relativeTime(health.sms.last_success_at)} />
+                        {health.sms.status === 'unknown' && (
+                            <p className="text-[10px] pt-1">No messages attempted in this window.</p>
+                        )}
+                    </HealthCard>
+                )}
 
                 {/* Disk */}
                 <HealthCard title="Disk Usage" icon={HardDrivesIcon} status={health.disk.status}>
