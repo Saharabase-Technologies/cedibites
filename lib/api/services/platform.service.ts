@@ -46,12 +46,32 @@ export interface SystemHealth {
   uptime: string;
 }
 
+/** One account's failed sign-ins, as reported in the daily summary. */
+export interface FailedLoginAccount {
+  identifier: string;
+  name: string | null;
+  employee_no: string | null;
+  role: string | null;
+  branches: string[];
+  account_status: string | null;
+  reason: string | null;
+  attempts: number;
+  ips: string[];
+  last_attempt: string;
+}
+
 export interface SmartError {
   id: string;
   category: string;
   severity: 'critical' | 'error' | 'warning' | 'info';
   title: string;
   description: string;
+  /** Plain-English explanation of what went wrong and what it means. */
+  cause?: string;
+  /** Concrete next steps for a non-technical reader. */
+  fix?: string;
+  /** 'known' = hand-written table, 'ai' = model, 'fallback' = neither. */
+  explanation_source?: 'known' | 'ai' | 'fallback';
   timestamp: string;
   count?: number;
   phone?: string;
@@ -59,6 +79,14 @@ export interface SmartError {
   order_number?: string;
   job_id?: number;
   raw?: string;
+  // Authentication detail
+  reason?: string | null;
+  name?: string | null;
+  employee_no?: string | null;
+  role?: string | null;
+  account_status?: string | null;
+  ips?: string[];
+  accounts?: FailedLoginAccount[];
 }
 
 export interface ErrorFeed {

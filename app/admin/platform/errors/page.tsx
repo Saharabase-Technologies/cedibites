@@ -37,6 +37,23 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
     integration: PlugIcon,
 };
 
+/** Backend reason codes, in the words a manager would use. */
+const REASON_LABELS: Record<string, string> = {
+    wrong_password: 'wrong password',
+    unknown_account: 'no account with that phone or email',
+    no_employee_record: 'has no staff record',
+    account_suspended: 'account suspended',
+    account_inactive: 'account not active',
+};
+
+function Chip({ label }: { label: string }) {
+    return (
+        <span className="inline-flex px-2 py-0.5 rounded-full bg-neutral-light text-[10px] font-body text-neutral-gray">
+            {label}
+        </span>
+    );
+}
+
 // ─── Passcode Dialog ──────────────────────────────────────────────────────────
 
 function PasscodeDialog({ open, title, onConfirm, onCancel, loading }: {
@@ -110,7 +127,54 @@ function ErrorCard({ error }: { error: SmartError }) {
                             </span>
                         )}
                     </div>
-                    <p className="text-xs font-body text-neutral-gray mb-2">{error.description}</p>
+                    <p className="text-xs font-body text-neutral-gray mb-2">{error.cause ?? error.description}</p>
+
+                    {/* The point of the whole card: what to actually do. */}
+                    {error.fix && (
+                        <div className="mb-2 rounded-xl bg-success/5 border border-success/20 px-3 py-2">
+                            <p className="text-[10px] font-bold font-body text-success uppercase tracking-wide mb-0.5">
+                                What to do
+                            </p>
+                            <p className="text-xs font-body text-text-dark">{error.fix}</p>
+                        </div>
+                    )}
+
+                    {/* Who this was, for sign-in failures. */}
+                    {(error.name || error.employee_no || error.role || error.account_status) && (
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                            {error.name && <Chip label={error.name} />}
+                            {error.employee_no && <Chip label={error.employee_no} />}
+                            {error.role && <Chip label={error.role} />}
+                            {error.account_status && <Chip label={`account ${error.account_status}`} />}
+                            {error.ips && error.ips.length > 0 && <Chip label={`IP ${error.ips.join(', ')}`} />}
+                        </div>
+                    )}
+
+                    {/* Per-account breakdown on the daily summary. */}
+                    {error.accounts && error.accounts.length > 0 && (
+                        <div className="mb-2 rounded-xl border border-[#f0e8d8] divide-y divide-[#f0e8d8]">
+                            {error.accounts.slice(0, 8).map(a => (
+                                <div key={a.identifier} className="px-3 py-2 flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-medium font-body text-text-dark truncate">
+                                            {a.name ?? a.identifier}
+                                            {a.employee_no && (
+                                                <span className="text-neutral-gray font-normal"> · {a.employee_no}</span>
+                                            )}
+                                        </p>
+                                        <p className="text-[10px] font-body text-neutral-gray">
+                                            {REASON_LABELS[a.reason ?? ''] ?? 'reason not recorded'}
+                                            {a.ips.length > 0 && ` · ${a.ips.join(', ')}`}
+                                        </p>
+                                    </div>
+                                    <span className="shrink-0 inline-flex px-2 py-0.5 rounded-full bg-neutral-light text-[10px] font-bold font-body text-neutral-gray">
+                                        ×{a.attempts}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     <div className="flex items-center gap-3 text-[10px] font-body text-neutral-gray/70">
                         <span className="inline-flex items-center gap-1">
                             <CatIcon size={10} />
@@ -119,7 +183,21 @@ function ErrorCard({ error }: { error: SmartError }) {
                         <span>{new Date(error.timestamp).toLocaleString()}</span>
                         {error.phone && <span>Phone: {error.phone}</span>}
                         {error.order_number && <span>Order: {error.order_number}</span>}
+                        {error.explanation_source === 'ai' && <span title="Explained by AI">AI-explained</span>}
                     </div>
+
+                    {/* Raw text last and de-emphasised — it is for the developer
+                        you forward this to, not for the manager reading it. */}
+                    {error.raw && (
+                        <details className="mt-2">
+                            <summary className="text-[10px] font-body text-neutral-gray/70 cursor-pointer">
+                                Technical detail
+                            </summary>
+                            <pre className="mt-1 text-[10px] font-mono text-neutral-gray whitespace-pre-wrap break-all bg-neutral-light rounded-lg p-2 overflow-x-auto">
+                                {error.raw}
+                            </pre>
+                        </details>
+                    )}
                 </div>
             </div>
         </div>
