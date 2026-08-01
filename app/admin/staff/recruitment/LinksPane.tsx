@@ -22,10 +22,10 @@ function daysLeft(expiresAt: string): number {
 }
 
 /**
- * The postings you have open.
+ * The links you have out.
  *
  * Expired rows are greyed rather than hidden — you still want to see what you
- * sent out, and who applied through it.
+ * sent out, and who came through it.
  */
 export function LinksPane({ links, onChanged }: { links: RecruitmentLink[]; onChanged: () => void }) {
     const [editing, setEditing] = useState<RecruitmentLink | null>(null);
@@ -34,8 +34,8 @@ export function LinksPane({ links, onChanged }: { links: RecruitmentLink[]; onCh
         return (
             <EmptyState
                 icon={<LinkSimpleIcon size={40} className="text-neutral-gray/50" />}
-                title="No postings yet"
-                note="Create one, send the link to your recruits, and their applications land in the next tab."
+                title="No links yet"
+                note="Make one, send it to your new staff, and their details land in the next tab."
             />
         );
     }
@@ -106,7 +106,7 @@ function LinkRow({ link, onEdit }: { link: RecruitmentLink; onEdit: () => void }
                         {link.applications_count !== undefined && (
                             <>
                                 {' · '}
-                                {link.applications_count} application{link.applications_count === 1 ? '' : 's'}
+                                {link.applications_count} sent in
                                 {!!link.pending_applications_count && (
                                     <span className="text-primary font-semibold">
                                         {' '}({link.pending_applications_count} waiting)
@@ -128,11 +128,11 @@ function LinkRow({ link, onEdit }: { link: RecruitmentLink; onEdit: () => void }
                         </button>
                     )}
 
-                    {/* Available on closed postings too — this is how one is
+                    {/* Available on closed links too — this is how one is
                         reopened, and how a spent one is deleted. */}
                     <button
                         onClick={onEdit}
-                        aria-label={`Edit ${link.posting} posting`}
+                        aria-label={`Edit the ${link.posting} link`}
                         className="flex items-center gap-2 rounded-xl border border-brown-light/25 px-3 py-2 text-sm font-medium font-body text-neutral-gray hover:text-text-dark dark:hover:text-text-light hover:bg-neutral-light dark:hover:bg-brand-darker transition-colors"
                     >
                         <PencilSimpleIcon size={15} />

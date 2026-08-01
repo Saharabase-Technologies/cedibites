@@ -18,11 +18,12 @@ import { CreateLinkDialog } from './CreateLinkDialog';
 type Pane = 'applications' | 'links';
 
 /**
- * Recruitment — postings you have open, and the people who applied to them.
+ * Onboarding — links you have out, and the new staff whose details came back.
  *
- * Approving here *is* hiring: the account is created at that moment, which is
- * why the whole surface sits behind `manage_employees` and why the role picker
- * only offers what the posting may appoint.
+ * The hiring decision was made before anyone was sent a link; what happens here
+ * is checking the details and switching the account on. That still creates a
+ * staff account, which is why the whole surface sits behind `manage_employees`
+ * and why the role picker only offers what the link may appoint.
  */
 export default function RecruitmentPage() {
     const [pane, setPane] = useState<Pane>('applications');
@@ -45,7 +46,7 @@ export default function RecruitmentPage() {
 
     const loading = linksQuery.isPending || applicationsQuery.isPending;
     const failure = linksQuery.error ?? applicationsQuery.error;
-    const error = failure instanceof Error ? failure.message : failure ? 'Could not load recruitment.' : null;
+    const error = failure instanceof Error ? failure.message : failure ? 'Could not load onboarding.' : null;
 
     /** Both lists move together — approving changes a link's counts as well. */
     const reload = () => {
@@ -63,10 +64,10 @@ export default function RecruitmentPage() {
                 <header className="flex flex-wrap items-start justify-between gap-4 mb-6">
                     <div>
                         <h1 className="text-text-dark dark:text-text-light text-2xl font-semibold font-body tracking-tight">
-                            Recruitment
+                            Onboarding
                         </h1>
                         <p className="text-neutral-gray text-sm mt-1 font-body">
-                            Send a link, review who applies, and take them on. Approving creates the account.
+                            Send new staff a link, check the details that come back, and switch on their account.
                         </p>
                     </div>
 
@@ -75,7 +76,7 @@ export default function RecruitmentPage() {
                         className="flex items-center gap-2 rounded-2xl bg-primary hover:bg-primary-hover text-white text-sm font-semibold font-body px-4 py-2.5 transition-colors"
                     >
                         <PlusIcon size={16} weight="bold" />
-                        New posting
+                        New link
                     </button>
                 </header>
 
@@ -84,7 +85,7 @@ export default function RecruitmentPage() {
                         active={pane === 'applications'}
                         onClick={() => setPane('applications')}
                         icon={<UsersThreeIcon size={16} weight={pane === 'applications' ? 'fill' : 'regular'} />}
-                        label="Applications"
+                        label="New staff"
                         badge={pendingCount || undefined}
                     />
                     <PaneTab

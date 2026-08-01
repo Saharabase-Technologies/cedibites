@@ -17,12 +17,12 @@ function isoDaysFromNow(days: number): string {
 }
 
 /**
- * Opening a posting.
+ * Making an onboarding link.
  *
  * The kind is the only decision that matters and it cannot be changed later:
- * a branch posting stamps its branch on whoever is approved, a call-centre
- * posting deliberately stamps nothing, because the call centre serves every
- * branch and belongs to none.
+ * a branch link stamps its branch on whoever comes through it, a call-centre
+ * link deliberately stamps nothing, because the call centre serves every branch
+ * and belongs to none.
  */
 export function CreateLinkDialog({
     onClose,
@@ -47,7 +47,7 @@ export function CreateLinkDialog({
         event.preventDefault();
 
         if (kind === 'branch' && !branchId) {
-            setError('Pick the branch this posting is for.');
+            setError('Pick the branch these staff are joining.');
             return;
         }
 
@@ -78,7 +78,7 @@ export function CreateLinkDialog({
 
                 <div className="flex items-center justify-between px-6 py-4 border-b border-[#f0e8d8] dark:border-brown-light/20">
                     <h2 className="text-text-dark dark:text-text-light text-lg font-semibold font-body">
-                        New posting
+                        New onboarding link
                     </h2>
                     <button onClick={onClose} className="text-neutral-gray hover:text-text-dark transition-colors">
                         <XIcon size={20} />
@@ -96,7 +96,7 @@ export function CreateLinkDialog({
 
                     <div>
                         <label className="block text-sm font-medium text-text-dark dark:text-neutral-light mb-2 font-body">
-                            What are you hiring for?
+                            Where are they working?
                         </label>
                         <div className="grid grid-cols-2 gap-2">
                             <KindOption
@@ -158,14 +158,14 @@ export function CreateLinkDialog({
                             className="w-full rounded-2xl border border-brown-light/25 bg-white dark:bg-brand-darker px-4 py-3 text-sm font-body text-text-dark dark:text-text-light focus:outline-none focus:border-primary"
                         />
                         <p className="text-neutral-gray text-xs mt-1.5 font-body leading-relaxed">
-                            This is the only thing that shuts the link — there is no close button and no limit on
-                            how many people can apply. Keep it short and make a new one next time you hire.
+                            You can close it early or reopen it later from the list. There is no limit on how many
+                            people can use it, so keep the date short and make a new one for the next intake.
                         </p>
                     </div>
 
                     <div className="rounded-2xl bg-neutral-light dark:bg-brand-darker px-4 py-3">
                         <p className="text-neutral-gray text-xs font-body mb-1.5">
-                            Roles you&rsquo;ll be able to appoint from this posting:
+                            Roles you&rsquo;ll be able to give from this link:
                         </p>
                         <p className="text-text-dark dark:text-text-light text-xs font-body">
                             {roles.length > 0 ? roles.map(roleLabel).join(' · ') : '—'}

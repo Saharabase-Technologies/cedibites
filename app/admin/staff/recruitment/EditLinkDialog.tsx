@@ -12,11 +12,11 @@ function toDateInput(iso: string): string {
 }
 
 /**
- * Editing a posting that is already out there.
+ * Editing a link that is already out there.
  *
  * Two things only: what you call it, and when it closes. The kind and the
  * branch are shown but fixed — people already have this URL, and moving the
- * branch would hand every pending applicant to a branch they never chose.
+ * branch would put whoever filled it in at a branch they were never sent to.
  * The server refuses to read either field, so this is not the only guard.
  */
 export function EditLinkDialog({
@@ -35,7 +35,7 @@ export function EditLinkDialog({
     const [error, setError] = useState<string | null>(null);
     const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-    const hasApplications = (link.applications_count ?? 0) > 0;
+    const hasSubmissions = (link.applications_count ?? 0) > 0;
 
     async function run(action: 'save' | 'close' | 'delete', work: () => Promise<unknown>) {
         setBusy(action);
@@ -60,9 +60,9 @@ export function EditLinkDialog({
                             {link.posting}
                         </h2>
                         <p className="text-neutral-gray text-sm font-body">
-                            {link.kind_label} posting
+                            {link.kind_label} link
                             {link.applications_count !== undefined
-                                && ` · ${link.applications_count} application${link.applications_count === 1 ? '' : 's'}`}
+                                && ` · ${link.applications_count} sent in`}
                         </p>
                     </div>
                     <button onClick={onClose} className="text-neutral-gray hover:text-text-dark transition-colors">
@@ -97,15 +97,15 @@ export function EditLinkDialog({
                             className="w-full rounded-2xl border border-brown-light/25 bg-white dark:bg-brand-darker px-4 py-3 text-sm font-body text-text-dark dark:text-text-light focus:outline-none focus:border-primary"
                         />
                         <p className="text-neutral-gray text-xs mt-1.5 font-body leading-relaxed">
-                            Move it forward to reopen a closed posting, or back to shut one early.
+                            Move it forward to reopen a closed link, or back to shut one early.
                         </p>
                     </div>
 
                     <div className="rounded-2xl bg-neutral-light dark:bg-brand-darker px-4 py-3">
                         <p className="text-neutral-gray text-xs font-body leading-relaxed">
                             The branch and the type cannot change. People already have this link, and some may
-                            have applied through it — switching the branch would move them to one they never
-                            applied to. If it was set up wrong, close it and make a new one.
+                            have used it — switching the branch would move them to one they were never sent to.
+                            If it was set up wrong, close it and make a new one.
                         </p>
                     </div>
 
@@ -140,16 +140,16 @@ export function EditLinkDialog({
                             className="rounded-2xl border border-brown-light/25 text-text-dark dark:text-text-light text-sm font-semibold font-body py-3 hover:bg-neutral-light dark:hover:bg-brand-darker transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
                         >
                             {busy === 'close' && <SpinnerGapIcon size={16} className="animate-spin" />}
-                            Close this posting now
+                            Close this link now
                         </button>
                     )}
 
                     <div className="border-t border-[#f0e8d8] dark:border-brown-light/20 pt-4">
-                        {hasApplications ? (
+                        {hasSubmissions ? (
                             <p className="text-neutral-gray text-xs font-body leading-relaxed">
-                                This posting can&rsquo;t be deleted — {link.applications_count} application
-                                {link.applications_count === 1 ? '' : 's'} came through it, and deleting it would
-                                take {link.applications_count === 1 ? 'it' : 'them'} too. Close it instead.
+                                This link can&rsquo;t be deleted — {link.applications_count} {link.applications_count === 1 ? 'person has' : 'people have'}
+                                {' '}sent their details through it, and deleting it would delete those too.
+                                Close it instead.
                             </p>
                         ) : (
                             <>
@@ -167,11 +167,11 @@ export function EditLinkDialog({
                                     {busy === 'delete'
                                         ? <SpinnerGapIcon size={16} className="animate-spin" />
                                         : <TrashIcon size={15} />}
-                                    {confirmingDelete ? 'Yes, delete it' : 'Delete this posting'}
+                                    {confirmingDelete ? 'Yes, delete it' : 'Delete this link'}
                                 </button>
                                 {confirmingDelete && (
                                     <p className="text-neutral-gray text-xs font-body text-center mt-2">
-                                        The link stops working immediately. Nobody has applied, so nothing is lost.
+                                        The link stops working immediately. Nobody has used it, so nothing is lost.
                                     </p>
                                 )}
                             </>

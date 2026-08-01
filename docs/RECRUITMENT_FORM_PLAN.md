@@ -13,9 +13,33 @@ the public submit endpoint has to exist before the page that posts to it.
 
 ## What it is
 
-A public form a recruit fills in once. It collects everything the staff editor collects, plus a
-password they choose themselves. Nothing is created on submit — the application sits pending. An
-admin reviews it, picks a role, and approves. Only then does the account exist.
+**This is not a job application.** The hiring decision is made before anyone is sent a link — these
+are people who have already been taken on, and the form is how their details reach the system. That
+was settled 2026-08-01 and it governs every word on screen: nothing may read like a competition, and
+nothing may suggest the outcome is in doubt.
+
+The words, fixed:
+
+| Facing | Word | Not |
+|---|---|---|
+| The new staff member | **Joining** Lakeside · *Send my details* | Applying, submitting an application |
+| The admin | **Onboarding** · *Create their account* · *Discard* | Recruitment, approve, reject |
+| Status | **Waiting / Added / Discarded** | Pending / Approved / Rejected |
+
+*Onboarding* is right on the admin side — that genuinely is what they are doing — and wrong facing
+the new starter, where it would presume an account that does not exist yet. *Enrolling* is not the
+English for a job (you enrol in a course), and *applying* is false here.
+
+**Discarding is not a rejection.** It is for a duplicate, a mistyped number, or somebody who did not
+end up starting. The UI says so, because a button called "Reject" invites the wrong use.
+
+**Internal names still say `Recruitment*` / `*Application`** — the tables, models, routes and enum
+cases. Renaming them would mean a migration on a table that is already on prod, for something nobody
+using the system can see. The user-facing strings are the contract; the class names are not.
+
+A public form the new starter fills in once. It collects everything the staff editor collects, plus a
+password they choose themselves. Nothing is created on submit — the submission sits waiting. An
+admin checks it, picks a role, and creates the account.
 
 The link carries the posting. Two kinds:
 

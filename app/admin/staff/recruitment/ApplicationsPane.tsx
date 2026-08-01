@@ -21,12 +21,11 @@ function whenSubmitted(iso?: string): string {
 }
 
 /**
- * The review queue.
+ * New staff waiting to be switched on.
  *
- * Pending by default — everything else is history. Approving creates the
- * account there and then, so the role picker only offers what the posting may
- * appoint, and there is no branch control anywhere: the branch comes from the
- * link.
+ * Waiting by default — everything else is history. Creating the account happens
+ * there and then, so the role picker only offers what the link may appoint, and
+ * there is no branch control anywhere: the branch comes from the link.
  */
 export function ApplicationsPane({
     applications,
@@ -45,7 +44,7 @@ export function ApplicationsPane({
         <>
             <div className="flex items-center justify-between mb-4">
                 <p className="text-neutral-gray text-sm font-body">
-                    {applications.length} {showHistory ? 'in total' : 'waiting for a decision'}
+                    {applications.length} {showHistory ? 'in total' : 'waiting to be added'}
                 </p>
                 <label className="flex items-center gap-2 text-sm font-body text-neutral-gray cursor-pointer">
                     <input
@@ -54,15 +53,15 @@ export function ApplicationsPane({
                         onChange={(e) => onToggleHistory(e.target.checked)}
                         className="accent-primary"
                     />
-                    Show decided
+                    Show everyone
                 </label>
             </div>
 
             {applications.length === 0 ? (
                 <EmptyState
                     icon={<UsersThreeIcon size={40} className="text-neutral-gray/50" />}
-                    title={showHistory ? 'Nothing here yet' : 'Nothing waiting'}
-                    note="Applications appear here as people fill in the form you sent them."
+                    title={showHistory ? 'Nobody here yet' : 'Nobody waiting'}
+                    note="New staff appear here as they fill in the form you sent them."
                 />
             ) : (
                 <div className="flex flex-col gap-2">
@@ -162,8 +161,8 @@ function ApplicationDialog({
                             {application.name}
                         </h2>
                         <p className="text-neutral-gray text-sm font-body">
-                            Applied to {application.link?.posting ?? 'a posting'}
-                            {application.submitted_at && ` · ${whenSubmitted(application.submitted_at)}`}
+                            Joining {application.link?.posting ?? 'CediBites'}
+                            {application.submitted_at && ` · sent ${whenSubmitted(application.submitted_at)}`}
                         </p>
                     </div>
                     <StatusChip status={application.status} label={application.status_label} />
@@ -204,7 +203,7 @@ function ApplicationDialog({
                         <>
                             <div>
                                 <label className="block text-sm font-medium text-text-dark dark:text-neutral-light mb-1.5 font-body">
-                                    Take them on as
+                                    Add them as
                                 </label>
                                 <select
                                     value={role}
@@ -217,16 +216,16 @@ function ApplicationDialog({
                                 </select>
                                 <p className="text-neutral-gray text-xs mt-1.5 font-body leading-relaxed">
                                     {application.link?.kind === 'call_center'
-                                        ? 'A call centre hire belongs to no branch — they take calls for all of them.'
-                                        : `They will be assigned to ${application.link?.posting}, from the link they applied through.`}
+                                        ? 'Call centre staff belong to no branch — they take calls for all of them.'
+                                        : `They will be assigned to ${application.link?.posting}, from the link they were sent.`}
                                 </p>
                             </div>
 
                             <div className="rounded-2xl bg-neutral-light dark:bg-brand-darker px-4 py-3">
                                 <p className="text-neutral-gray text-xs font-body leading-relaxed">
-                                    Approving creates their account straight away. They sign in with the password
-                                    they chose when they applied — nobody here can read it, so there is nothing to
-                                    pass on.
+                                    This creates their account straight away and sends them a message. They sign in
+                                    with the password they chose on the form — nobody here can read it, so there is
+                                    nothing to pass on.
                                 </p>
                             </div>
 
@@ -241,7 +240,7 @@ function ApplicationDialog({
                                     }`}
                                 >
                                     {busy === 'reject' && <SpinnerGapIcon size={16} className="animate-spin" />}
-                                    {confirmingReject ? 'Yes, reject' : 'Reject'}
+                                    {confirmingReject ? 'Yes, discard' : 'Discard'}
                                 </button>
                                 <button
                                     onClick={() => act('approve')}
@@ -249,13 +248,18 @@ function ApplicationDialog({
                                     className="flex-1 rounded-2xl bg-primary hover:bg-primary-hover disabled:opacity-60 text-white text-sm font-semibold font-body py-3 transition-colors flex items-center justify-center gap-2"
                                 >
                                     {busy === 'approve' && <SpinnerGapIcon size={16} className="animate-spin" />}
-                                    Approve &amp; create account
+                                    Create their account
                                 </button>
                             </div>
 
                             {confirmingReject && (
+                                /* Discarding is for a duplicate, a wrong number, or
+                                   somebody who did not end up starting — not a
+                                   judgement on the person, who was taken on before
+                                   the link was ever sent. */
                                 <p className="text-neutral-gray text-xs font-body text-center -mt-2">
-                                    They are told nothing. Their details stay on record.
+                                    Use this for a duplicate or a mistake. They are told nothing, and their
+                                    details stay on record.
                                 </p>
                             )}
                         </>

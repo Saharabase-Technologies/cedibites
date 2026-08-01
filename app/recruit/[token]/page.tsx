@@ -2,16 +2,16 @@ import type { Metadata } from 'next';
 import { RecruitmentForm } from './RecruitmentForm';
 
 /**
- * The public recruitment form.
+ * The public joining form.
  *
  * Deliberately outside (staff-auth), /admin and /staff: no auth provider, no
- * session, no staff chrome. Whoever opens this does not have an account and is
- * not going to get one by filling it in — a submission is a row waiting for a
- * reviewer.
+ * session, no staff chrome. Whoever opens this has already been taken on but does
+ * not have an account yet, and filling the form in does not create one — the
+ * submission waits for someone to check it.
  */
 export const metadata: Metadata = {
-    title: 'Apply — CediBites',
-    // A recruitment link is sent to specific people for a few weeks. It has no
+    title: 'Join CediBites',
+    // A joining link is sent to specific people for a few weeks. It has no
     // business in a search index.
     robots: { index: false, follow: false },
 };

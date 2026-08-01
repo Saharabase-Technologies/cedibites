@@ -291,11 +291,10 @@ export function RecruitmentForm({ token }: { token: string }) {
                     <div className="flex flex-col items-center text-center py-6">
                         <WarningCircleIcon size={44} weight="fill" className="text-neutral-gray mb-4" />
                         <h2 className="text-text-dark dark:text-text-light text-xl font-semibold font-body">
-                            This link is no longer open
+                            This link has expired
                         </h2>
                         <p className="text-neutral-gray text-sm mt-2 font-body max-w-sm">
-                            Recruitment for this position has closed. If you think this is a mistake, get back in
-                            touch with whoever sent you the link.
+                            Ask your manager to send you a new one.
                         </p>
                     </div>
                 </Card>
@@ -312,10 +311,10 @@ export function RecruitmentForm({ token }: { token: string }) {
                         <h2 className="text-text-dark dark:text-text-light text-xl font-semibold font-body">
                             Thanks — we&rsquo;ve got your details
                         </h2>
-                        {/* No status, no timeline, no way to check back. Nothing exists
-                            yet and the page must not imply otherwise. */}
+                        {/* No status and no way to check back: the account does not
+                            exist yet and the page must not imply otherwise. */}
                         <p className="text-neutral-gray text-sm mt-2 font-body max-w-sm">
-                            We&rsquo;ll be in touch on the number you gave us.
+                            You&rsquo;ll get a message on that number when your account is ready.
                         </p>
                     </div>
                 </Card>
@@ -332,7 +331,10 @@ export function RecruitmentForm({ token }: { token: string }) {
     return (
         <Shell>
             <div className="mb-6 text-center">
-                <p className="text-neutral-gray text-sm font-body">Applying to</p>
+                {/* "Joining", not "applying" — these are people who have already
+                    been taken on. The form collects their details; it is not a
+                    competition and must not read like one. */}
+                <p className="text-neutral-gray text-sm font-body">Joining</p>
                 <h2 className="text-text-dark dark:text-text-light text-2xl font-semibold font-body tracking-tight">
                     {posting.posting}
                 </h2>
@@ -368,7 +370,7 @@ export function RecruitmentForm({ token }: { token: string }) {
                             required
                             /* There is no verification code by decision, so this
                                sentence is what stands in for one. */
-                            hint="Use a number you can actually answer. This is how we reach you about the job, and how you reset your password."
+                            hint="Use a number you can actually answer. This is how we reach you about work, and how you reset your password."
                             {...bind('phone')}
                         >
                             <Input
@@ -411,7 +413,7 @@ export function RecruitmentForm({ token }: { token: string }) {
 
                     <Section
                         title="Choose a password"
-                        note="If you're taken on, this is the password you'll sign in with. Nobody here can read it back to you, so pick something you'll remember."
+                        note="This is the password you'll sign in with. Nobody here can read it back to you, so pick something you'll remember."
                     >
                         <Field label="Password" required {...bind('password')}>
                             <Input
@@ -520,11 +522,11 @@ export function RecruitmentForm({ token }: { token: string }) {
                         className="w-full rounded-2xl bg-primary hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold font-body py-3.5 transition-colors flex items-center justify-center gap-2"
                     >
                         {submitting && <SpinnerIcon size={18} className="animate-spin" />}
-                        {submitting ? 'Sending…' : 'Submit application'}
+                        {submitting ? 'Sending…' : 'Send my details'}
                     </button>
 
                     <p className="text-neutral-gray text-xs font-body text-center -mt-4">
-                        Sending this does not create an account. Someone will review it first.
+                        Your account is set up once someone has checked these details.
                     </p>
                 </form>
             </Card>
