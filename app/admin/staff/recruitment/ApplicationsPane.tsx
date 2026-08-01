@@ -52,7 +52,7 @@ export function ApplicationsPane({
                         type="checkbox"
                         checked={showHistory}
                         onChange={(e) => onToggleHistory(e.target.checked)}
-                        className="accent-[var(--color-primary)]"
+                        className="accent-primary"
                     />
                     Show decided
                 </label>
@@ -187,8 +187,6 @@ function ApplicationDialog({
                         <Detail label="Date of birth" value={application.date_of_birth} />
                         <Detail label="Nationality" value={application.nationality} />
                         <Detail label="Ghana Card" value={application.ghana_card_id} />
-                        <Detail label="SSNIT" value={application.ssnit_number} />
-                        <Detail label="TIN" value={application.tin_number} />
                     </DetailGroup>
 
                     <DetailGroup title="Emergency contact">
@@ -290,7 +288,7 @@ function Detail({ label, value }: { label: string; value?: string | null }) {
     return (
         <div className="flex items-baseline justify-between gap-4">
             <dt className="text-neutral-gray text-sm font-body shrink-0">{label}</dt>
-            <dd className="text-text-dark dark:text-text-light text-sm font-body text-right break-words">
+            <dd className="text-text-dark dark:text-text-light text-sm font-body text-right wrap-break-word">
                 {value || <span className="text-neutral-gray/60">Not given</span>}
             </dd>
         </div>

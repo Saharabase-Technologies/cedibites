@@ -6,6 +6,7 @@ import type {
   RecruitmentApplication,
   RecruitmentLink,
   RecruitmentPosting,
+  UpdateLinkPayload,
 } from '@/types/recruitment';
 
 /**
@@ -66,6 +67,23 @@ export const recruitmentService = {
   createLink: async (payload: CreateLinkPayload): Promise<RecruitmentLink> => {
     const response = await apiClient.post('/admin/recruitment-links', payload);
     return unwrap<RecruitmentLink>(response);
+  },
+
+  /**
+   * Rename a posting, or change when it closes.
+   *
+   * Label and date only. The kind and branch are fixed once the URL is out
+   * there — moving them would send people who already applied to a branch they
+   * never chose, and the server refuses to read either field.
+   */
+  updateLink: async (id: number, payload: UpdateLinkPayload): Promise<RecruitmentLink> => {
+    const response = await apiClient.patch(`/admin/recruitment-links/${id}`, payload);
+    return unwrap<RecruitmentLink>(response);
+  },
+
+  /** Only works on a posting nobody has applied to; the server refuses the rest. */
+  deleteLink: async (id: number): Promise<void> => {
+    await apiClient.delete(`/admin/recruitment-links/${id}`);
   },
 
   getApplications: async (

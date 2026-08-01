@@ -51,9 +51,7 @@ export interface RecruitmentApplication {
         label: string | null;
         assignable_roles: AssignableRole[];
     };
-    ssnit_number?: string | null;
     ghana_card_id?: string | null;
-    tin_number?: string | null;
     date_of_birth?: string | null;
     nationality?: string | null;
     emergency_contact_name?: string | null;
@@ -81,6 +79,19 @@ export interface CreateLinkPayload {
     expires_at: string;
 }
 
+/**
+ * What can change on a posting that is already out there.
+ *
+ * Not the kind and not the branch: people have the URL, and some may have
+ * applied through it. Moving the branch would hand pending applicants to a
+ * branch they never chose, and nothing on screen would look wrong.
+ */
+export interface UpdateLinkPayload {
+    label?: string | null;
+    /** A date in the past closes it — that is the close button. */
+    expires_at?: string;
+}
+
 export interface ApplicationFormPayload {
     name: string;
     phone: string;
@@ -88,9 +99,7 @@ export interface ApplicationFormPayload {
     email?: string;
     password: string;
     password_confirmation: string;
-    ssnit_number?: string;
     ghana_card_id?: string;
-    tin_number?: string;
     date_of_birth?: string;
     nationality?: string;
     emergency_contact_name?: string;

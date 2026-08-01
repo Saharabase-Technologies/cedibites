@@ -7,8 +7,10 @@ import {
     LinkSimpleIcon,
     BuildingsIcon,
     HeadsetIcon,
+    PencilSimpleIcon,
 } from '@phosphor-icons/react';
 import type { RecruitmentLink } from '@/types/recruitment';
+import { EditLinkDialog } from './EditLinkDialog';
 
 function recruitUrl(token: string): string {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -25,7 +27,9 @@ function daysLeft(expiresAt: string): number {
  * Expired rows are greyed rather than hidden — you still want to see what you
  * sent out, and who applied through it.
  */
-export function LinksPane({ links }: { links: RecruitmentLink[] }) {
+export function LinksPane({ links, onChanged }: { links: RecruitmentLink[]; onChanged: () => void }) {
+    const [editing, setEditing] = useState<RecruitmentLink | null>(null);
+
     if (links.length === 0) {
         return (
             <EmptyState
@@ -37,15 +41,25 @@ export function LinksPane({ links }: { links: RecruitmentLink[] }) {
     }
 
     return (
-        <div className="flex flex-col gap-3">
-            {links.map((link) => (
-                <LinkRow key={link.id} link={link} />
-            ))}
-        </div>
+        <>
+            <div className="flex flex-col gap-3">
+                {links.map((link) => (
+                    <LinkRow key={link.id} link={link} onEdit={() => setEditing(link)} />
+                ))}
+            </div>
+
+            {editing && (
+                <EditLinkDialog
+                    link={editing}
+                    onClose={() => setEditing(null)}
+                    onChanged={() => { setEditing(null); onChanged(); }}
+                />
+            )}
+        </>
     );
 }
 
-function LinkRow({ link }: { link: RecruitmentLink }) {
+function LinkRow({ link, onEdit }: { link: RecruitmentLink; onEdit: () => void }) {
     const [copied, setCopied] = useState(false);
     const remaining = daysLeft(link.expires_at);
 
@@ -103,15 +117,28 @@ function LinkRow({ link }: { link: RecruitmentLink }) {
                     </p>
                 </div>
 
-                {!link.is_expired && (
+                <div className="flex items-center gap-2 shrink-0">
+                    {!link.is_expired && (
+                        <button
+                            onClick={copy}
+                            className="flex items-center gap-2 rounded-xl border border-brown-light/25 px-3 py-2 text-sm font-medium font-body text-text-dark dark:text-text-light hover:bg-neutral-light dark:hover:bg-brand-darker transition-colors"
+                        >
+                            {copied ? <CheckIcon size={15} weight="bold" className="text-secondary" /> : <CopyIcon size={15} />}
+                            {copied ? 'Copied' : 'Copy link'}
+                        </button>
+                    )}
+
+                    {/* Available on closed postings too — this is how one is
+                        reopened, and how a spent one is deleted. */}
                     <button
-                        onClick={copy}
-                        className="flex items-center gap-2 rounded-xl border border-brown-light/25 px-3 py-2 text-sm font-medium font-body text-text-dark dark:text-text-light hover:bg-neutral-light dark:hover:bg-brand-darker transition-colors shrink-0"
+                        onClick={onEdit}
+                        aria-label={`Edit ${link.posting} posting`}
+                        className="flex items-center gap-2 rounded-xl border border-brown-light/25 px-3 py-2 text-sm font-medium font-body text-neutral-gray hover:text-text-dark dark:hover:text-text-light hover:bg-neutral-light dark:hover:bg-brand-darker transition-colors"
                     >
-                        {copied ? <CheckIcon size={15} weight="bold" className="text-secondary" /> : <CopyIcon size={15} />}
-                        {copied ? 'Copied' : 'Copy link'}
+                        <PencilSimpleIcon size={15} />
+                        Edit
                     </button>
-                )}
+                </div>
             </div>
 
             {!link.is_expired && (

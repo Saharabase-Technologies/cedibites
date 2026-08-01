@@ -116,7 +116,7 @@ export default function RecruitmentPage() {
                         onChanged={reload}
                     />
                 ) : (
-                    <LinksPane links={links} />
+                    <LinksPane links={links} onChanged={reload} />
                 )}
             </div>
 
