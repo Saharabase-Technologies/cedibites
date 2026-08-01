@@ -6,12 +6,14 @@ import {
     UsersThreeIcon,
     ClockIcon,
     CurrencyCircleDollarIcon,
+    UserPlusIcon,
 } from '@phosphor-icons/react';
 
 const TABS = [
-    { href: '/admin/staff',        label: 'Directory',   icon: UsersThreeIcon },
-    { href: '/admin/staff/shifts', label: 'Shifts',      icon: ClockIcon },
-    { href: '/admin/staff/sales',  label: 'Staff Sales', icon: CurrencyCircleDollarIcon },
+    { href: '/admin/staff',             label: 'Directory',   icon: UsersThreeIcon },
+    { href: '/admin/staff/shifts',      label: 'Shifts',      icon: ClockIcon },
+    { href: '/admin/staff/sales',       label: 'Staff Sales', icon: CurrencyCircleDollarIcon },
+    { href: '/admin/staff/recruitment', label: 'Recruitment', icon: UserPlusIcon },
 ] as const;
 
 export function StaffTabNav() {
