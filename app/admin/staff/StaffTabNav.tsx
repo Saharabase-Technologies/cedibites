@@ -23,8 +23,11 @@ export function StaffTabNav() {
         <div className="border-b border-[#f0e8d8] bg-neutral-card/50 px-4 md:px-8">
             <nav className="flex gap-1 -mb-px max-w-6xl mx-auto">
                 {TABS.map(({ href, label, icon: Icon }) => {
+                    // Directory owns both the group cards and the roster behind
+                    // each one, so it stays lit at /admin/staff/group/*. Without
+                    // this, opening a branch unlit every tab in the bar.
                     const active = href === '/admin/staff'
-                        ? pathname === '/admin/staff'
+                        ? pathname === '/admin/staff' || pathname.startsWith('/admin/staff/group')
                         : pathname.startsWith(href);
 
                     return (
