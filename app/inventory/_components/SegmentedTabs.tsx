@@ -12,6 +12,15 @@ export type SegmentedTabItem = {
   icon?: ReactNode;
   /** When true, only matches when pathname === href exactly. Default: prefix match. */
   exact?: boolean;
+  /**
+   * Full control over when this tab is lit, for the case neither `exact` nor
+   * the prefix match covers: a section whose own route is the parent of its
+   * siblings. Staff is one — Directory lives at /admin/staff and owns
+   * /admin/staff/group/*, while Shifts and Onboarding sit alongside it, so a
+   * prefix match would light Directory on all of them and `exact` would unlight
+   * it on its own child pages.
+   */
+  activeWhen?: (pathname: string) => boolean;
 };
 
 export function SegmentedTabsLink({ items }: { items: SegmentedTabItem[] }) {
@@ -20,7 +29,9 @@ export function SegmentedTabsLink({ items }: { items: SegmentedTabItem[] }) {
   return (
     <div className="inline-flex flex-wrap gap-1 bg-neutral-card border border-[#f0e8d8] rounded-xl p-1">
       {items.map((item) => {
-        const active = item.exact
+        const active = item.activeWhen
+          ? item.activeWhen(pathname)
+          : item.exact
           ? pathname === item.href
           : pathname === item.href || pathname.startsWith(item.href + '/');
         return (

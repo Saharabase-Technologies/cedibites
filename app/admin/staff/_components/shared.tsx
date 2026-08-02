@@ -3,19 +3,6 @@
 import type { StaffMember, StaffRole, StaffStatus } from '@/types/staff';
 import { roleDisplayName } from '@/types/staff';
 
-export const ROLE_COLORS: Record<StaffRole, string> = {
-    tech_admin:        'text-primary',
-    admin:             'text-primary',
-    branch_partner:    'text-purple-600',
-    manager:           'text-secondary',
-    call_center:       'text-info',
-    sales_staff:       'text-neutral-gray',
-    kitchen:           'text-warning',
-    rider:             'text-secondary',
-    warehouse_manager: 'text-info',
-    purchasing_clerk:  'text-purple-600',
-};
-
 export function initials(name?: string | null) {
     const safeName = (name ?? '').trim();
     if (!safeName) {
@@ -29,9 +16,17 @@ export function branchDisplay(branch: string | string[]) {
     return value || '—';
 }
 
+/**
+ * Roles read as plain text, not as a colour code.
+ *
+ * Each of the ten used to carry its own hue, which turned a column of roles
+ * into a column of unrelated colours and left the eye decoding a legend that
+ * does not exist. Nothing here is a status — status has its own dot, and that
+ * is the only thing on the row worth colouring.
+ */
 export function RoleBadge({ role }: { role: StaffRole }) {
     return (
-        <span className={`text-xs font-medium font-body ${ROLE_COLORS[role]}`}>
+        <span className="text-xs font-medium font-body text-text-dark">
             {roleDisplayName(role)}
         </span>
     );

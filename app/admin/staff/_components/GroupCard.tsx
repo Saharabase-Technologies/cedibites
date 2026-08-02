@@ -8,7 +8,6 @@ import {
 } from '@phosphor-icons/react';
 import { roleDisplayName } from '@/types/staff';
 import { groupHref, roleBreakdown, type StaffGroup, type StaffGroupKind } from './groups';
-import { ROLE_COLORS } from './shared';
 
 const ICONS: Record<StaffGroupKind, Icon> = {
     'head-office': ShieldCheckIcon,
@@ -69,7 +68,10 @@ export function GroupCard({ group }: { group: StaffGroup }) {
                             key={role}
                             className="inline-flex items-center gap-1 text-[10px] font-body bg-neutral-light px-2 py-1 rounded-lg"
                         >
-                            <span className={`font-bold ${ROLE_COLORS[role]}`}>{count}</span>
+                            {/* Weight, not hue. The count is what you scan for;
+                                colouring it per role made a row of chips read
+                                as a legend nobody can decode. */}
+                            <span className="font-bold text-text-dark">{count}</span>
                             <span className="text-neutral-gray">{roleDisplayName(role)}</span>
                         </span>
                     ))}

@@ -11,7 +11,7 @@ import type { StaffMember } from '@/types/staff';
 import { roleDisplayName, permissionDisplayName } from '@/types/staff';
 import { employeeService, type EmployeeNoteResponse } from '@/lib/api/services/employee.service';
 import { toast } from '@/lib/utils/toast';
-import { AvatarCircle, ROLE_COLORS, STATUS_CONFIG, branchDisplay } from './shared';
+import { AvatarCircle, RoleBadge, STATUS_CONFIG, branchDisplay } from './shared';
 
 type DetailTab = 'overview' | 'notes';
 
@@ -100,7 +100,7 @@ export function StaffDetailDrawer({
                             <div className="min-w-0">
                                 <h2 className="text-text-dark text-lg font-bold font-body truncate">{staff.name}</h2>
                                 <div className="flex items-center gap-2 mt-0.5">
-                                    <span className={`text-xs font-medium font-body ${ROLE_COLORS[staff.role]}`}>{roleDisplayName(staff.role)}</span>
+                                    <RoleBadge role={staff.role} />
                                     <span className="text-neutral-gray/30">·</span>
                                     <span className={`inline-flex items-center gap-1 text-[10px] font-medium font-body px-2 py-0.5 rounded-full ${current.color}`}>
                                         <span className={`w-1.5 h-1.5 rounded-full ${current.dot}`} />
