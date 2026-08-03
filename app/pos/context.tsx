@@ -256,7 +256,16 @@ export function POSProvider({ children }: POSProviderProps) {
     setSession(prev => prev ? { ...prev, branchId } : null);
   }, []);
 
-  // Today's POS orders from OrderStore, filtered to the current staff member
+  /**
+   * Today's till orders at this branch.
+   *
+   * Scoped to the person for a cashier, because that is their own take and what
+   * they reconcile at the end of a shift. Not scoped for anyone company-wide:
+   * an admin opening the till was being shown only orders they had rung up
+   * themselves, which is nearly always none — three paid orders would be on the
+   * counter and the screen would read zero, because Rosina rang them up and the
+   * admin did not.
+   */
   const todayOrders = useMemo(() => {
     if (!session) return [];
     const startOfDay = new Date();
@@ -265,9 +274,9 @@ export function POSProvider({ children }: POSProviderProps) {
       o.source === 'pos' &&
       o.branch.id === session.branchId &&
       o.placedAt >= startOfDay.getTime() &&
-      o.staffId === session.staffId
+      (isCompanyWide || o.staffId === session.staffId)
     );
-  }, [allOrders, session]);
+  }, [allOrders, session, isCompanyWide]);
 
   // Cart calculations
   const cartTotal = useMemo(() => {

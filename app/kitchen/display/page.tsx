@@ -93,10 +93,23 @@ function OrderCard({ order, playUrgent }: OrderCardProps) {
         {order.contact.name} · {itemCount} item{itemCount !== 1 ? 's' : ''}
       </p>
       <FulfillmentIcon size={22} weight="fill" className="text-black/30" />
+      {/* Which stage this is at. Needed from the moment `received` joined the
+          board — three statuses share it now, and without a word on the card a
+          new order and one already on the stove look identical. */}
+      <p className="text-xs font-bold uppercase tracking-widest text-black/40">
+        {KDS_STAGE_LABELS[order.status] ?? order.status}
+      </p>
       <p className={`text-3xl font-mono ${timerCls}`}>{timerStr}</p>
     </div>
   );
 }
+
+/** What the wall calls each stage. Deliberately shorter than the app's labels. */
+const KDS_STAGE_LABELS: Partial<Record<Order['status'], string>> = {
+  received: 'New',
+  accepted: 'Accepted',
+  preparing: 'Cooking',
+};
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 
@@ -125,7 +138,18 @@ export default function KitchenDisplayPage() {
     sounds.setEnabled(soundEnabled);
   }, [soundEnabled, sounds]);
 
+  /**
+   * Everything the kitchen still has to cook, oldest first.
+   *
+   * `received` used to be left off this board. The API has always sent it — it
+   * asks for received, accepted, preparing and ready — and the context has
+   * always bucketed it; the wall simply never rendered it. So a new order was
+   * invisible to the kitchen until somebody accepted it somewhere else, and
+   * three paid orders sat on the counter showing "No active orders" to the
+   * people meant to be making them.
+   */
   const activeOrders = [
+    ...ordersByStatus.received,
     ...ordersByStatus.accepted,
     ...ordersByStatus.preparing,
   ].sort((a, b) => a.placedAt - b.placedAt);
