@@ -44,7 +44,16 @@ import {
  * The channels a remote order arrives on. `pos` is not here because it is not a
  * choice — it is what an order is when nobody took a call to place it.
  */
+/**
+ * The channels an order can arrive on, and — since the channel now decides the
+ * shape of this screen — the way back to the counter.
+ *
+ * 'pos' is listed first and deliberately: without it the picker could only ever
+ * move you away from the till layout. Someone at head office who took one phone
+ * order had no way to say the next customer was standing in front of them.
+ */
 const ORDER_SOURCE_OPTIONS: { id: OrderSource; label: string; icon: React.ElementType }[] = [
+  { id: 'pos', label: 'Counter', icon: StorefrontIcon },
   { id: 'phone', label: 'Phone', icon: PhoneIcon },
   { id: 'whatsapp', label: 'WhatsApp', icon: WhatsappLogoIcon },
   { id: 'social_media', label: 'Social', icon: ShareNetworkIcon },
@@ -171,6 +180,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     isNeedsBranchSelection,
     selectBranch,
     isCompanyWide,
+    isRemoteOrder,
     resetBranchForNextOrder,
     orderSource,
     setOrderSource,
@@ -617,7 +627,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
           {/* Center. A till has the row to spare for a search box. A call centre
               agent is typing a name and a phone number while someone talks, so
               the row belongs to them and search collapses to an icon. */}
-          {isCompanyWide ? (
+          {isRemoteOrder ? (
             <div className="flex-1 flex items-center gap-2 min-w-0">
               <div className="relative flex-1 min-w-0">
                 <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
@@ -692,7 +702,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
             {/* The day's counts are reporting, and this screen is for placing an
                 order. A till has room for both; the call centre's row does not,
                 and the numbers live on the dashboard. */}
-            {!isCompanyWide && (
+            {!isRemoteOrder && (
               <div className="hidden lg:flex items-center gap-4 px-4 py-2 rounded-xl bg-neutral-gray/10">
                 <div className="text-center">
                   <p className="text-xs text-neutral-gray">Orders</p>
@@ -708,7 +718,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
 
             {/* Search, collapsed. Expands over the row when asked for, so the
                 agent gets the field without it living there permanently. */}
-            {isCompanyWide && (
+            {isRemoteOrder && (
               isSearchOpen ? (
                 <div className="relative w-56">
                   <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
@@ -1001,9 +1011,9 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
             pickup or delivery, the only two a phone order has — and all that is
             left here is the fee that follows from choosing delivery. */}
         <div className={`shrink-0 px-4 py-3 border-b border-neutral-gray/15 ${
-          isCompanyWide && orderType !== 'delivery' ? 'hidden' : ''
+          isRemoteOrder && orderType !== 'delivery' ? 'hidden' : ''
         }`}>
-          <div className={`flex gap-2 ${isCompanyWide ? 'hidden' : ''}`}>
+          <div className={`flex gap-2 ${isRemoteOrder ? 'hidden' : ''}`}>
             {/* Map POS order types to DB keys: dine_in→dine_in, takeaway→pickup */}
             {(branchInfo?.orderTypes?.['dine_in']?.is_enabled !== false) && (
             <button
@@ -1054,7 +1064,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
 
           {/* Delivery fee — editable, only for delivery orders */}
           {orderType === 'delivery' && (
-            <div className={isCompanyWide ? '' : 'mt-3'}>
+            <div className={isRemoteOrder ? '' : 'mt-3'}>
               <label className="block text-xs font-medium text-neutral-gray mb-1">Delivery fee</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray text-sm font-medium">₵</span>
@@ -1073,15 +1083,20 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
           )}
         </div>
 
-        {/* Where the order came in on. Only asked of someone working across the
-            whole company — a till order is a till order, and asking a cashier
-            would be a question with one answer. */}
+        {/* Where the order came in on. Still only asked of someone working
+            across the whole company — a cashier's answer is always the till,
+            and it would be a question with one answer.
+
+            This now also chooses the layout: pick Phone and the caller's name
+            and number move to the top bar. That is why it stays on
+            isCompanyWide while everything else here reads isRemoteOrder — this
+            is the control, not the consequence. */}
         {isCompanyWide && (
           <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15">
             <p className="text-[10px] font-bold text-neutral-gray uppercase tracking-wider mb-2">
               How did this order come in?
             </p>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
               {ORDER_SOURCE_OPTIONS.map(opt => (
                 <button
                   key={opt.id}
@@ -1103,7 +1118,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
 
         {/* Customer Info — in the panel for a till, in the top bar for the call
             centre, who are typing it while the caller is talking. */}
-        <div className={`shrink-0 px-4 py-3 border-b border-neutral-gray/15 space-y-2 ${isCompanyWide ? 'hidden' : ''}`}>
+        <div className={`shrink-0 px-4 py-3 border-b border-neutral-gray/15 space-y-2 ${isRemoteOrder ? 'hidden' : ''}`}>
           <div className="relative">
             <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
             <input

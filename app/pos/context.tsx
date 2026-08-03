@@ -40,6 +40,19 @@ interface POSContextValue {
    */
   isCompanyWide: boolean;
 
+  /**
+   * Whether the customer is on the other end of something rather than standing
+   * at the counter — driven by the channel, not the operator's role.
+   *
+   * This is what the screen is shaped around: the caller's name and number in
+   * the top bar, Pickup/Delivery instead of Dine-in/Takeaway, no till takings.
+   * It used to be `isCompanyWide`, which meant every admin, warehouse manager
+   * and purchasing clerk opening the POS was handed the call centre's screen,
+   * while the one thing that actually decides it — how the order came in — was
+   * sitting right there unused.
+   */
+  isRemoteOrder: boolean;
+
   /** Forget the branch so the next order names its own. See the implementation. */
   resetBranchForNextOrder: () => void;
 
@@ -176,20 +189,58 @@ export function POSProvider({ children }: POSProviderProps) {
 
   // The role decides, not the branch list: an agent with no branches assigned
   // and an agent whose assignment has not loaded yet look identical otherwise.
+  //
+  // This answers exactly one question: must this operator name a branch for
+  // each order, because they have no home branch of their own? It used to
+  // answer a second one as well — whether to show the call centre's layout —
+  // and those are not the same question. See isRemoteOrder.
   const isCompanyWide = useMemo(
     () => (staffUser ? !roleNeedsBranch(staffUser.role) : false),
     [staffUser],
   );
 
-  // A till order is a till order; anyone working across the company took the
-  // order through some channel, and the phone is the common one.
-  const orderSource: OrderSource = chosenSource ?? (isCompanyWide ? 'phone' : 'pos');
+  // Only the call centre starts on the phone. Everyone else starts at a till,
+  // including admins and head office: having no home branch does not make you
+  // an agent, and defaulting on `isCompanyWide` handed the agent's screen to
+  // admins, warehouse managers and purchasing clerks who never wanted it.
+  const takesCallsByDefault = staffUser?.role === 'call_center';
+
+  const orderSource: OrderSource = chosenSource ?? (takesCallsByDefault ? 'phone' : 'pos');
+
+  /**
+   * Whether the customer is on the other end of something rather than standing
+   * at the counter. This — not the operator's role — is what the screen should
+   * be shaped around: an admin taking a call needs the caller's name and number
+   * just as much as an agent does, and a warehouse manager ringing up a staff
+   * lunch at the till does not.
+   */
+  const isRemoteOrder = orderSource !== 'pos';
 
   // A caller either collects it themselves or has it delivered. Dine-in and
   // takeaway are things you pick while standing in the shop, so they are not
   // where a phone order starts. Derived rather than synced, so there is no
-  // render where the default disagrees with who is looking at the screen.
-  const orderType = chosenType ?? (isCompanyWide ? 'pickup' : 'dine_in');
+  // render where the default disagrees with the channel on screen.
+  const orderType = chosenType ?? (isRemoteOrder ? 'pickup' : 'dine_in');
+
+  /**
+   * Switching channel re-asks the fulfilment question.
+   *
+   * Moving between the counter and the phone changes which answers exist —
+   * dine-in is not on offer to a caller, and pickup/delivery is not what the
+   * till leads with. Without this, an operator who picked dine-in and then
+   * switched to phone kept dine-in while looking at a toggle offering only
+   * Pickup and Delivery, with neither lit.
+   */
+  const changeOrderSource = useCallback((next: OrderSource) => {
+    const wasRemote = (chosenSource ?? (takesCallsByDefault ? 'phone' : 'pos')) !== 'pos';
+    const willBeRemote = next !== 'pos';
+
+    if (wasRemote !== willBeRemote) {
+      setOrderType(null);
+    }
+
+    setOrderSource(next);
+  }, [chosenSource, takesCallsByDefault]);
 
   const isSessionValid = useMemo(() => {
     if (!session || !session.branchId) return false;
@@ -510,9 +561,10 @@ export function POSProvider({ children }: POSProviderProps) {
     isNeedsBranchSelection,
     selectBranch,
     isCompanyWide,
+    isRemoteOrder,
     resetBranchForNextOrder,
     orderSource,
-    setOrderSource,
+    setOrderSource: changeOrderSource,
     cart,
     cartTotal,
     cartCount,
