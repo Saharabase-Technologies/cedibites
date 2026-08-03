@@ -6,6 +6,7 @@ import { KitchenBranchProvider, useSwitchKitchenBranch } from './branch-context'
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
+import { useOperableBranches } from '@/lib/hooks/useOperableBranches';
 import { WarningCircleIcon, StorefrontIcon, SignOutIcon } from '@phosphor-icons/react';
 
 // ── Gate ─────────────────────────────────────────────────────────────────────
@@ -15,7 +16,11 @@ function KitchenGate({ children }: { children: ReactNode }) {
   const { branchId, switchBranch } = useSwitchKitchenBranch();
   const { branches: allBranches } = useBranch();
 
-  const assignedIds: string[] = staffUser?.branches.map(b => b.id) ?? [];
+  // Not `staffUser.branches`: a company-wide role is assigned none by design,
+  // so reading the assignment gave admins, the call centre and the warehouse an
+  // empty picker with no buttons on it and no way past this gate.
+  const { branches: selectableBranches, isLoading: isBranchListLoading } = useOperableBranches();
+  const assignedIds: string[] = selectableBranches.map(b => b.id);
   const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
 
   // Auto-select when auth resolves and exactly 1 branch is assigned
@@ -26,10 +31,8 @@ function KitchenGate({ children }: { children: ReactNode }) {
     }
   }, [isLoading, assignedIds.length]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectableBranches = staffUser?.branches ?? [];
-
   // Show spinner while auth is loading OR while auto-selecting (1 branch, not yet committed)
-  if (isLoading || (assignedIds.length === 1 && !branchId)) {
+  if (isLoading || isBranchListLoading || (assignedIds.length === 1 && !branchId)) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-neutral-light">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />

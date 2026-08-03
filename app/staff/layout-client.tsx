@@ -62,7 +62,10 @@ const DISPLAYS_NAV = [
     { href: '/pos/terminal',       label: 'POS Terminal',    icon: CashRegisterIcon,  permission: 'access_pos',              external: true  },
     { href: '/kitchen/display',    label: 'Kitchen Display', icon: MonitorIcon,       permission: 'access_kitchen',          external: true  },
     { href: '/order-manager',      label: 'Order Manager',   icon: ClipboardTextIcon, permission: 'access_order_manager',    external: true  },
-    { href: '/inventory/dashboard', label: 'Inventory',      icon: WarehouseIcon,     permission: 'access_inventory_portal', external: false },
+    // A separate portal, like the three above it: you go to inventory to do a
+    // count or a transfer and come back to what you were doing, so it opens
+    // alongside the staff portal rather than replacing it.
+    { href: '/inventory/dashboard', label: 'Inventory',      icon: WarehouseIcon,     permission: 'access_inventory_portal', external: true  },
 ];
 
 // ─── Sidebar link ─────────────────────────────────────────────────────────────

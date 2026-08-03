@@ -5,6 +5,7 @@ import { useKitchen } from '../context';
 import { useKitchenSounds } from '../hooks/useSounds';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useSwitchKitchenBranch } from '../branch-context';
+import { useOperableBranches } from '@/lib/hooks/useOperableBranches';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import type { Order } from '@/types/order';
@@ -105,14 +106,19 @@ export default function KitchenDisplayPage() {
     soundEnabled, setSoundEnabled,
     isFullscreen, toggleFullscreen,
   } = useKitchen();
-  const { staffUser, logout } = useStaffAuth();
+  // `staffUser` is no longer read here — the branch list it used to supply now
+  // comes from useOperableBranches, which applies the role rule to it.
+  const { logout } = useStaffAuth();
   const { branchId: currentBranchId, switchBranch } = useSwitchKitchenBranch();
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
   const sounds = useKitchenSounds();
   const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
 
-  const switchableBranches = staffUser?.branches ?? [];
+  // Company-wide roles are assigned no branches by design, so reading the
+  // assignment directly left admins, the call centre and the warehouse with an
+  // empty switcher. useOperableBranches applies the same rule the POS uses.
+  const { branches: switchableBranches } = useOperableBranches();
   const currentBranchName = switchableBranches.find(b => b.id === currentBranchId)?.name;
 
   useEffect(() => {

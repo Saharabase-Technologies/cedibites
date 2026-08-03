@@ -22,6 +22,7 @@ import { useKitchenSounds } from '@/app/kitchen/hooks/useSounds';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useOrderChannel } from '@/lib/hooks/useOrderChannel';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { useOperableBranches } from '@/lib/hooks/useOperableBranches';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
@@ -75,8 +76,12 @@ export default function OrderManagerPage() {
   const { updateOrderStatus, updateOrder } = useOrderStore();
   const { staffUser, isLoading: isAuthLoading, logout } = useStaffAuth();
 
-  // Branch selection gate — derived from live auth context
-  const assignedIds: string[] = staffUser?.branches.map(b => b.id) ?? [];
+  // Branch selection gate. Sourced from useOperableBranches, not from
+  // `staffUser.branches` — a company-wide role is assigned no branches by
+  // design, so reading the assignment directly gave admins, the call centre and
+  // the warehouse an empty picker they could not get past.
+  const { branches: operableBranches, isLoading: isBranchListLoading } = useOperableBranches();
+  const assignedIds: string[] = operableBranches.map(b => b.id);
 
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('cedibites-om-branchId') : null
@@ -232,8 +237,10 @@ export default function OrderManagerPage() {
   }
 
   // Show picker once auth is loaded, if staff has ≠1 branch and hasn't picked yet
-  const needsBranchSelection = !effectiveBranchId && assignedIds.length !== 1;
-  const selectableBranches = staffUser?.branches ?? [];
+  // Hold the picker back until the list is real, or a company-wide operator
+  // sees an empty one for the moment before the branches API answers.
+  const needsBranchSelection = !isBranchListLoading && !effectiveBranchId && assignedIds.length !== 1;
+  const selectableBranches = operableBranches;
 
   if (needsBranchSelection) {
     return (

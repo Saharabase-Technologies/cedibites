@@ -98,7 +98,9 @@ const ADMIN_DISPLAYS = [
     { href: '/pos/terminal',       label: 'POS Terminal',    icon: CashRegisterIcon,  external: true },
     { href: '/kitchen/display',    label: 'Kitchen Display', icon: MonitorIcon,        external: true },
     { href: '/order-manager',      label: 'Order Manager',   icon: ClipboardTextIcon, external: true },
-    { href: '/inventory/dashboard', label: 'Inventory',       icon: WarehouseIcon,      external: false },
+    // Opens alongside the admin portal, like the three above it — see the same
+    // entry in app/staff/layout-client.tsx.
+    { href: '/inventory/dashboard', label: 'Inventory',       icon: WarehouseIcon,      external: true  },
 ];
 
 const PLATFORM_NAV = [
