@@ -308,11 +308,14 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     return () => clearInterval(interval);
   }, [backgroundMomoToken]);
 
-  // Branches this staff member can switch between (empty branchIds = admin = all branches)
-  const switchableBranches = useMemo(() => {
-    if (!session?.branchIds?.length) return branches;
-    return branches.filter(b => (session.branchIds ?? []).includes(b.id));
-  }, [session, branches]);
+  // Branches this operator can switch between. `session.branchIds` is the
+  // shared operable set, so no "empty means everything" escape hatch is needed
+  // — that hatch was the fourth different phrasing of the same rule, and the
+  // one that let a deactivated branch back into the list.
+  const switchableBranches = useMemo(
+    () => branches.filter(b => session?.branchIds?.includes(b.id)),
+    [session, branches],
+  );
 
   // Get branch info and its allowed menu item IDs
   const branchInfo = useMemo(
@@ -497,9 +500,13 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   }
 
   if (isNeedsBranchSelection) {
-    const selectableBranches = branches.filter(
-      b => !session?.branchIds?.length || session.branchIds.includes(b.id)
-    );
+    // `session.branchIds` is now the shared operable set, already filtered to
+    // active branches. It used to be the raw assignment, and this filter read
+    // an empty one as "everything" — a separate rule from the one the Order
+    // Manager used, which is how the same admin could be offered every branch
+    // here and locked to one there. It also offered branches that had been
+    // deactivated, since nothing checked.
+    const selectableBranches = branches.filter(b => session?.branchIds?.includes(b.id));
     return (
       <BranchSelectPage
         branches={selectableBranches}

@@ -15,6 +15,7 @@ import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { roleNeedsBranch } from '@/types/staff';
+import { useOperableBranches } from '@/lib/hooks/useOperableBranches';
 import { getShiftService } from '@/lib/services/shifts/shift.service';
 import { checkoutSessionService } from '@/lib/api/services/checkout-session.service';
 import { normalizeGhanaPhone } from '@/app/lib/phone';
@@ -126,6 +127,7 @@ interface POSProviderProps {
 export function POSProvider({ children }: POSProviderProps) {
   const { branches } = useBranch();
   const { staffUser, isLoading: isAuthLoading } = useStaffAuth();
+  const { branches: operableBranches, isLoading: isOperableLoading } = useOperableBranches();
 
   // Session state
   const [session, setSession] = useState<POSSession | null>(null);
@@ -161,15 +163,23 @@ export function POSProvider({ children }: POSProviderProps) {
 
   // Build session from live auth context (always fresh from API)
   useEffect(() => {
-    if (isAuthLoading) return;
+    // Wait for the branch list too. For a company-wide operator it arrives from
+    // the branches API rather than with the login, so building the session
+    // before it lands would compute an empty branch set and then have to
+    // correct itself — visibly, as a flash of the branch picker.
+    if (isAuthLoading || isOperableLoading) return;
     if (staffUser?.id) {
-      const branchIds: string[] = staffUser.branches.map(b => b.id);
+      // The shared answer, not `staffUser.branches`. Keying off the raw
+      // assignment meant an admin carrying one stale branch row was treated as
+      // a one-branch cashier and locked to it, while a genuinely unassigned
+      // admin fell through a separate "empty means everything" escape hatch —
+      // two different rules for the same question, in the same function.
+      const branchIds: string[] = operableBranches.map(b => b.id);
       const defaultBranchId = branchIds.length === 1 ? branchIds[0] : '';
       setSession(prev => {
         // Restore persisted branch selection for this staff member
         const storedBranchId = localStorage.getItem(POS_BRANCH_KEY);
-        // branchIds.length === 0 means admin/tech_admin with access to all branches
-        const isStoredValid = storedBranchId && (branchIds.length === 0 || branchIds.includes(storedBranchId));
+        const isStoredValid = storedBranchId && branchIds.includes(storedBranchId);
         const restoredBranchId = isStoredValid ? storedBranchId : defaultBranchId;
         // Prefer in-memory prev (same session), then persisted, then default
         const keepBranch = prev?.staffId === String(staffUser.id) && prev.branchId;
@@ -185,7 +195,7 @@ export function POSProvider({ children }: POSProviderProps) {
       setSession(null);
     }
     setIsSessionLoaded(true);
-  }, [staffUser, isAuthLoading]);
+  }, [staffUser, isAuthLoading, isOperableLoading, operableBranches]);
 
   // The role decides, not the branch list: an agent with no branches assigned
   // and an agent whose assignment has not loaded yet look identical otherwise.

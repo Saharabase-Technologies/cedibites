@@ -9,17 +9,19 @@ import {
   ArrowRightIcon,
   StorefrontIcon,
 } from '@phosphor-icons/react';
-import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useSwitchKitchenBranch } from './branch-context';
+import { useOperableBranches } from '@/lib/hooks/useOperableBranches';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 
 export default function KitchenLandingPage() {
   const router = useRouter();
-  const { staffUser } = useStaffAuth();
   const { branchId: currentBranchId, switchBranch } = useSwitchKitchenBranch();
   const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
 
-  const switchableBranches = staffUser?.branches ?? [];
+  // The one answer to "which branches may I work", shared with the POS, the
+  // Order Manager and the kitchen gate. Reading the raw assignment here left
+  // this switcher empty for every company-wide role.
+  const { branches: switchableBranches } = useOperableBranches();
   const currentBranchName = switchableBranches.find(b => b.id === currentBranchId)?.name;
 
   return (
