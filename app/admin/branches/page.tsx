@@ -40,14 +40,22 @@ function formatGHS(v: number) { return `₵${v.toLocaleString('en-GH', { minimum
 
 // ─── Branch status dot ────────────────────────────────────────────────────────
 
+/**
+ * Whether the branch is trading right now.
+ *
+ * The dot carries the colour and the label stays neutral. Previously the whole
+ * pill was tinted — background, border and text — so four closed branches read
+ * as four red alarms on a page where "closed" is the ordinary overnight state
+ * of every branch in the business.
+ */
 function StatusPill({ status }: { status: DisplayBranch['openStatus'] }) {
     const cfg = {
-        open:   { color: 'bg-secondary/10 text-secondary border-secondary/20', dot: 'bg-secondary', label: 'Open'   },
-        closed: { color: 'bg-error/10 text-error border-error/20',             dot: 'bg-error',     label: 'Closed' },
-        busy:   { color: 'bg-warning/10 text-warning border-warning/20',       dot: 'bg-warning',   label: 'Busy'   },
+        open:   { dot: 'bg-secondary',   label: 'Open'   },
+        closed: { dot: 'bg-neutral-gray/40', label: 'Closed' },
+        busy:   { dot: 'bg-warning',     label: 'Busy'   },
     }[status];
     return (
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium font-body border ${cfg.color}`}>
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium font-body border border-[#f0e8d8] bg-neutral-light text-neutral-gray">
             <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
             {cfg.label}
         </span>
@@ -574,8 +582,11 @@ export default function AdminBranchesPage() {
                         {/* Card header */}
                         <div className="px-5 py-4 flex items-start justify-between gap-3 border-b border-[#f0e8d8]">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                                    <BuildingsIcon size={20} weight="fill" className="text-primary" />
+                                {/* Neutral: every card has this icon, so tinting
+                                    it orange coloured the page without
+                                    distinguishing anything on it. */}
+                                <div className="w-10 h-10 rounded-xl bg-neutral-light flex items-center justify-center shrink-0">
+                                    <BuildingsIcon size={20} weight="regular" className="text-neutral-gray" />
                                 </div>
                                 <div>
                                     <p className="text-text-dark text-base font-bold font-body">{branch.name}</p>
@@ -606,7 +617,7 @@ export default function AdminBranchesPage() {
                             <div className="grid grid-cols-2 gap-3 mt-2">
                                 <div className="bg-neutral-light rounded-xl px-3 py-2">
                                     <p className="text-neutral-gray text-[10px] font-body uppercase tracking-wider">Revenue Today</p>
-                                    <p className="text-primary text-sm font-bold font-body">{formatGHS(branch.revenueToday)}</p>
+                                    <p className="text-text-dark text-sm font-bold font-body">{formatGHS(branch.revenueToday)}</p>
                                 </div>
                                 <div className="bg-neutral-light rounded-xl px-3 py-2">
                                     <p className="text-neutral-gray text-[10px] font-body uppercase tracking-wider">Orders Today</p>
@@ -619,7 +630,7 @@ export default function AdminBranchesPage() {
                         <div className="px-5 py-3 border-t border-[#f0e8d8] flex gap-2 flex-wrap">
                             <button type="button" onClick={() => setEditBranch(branch)}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer">
-                                <PencilSimpleIcon size={13} weight="bold" className="text-primary" />
+                                <PencilSimpleIcon size={13} weight="bold" className="text-neutral-gray" />
                                 Edit
                             </button>
                             <button type="button" onClick={() => toggleOpen(branch)}
@@ -627,19 +638,24 @@ export default function AdminBranchesPage() {
                                 title={branch.status !== 'active' && branch.openStatus !== 'open' ? 'Reactivate this branch before marking it open' : undefined}
                                 className={`flex items-center gap-1.5 px-3 py-2 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body transition-colors ${branch.status !== 'active' && branch.openStatus !== 'open' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#f0e8d8] cursor-pointer'}`}>
                                 {branch.openStatus === 'open'
-                                    ? <ToggleRightIcon size={13} weight="fill" className="text-secondary" />
+                                    ? <ToggleRightIcon size={13} weight="fill" className="text-neutral-gray" />
                                     : <ToggleLeftIcon size={13} weight="fill" className="text-neutral-gray" />
                                 }
                                 {branch.openStatus === 'open' ? 'Mark Closed' : 'Mark Open'}
                             </button>
                             <Link href={`/admin/analytics?branch=${branch.id}`}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors">
-                                <ChartBarIcon size={13} weight="bold" className="text-primary" />
+                                <ChartBarIcon size={13} weight="bold" className="text-neutral-gray" />
                                 Analytics
                             </Link>
+                            {/* These read as ordinary actions, not warnings. Each
+                                already asks for confirmation, and that dialog is
+                                where the consequence belongs — a permanently
+                                amber button on every card just makes the page
+                                look alarmed at its own normal state. */}
                             {branch.status === 'active' ? (
                                 <button type="button" onClick={() => setDeactivateConfirm(branch)}
-                                    className="flex items-center gap-1.5 px-3 py-2 bg-warning/10 rounded-xl text-warning text-xs font-medium font-body hover:bg-warning/20 transition-colors cursor-pointer">
+                                    className="flex items-center gap-1.5 px-3 py-2 bg-neutral-light rounded-xl text-neutral-gray text-xs font-medium font-body hover:bg-[#f0e8d8] hover:text-text-dark transition-colors cursor-pointer">
                                     <ToggleLeftIcon size={13} weight="bold" />
                                     Deactivate
                                 </button>
@@ -658,13 +674,16 @@ export default function AdminBranchesPage() {
                                                 toast.error('Failed to reactivate branch. Please try again.');
                                             }
                                         }}
-                                        className="flex items-center gap-1.5 px-3 py-2 bg-secondary/10 rounded-xl text-secondary text-xs font-medium font-body hover:bg-secondary/20 transition-colors cursor-pointer"
+                                        className="flex items-center gap-1.5 px-3 py-2 bg-neutral-light rounded-xl text-neutral-gray text-xs font-medium font-body hover:bg-[#f0e8d8] hover:text-text-dark transition-colors cursor-pointer"
                                     >
                                         <CheckCircleIcon size={13} weight="bold" />
                                         Reactivate
                                     </button>
+                                    {/* The one genuinely irreversible action on
+                                        the card keeps its colour — as text, not
+                                        as a filled block. */}
                                     <button type="button" onClick={() => setDeleteBranch(branch)}
-                                        className="flex items-center gap-1.5 px-3 py-2 bg-error/10 rounded-xl text-error text-xs font-medium font-body hover:bg-error/20 transition-colors cursor-pointer">
+                                        className="flex items-center gap-1.5 px-3 py-2 bg-neutral-light rounded-xl text-error text-xs font-medium font-body hover:bg-error/10 transition-colors cursor-pointer">
                                         <TrashIcon size={13} weight="bold" />
                                         Delete
                                     </button>
