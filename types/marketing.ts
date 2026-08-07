@@ -63,6 +63,50 @@ export interface SegmentsResponse {
     recipient_cap: number;
 }
 
+/** Mirrors backend App\Enums\GhanaNetwork. */
+export type GhanaNetwork = 'mtn' | 'telecel' | 'airteltigo' | 'glo';
+
+/**
+ * An audience assembled by the operator.
+ *
+ * Every rule that is set must hold — they combine with AND, never OR. An empty
+ * rule set is everybody, so adding a rule can only ever shrink the audience.
+ * Mirrors backend App\Services\Campaigns\AudienceRules.
+ */
+export interface AudienceRules {
+    ordered_within_days?: number | null;
+    not_ordered_for_days?: number | null;
+    ordered_after?: string | null;
+    ordered_before?: string | null;
+    menu_item_ids?: number[] | null;
+    branch_ids?: number[] | null;
+    networks?: GhanaNetwork[] | null;
+    min_orders?: number | null;
+    max_orders?: number | null;
+    min_spend?: number | null;
+    max_spend?: number | null;
+    hour_from?: number | null;
+    hour_to?: number | null;
+}
+
+export interface AudienceOption {
+    value: number | string;
+    label: string;
+}
+
+/** Everything the builder can filter on, served so the lists cannot go stale. */
+export interface AudienceOptions {
+    branches: AudienceOption[];
+    menu_items: AudienceOption[];
+    networks: { value: GhanaNetwork; label: string }[];
+}
+
+export interface AudienceCount {
+    count: number;
+    /** The rules as sentences, for the review step and the audit trail. */
+    description: string[];
+}
+
 export interface Campaign {
     id: number;
     name: string;
@@ -70,6 +114,11 @@ export interface Campaign {
 
     segment: CampaignSegmentValue;
     segment_label: string;
+
+    /** Null when the campaign used a preset rather than an assembled audience. */
+    audience_rules: AudienceRules | null;
+    /** The audience in plain English, however it was described. */
+    audience_description: string[];
 
     status: CampaignStatus;
     status_label: string;
@@ -109,6 +158,8 @@ export interface SaveCampaignPayload {
     name?: string;
     message?: string;
     segment?: CampaignSegmentValue;
+    /** Omit or send empty to fall back to the preset named by `segment`. */
+    audience_rules?: AudienceRules | null;
     short_link_id?: number | null;
     scheduled_for?: string | null;
 }

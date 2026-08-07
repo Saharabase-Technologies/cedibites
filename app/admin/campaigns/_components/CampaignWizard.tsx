@@ -10,9 +10,9 @@ import {
     FloppyDiskIcon,
 } from '@phosphor-icons/react';
 import { FormField, TextInput } from '@/app/inventory/_components';
-import { useCampaignMutations, useCampaignSegments } from '@/lib/api/hooks/useCampaigns';
+import { useAudienceCount, useCampaignMutations, useCampaignSegments } from '@/lib/api/hooks/useCampaigns';
 import { useLinks } from '@/lib/api/hooks/useLinks';
-import type { Campaign, CampaignSegmentValue } from '@/types/marketing';
+import type { AudienceRules, Campaign, CampaignSegmentValue } from '@/types/marketing';
 import { WizardShell, type WizardStep } from './WizardShell';
 import { AudienceStep } from './AudienceStep';
 import { MessageStep } from './MessageStep';
@@ -42,12 +42,24 @@ export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
 
     const [name, setName] = useState(campaign?.name ?? '');
     const [segment, setSegment] = useState<CampaignSegmentValue>(campaign?.segment ?? 'all');
+    const [rules, setRules] = useState<AudienceRules>(campaign?.audience_rules ?? {});
     const [message, setMessage] = useState(campaign?.message ?? '');
     const [shortLinkId, setShortLinkId] = useState<number | null>(campaign?.short_link?.id ?? null);
 
     const saving = create.isPending || update.isPending;
     const chosenSegment = segments.find((s) => s.value === segment);
     const chosenLink = links.find((l) => l.id === shortLinkId);
+
+    /*
+     * How many people this actually reaches, which is not always the preset's
+     * count. Once conditions are added the rules take over, and the cost shown
+     * on the message and review steps has to follow them — otherwise the
+     * operator narrows an audience from 4,000 to 300 and still sees the bill
+     * for 4,000.
+     */
+    const custom = Object.keys(rules).length > 0;
+    const { count: ruleCount } = useAudienceCount(rules, custom);
+    const recipients = custom ? (ruleCount ?? 0) : (chosenSegment?.count ?? 0);
 
     /** What stops you leaving the step you are on. */
     const blocker = ((): string | null => {
@@ -77,6 +89,9 @@ export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
             name: name.trim(),
             message: message.trim(),
             segment,
+            // Null rather than an empty object when no conditions were added —
+            // that is what tells the server to fall back to the preset.
+            audience_rules: Object.keys(rules).length > 0 ? rules : null,
             short_link_id: shortLinkId,
         };
 
@@ -162,6 +177,8 @@ export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
                     segments={segments}
                     value={segment}
                     onChange={setSegment}
+                    rules={rules}
+                    onRulesChange={setRules}
                     isLoading={segmentsLoading}
                     recipientCap={recipientCap}
                     seedMode={seedMode}
@@ -175,7 +192,7 @@ export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
                     links={links}
                     shortLinkId={shortLinkId}
                     onShortLinkChange={setShortLinkId}
-                    recipients={chosenSegment?.count ?? 0}
+                    recipients={recipients}
                     ratePerSegment={RATE_PER_SEGMENT}
                 />
             )}
@@ -184,7 +201,8 @@ export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
                 <ReviewStep
                     name={name}
                     message={message}
-                    segment={chosenSegment}
+                    audienceLabel={custom ? 'Custom audience' : (chosenSegment?.label ?? '—')}
+                    recipients={recipients}
                     link={chosenLink}
                     ratePerSegment={RATE_PER_SEGMENT}
                     seedMode={seedMode}

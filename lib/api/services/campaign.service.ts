@@ -1,5 +1,8 @@
 import apiClient from '../client';
 import type {
+    AudienceCount,
+    AudienceOptions,
+    AudienceRules,
     Campaign,
     CampaignPreview,
     CampaignStatus,
@@ -33,6 +36,26 @@ export const campaignService = {
     getSegments: async (): Promise<SegmentsResponse> => {
         const response = await apiClient.get('/admin/campaigns/segments');
         return unwrap<SegmentsResponse>(response);
+    },
+
+    /** Everything the audience builder can filter on — dishes, branches, networks. */
+    getAudienceOptions: async (): Promise<AudienceOptions> => {
+        const response = await apiClient.get('/admin/campaigns/audience-options');
+        return unwrap<AudienceOptions>(response);
+    },
+
+    /**
+     * How many people a rule set matches, right now.
+     *
+     * A resolve, not an estimate — the same code answers this and decides who
+     * actually receives the campaign, so this number is the number that gets
+     * sent to.
+     */
+    countAudience: async (rules: AudienceRules): Promise<AudienceCount> => {
+        const response = await apiClient.post('/admin/campaigns/count-audience', {
+            audience_rules: rules,
+        });
+        return unwrap<AudienceCount>(response);
     },
 
     getCampaigns: async (

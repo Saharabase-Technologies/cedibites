@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { campaignService } from '../services/campaign.service';
-import type { CampaignStatus, SaveCampaignPayload } from '@/types/marketing';
+import type { AudienceRules, CampaignStatus, SaveCampaignPayload } from '@/types/marketing';
 
 const CAMPAIGNS_KEY = 'campaigns';
 
@@ -58,6 +58,48 @@ export function useCampaignSegments() {
         recipientCap: data?.recipient_cap ?? 0,
         isLoading,
         error,
+    };
+}
+
+/** Dishes, branches and networks the builder can filter on. Rarely changes. */
+export function useAudienceOptions() {
+    const { data, isLoading } = useQuery({
+        queryKey: [CAMPAIGNS_KEY, 'audience-options'],
+        queryFn: campaignService.getAudienceOptions,
+        enabled: hasStaffToken(),
+        staleTime: 10 * 60 * 1000,
+    });
+
+    return {
+        branches: data?.branches ?? [],
+        menuItems: data?.menu_items ?? [],
+        networks: data?.networks ?? [],
+        isLoading,
+    };
+}
+
+/**
+ * How many people the rules in hand match.
+ *
+ * Debounced by the caller rather than here: every count is a scan of the order
+ * history, and firing one per keystroke while somebody types "30" into a day
+ * box would run it twice for a number they had not finished typing.
+ */
+export function useAudienceCount(rules: AudienceRules, enabled = true) {
+    const { data, isFetching } = useQuery({
+        queryKey: [CAMPAIGNS_KEY, 'audience-count', rules],
+        queryFn: () => campaignService.countAudience(rules),
+        enabled: hasStaffToken() && enabled,
+        staleTime: 60 * 1000,
+        // Keep the last count on screen while the next one resolves, so the
+        // number does not blink to zero between edits and read as "nobody".
+        placeholderData: (previous) => previous,
+    });
+
+    return {
+        count: data?.count ?? null,
+        description: data?.description ?? [],
+        isCounting: isFetching,
     };
 }
 

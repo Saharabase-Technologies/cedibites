@@ -1,7 +1,9 @@
 'use client';
 
 import { UsersThreeIcon, SpinnerGapIcon, WarningCircleIcon } from '@phosphor-icons/react';
-import type { CampaignSegmentOption, CampaignSegmentValue } from '@/types/marketing';
+import { SegmentedTabs } from '@/app/inventory/_components';
+import type { AudienceRules, CampaignSegmentOption, CampaignSegmentValue } from '@/types/marketing';
+import { AudienceBuilder } from './AudienceBuilder';
 
 /**
  * Who gets it.
@@ -18,6 +20,8 @@ export function AudienceStep({
     segments,
     value,
     onChange,
+    rules,
+    onRulesChange,
     isLoading,
     recipientCap,
     seedMode,
@@ -25,12 +29,15 @@ export function AudienceStep({
     segments: CampaignSegmentOption[];
     value: CampaignSegmentValue;
     onChange: (value: CampaignSegmentValue) => void;
+    rules: AudienceRules;
+    onRulesChange: (rules: AudienceRules) => void;
     isLoading: boolean;
     recipientCap: number;
     seedMode: boolean;
 }) {
+    const custom = Object.keys(rules).length > 0;
     const chosen = segments.find((s) => s.value === value);
-    const overCap = !seedMode && !!chosen && recipientCap > 0 && chosen.count > recipientCap;
+    const overCap = !custom && !seedMode && !!chosen && recipientCap > 0 && chosen.count > recipientCap;
 
     if (isLoading) {
         return (
@@ -41,6 +48,50 @@ export function AudienceStep({
         );
     }
 
+    return (
+        <div className="flex flex-col gap-4">
+
+            {/*
+                A preset is a starting point, not a different kind of thing.
+                Switching to "Build your own" keeps the preset's label on the
+                campaign so the list still reads sensibly, and the rules take
+                over from there.
+            */}
+            <SegmentedTabs
+                options={[
+                    { value: 'preset', label: 'Use a group' },
+                    { value: 'custom', label: 'Build your own' },
+                ]}
+                value={custom ? 'custom' : 'preset'}
+                onChange={(mode) => onRulesChange(mode === 'custom' ? { ordered_within_days: 30 } : {})}
+            />
+
+            {custom ? (
+                <AudienceBuilder rules={rules} onChange={onRulesChange} />
+            ) : (
+                <PresetPicker
+                    segments={segments}
+                    value={value}
+                    onChange={onChange}
+                    chosen={chosen}
+                    overCap={overCap}
+                    recipientCap={recipientCap}
+                />
+            )}
+        </div>
+    );
+}
+
+function PresetPicker({
+    segments, value, onChange, chosen, overCap, recipientCap,
+}: {
+    segments: CampaignSegmentOption[];
+    value: CampaignSegmentValue;
+    onChange: (value: CampaignSegmentValue) => void;
+    chosen?: CampaignSegmentOption;
+    overCap: boolean;
+    recipientCap: number;
+}) {
     return (
         <div className="flex flex-col gap-4">
             <div className="grid sm:grid-cols-2 gap-3">
@@ -90,7 +141,7 @@ export function AudienceStep({
                 </p>
             )}
 
-            {overCap && (
+            {overCap && chosen && (
                 <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
                     <WarningCircleIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
                     <p className="text-neutral-gray text-sm font-body">

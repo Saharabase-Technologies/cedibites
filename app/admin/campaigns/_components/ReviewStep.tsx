@@ -3,7 +3,7 @@
 import { FlaskIcon, WarningCircleIcon, LinkSimpleIcon } from '@phosphor-icons/react';
 import { measureMessage } from '@/lib/sms/meter';
 import { breakDownCost, GHS } from '@/lib/sms/cost';
-import type { CampaignSegmentOption, ShortLink } from '@/types/marketing';
+import type { ShortLink } from '@/types/marketing';
 
 /**
  * The last screen before the money.
@@ -16,7 +16,8 @@ import type { CampaignSegmentOption, ShortLink } from '@/types/marketing';
 export function ReviewStep({
     name,
     message,
-    segment,
+    audienceLabel,
+    recipients,
     link,
     ratePerSegment,
     seedMode,
@@ -24,7 +25,10 @@ export function ReviewStep({
 }: {
     name: string;
     message: string;
-    segment?: CampaignSegmentOption;
+    /** The preset's name, or "Custom audience" when rules were assembled. */
+    audienceLabel: string;
+    /** Resolved live — the preset's count, or the rules' count when there are rules. */
+    recipients: number;
     link?: ShortLink;
     ratePerSegment: number;
     seedMode: boolean;
@@ -32,7 +36,7 @@ export function ReviewStep({
     seedCount: number | null;
 }) {
     const meter = measureMessage(message);
-    const audience = segment?.count ?? 0;
+    const audience = recipients;
     const cost = breakDownCost(meter.segments, audience, ratePerSegment);
 
     return (
@@ -71,11 +75,7 @@ export function ReviewStep({
                 <Line label="Called" value={name || '—'} />
                 <Line
                     label="Going to"
-                    value={
-                        segment
-                            ? `${segment.label} — ${audience.toLocaleString()} ${audience === 1 ? 'person' : 'people'}`
-                            : '—'
-                    }
+                    value={`${audienceLabel} — ${audience.toLocaleString()} ${audience === 1 ? 'person' : 'people'}`}
                 />
                 <Line
                     label="Length"
