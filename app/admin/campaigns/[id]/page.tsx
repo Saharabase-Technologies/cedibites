@@ -171,16 +171,34 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                         value={campaign.recipient_count.toLocaleString()}
                         note={campaign.recipient_count === 1 ? 'person' : 'people'}
                     />
+                    {/*
+                        Accepted and delivered are different numbers, and the
+                        gap between them is the interesting one. Before the poll
+                        has run there is nothing honest to say about delivery, so
+                        it says so rather than showing the accepted count twice.
+                    */}
                     <Stat
                         label="Delivered"
-                        value={started ? campaign.sent_count.toLocaleString() : '—'}
-                        note={started ? 'messages' : 'not sent yet'}
+                        value={
+                            !started
+                                ? '—'
+                                : campaign.delivery_checked_at
+                                  ? campaign.delivered_count.toLocaleString()
+                                  : campaign.sent_count.toLocaleString()
+                        }
+                        note={
+                            !started
+                                ? 'not sent yet'
+                                : campaign.delivery_checked_at
+                                  ? `of ${campaign.sent_count.toLocaleString()} accepted`
+                                  : 'accepted, delivery not checked yet'
+                        }
                     />
                     {/* Which figure this is, always — and null stays null. */}
                     <Stat
                         label={campaign.actual_cost === null ? 'Projected cost' : 'Actual cost'}
                         value={GHS(campaign.actual_cost ?? campaign.estimated_cost)}
-                        note="for everyone"
+                        note={campaign.actual_cost === null ? 'estimate, everyone' : 'charged by Hubtel'}
                     />
                     <Stat
                         label="Tapped the link"

@@ -135,8 +135,12 @@ export interface Campaign {
 
     /** Permanent — never recomputed from the prunable attempt rows. */
     recipient_count: number;
+    /** Accepted by Hubtel. Not the same as arriving. */
     sent_count: number;
     failed_count: number;
+    /** Confirmed as arriving. Zero until the delivery poll has run. */
+    delivered_count: number;
+    delivery_checked_at: string | null;
 
     segments_per_message: number;
     estimated_cost: number;
