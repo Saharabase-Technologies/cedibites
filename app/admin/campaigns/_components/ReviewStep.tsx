@@ -2,7 +2,7 @@
 
 import { FlaskIcon, WarningCircleIcon, LinkSimpleIcon } from '@phosphor-icons/react';
 import { measureMessage } from '@/lib/sms/meter';
-import { breakDownCost, GHS } from '@/lib/sms/cost';
+import { breakDownCost, GHS, GHSRate } from '@/lib/sms/cost';
 import type { ShortLink } from '@/types/marketing';
 
 /**
@@ -81,13 +81,14 @@ export function ReviewStep({
                     label="Length"
                     value={`${meter.characters} characters${meter.encoding === 'UCS_2' ? ' (special characters)' : ''}`}
                 />
+                {/* We pay Hubtel. The customer pays nothing. */}
                 <Line
-                    label="Costs each person"
-                    value={`${meter.segments} text${meter.segments === 1 ? '' : 's'} · ${GHS(cost.perPerson)}`}
+                    label="Costs us per person"
+                    value={`${meter.segments} text${meter.segments === 1 ? '' : 's'} · ${GHSRate(cost.perPerson)}`}
                 />
                 <div className="flex items-baseline justify-between gap-4 px-4 py-3.5">
                     <dt className="text-text-dark text-sm font-semibold font-body">
-                        Total for everyone
+                        Total we pay for this send
                         {/* The arithmetic, so the total is checkable rather than trusted. */}
                         <span className="block text-neutral-gray text-xs font-normal mt-0.5">
                             {cost.workingOut}
@@ -109,8 +110,8 @@ export function ReviewStep({
             )}
 
             <p className="text-neutral-gray text-xs font-body leading-relaxed">
-                The total uses our configured rate of {GHS(ratePerSegment)} per text. Once Hubtel replies, the
-                campaign shows what it actually charged.
+                The total uses the rate Hubtel last charged us, {GHSRate(ratePerSegment)} a text. Once the send
+                completes, the campaign shows what it was actually billed.
             </p>
         </div>
     );

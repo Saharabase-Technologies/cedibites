@@ -61,6 +61,14 @@ export interface SegmentsResponse {
     /** When on, sends go to a fixed staff list and no customer is messaged. */
     seed_mode: boolean;
     recipient_cap: number;
+    /**
+     * GHS per billed text, from the server.
+     *
+     * Never hard-code this in the frontend. It was, as 0.05, while the backend
+     * said 0.0243 — so the composer quoted double what the confirm dialog did
+     * for the same message.
+     */
+    rate_per_segment: number;
 }
 
 /** Mirrors backend App\Enums\GhanaNetwork. */

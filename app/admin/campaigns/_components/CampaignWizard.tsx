@@ -25,15 +25,19 @@ const STEPS: WizardStep[] = [
     { key: 'review', label: 'Review', blurb: 'Check the total before anything is spent.' },
 ];
 
-/** The estimate rate, mirrored from config/campaigns.php. */
-const RATE_PER_SEGMENT = 0.05;
-
 export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
     const router = useRouter();
     const editing = !!campaign;
 
     const { create, update } = useCampaignMutations();
-    const { segments, seedMode, recipientCap, isLoading: segmentsLoading } = useCampaignSegments();
+    /*
+     * The rate comes from the server, never from a constant here. It was
+     * hard-coded as 0.05 while config/campaigns.php said 0.0243, so the composer
+     * quoted double what the confirm dialog did for the very same message.
+     */
+    const {
+        segments, seedMode, recipientCap, ratePerSegment, isLoading: segmentsLoading,
+    } = useCampaignSegments();
     const { links } = useLinks({ per_page: 100 });
 
     const [step, setStep] = useState(0);
@@ -193,7 +197,7 @@ export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
                     shortLinkId={shortLinkId}
                     onShortLinkChange={setShortLinkId}
                     recipients={recipients}
-                    ratePerSegment={RATE_PER_SEGMENT}
+                    ratePerSegment={ratePerSegment}
                 />
             )}
 
@@ -204,7 +208,7 @@ export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
                     audienceLabel={custom ? 'Custom audience' : (chosenSegment?.label ?? '—')}
                     recipients={recipients}
                     link={chosenLink}
-                    ratePerSegment={RATE_PER_SEGMENT}
+                    ratePerSegment={ratePerSegment}
                     seedMode={seedMode}
                     seedCount={null}
                 />

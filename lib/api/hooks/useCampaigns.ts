@@ -56,6 +56,9 @@ export function useCampaignSegments() {
         segments: data?.segments ?? [],
         seedMode: data?.seed_mode ?? true,
         recipientCap: data?.recipient_cap ?? 0,
+        // The rate Hubtel last charged. Falls back to the same figure the
+        // backend defaults to, so a slow load never quotes a different price.
+        ratePerSegment: data?.rate_per_segment ?? 0.0243,
         isLoading,
         error,
     };

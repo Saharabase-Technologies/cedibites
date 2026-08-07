@@ -10,8 +10,26 @@
  * So nothing here returns a bare number. Every helper returns the words too.
  */
 
+/** A total, in the two decimals cedis are actually charged in. */
 export const GHS = (amount: number): string =>
     `GHS ${amount.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/**
+ * A per-message rate, at the precision it is actually quoted in.
+ *
+ * Two decimals is wrong here. Hubtel charges GHS 0.0243 a text; rounded to 0.02
+ * the figures stop agreeing with each other — "GHS 0.02 each × 4 people = GHS
+ * 0.10" is arithmetic that does not work, and a total that cannot be checked
+ * against its own parts is a total nobody should trust.
+ */
+export const GHSRate = (amount: number): string => {
+    const decimals = Number.isInteger(amount * 100) ? 2 : 4;
+
+    return `GHS ${amount.toLocaleString('en-GH', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+    })}`;
+};
 
 export interface CostBreakdown {
     /** Billed segments for one message. */
@@ -40,10 +58,12 @@ export function breakDownCost(
         ratePerSegment,
         perPerson,
         total,
+        // Ends with the total, so the line is a complete equation the reader can
+        // check rather than three factors sitting next to an unrelated number.
         workingOut:
             `${segments} text${segments === 1 ? '' : 's'} × ` +
             `${recipients.toLocaleString()} ${recipients === 1 ? 'person' : 'people'} × ` +
-            `${GHS(ratePerSegment)}`,
+            `${GHSRate(ratePerSegment)} = ${GHS(total)}`,
     };
 }
 
