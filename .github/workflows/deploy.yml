@@ -1,9 +1,22 @@
 name: Deploy Cedibites Frontend
 
+# Merging to `main` deploys straight to production. Nothing may land here that
+# is not ready for customers - PR #135 merged the SMS campaign work while it was
+# still being tested on beta, and only a cancelled deploy stopped it reaching
+# prod, where the campaign console has no backend routes and the post-order
+# feedback form is customer-facing. Land unfinished work on `beta` instead.
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+# Never cancel a deploy that is already running, and never run two at once.
+# On 2026-08-07 a cancelled run killed the SSH session mid-`next build`, after
+# the build had already erased .next/. Queue instead of cancelling.
+concurrency:
+  group: deploy-frontend-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -15,10 +28,16 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
+          # A cold `npm ci` plus a full build runs well past the 10m default.
+          command_timeout: 25m
           script: |
             set -e
             cd /var/www/production/nextjs/cedibites
             git fetch origin main
+            # `checkout -B` reattaches HEAD as well as moving it. A failed or
+            # manually-recovered deploy can leave the server on a detached HEAD
+            # (it did on 2026-08-07); this heals that instead of compounding it.
+            git checkout -B main origin/main
             git reset --hard origin/main
             npm ci
 
@@ -30,9 +49,60 @@ jobs:
             # stays up.
             npm run lint:hooks
 
-            npm run build
-            pm2 restart cedibites-pos-frontend
+            # ---- Build into a scratch directory, never the live one --------
+            # `next build` erases its output directory before it writes. Build
+            # straight into .next and any interruption - a cancelled workflow, a
+            # dropped SSH session - leaves the running process serving SSR HTML
+            # from memory that references static chunks no longer on disk. Every
+            # /_next/static/* request then returns 500. Because those files ship
+            # `Cache-Control: immutable`, warm browsers keep replaying the old
+            # copy and only cold-cache visitors ever see the breakage, so it can
+            # run for hours unnoticed. Exactly what happened on 2026-08-07.
+            rm -rf .next-build
+            NEXT_DIST_DIR=.next-build npm run build
 
-            # Health check — confirm PM2 process is online
-            sleep 3
-            pm2 show cedibites-pos-frontend | grep -q "online" && echo "Deploy OK" || (echo "Deploy FAILED: process not online" && exit 1)
+            # ---- Swap it in atomically ------------------------------------
+            # A rename inside one filesystem is atomic: .next is either wholly
+            # the old build or wholly the new one, and never a half-written or
+            # empty directory. .next-old is kept as the rollback target below.
+            rm -rf .next-old
+            if [ -d .next ]; then mv .next .next-old; fi
+            mv .next-build .next
+
+            pm2 restart cedibites-pos-frontend
+            sleep 5
+
+            # ---- Health check that can actually fail -----------------------
+            # `pm2 show | grep online` is what let the 2026-08-07 outage run for
+            # eight hours: a live `next start` keeps rendering HTML from memory
+            # long after its static files are gone, so the process looks healthy
+            # while the site is unusable. Instead: fetch a real page, pull a real
+            # asset URL out of the HTML it returned, and prove that asset serves.
+            BASE="https://app.cedibites.com"
+            ok=0
+            for attempt in 1 2 3 4 5; do
+              HTML=$(curl -sf --max-time 20 "$BASE/staff/login" || true)
+              ASSET=$(printf '%s' "$HTML" | grep -oE '/_next/static/[^"]+\.(css|js)' | head -1 || true)
+              if [ -n "$ASSET" ] && curl -sf --max-time 20 -o /dev/null "$BASE$ASSET"; then
+                ok=1
+                break
+              fi
+              echo "Health check attempt $attempt failed; retrying in 5s..."
+              sleep 5
+            done
+
+            if [ "$ok" != "1" ]; then
+              echo "Deploy FAILED health check - static assets are not serving."
+              if [ -d .next-old ]; then
+                rm -rf .next-broken
+                mv .next .next-broken
+                mv .next-old .next
+                pm2 restart cedibites-pos-frontend
+                echo "Rolled back to the previous build. Bad build kept at .next-broken."
+              else
+                echo "No previous build available to roll back to - prod needs manual attention."
+              fi
+              exit 1
+            fi
+
+            echo "Deploy OK - served $ASSET"
