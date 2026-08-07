@@ -1,0 +1,221 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import {
+    UserCircleIcon,
+    EnvelopeIcon,
+    PhoneIcon,
+    BuildingsIcon,
+    ShieldCheckIcon,
+    LockKeyIcon,
+    FloppyDiskIcon,
+    CheckCircleIcon,
+    WarningCircleIcon,
+    EyeIcon,
+    EyeSlashIcon,
+} from '@phosphor-icons/react';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { roleDisplayName } from '@/types/staff';
+import { staffService } from '@/lib/api/services/staff.service';
+import { ApiError } from '@/lib/api/client';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function initials(name: string) {
+    return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+}
+
+// ─── Section card ─────────────────────────────────────────────────────────────
+
+function SectionCard({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
+    return (
+        <div className="bg-neutral-card border border-brown-light/15 rounded-2xl overflow-hidden">
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-brown-light/10">
+                <Icon size={16} weight="fill" className="text-primary shrink-0" />
+                <h2 className="text-text-dark text-sm font-bold font-body">{title}</h2>
+            </div>
+            <div className="p-5">{children}</div>
+        </div>
+    );
+}
+
+// ─── Field ────────────────────────────────────────────────────────────────────
+
+function FieldRow({ label, value, readonly }: { label: string; value: string; readonly?: boolean }) {
+    return (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 py-2.5 border-b border-brown-light/10 last:border-0">
+            <p className="text-neutral-gray text-xs font-medium font-body sm:w-32 shrink-0">{label}</p>
+            <p className={`text-sm font-body ${readonly ? 'text-neutral-gray/70' : 'text-text-dark'}`}>{value}</p>
+        </div>
+    );
+}
+
+// ─── Password input ───────────────────────────────────────────────────────────
+
+function PasswordInput({ label, value, onChange, placeholder, error }: {
+    label: string; value: string; onChange: (v: string) => void; placeholder?: string; error?: string;
+}) {
+    const [show, setShow] = useState(false);
+    return (
+        <div>
+            <label className="block text-sm font-medium font-body text-text-dark mb-1.5">{label}</label>
+            <div className="relative">
+                <LockKeyIcon size={16} weight="bold" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-gray pointer-events-none" />
+                <input
+                    type={show ? 'text' : 'password'}
+                    value={value}
+                    onChange={e => onChange(e.target.value)}
+                    placeholder={placeholder}
+                    className={`w-full bg-neutral-light border rounded-xl pl-9 pr-10 py-3 text-sm font-body text-text-dark placeholder:text-neutral-gray/40 focus:outline-none focus:border-primary transition-colors ${error ? 'border-error/50' : 'border-brown-light/20'}`}
+                />
+                <button
+                    type="button"
+                    onClick={() => setShow(s => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-gray hover:text-text-dark transition-colors cursor-pointer"
+                >
+                    {show ? <EyeSlashIcon size={16} weight="bold" /> : <EyeIcon size={16} weight="bold" />}
+                </button>
+            </div>
+            {error && <p className="text-error text-xs font-body mt-1">{error}</p>}
+        </div>
+    );
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+
+function Toast({ message, type }: { message: string; type: 'success' | 'error' }) {
+    return (
+        <div className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm font-body ${type === 'success' ? 'bg-secondary/10 border border-secondary/20 text-secondary' : 'bg-error/10 border border-error/20 text-error'}`}>
+            {type === 'success'
+                ? <CheckCircleIcon size={16} weight="fill" className="shrink-0" />
+                : <WarningCircleIcon size={16} weight="fill" className="shrink-0" />
+            }
+            {message}
+        </div>
+    );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function StaffProfilePage() {
+    const { staffUser } = useStaffAuth();
+
+    // ── Password change state ──
+    const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+    const [pwErrors, setPwErrors] = useState<Record<string, string>>({});
+    const [pwToast, setPwToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+    const [pwLoading, setPwLoading] = useState(false);
+
+    // ── Handlers ──
+
+    async function handlePasswordChange(e: React.FormEvent) {
+        e.preventDefault();
+        const errs: Record<string, string> = {};
+        if (!pwForm.current)               errs.current  = 'Required';
+        if (!pwForm.next)                  errs.next     = 'Required';
+        else if (pwForm.next.length < 6)   errs.next     = 'At least 6 characters';
+        if (pwForm.next !== pwForm.confirm) errs.confirm  = 'Passwords do not match';
+
+        if (Object.keys(errs).length > 0) { setPwErrors(errs); return; }
+
+        setPwLoading(true);
+        setPwErrors({});
+        try {
+            await staffService.changePassword(pwForm.current, pwForm.next);
+            setPwForm({ current: '', next: '', confirm: '' });
+            setPwToast({ msg: 'Password updated successfully.', type: 'success' });
+        } catch (err) {
+            const apiErr = err as ApiError & { errors?: Record<string, string[]> };
+            // Surface field-level validation errors when the API returns them
+            if (apiErr?.errors) {
+                const fieldErrs: Record<string, string> = {};
+                if (apiErr.errors.current_password?.length) fieldErrs.current = apiErr.errors.current_password[0];
+                if (apiErr.errors.password?.length)         fieldErrs.next    = apiErr.errors.password[0];
+                setPwErrors(fieldErrs);
+            }
+            const msg = apiErr?.message || 'Failed to update password. Please try again.';
+            setPwToast({ msg, type: 'error' });
+        } finally {
+            setPwLoading(false);
+            setTimeout(() => setPwToast(null), 4000);
+        }
+    }
+
+    if (!staffUser) return null;
+
+    const branchDisplay = staffUser.branches.map(b => b.name).join(', ');
+
+    return (
+        <div className="px-4 md:px-8 py-6 max-w-2xl mx-auto">
+
+            {/* ── Header ──────────────────────────────────────────────────────── */}
+            <div className="flex items-center gap-4 mb-8">
+                <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center shrink-0">
+                    <span className="text-primary text-xl font-bold font-body">{initials(staffUser.name)}</span>
+                </div>
+                <div>
+                    <h1 className="text-text-dark text-xl font-bold font-body">{staffUser.name}</h1>
+                    <p className="text-neutral-gray text-sm font-body mt-0.5">
+                        {roleDisplayName(staffUser.role)} &middot; {branchDisplay}
+                    </p>
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-5">
+
+                {/* ── Account info ──────────────────────────────────────────────── */}
+                <SectionCard title="Account Info" icon={UserCircleIcon}>
+                    <FieldRow label="Full Name"  value={staffUser.name} />
+                    <FieldRow label="Role"       value={roleDisplayName(staffUser.role)} readonly />
+                    <FieldRow label="Branch"     value={branchDisplay} readonly />
+                    {staffUser?.email && <FieldRow label="Email"  value={staffUser.email} />}
+                    {staffUser?.phone && <FieldRow label="Phone"  value={staffUser.phone} />}
+                    {staffUser?.joinedAt && <FieldRow label="Joined" value={staffUser.joinedAt} readonly />}
+                </SectionCard>
+
+                {/* ── Change password ───────────────────────────────────────────── */}
+                <SectionCard title="Change Password" icon={ShieldCheckIcon}>
+                    <form onSubmit={handlePasswordChange} className="flex flex-col gap-4">
+                        <PasswordInput
+                            label="Current Password"
+                            value={pwForm.current}
+                            onChange={v => setPwForm(f => ({ ...f, current: v }))}
+                            placeholder="Enter current password"
+                            error={pwErrors.current}
+                        />
+                        <PasswordInput
+                            label="New Password"
+                            value={pwForm.next}
+                            onChange={v => setPwForm(f => ({ ...f, next: v }))}
+                            placeholder="Min. 6 characters"
+                            error={pwErrors.next}
+                        />
+                        <PasswordInput
+                            label="Confirm New Password"
+                            value={pwForm.confirm}
+                            onChange={v => setPwForm(f => ({ ...f, confirm: v }))}
+                            placeholder="Repeat new password"
+                            error={pwErrors.confirm}
+                        />
+
+                        {pwToast && <Toast message={pwToast.msg} type={pwToast.type} />}
+
+                        <button
+                            type="submit"
+                            disabled={pwLoading}
+                            className="flex items-center justify-center gap-2 w-full sm:w-auto sm:self-end px-6 py-2.5 bg-primary hover:bg-primary-hover disabled:opacity-50 text-brand-darker text-sm font-bold font-body rounded-xl transition-colors cursor-pointer"
+                        >
+                            <FloppyDiskIcon size={16} weight="bold" />
+                            {pwLoading ? 'Saving…' : 'Update Password'}
+                        </button>
+                    </form>
+                </SectionCard>
+
+            </div>
+
+            <p className="text-neutral-gray/40 text-xs font-body text-center mt-8">
+                Contact your manager to update your name, phone, or email.
+            </p>
+        </div>
+    );
+}

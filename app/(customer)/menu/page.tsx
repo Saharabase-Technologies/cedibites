@@ -6,7 +6,7 @@ import {
     MagnifyingGlassIcon, XIcon, FunnelIcon, SlidersIcon,
     StorefrontIcon, MapPinIcon, CaretDownIcon, SparkleIcon,
     FireIcon, ArrowUpIcon, CheckIcon, ListIcon,
-    SquaresFourIcon, ClockIcon, ArrowRightIcon,
+    SquaresFourIcon, ClockIcon, ArrowRightIcon, SpinnerGapIcon,
 } from '@phosphor-icons/react';
 import { useMenuDiscovery } from '@/app/components/providers/MenuDiscoveryProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
@@ -18,14 +18,14 @@ import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryPro
 import Navbar from '../../components/layout/Navbar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type SortKey = 'default' | 'price_asc' | 'price_desc' | 'popular';
+type SortKey = 'default' | 'price_asc' | 'price_desc';
 type ViewMode = 'grid' | 'list';
 // ─── Category icon map ────────────────────────────────────────────────────────
 const CATEGORY_ICONS: Record<string, string> = {
     'All': '',
     'Main Dishes': '',
     'Combos': '',
-    'Starters & Sides': '',
+    'Starters & sides': '',
     'Appetizers': '',
     'Drinks': '',
     'Desserts': '',
@@ -33,18 +33,55 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 // ─── Sort options ─────────────────────────────────────────────────────────────
+// "Most Popular" used to sort by a hand-applied `popular` tag. Popularity is
+// computed now — the Most Popular smart category resolves it from 30 days of
+// order frequency, and already has its own row on this page. Two answers to one
+// question, and the hand-set one went stale the day after it was set.
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
     { key: 'default', label: 'Featured' },
-    { key: 'popular', label: 'Most Popular' },
     { key: 'price_asc', label: 'Price: Low to High' },
     { key: 'price_desc', label: 'Price: High to Low' },
 ];
 
 function sortItems(items: SearchableItem[], sort: SortKey): SearchableItem[] {
-    if (sort === 'popular') return [...items].sort((a, b) => (b.popular ? 1 : 0) - (a.popular ? 1 : 0));
     if (sort === 'price_asc') return [...items].sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
     if (sort === 'price_desc') return [...items].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
     return items;
+}
+
+// ─── Loading state ────────────────────────────────────────────────────────────
+function LoadingState() {
+    return (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <SpinnerGapIcon size={48} className="animate-spin text-primary" />
+            <p className="text-sm text-neutral-gray">Loading menu...</p>
+        </div>
+    );
+}
+
+// ─── Error state ──────────────────────────────────────────────────────────────
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+    return (
+        <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+            <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center text-4xl">
+                😞
+            </div>
+            <div className="space-y-2">
+                <p className="text-base font-bold text-text-dark dark:text-text-light">
+                    Failed to load menu
+                </p>
+                <p className="text-sm text-neutral-gray">
+                    We couldn't fetch the menu. Please check your connection and try again.
+                </p>
+            </div>
+            <button
+                onClick={onRetry}
+                className="px-6 py-2.5 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-colors"
+            >
+                Retry
+            </button>
+        </div>
+    );
 }
 
 // ─── Back to top button ───────────────────────────────────────────────────────
@@ -121,7 +158,7 @@ function BranchPill() {
             className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/15 transition-all group shrink-0"
         >
             <MapPinIcon weight="fill" size={14} className="text-primary shrink-0" />
-            <span className="text-sm font-bold text-primary truncate max-w-[120px] sm:max-w-[160px]">
+            <span className="text-sm font-bold text-primary truncate max-w-30 sm:max-w-40">
                 {selectedBranch.name}
             </span>
             {distance !== null && distance !== undefined && (
@@ -164,11 +201,6 @@ function ListItemRow({ item, onOpen }: { item: SearchableItem; onOpen: (item: Se
                     ? <Image src={item.image} alt={item.name} fill sizes="64px" className="object-cover group-hover:scale-105 transition-transform duration-300" />
                     : <div className="w-full h-full" />
                 }
-                {item.popular && (
-                    <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                        <FireIcon weight="fill" size={10} className="text-white" />
-                    </div>
-                )}
             </div>
             <div className="flex-1 w-full min-w-0">
                 <p className="text-sm font-bold text-text-dark dark:text-text-light truncate">{item.name}</p>
@@ -181,7 +213,7 @@ function ListItemRow({ item, onOpen }: { item: SearchableItem; onOpen: (item: Se
                 </div>
             </div>
             <div className="text-right shrink-0">
-                <p className="text-base font-bold text-primary">GHS {price.toFixed(2)}</p>
+                <p className="text-base font-bold text-primary">₵{(typeof price === 'number' ? price : Number(price) || 0).toFixed(2)}</p>
                 <p className="text-xs text-neutral-gray mt-0.5 group-hover:text-primary transition-colors">View →</p>
             </div>
         </button>
@@ -216,18 +248,22 @@ export default function MenuPage() {
     const {
         allItems,
         filteredItems,
+        categories: providerCategories,
+        smartCategories,
         selectedCategory,
         setSelectedCategory,
         searchQuery,
         setSearchQuery,
+        isSearching,
+        error,
+        retryFetch,
     } = useMenuDiscovery();
 
-    // Derive unique categories from all items
+    // Use provider categories — each has { id, label }
+    // Smart categories use id like 'smart:most-popular', regular use category name as id
     const categories = React.useMemo(() => {
-        const seen = new Set<string>();
-        allItems.forEach(item => { if (item.category) seen.add(item.category); });
-        return Array.from(seen);
-    }, [allItems]);
+        return providerCategories;
+    }, [providerCategories]);
 
     const [sort, setSort] = useState<SortKey>('default');
     const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -236,22 +272,27 @@ export default function MenuPage() {
     const searchRef = useRef<HTMLInputElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
-    // Category counts
+    // Category counts — smart categories use item_ids length, regular count from items
     const categoryCounts = React.useMemo(() => {
         const counts: Record<string, number> = { All: allItems.length };
+        // Regular category counts from items
         allItems.forEach(item => {
             if (item.category) counts[item.category] = (counts[item.category] ?? 0) + 1;
         });
+        // Smart category counts from API item_ids
+        smartCategories.forEach(sc => {
+            counts[`smart:${sc.slug}`] = sc.item_ids.length;
+        });
         return counts;
-    }, [allItems]);
+    }, [allItems, smartCategories]);
 
-    const allCategories = ['All', ...categories];
+    const allCategories = [{ id: 'All', label: 'All' }, ...categories];
 
     // Apply sort on top of provider's filtered items
     const displayItems = React.useMemo(() => sortItems(filteredItems, sort), [filteredItems, sort]);
 
-    const handleCategoryChange = (cat: string) => {
-        setSelectedCategory(cat === 'All' ? null : cat);
+    const handleCategoryChange = (catId: string) => {
+        setSelectedCategory(catId === 'All' ? null : catId);
         setShowMobileFilters(false);
         // scroll content to top on mobile
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -263,6 +304,10 @@ export default function MenuPage() {
 
     const isFiltered = searchQuery.trim() || selectedCategory;
     const activeCategory = selectedCategory ?? 'All';
+    const activeCategoryLabel = React.useMemo(() => {
+        const found = allCategories.find(c => c.id === activeCategory);
+        return found?.label ?? activeCategory;
+    }, [activeCategory, allCategories]);
 
     return (
         <div className="min-h-screen bg-neutral-light dark:bg-brand-darker">
@@ -337,15 +382,15 @@ export default function MenuPage() {
                     <div className="md:hidden border-t border-neutral-gray/10 overflow-x-auto scrollbar-none">
                         <div className="flex gap-2 px-4 py-3 w-max">
                             {allCategories.map(cat => {
-                                const active = cat === activeCategory;
+                                const active = cat.id === activeCategory;
                                 return (
-                                    <button key={cat} onClick={() => handleCategoryChange(cat)}
+                                    <button key={cat.id} onClick={() => handleCategoryChange(cat.id)}
                                         className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all
                                             ${active ? 'bg-primary text-white' : 'bg-white dark:bg-brand-dark text-text-dark dark:text-text-light border border-neutral-gray/15'}`}>
-                                        <span>{CATEGORY_ICONS[cat] ?? ''}</span>
-                                        {cat}
+                                        <span>{CATEGORY_ICONS[cat.label] ?? ''}</span>
+                                        {cat.label}
                                         <span className={`text-xs ${active ? 'opacity-80' : 'text-neutral-gray'}`}>
-                                            {categoryCounts[cat] ?? 0}
+                                            {categoryCounts[cat.id] ?? 0}
                                         </span>
                                     </button>
                                 );
@@ -367,11 +412,11 @@ export default function MenuPage() {
 
                     {allCategories.map(cat => (
                         <SidebarCategoryBtn
-                            key={cat}
-                            label={cat}
-                            count={categoryCounts[cat] ?? 0}
-                            active={cat === activeCategory}
-                            onClick={() => handleCategoryChange(cat)}
+                            key={cat.id}
+                            label={cat.label}
+                            count={categoryCounts[cat.id] ?? 0}
+                            active={cat.id === activeCategory}
+                            onClick={() => handleCategoryChange(cat.id)}
 
                         />
                     ))}
@@ -389,7 +434,7 @@ export default function MenuPage() {
                             <h1 className="text-xl md:text-2xl font-bold text-text-dark dark:text-text-light flex items-center gap-2.5">
                                 {activeCategory === 'All'
                                     ? <> <span className='text-2xl'>Our Full Menu</span></>
-                                    : <><span className="text-xl">{CATEGORY_ICONS[activeCategory] ?? ''}</span> {activeCategory}</>
+                                    : <><span className="text-xl">{CATEGORY_ICONS[activeCategoryLabel] ?? ''}</span> {activeCategoryLabel}</>
                                 }
                             </h1>
                             <p className="text-sm text-neutral-gray mt-0.5">
@@ -412,7 +457,11 @@ export default function MenuPage() {
                     </div>
 
                     {/* Items */}
-                    {displayItems.length === 0 ? (
+                    {error && allItems.length === 0 ? (
+                        <ErrorState onRetry={retryFetch} />
+                    ) : isSearching && allItems.length === 0 ? (
+                        <LoadingState />
+                    ) : displayItems.length === 0 ? (
                         <EmptyState query={searchQuery} category={selectedCategory} />
                     ) : viewMode === 'list' ? (
                         // List view
@@ -424,7 +473,7 @@ export default function MenuPage() {
                     ) : (
                         // Grid view — grouped by category when "All", flat when filtered
                         activeCategory === 'All' && !searchQuery ? (
-                            <GroupedGrid items={displayItems} categories={categories} onOpen={setDetailItem} />
+                            <GroupedGrid items={displayItems} categories={categories.filter(c => !c.id.startsWith('smart:')).map(c => c.label)} onOpen={setDetailItem} />
                         ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-3 md:gap-4">
                                 {displayItems.map(item => (

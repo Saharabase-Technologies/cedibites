@@ -10,7 +10,7 @@ export default function BranchSelectorModal() {
     const { isBranchSelectorOpen, closeBranchSelector } = useModal();
     const [searchQuery, setSearchQuery] = useState('');
     const [isRequestingLocation, setIsRequestingLocation] = useState(false);
-    const { setSelectedBranch, selectNearestBranchNow, branches } = useBranch();
+    const { setSelectedBranch, selectNearestBranchNow, branches, isLoading } = useBranch();
     const { requestLocation, permissionStatus, coordinates, error } = useLocation();
 
     const handleUseMyLocation = () => {
@@ -39,7 +39,7 @@ export default function BranchSelectorModal() {
     const filteredBranches = branches.filter(
         (b) =>
             b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            b.area.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (b.area?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
             b.address.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
@@ -118,11 +118,18 @@ export default function BranchSelectorModal() {
 
                 {/* Branch List */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-3">
-                    {filteredBranches.length === 0 ? (
+                    {isLoading ? (
+                        <div className="text-center py-12">
+                            <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+                            <p className="text-text-gray dark:text-text-light">
+                                Loading branches...
+                            </p>
+                        </div>
+                    ) : filteredBranches.length === 0 ? (
                         <div className="text-center py-12">
                             <MapPinIcon size={48} className="mx-auto mb-4 text-neutral-gray/40" />
                             <p className="text-text-gray dark:text-text-light">
-                                No branches found matching "{searchQuery}"
+                                {searchQuery ? `No branches found matching "${searchQuery}"` : 'No branches available'}
                             </p>
                         </div>
                     ) : (
@@ -130,8 +137,7 @@ export default function BranchSelectorModal() {
                             <button
                                 key={branch.id}
                                 onClick={() => handleSelectBranch(branch)}
-                                disabled={!branch.isOpen}
-                                className="w-full text-left p-4 rounded-xl border-2 border-neutral-gray/20 dark:border-neutral-gray/30 hover:border-primary bg-white dark:bg-brand-dark hover:bg-neutral-light dark:hover:bg-brown transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full text-left p-4 rounded-xl border-2 border-neutral-gray/20 dark:border-neutral-gray/30 hover:border-primary bg-white dark:bg-brand-dark hover:bg-neutral-light dark:hover:bg-brown transition-all group"
                             >
                                 <div className="flex items-start gap-4">
                                     <div className="w-12 h-12 flex-shrink-0 rounded-full bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center">

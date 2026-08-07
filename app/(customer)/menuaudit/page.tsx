@@ -1,40 +1,114 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { BRANCHES } from '@/app/components/providers/BranchProvider';
-import { sampleMenuItems, menuCategories } from '@/lib/data/SampleMenu';
+import { useBranches } from '@/lib/api/hooks/useBranches';
+import { useMenu } from '@/lib/api/hooks/useMenu';
+import type { MenuItem as ApiMenuItem } from '@/types/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ViewMode = 'cards' | 'matrix';
 
 export default function MenuAuditPage() {
-    const [activeBranchId, setActiveBranchId] = useState(BRANCHES[0].id);
+    const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
     const [activeCategory, setActiveCategory] = useState<string>('all');
     const [viewMode, setViewMode] = useState<ViewMode>('cards');
     const [showOnlyUnavailable, setShowOnlyUnavailable] = useState(false);
 
-    const activeBranch = BRANCHES.find(b => b.id === activeBranchId)!;
-    const availableSet = useMemo(() => new Set(activeBranch.menuItemIds), [activeBranch]);
+    const { branches, isLoading: branchesLoading } = useBranches();
+    const { items: apiItems, isLoading: menuLoading } = useMenu({ per_page: 500 });
 
-    const categories = [
-        { id: 'all', label: 'All' },
-        ...menuCategories.filter(c => c.id !== 'all'),
-    ];
+    const isLoading = branchesLoading || menuLoading;
+
+    const branchesWithMenu = useMemo(() => {
+        if (!branches.length) return [];
+        const branchMap = new Map<number, Set<string>>();
+        apiItems.forEach((item: ApiMenuItem) => {
+            const bid = item.branch_id ?? 0;
+            if (!branchMap.has(bid)) branchMap.set(bid, new Set());
+            branchMap.get(bid)!.add(item.slug ?? String(item.id));
+        });
+        return branches.map((b: any) => ({
+            id: String(b.id),
+            name: b.name,
+            address: b.address,
+            isOpen: b.is_active,
+            menuItemIds: Array.from(branchMap.get(b.id) ?? []),
+            menuItemSlugs: branchMap.get(b.id) ?? new Set<string>(),
+        }));
+    }, [branches, apiItems]);
+
+    const allSlugs = useMemo(() => {
+        const slugs = new Set<string>();
+        apiItems.forEach((item: ApiMenuItem) => slugs.add(item.slug ?? String(item.id)));
+        return Array.from(slugs);
+    }, [apiItems]);
+
+    const itemsBySlug = useMemo(() => {
+        const map = new Map<string, ApiMenuItem>();
+        apiItems.forEach((item: ApiMenuItem) => {
+            const slug = item.slug ?? String(item.id);
+            if (!map.has(slug)) map.set(slug, item);
+        });
+        return map;
+    }, [apiItems]);
+
+    const activeBranch = useMemo(() => {
+        const id = activeBranchId ?? branchesWithMenu[0]?.id;
+        return branchesWithMenu.find((b: any) => b.id === id) ?? null;
+    }, [activeBranchId, branchesWithMenu]);
+
+    const availableSet = useMemo(() => activeBranch?.menuItemSlugs ?? new Set<string>(), [activeBranch]);
+
+    const categories = useMemo(() => {
+        const seen = new Set<string>();
+        const result: { id: string; label: string }[] = [{ id: 'all', label: 'All' }];
+        for (const item of apiItems) {
+            const name = item.category?.name ?? 'Uncategorized';
+            if (!seen.has(name)) {
+                seen.add(name);
+                result.push({ id: name.toLowerCase().replace(/\s+/g, '-'), label: name });
+            }
+        }
+        return result;
+    }, [apiItems]);
 
     const visibleItems = useMemo(() => {
-        let items = sampleMenuItems;
+        let slugs = allSlugs;
         if (activeCategory !== 'all') {
-            items = items.filter(i => i.category === activeCategory);
+            const cat = categories.find(c => c.id === activeCategory);
+            slugs = slugs.filter(slug => {
+                const item = itemsBySlug.get(slug);
+                return item && cat && item.category?.name === cat.label;
+            });
         }
         if (showOnlyUnavailable) {
-            items = items.filter(i => !availableSet.has(i.id));
+            slugs = slugs.filter(slug => !availableSet.has(slug));
         }
-        return items;
-    }, [activeCategory, availableSet, showOnlyUnavailable]);
+        return slugs.map(slug => itemsBySlug.get(slug)!).filter(Boolean);
+    }, [allSlugs, activeCategory, availableSet, showOnlyUnavailable, itemsBySlug, categories]);
 
-    const availableCount = sampleMenuItems.filter(i => availableSet.has(i.id)).length;
-    const unavailableCount = sampleMenuItems.length - availableCount;
-    const coverage = Math.round((availableCount / sampleMenuItems.length) * 100);
+    const allItemsCount = allSlugs.length;
+    const availableCount = allSlugs.filter(slug => availableSet.has(slug)).length;
+    const unavailableCount = allItemsCount - availableCount;
+    const coverage = allItemsCount > 0 ? Math.round((availableCount / allItemsCount) * 100) : 0;
+
+    if (isLoading && branchesWithMenu.length === 0) {
+        return (
+            <div className="min-h-screen bg-brand-darker text-text-light pt-24 pb-16 px-4 flex items-center justify-center">
+                <div className="text-neutral-gray">Loading branches and menu...</div>
+            </div>
+        );
+    }
+
+    if (branchesWithMenu.length === 0) {
+        return (
+            <div className="min-h-screen bg-brand-darker text-text-light pt-24 pb-16 px-4 flex items-center justify-center">
+                <div className="text-neutral-gray">No branches found. Add branches and menu items in the admin.</div>
+            </div>
+        );
+    }
+
+    const effectiveActiveBranchId = activeBranchId ?? branchesWithMenu[0].id;
 
     return (
         <div className="min-h-screen bg-brand-darker text-text-light pt-24 pb-16 px-4 sm:px-8">
@@ -43,14 +117,13 @@ export default function MenuAuditPage() {
                 {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-2xl font-bold text-primary">Branch Menu Visualizer</h1>
-
                 </div>
 
                 {/* Branch tabs */}
                 <div className="flex flex-wrap gap-2 mb-6">
-                    {BRANCHES.map(branch => {
-                        const bAvail = sampleMenuItems.filter(i => branch.menuItemIds.includes(i.id)).length;
-                        const isActive = branch.id === activeBranchId;
+                    {branchesWithMenu.map((branch: any) => {
+                        const bAvail = branch.menuItemIds.length;
+                        const isActive = branch.id === effectiveActiveBranchId;
                         return (
                             <button
                                 key={branch.id}
@@ -64,7 +137,7 @@ export default function MenuAuditPage() {
                                 <span className={`w-2 h-2 rounded-full shrink-0 ${branch.isOpen ? 'bg-secondary' : 'bg-error'}`} />
                                 {branch.name}
                                 <span className={`text-xs px-1.5 py-0.5 rounded-md font-bold ${isActive ? 'bg-primary/20 text-primary' : 'bg-white/10 text-neutral-gray'}`}>
-                                    {bAvail}/{sampleMenuItems.length}
+                                    {bAvail}/{allItemsCount}
                                 </span>
                             </button>
                         );
@@ -77,7 +150,7 @@ export default function MenuAuditPage() {
                         { label: 'Available', value: availableCount, color: 'text-secondary', bg: 'bg-secondary/10 border-secondary/20' },
                         { label: 'Not Available', value: unavailableCount, color: 'text-error', bg: 'bg-error/10 border-error/20' },
                         { label: 'Menu Coverage', value: `${coverage}%`, color: 'text-primary', bg: 'bg-primary/10 border-primary/20' },
-                        { label: 'Status', value: activeBranch.isOpen ? 'Open' : 'Closed', color: activeBranch.isOpen ? 'text-secondary' : 'text-error', bg: activeBranch.isOpen ? 'bg-secondary/10 border-secondary/20' : 'bg-error/10 border-error/20' },
+                        { label: 'Status', value: activeBranch?.isOpen ? 'Open' : 'Closed', color: activeBranch?.isOpen ? 'text-secondary' : 'text-error', bg: activeBranch?.isOpen ? 'bg-secondary/10 border-secondary/20' : 'bg-error/10 border-error/20' },
                     ].map(stat => (
                         <div key={stat.label} className={`border rounded-2xl p-4 ${stat.bg}`}>
                             <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
@@ -89,8 +162,8 @@ export default function MenuAuditPage() {
                 {/* Coverage bar */}
                 <div className="mb-6">
                     <div className="flex items-center justify-between text-xs text-neutral-gray mb-1.5">
-                        <span>{activeBranch.name} Branch — Menu Coverage</span>
-                        <span>{availableCount} of {sampleMenuItems.length} items</span>
+                        <span>{activeBranch?.name} Branch — Menu Coverage</span>
+                        <span>{availableCount} of {allItemsCount} items</span>
                     </div>
                     <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
                         <div
@@ -102,7 +175,6 @@ export default function MenuAuditPage() {
 
                 {/* Controls */}
                 <div className="flex flex-wrap items-center gap-3 mb-5">
-                    {/* View toggle */}
                     <div className="flex bg-white/5 border border-white/10 rounded-xl p-1">
                         {(['cards', 'matrix'] as ViewMode[]).map(v => (
                             <button
@@ -116,7 +188,6 @@ export default function MenuAuditPage() {
                         ))}
                     </div>
 
-                    {/* Category filter — only in card view */}
                     {viewMode === 'cards' && (
                         <div className="flex flex-wrap gap-2">
                             {categories.map(cat => (
@@ -135,7 +206,6 @@ export default function MenuAuditPage() {
                         </div>
                     )}
 
-                    {/* Show unavailable only toggle */}
                     {viewMode === 'cards' && unavailableCount > 0 && (
                         <button
                             onClick={() => setShowOnlyUnavailable(p => !p)}
@@ -160,7 +230,8 @@ export default function MenuAuditPage() {
                         ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                                 {visibleItems.map(item => {
-                                    const available = availableSet.has(item.id);
+                                    const slug = item.slug ?? String(item.id);
+                                    const available = availableSet.has(slug);
                                     return (
                                         <div
                                             key={item.id}
@@ -173,7 +244,7 @@ export default function MenuAuditPage() {
                                             <div className="flex items-start justify-between gap-2 mb-2">
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-bold text-text-light leading-tight">{item.name}</p>
-                                                    <p className="text-xs text-neutral-gray mt-0.5">{item.category}</p>
+                                                    <p className="text-xs text-neutral-gray mt-0.5">{item.category?.name ?? '-'}</p>
                                                 </div>
                                                 <span className={`text-[10px] font-bold px-2 py-1 rounded-lg shrink-0
                                                     ${available ? 'bg-secondary/20 text-secondary' : 'bg-error/20 text-error'}`}>
@@ -183,19 +254,20 @@ export default function MenuAuditPage() {
 
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="text-[10px] font-mono bg-white/5 text-neutral-gray px-2 py-0.5 rounded-lg">
-                                                    id: {item.id}
+                                                    {item.slug ?? item.id}
                                                 </span>
-                                                {item.popular && (
+                                                {item.tags?.some(t => t.slug === 'popular') && (
                                                     <span className="text-[10px] font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-lg">Popular</span>
                                                 )}
-                                                {item.isNew && (
+                                                {item.tags?.some(t => t.slug === 'new') && (
                                                     <span className="text-[10px] font-bold bg-secondary/15 text-secondary px-2 py-0.5 rounded-lg">New</span>
                                                 )}
                                             </div>
 
-                                            {/* Price range */}
                                             <div className="mt-2 text-xs text-neutral-gray">
-                                                GHS {item.sizes?.[0].price} – {item.sizes?.[item.sizes.length - 1].price}
+                                                {item.options?.length
+                                                    ? `₵${item.options[0].price} – ${item.options[item.options.length - 1].price}`
+                                                    : '—'}
                                             </div>
                                         </div>
                                     );
@@ -211,12 +283,12 @@ export default function MenuAuditPage() {
                         <table className="w-full text-xs border-collapse">
                             <thead>
                                 <tr className="border-b border-white/10">
-                                    <th className="text-left px-4 py-3 font-semibold text-neutral-gray bg-white/5 sticky left-0 min-w-[200px]">
+                                    <th className="text-left px-4 py-3 font-semibold text-neutral-gray bg-white/5 sticky left-0 min-w-50">
                                         Item
                                     </th>
-                                    {BRANCHES.map(b => (
-                                        <th key={b.id} className={`px-3 py-3 font-semibold text-center min-w-[90px] bg-white/5
-                                            ${b.id === activeBranchId ? 'text-primary' : 'text-neutral-gray'}`}>
+                                    {branchesWithMenu.map((b: any) => (
+                                        <th key={b.id} className={`px-3 py-3 font-semibold text-center min-w-22.5 bg-white/5
+                                            ${b.id === effectiveActiveBranchId ? 'text-primary' : 'text-neutral-gray'}`}>
                                             <div className="flex flex-col items-center gap-1">
                                                 <span className={`w-1.5 h-1.5 rounded-full ${b.isOpen ? 'bg-secondary' : 'bg-error'}`} />
                                                 {b.name}
@@ -229,28 +301,31 @@ export default function MenuAuditPage() {
                                 {(() => {
                                     const rows: React.ReactNode[] = [];
                                     let lastCat = '';
-                                    sampleMenuItems.forEach(item => {
-                                        if (item.category !== lastCat) {
-                                            lastCat = item.category;
+                                    allSlugs.forEach(slug => {
+                                        const item = itemsBySlug.get(slug);
+                                        if (!item) return;
+                                        const catName = item.category?.name ?? '-';
+                                        if (catName !== lastCat) {
+                                            lastCat = catName;
                                             rows.push(
-                                                <tr key={`cat-${item.category}`} className="border-b border-white/5">
-                                                    <td colSpan={BRANCHES.length + 1} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-primary/70 bg-primary/5 sticky left-0">
-                                                        {item.category}
+                                                <tr key={`cat-${catName}`} className="border-b border-white/5">
+                                                    <td colSpan={branchesWithMenu.length + 1} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-primary/70 bg-primary/5 sticky left-0">
+                                                        {catName}
                                                     </td>
                                                 </tr>
                                             );
                                         }
                                         rows.push(
-                                            <tr key={item.id} className="border-b border-white/5 hover:bg-white/3 transition-colors group">
+                                            <tr key={slug} className="border-b border-white/5 hover:bg-white/3 transition-colors group">
                                                 <td className="px-4 py-2.5 sticky left-0 bg-brand-darker group-hover:bg-white/5 transition-colors">
                                                     <div>
                                                         <span className="font-semibold text-text-light">{item.name}</span>
-                                                        <span className="ml-2 font-mono text-neutral-gray text-[10px]">#{item.id}</span>
+                                                        <span className="ml-2 font-mono text-neutral-gray text-[10px]">#{slug}</span>
                                                     </div>
                                                 </td>
-                                                {BRANCHES.map(branch => {
-                                                    const has = branch.menuItemIds.includes(item.id);
-                                                    const isHighlighted = branch.id === activeBranchId;
+                                                {branchesWithMenu.map((branch: any) => {
+                                                    const has = branch.menuItemSlugs.has(slug);
+                                                    const isHighlighted = branch.id === effectiveActiveBranchId;
                                                     return (
                                                         <td key={branch.id} className={`text-center py-2.5 px-3 ${isHighlighted ? 'bg-primary/5' : ''}`}>
                                                             {has
@@ -278,7 +353,7 @@ export default function MenuAuditPage() {
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-white/10 text-sm">·</span>
-                        Not on this branch's menu
+                        Not on this branch&apos;s menu
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-secondary inline-block" /> Open

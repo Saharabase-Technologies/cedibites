@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -12,23 +12,15 @@ import {
     WhatsappLogoIcon,
     ClockIcon,
 } from '@phosphor-icons/react';
+import { useBranches } from '@/lib/api/hooks/useBranches';
+import apiClient from '@/lib/api/client';
 
-// ============================================
-// DATA
-// ============================================
-const HOURS = [
-    { days: 'Mon – Fri', time: '8:00 AM – 10:00 PM' },
-    { days: 'Sat – Sun', time: '8:00 AM – 11:00 PM' },
-    { days: 'Public Holidays', time: '9:00 AM – 9:00 PM' },
-];
-
-const BRANCHES = [
-    { name: 'Osu', address: '123 Oxford Street, Osu' },
-    { name: 'East Legon', address: '45 American House, East Legon' },
-    { name: 'Spintex', address: '78 Spintex Road' },
-    { name: 'Madina', address: 'Remy Junction, Madina' },
-    { name: 'Tema', address: 'Community 1, Tema' },
-];
+function formatTime12h(time24: string): string {
+    const [h, m] = time24.split(':').map(Number);
+    const suffix = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${suffix}`;
+}
 
 const SOCIAL = [
     { icon: <InstagramLogoIcon weight="fill" size={20} />, label: 'Instagram', href: '#' },
@@ -43,10 +35,26 @@ const QUICK_LINKS = [
     { label: 'Find a Branch', href: '#' },
 ];
 
-// ============================================
-// COMPONENT
-// ============================================
 export default function Footer() {
+    const { branches } = useBranches();
+    const BRANCHES = branches.map((b: any) => ({ id: b.id, name: b.name, address: b.address || '' }));
+
+    const [hours, setHours] = useState({ open: '08:00', close: '22:00' });
+
+    useEffect(() => {
+        apiClient.get('/checkout-config').then((res: unknown) => {
+            const d = (res as { data?: { global_operating_hours_open?: string; global_operating_hours_close?: string } })?.data;
+            if (d) {
+                setHours({
+                    open: d.global_operating_hours_open ?? '08:00',
+                    close: d.global_operating_hours_close ?? '22:00',
+                });
+            }
+        }).catch(() => { /* keep defaults */ });
+    }, []);
+
+    const hoursDisplay = `${formatTime12h(hours.open)} – ${formatTime12h(hours.close)}`;
+
     return (
         <footer className="bg-brand-darker border-t border-white/5 mt-8">
 
@@ -85,12 +93,10 @@ export default function Footer() {
                         Opening Hours
                     </h4>
                     <ul className="flex flex-col gap-3">
-                        {HOURS.map((h) => (
-                            <li key={h.days} className="flex flex-col gap-0.5">
-                                <span className="text-xs text-white/40 uppercase tracking-wide">{h.days}</span>
-                                <span className="text-sm text-white/80">{h.time}</span>
-                            </li>
-                        ))}
+                        <li className="flex flex-col gap-0.5">
+                            <span className="text-xs text-white/40 uppercase tracking-wide">Daily</span>
+                            <span className="text-sm text-white/80">{hoursDisplay}</span>
+                        </li>
                     </ul>
                 </div>
 
@@ -101,8 +107,8 @@ export default function Footer() {
                         Our Branches
                     </h4>
                     <ul className="flex flex-col gap-2.5">
-                        {BRANCHES.map((b) => (
-                            <li key={b.name}>
+                        {BRANCHES.map((b: any) => (
+                            <li key={b.id}>
                                 <p className="text-sm font-medium text-white/80">{b.name}</p>
                                 <p className="text-xs text-white/40">{b.address}</p>
                             </li>

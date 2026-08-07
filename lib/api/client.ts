@@ -1,0 +1,272 @@
+import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
+import { navigateTo } from '@/lib/navigation';
+import { nextRequestId } from '@/lib/feedback/request-id';
+import { recordNetwork } from '@/lib/feedback/network-buffer';
+import { signalProblem } from '@/lib/feedback/auto-prompt';
+
+/** Per-request metadata the feedback layer attaches for correlation + timing. */
+interface RequestMeta {
+  requestId: string;
+  start: number;
+}
+type ConfigWithMeta = InternalAxiosRequestConfig & { __cbMeta?: RequestMeta };
+
+/** Record a network breadcrumb — never throws into the request/response flow. */
+function recordBreadcrumb(config: ConfigWithMeta | undefined, status: number | null): void {
+  try {
+    const meta = config?.__cbMeta;
+    recordNetwork({
+      method: (config?.method || 'get').toUpperCase(),
+      url: config?.url || '',
+      status,
+      durationMs: meta ? Date.now() - meta.start : null,
+      requestId: meta?.requestId ?? null,
+    });
+  } catch {
+    /* capture must never break the app */
+  }
+}
+
+// API Response types
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message: string;
+  data: T;
+  errors?: Record<string, string[]>;
+}
+
+export interface PaginatedResponse<T> extends ApiResponse<T[]> {
+  meta: {
+    current_page: number;
+    from: number;
+    last_page: number;
+    per_page: number;
+    to: number;
+    total: number;
+  };
+  links: {
+    first: string;
+    last: string;
+    prev: string | null;
+    next: string | null;
+  };
+}
+
+// Custom error class
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public errors?: Record<string, string[]>,
+    public code?: string,
+    /**
+     * The response body as the server sent it.
+     *
+     * `status`/`message`/`errors`/`code` cover most failures, but anything else
+     * an endpoint returns used to be dropped here — a caller could see that a
+     * request failed and read the sentence, and nothing more. The POS stock gate
+     * returns the ingredients that fell short so the till can list them; without
+     * this that payload never left the interceptor.
+     */
+    public payload?: unknown
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+// Create axios instance
+const apiClient: AxiosInstance = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
+  timeout: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '30000'),
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+});
+
+export const GUEST_SESSION_KEY = 'cedibites_guest_session';
+
+export function getGuestSessionId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(GUEST_SESSION_KEY);
+}
+
+export function setGuestSessionId(id: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(GUEST_SESSION_KEY, id);
+  }
+}
+
+export function ensureGuestSessionId(): string {
+  if (typeof window === 'undefined') {
+    return `guest-${Date.now()}-${Math.random().toString(36).slice(2, 15)}`;
+  }
+  let id = localStorage.getItem(GUEST_SESSION_KEY);
+  if (!id) {
+    id = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 15)}`;
+    localStorage.setItem(GUEST_SESSION_KEY, id);
+  }
+  return id;
+}
+
+function isStaffRoute(): boolean {
+  if (typeof window === 'undefined') return false;
+  const p = window.location.pathname;
+  return p.startsWith('/staff') || p.startsWith('/admin') || p.startsWith('/partner') || p.startsWith('/pos') || p.startsWith('/order-manager') || p.startsWith('/kitchen') || p.startsWith('/inventory');
+}
+
+// Request interceptor - use the token that matches the current route, no fallbacks
+apiClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    // Feedback correlation: stamp a unique id + start time on every call. Added
+    // here without touching the auth logic below (I4 — chain, never reorder).
+    const requestId = nextRequestId();
+    if (config.headers) config.headers['X-Request-ID'] = requestId;
+    (config as ConfigWithMeta).__cbMeta = { requestId, start: Date.now() };
+
+    if (typeof window !== 'undefined' && config.headers) {
+      if (isStaffRoute()) {
+        const token = localStorage.getItem('cedibites_staff_token');
+        if (token) config.headers.Authorization = `Bearer ${token}`;
+      } else {
+        const token = localStorage.getItem('cedibites_auth_token');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        } else {
+          const guestSession = localStorage.getItem(GUEST_SESSION_KEY);
+          if (guestSession) config.headers['X-Guest-Session'] = guestSession;
+        }
+      }
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor - handle errors globally
+apiClient.interceptors.response.use(
+  (response: AxiosResponse) => {
+    // Feedback: record the network breadcrumb, then return unchanged.
+    recordBreadcrumb(response.config as ConfigWithMeta, response.status);
+    // Backend returns data wrapped in { data: ... } for success responses
+    // Return the full response to preserve structure
+    return response.data;
+  },
+  async (error: AxiosError<ApiResponse>) => {
+    // Feedback: record the breadcrumb (status null when there was no response),
+    // then fall through to existing error handling, rethrowing untouched (I4).
+    const errStatus = error.response?.status ?? null;
+    recordBreadcrumb(error.config as ConfigWithMeta, errStatus);
+
+    // Auto-prompt on a genuine unexpected failure (5xx or dead connection).
+    // Exclude the feedback endpoint itself (C7) so a failing submit can't prompt
+    // the user to report the failure — an infinite loop.
+    const reqUrl = error.config?.url || '';
+    if (!reqUrl.includes('/feedback/') && (errStatus === null || errStatus >= 500)) {
+      signalProblem();
+    }
+
+    // Handle network errors
+    if (!error.response) {
+      throw new ApiError(0, 'Network error. Please check your connection.');
+    }
+
+    const { status, data } = error.response;
+
+    // Handle 401 - Unauthorized (token expired or invalid)
+    if (status === 401) {
+      if (typeof window !== 'undefined') {
+        const pathname = window.location.pathname;
+        const staffToken = localStorage.getItem('cedibites_staff_token');
+        const requestAuth = (error.config?.headers?.Authorization as string | undefined) ?? '';
+        const usedStaffToken = !!staffToken && requestAuth === `Bearer ${staffToken}`;
+
+        const isStaffRoute = pathname.startsWith('/staff') ||
+          pathname.startsWith('/admin') ||
+          pathname.startsWith('/partner') ||
+          pathname.startsWith('/pos') ||
+          pathname.startsWith('/kitchen') ||
+          pathname.startsWith('/order-manager') ||
+          pathname.startsWith('/inventory');
+
+        if (isStaffRoute && usedStaffToken) {
+          // Only redirect when the request actually used the staff token —
+          // prevents customer-auth calls (with wrong token on staff routes) from
+          // triggering a logout.
+          const isOnLoginPage = pathname.includes('/login') || pathname === '/pos';
+
+          if (!isOnLoginPage) {
+            localStorage.removeItem('cedibites_staff_token');
+            localStorage.removeItem('cedibites-staff-session');
+            navigateTo('/staff/login');
+          }
+        } else if (!isStaffRoute) {
+          localStorage.removeItem('cedibites_auth_token');
+          localStorage.removeItem('cedibites-auth-user');
+          if (pathname !== '/') {
+            navigateTo('/');
+          }
+        }
+        // else: staff route but request used customer token — let the caller handle it
+      }
+      throw new ApiError(status, 'Unauthorized. Please login again.');
+    }
+
+    // Handle 403 - Forbidden
+    if (status === 403) {
+      // Two 403s are really dead sessions rather than missing permissions, and
+      // both have to drop the token: one minted by the customer OTP login or
+      // predating token abilities (EnsureStaffToken), and one belonging to a
+      // staff account that is no longer active (EnsureStaffActive). Left in
+      // storage, either reads as "you do not have permission" forever, because
+      // no amount of clicking replaces the credential that is the problem.
+      const deadSession = ['staff_token_required', 'staff_account_inactive']
+        .includes((data as any)?.error);
+
+      if (deadSession && typeof window !== 'undefined') {
+        const pathname = window.location.pathname;
+        const isOnLoginPage = pathname.includes('/login') || pathname === '/pos';
+
+        localStorage.removeItem('cedibites_staff_token');
+        localStorage.removeItem('cedibites-staff-session');
+
+        if (!isOnLoginPage) {
+          navigateTo('/staff/login');
+        }
+      }
+
+      throw new ApiError(
+        status,
+        data?.message || 'You do not have permission to perform this action.',
+        undefined,
+        (data as any).code,
+        data
+      );
+    }
+
+    // Handle 422 - Validation errors
+    if (status === 422 && data?.errors) {
+      throw new ApiError(
+        status,
+        data.message || 'Validation failed',
+        data.errors,
+        (data as any).code,
+        data
+      );
+    }
+
+    // Handle other errors
+    throw new ApiError(
+      status,
+      data?.message || 'An error occurred. Please try again.',
+      undefined,
+      (data as any).code,
+      data
+    );
+  }
+);
+
+export default apiClient;

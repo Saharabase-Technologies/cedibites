@@ -1,0 +1,76 @@
+import apiClient, { PaginatedResponse } from '../client';
+
+export interface ApiCustomer {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  is_guest: boolean;
+  account_type: 'Guest' | 'Registered';
+  status: string;
+  total_orders: number;
+  total_spend: number;
+  last_order_at?: string;
+  join_date: string;
+  addresses: string[];
+  most_ordered_item?: string;
+  /** Other names given at the counter. Detail endpoint only — absent in the list. */
+  also_known_as?: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactExportRow {
+  name: string;
+  phone: string;
+}
+
+export type ContactSegment = 'all' | 'active' | 'at_risk' | 'churned' | 'loyal' | 'one_time';
+
+export interface CustomersParams {
+  is_guest?: boolean;
+  status?: string;
+  search?: string;
+  sort_by?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export const customerService = {
+  getCustomers: (params?: CustomersParams): Promise<PaginatedResponse<ApiCustomer>> => {
+    return apiClient.get('/admin/customers', { params });
+  },
+
+  /**
+   * Export customer contacts (name + phone), optionally filtered to a
+   * behavioural segment (churned / at-risk / loyal …) for targeted SMS.
+   * Phones are cleaned, normalised to +233, validated and de-duplicated server-side.
+   */
+  exportContacts: (segment: ContactSegment = 'all'): Promise<{ data: ContactExportRow[]; segment: string }> => {
+    return apiClient.get('/admin/customers/export-contacts', { params: segment === 'all' ? undefined : { segment } });
+  },
+
+  getCustomer: (id: number): Promise<{ data: ApiCustomer }> => {
+    return apiClient.get(`/admin/customers/${id}`);
+  },
+
+  getCustomerOrders: (customerId: number, params?: { status?: string; page?: number }): Promise<PaginatedResponse<{ id: number; order_number: string; branch?: { name: string }; status: string; total_amount: number; created_at: string }>> => {
+    return apiClient.get(`/admin/customers/${customerId}/orders`, { params });
+  },
+
+  deleteCustomer: (id: number): Promise<void> => {
+    return apiClient.delete(`/admin/customers/${id}`);
+  },
+
+  suspendCustomer: (id: number): Promise<{ data: ApiCustomer }> => {
+    return apiClient.patch(`/admin/customers/${id}/suspend`);
+  },
+
+  unsuspendCustomer: (id: number): Promise<{ data: ApiCustomer }> => {
+    return apiClient.patch(`/admin/customers/${id}/unsuspend`);
+  },
+
+  forceLogoutCustomer: (id: number): Promise<void> => {
+    return apiClient.post(`/admin/customers/${id}/force-logout`);
+  },
+};

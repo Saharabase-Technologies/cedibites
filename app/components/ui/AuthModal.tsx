@@ -60,9 +60,9 @@ function OTPInput({ value, onChange, disabled }: {
     );
 }
 
-// ─── Step: Phone Entry ────────────────────────────────────────────────────────
+// ─── Step: Phone Entry ────────────────────────────────────────────────────
 function StepPhone({ onNext }: { onNext: () => void }) {
-    const { sendOTP, pendingPhone, setPendingPhone } = useAuth();
+    const { sendOTP, pendingPhone } = useAuth();
     const [phone, setPhone] = useState(pendingPhone || '');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -71,7 +71,8 @@ function StepPhone({ onNext }: { onNext: () => void }) {
 
     const handleSubmit = async () => {
         if (!isValid) return;
-        setLoading(true); setError('');
+        setLoading(true);
+        setError('');
         const formatted = phone.startsWith('+') ? phone : `+233${phone.replace(/^0/, '')}`;
         const result = await sendOTP(formatted);
         setLoading(false);
@@ -106,12 +107,13 @@ function StepPhone({ onNext }: { onNext: () => void }) {
                         className="flex-1 px-4 py-3.5 bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/50 text-base font-medium"
                     />
                 </div>
-                {error && (
-                    <p className="flex items-center gap-1.5 text-xs text-error font-medium">
-                        <WarningCircleIcon size={13} weight="fill" /> {error}
-                    </p>
-                )}
             </div>
+
+            {error && (
+                <p className="flex items-center gap-1.5 text-xs text-error font-medium">
+                    <WarningCircleIcon size={13} weight="fill" /> {error}
+                </p>
+            )}
 
             <button
                 onClick={handleSubmit} disabled={!isValid || loading}
@@ -122,7 +124,7 @@ function StepPhone({ onNext }: { onNext: () => void }) {
             </button>
 
             <p className="text-xs text-center text-neutral-gray">
-                We'll send a 6-digit code via SMS. Standard rates may apply.
+                We&apos;ll send a 6-digit code via SMS. Standard rates may apply.
             </p>
         </div>
     );
@@ -130,7 +132,7 @@ function StepPhone({ onNext }: { onNext: () => void }) {
 
 // ─── Step: OTP Verify ─────────────────────────────────────────────────────────
 function StepOTP({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
-    const { verifyOTP, sendOTP, pendingPhone, devOTP, authStep } = useAuth();
+    const { verifyOTP, sendOTP, pendingPhone } = useAuth();
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -172,20 +174,6 @@ function StepOTP({ onNext, onBack }: { onNext: () => void; onBack: () => void })
                 </p>
             </div>
 
-            {/* DEV MODE: show OTP in UI */}
-            {process.env.NODE_ENV === 'development' && devOTP && (
-                <div className="flex items-center gap-3 bg-secondary/10 border border-secondary/30 rounded-2xl px-4 py-3">
-                    <span className="text-xs font-bold text-secondary uppercase tracking-wide">Dev OTP</span>
-                    <span className="text-2xl font-bold text-secondary font-mono tracking-widest">{devOTP}</span>
-                    <button
-                        onClick={() => { setCode(devOTP); handleVerify(devOTP); }}
-                        className="ml-auto text-xs font-bold text-secondary border border-secondary/40 px-3 py-1.5 rounded-xl hover:bg-secondary/15 transition-colors"
-                    >
-                        Auto-fill
-                    </button>
-                </div>
-            )}
-
             <OTPInput value={code} onChange={val => { setCode(val); if (val.length === 6) handleVerify(val); }} disabled={loading} />
 
             {error && (
@@ -221,11 +209,26 @@ function StepOTP({ onNext, onBack }: { onNext: () => void; onBack: () => void })
 function StepName({ onDone }: { onDone: () => void }) {
     const { saveProfile, pendingPhone } = useAuth();
     const [name, setName] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!name.trim()) return;
-        saveProfile(name.trim(), pendingPhone);
-        onDone();
+        setLoading(true);
+        setError('');
+        const result = await saveProfile(name.trim(), pendingPhone);
+        setLoading(false);
+        if (result.success) onDone();
+        else setError(result.error ?? 'Registration failed. Please try again.');
+    };
+
+    const handleSkip = async () => {
+        setLoading(true);
+        setError('');
+        const result = await saveProfile('Guest', pendingPhone);
+        setLoading(false);
+        if (result.success) onDone();
+        else setError(result.error ?? 'Registration failed. Please try again.');
     };
 
     return (
@@ -234,34 +237,46 @@ function StepName({ onDone }: { onDone: () => void }) {
                 <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center mx-auto mb-4">
                     <UserIcon weight="fill" size={28} className="text-primary" />
                 </div>
-                <h2 className="text-xl font-bold text-text-dark dark:text-text-light">What's your name?</h2>
+                <h2 className="text-xl font-bold text-text-dark dark:text-text-light">What&apos;s your name?</h2>
                 <p className="text-sm text-neutral-gray mt-1">So we can personalise your experience</p>
             </div>
 
             <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-neutral-gray">Your Name</label>
-                <div className="flex items-center bg-neutral-light dark:bg-brand-dark border-2 border-neutral-gray/40 focus-within:border-primary rounded-2xl overflow-hidden transition-all">
+                <div className={`flex items-center bg-neutral-light dark:bg-brand-dark border-2 rounded-2xl overflow-hidden transition-all ${error ? 'border-error' : 'border-neutral-gray/40 focus-within:border-primary'}`}>
                     <span className="pl-4 text-neutral-gray shrink-0"><UserIcon weight="fill" size={16} /></span>
                     <input
-                        type="text" placeholder="e.g. Kwame Mensah"
-                        value={name} onChange={e => setName(e.target.value)}
+                        type="text"
+                        placeholder="e.g. Kwame Mensah"
+                        value={name}
+                        onChange={e => { setName(e.target.value); setError(''); }}
                         onKeyDown={e => e.key === 'Enter' && handleSave()}
                         autoFocus
+                        disabled={loading}
                         className="flex-1 px-3 py-4 bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/50 text-base font-medium"
                     />
                 </div>
+                {error && (
+                    <p className="flex items-center gap-1.5 text-xs text-error font-medium">
+                        <WarningCircleIcon size={13} weight="fill" /> {error}
+                    </p>
+                )}
             </div>
 
             <button
-                onClick={handleSave} disabled={!name.trim()}
+                onClick={handleSave}
+                disabled={!name.trim() || loading}
                 className={`flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-[0.98]
-                    ${name.trim() ? 'bg-primary hover:bg-primary-hover text-white' : 'bg-neutral-gray/20 text-neutral-gray cursor-not-allowed'}`}
+                    ${name.trim() && !loading ? 'bg-primary hover:bg-primary-hover text-white' : 'bg-neutral-gray/20 text-neutral-gray cursor-not-allowed'}`}
             >
-                Continue <ArrowRightIcon weight="bold" size={18} />
+                {loading ? <SpinnerGapIcon size={20} className="animate-spin" /> : <>Continue <ArrowRightIcon weight="bold" size={18} /></>}
             </button>
 
-            <button onClick={() => { saveProfile('Guest', pendingPhone); onDone(); }}
-                className="text-sm text-center text-neutral-gray hover:text-primary transition-colors">
+            <button
+                onClick={handleSkip}
+                disabled={loading}
+                className="text-sm text-center text-neutral-gray hover:text-primary transition-colors disabled:opacity-50"
+            >
                 Skip for now
             </button>
         </div>
@@ -328,7 +343,7 @@ export default function AuthModal() {
             <div className={`fixed z-50 bg-white dark:bg-brand-darker shadow-2xl transition-all duration-300
                 inset-x-0 bottom-0 rounded-t-3xl max-h-[92dvh] overflow-y-auto
                 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2
-                md:w-[420px] md:rounded-2xl md:max-h-[90vh]
+                md:w-105 md:rounded-2xl md:max-h-[90vh]
                 ${isAuthOpen ? 'translate-y-0 md:opacity-100 md:scale-100' : 'translate-y-full md:opacity-0 md:scale-95 md:pointer-events-none'}`}
             >
                 {/* Header */}
@@ -350,7 +365,7 @@ export default function AuthModal() {
                     )}
                     {authStep === 'otp' && (
                         <StepOTP
-                            onNext={() => setAuthStep(/* will be set by verifyOTP result */ 'naming')}
+                            onNext={() => {}}
                             onBack={() => setAuthStep('phone')}
                         />
                     )}

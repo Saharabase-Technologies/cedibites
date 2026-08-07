@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../../cedibites_api/cedibites_api"
+		}
+	],
+	"settings": {}
+}

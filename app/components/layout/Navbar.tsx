@@ -99,7 +99,7 @@ export default function Navbar() {
                         {/* Logo — unchanged */}
                         <div className='flex shrink-0 items-center gap-x-2'>
                             <Link href="/" className='text-2xl flex items-center gap-2 text-primary'>
-                                <Image src="/cblogo.webp" alt="CediBites Logo" width={44} height={44} className='object-contain' />
+                                <Image src="/cblogo.webp" alt="CediBites Logo" width={44} height={44} className='object-contain' priority />
                                 <p className='hidde md:flex text-3xl md:text-3xl font-bold font-body'>CediBites</p>
                             </Link>
                         </div>
@@ -129,7 +129,7 @@ export default function Navbar() {
                             >
                                 <ShoppingBagIcon weight="bold" size={20} className="text-text-dark" />
                                 {totalItems > 0 && (
-                                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-error text-white text-[10px] font-bold rounded-full px-1 leading-none">
+                                    <span className="absolute -top-1 -right-1 min-w-4.5 h-4.5 flex items-center justify-center bg-error text-white text-[10px] font-bold rounded-full px-1 leading-none">
                                         {totalItems > 99 ? '99+' : totalItems}
                                     </span>
                                 )}
@@ -157,6 +157,11 @@ export default function Navbar() {
                                                 <p className="text-sm font-bold text-text-dark dark:text-text-light truncate">{user?.name}</p>
                                                 <p className="text-xs text-neutral-gray truncate">{user?.phone}</p>
                                             </div>
+                                            <Link href="/account"
+                                                onClick={() => setIsUserMenuOpen(false)}
+                                                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-dark dark:text-text-light hover:text-primary hover:bg-primary/5 transition-colors">
+                                                <UserIcon weight="fill" size={14} className="text-neutral-gray" /> My Account
+                                            </Link>
                                             <Link href="/order-history"
                                                 onClick={() => setIsUserMenuOpen(false)}
                                                 className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-dark dark:text-text-light hover:text-primary hover:bg-primary/5 transition-colors">
@@ -239,6 +244,10 @@ export default function Navbar() {
                                         <p className="text-xs text-neutral-gray truncate">{user?.phone}</p>
                                     </div>
                                 </div>
+                                <Link href="/account" onClick={() => setIsMobileMenuOpen(false)}
+                                    className="flex items-center gap-3 px-4 py-3 rounded-2xl text-text-light hover:bg-white/6 hover:text-primary transition-all text-sm font-semibold">
+                                    <UserIcon weight="fill" size={15} className="text-neutral-gray" /> My Account
+                                </Link>
                                 <Link href="/orders" onClick={() => setIsMobileMenuOpen(false)}
                                     className="flex items-center gap-3 px-4 py-3 rounded-2xl text-text-light hover:bg-white/6 hover:text-primary transition-all text-sm font-semibold">
                                     <PathIcon weight="fill" size={15} className="text-neutral-gray" /> My Orders
@@ -319,7 +328,7 @@ export default function Navbar() {
                             <ShoppingBagIcon weight="fill" size={18} className="text-neutral-gray shrink-0" />
                             <span className="flex-1">View Cart</span>
                             {totalItems > 0 && (
-                                <span className="min-w-[22px] h-5 flex items-center justify-center bg-error text-white text-[10px] font-bold rounded-full px-1.5 shrink-0">
+                                <span className="min-w-5.5 h-5 flex items-center justify-center bg-error text-white text-[10px] font-bold rounded-full px-1.5 shrink-0">
                                     {totalItems > 99 ? '99+' : totalItems}
                                 </span>
                             )}

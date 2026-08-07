@@ -10,23 +10,40 @@ import {
     ArrowLeftIcon, ShoppingBagIcon, PencilSimpleIcon,
     LockIcon, MagnifyingGlassIcon, XIcon, SpinnerGapIcon,
     NavigationArrowIcon, StorefrontIcon, WarningCircleIcon,
-    CaretRightIcon, SparkleIcon, UserCircleIcon,
+    CaretRightIcon, SparkleIcon, UserCircleIcon, TagIcon,
 } from '@phosphor-icons/react';
+import { getPromoService, type Promo } from '@/lib/services/promos/promo.service';
 import { useCart, CartItem } from '@/app/components/providers/CartProvider';
 import { useBranch, Branch, BranchWithDistance } from '@/app/components/providers/BranchProvider';
 import { useLocation } from '@/app/components/providers/LocationProvider';
 import { useAuth } from '@/app/components/providers/AuthProvider';
+import { useCreateCheckoutSession, useCheckoutSessionStatus, useAbandonCheckoutSession, useRetryPayment, useChangePaymentMethod } from '@/lib/api/hooks/useCheckoutSession';
+import PaymentRecoveryActions from '@/app/components/order/PaymentRecoveryActions';
+import type { PaymentMethod as UnifiedPaymentMethod, FulfillmentType } from '@/types/order';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
+import apiClient, { ApiError } from '@/lib/api/client';
+import { toast } from '@/lib/utils/toast';
+import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 
 type OrderType = 'delivery' | 'pickup';
-type PaymentMethod = 'momo' | 'cash_delivery' | 'cash_pickup';
-type Step = 1 | 2 | 3;
+type PaymentMethod = 'mobile_money' | 'cash';
+type Step = 1 | 2 | 3 | 4;
 type BranchSheetView = 'list' | 'conflict';
 
 interface ContactDetails { name: string; phone: string; address: string; note: string; }
 
-const DELIVERY_FEE = 15;
-const TAX_RATE = 0.025;
-const formatPrice = (p: number) => `GHS ${p.toFixed(2)}`;
+const DELIVERY_FEE = 0; // Delivery fees temporarily disabled
+
+interface ServiceChargeConfig { enabled: boolean; percent: number; cap: number; }
+interface CheckoutConfig { serviceCharge: ServiceChargeConfig; deliveryFeeEnabled: boolean; }
+const DEFAULT_SC_CONFIG: ServiceChargeConfig = { enabled: true, percent: 1, cap: 5 };
+const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = { serviceCharge: DEFAULT_SC_CONFIG, deliveryFeeEnabled: false };
+function calcServiceCharge(subtotal: number, cfg: ServiceChargeConfig): number {
+    if (!cfg.enabled || cfg.percent <= 0) return 0;
+    const raw = Math.round(subtotal * (cfg.percent / 100) * 100) / 100;
+    return cfg.cap > 0 && raw > cfg.cap ? cfg.cap : raw;
+}
+const formatPrice = (p: number) => `₵${p.toFixed(2)}`;
 
 // ─── Input Field ──────────────────────────────────────────────────────────────
 function InputField({ icon, label, required, children }: { icon: React.ReactNode; label: string; required?: boolean; children: React.ReactNode }) {
@@ -173,7 +190,7 @@ function AddressSearchField({ value, onChange, placeholder }: { value: string; o
 function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const { selectedBranch, setSelectedBranch, getBranchesWithDistance, branches } = useBranch();
     const { coordinates } = useLocation();
-    const { validateCartForBranch, removeUnavailableItems, items } = useCart();
+    const { validateCartForBranch, removeUnavailableItems, displayItems: items } = useCart();
 
     const [sheetView, setSheetView] = useState<BranchSheetView>('list');
     const [pendingBranch, setPendingBranch] = useState<Branch | null>(null);
@@ -209,7 +226,7 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         <>
             <div className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={onClose} />
             <div className={`fixed inset-x-0 bottom-0 z-50 bg-white dark:bg-brand-darker rounded-t-3xl shadow-2xl flex flex-col transition-transform duration-300 ease-out max-h-[88dvh]
-                md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[500px] md:rounded-2xl md:max-h-[82vh]
+                md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-125 md:rounded-2xl md:max-h-[82vh]
                 ${isOpen ? 'translate-y-0' : 'translate-y-full md:opacity-0 md:scale-95 md:pointer-events-none'}`}>
 
                 {/* Header */}
@@ -250,7 +267,7 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                                         <p className="text-xs text-neutral-gray mt-0.5 truncate">{branch.address}</p>
                                         <div className="flex items-center gap-2 mt-1.5 text-xs text-neutral-gray flex-wrap">
                                             {coordinates && <span>{branch.distance.toFixed(1)} km away</span>}
-                                            <span>·</span><span>{branch.deliveryTime}</span><span>·</span><span>GHS {branch.deliveryFee} delivery</span>
+                                            <span>·</span><span>{branch.deliveryTime}</span><span>·</span><span>₵{branch.deliveryFee} delivery</span>
                                         </div>
                                     </div>
                                     {!isCurrent && branch.isOpen && <CaretRightIcon size={16} className="text-neutral-gray shrink-0 mt-1" />}
@@ -281,8 +298,8 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                                         {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{ci.item.name}</p>
-                                        <p className="text-xs text-neutral-gray">{ci.sizeLabel} · Qty {ci.quantity}</p>
+                                        <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
+                                        <p className="text-xs text-neutral-gray">Qty {ci.quantity}</p>
                                     </div>
                                     <XIcon size={14} weight="bold" className="text-error shrink-0" />
                                 </div>
@@ -298,8 +315,8 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                                             {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{ci.item.name}</p>
-                                            <p className="text-xs text-neutral-gray">{ci.sizeLabel} · Qty {ci.quantity}</p>
+                                            <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
+                                            <p className="text-xs text-neutral-gray">Qty {ci.quantity}</p>
                                         </div>
                                         <CheckCircleIcon size={14} weight="fill" className="text-secondary shrink-0" />
                                     </div>
@@ -328,7 +345,7 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
 // ─── Step Indicator ───────────────────────────────────────────────────────────
 function StepIndicator({ current }: { current: Step }) {
-    const steps = [{ n: 1, label: 'Details' }, { n: 2, label: 'Payment' }, { n: 3, label: 'Done' }];
+    const steps = [{ n: 1, label: 'Details' }, { n: 2, label: 'Payment' }, { n: 3, label: 'Processing' }, { n: 4, label: 'Done' }];
     return (
         <div className="flex items-center">
             {steps.map((s, i) => {
@@ -350,12 +367,13 @@ function StepIndicator({ current }: { current: Step }) {
 }
 
 // ─── Order Summary ────────────────────────────────────────────────────────────
-function OrderSummary({ orderType }: { orderType: OrderType }) {
-    const { items, subtotal } = useCart();
+function OrderSummary({ orderType, scConfig, deliveryFeeEnabled, discount, promoName }: { orderType: OrderType; scConfig: ServiceChargeConfig; deliveryFeeEnabled: boolean; discount?: number; promoName?: string }) {
+    const { displayItems: items, subtotal } = useCart();
     const { selectedBranch } = useBranch();
-    const tax = subtotal * TAX_RATE;
-    const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
-    const total = subtotal + delivery + tax;
+    const showDelivery = deliveryFeeEnabled && orderType === 'delivery';
+    const delivery = showDelivery ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
+    const serviceCharge = calcServiceCharge(subtotal, scConfig);
+    const total = subtotal + delivery + serviceCharge - (discount ?? 0);
     return (
         <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
             <div className="flex items-center justify-between">
@@ -379,8 +397,22 @@ function OrderSummary({ orderType }: { orderType: OrderType }) {
             <div className="h-px bg-neutral-gray/10" />
             <div className="flex flex-col gap-2 text-sm">
                 <div className="flex justify-between"><span className="text-neutral-gray">Subtotal</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(subtotal)}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-gray">Delivery Fee</span><span className="font-semibold text-text-dark dark:text-text-light">{orderType === 'delivery' ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-gray">Tax (2.5%)</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(tax)}</span></div>
+                {deliveryFeeEnabled && (
+                    <div className="flex justify-between">
+                        <span className="text-neutral-gray">Delivery Fee{showDelivery ? <span className="text-neutral-gray/70"> · paid to rider</span> : ''}</span>
+                        <span className="font-semibold text-text-dark dark:text-text-light">{showDelivery ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span>
+                    </div>
+                )}
+                <div className="flex justify-between"><span className="text-neutral-gray">Service Charge{scConfig.enabled ? ` (${scConfig.percent}%)` : ''}</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(serviceCharge)}</span></div>
+                {(discount ?? 0) > 0 && (
+                    <div className="flex justify-between items-center">
+                        <span className="flex items-center gap-1.5 text-secondary text-sm">
+                            <TagIcon size={14} weight="fill" />
+                            {promoName || 'Promo Discount'}
+                        </span>
+                        <span className="font-semibold text-secondary">-{formatPrice(discount!)}</span>
+                    </div>
+                )}
             </div>
             <div className="h-px bg-neutral-gray/10" />
             <div className="flex justify-between items-center">
@@ -398,28 +430,52 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
 }) {
     const { selectedBranch } = useBranch();
     const [branchSheetOpen, setBranchSheetOpen] = useState(false);
+    const [phoneTouched, setPhoneTouched] = useState(false);
     const update = (f: keyof ContactDetails) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setContact({ ...contact, [f]: e.target.value });
-    const canProceed = contact.name.trim() && contact.phone.trim() && (orderType === 'pickup' || contact.address.trim());
+    const phoneError = phoneTouched && contact.phone.trim() && !isValidGhanaPhone(contact.phone) ? 'Enter a valid Ghana number (e.g. 0241234567 or +233241234567)' : '';
+
+    // Filter order types by branch settings
+    const allOrderTypes = [
+        { type: 'delivery' as const, icon: <TruckIcon weight="fill" size={22} />, label: 'Delivery', sub: 'Delivered to you' },
+        { type: 'pickup' as const, icon: <BagIcon weight="fill" size={22} />, label: 'Pickup', sub: 'Pick up at branch' },
+    ];
+    const enabledOrderTypes = selectedBranch
+        ? allOrderTypes.filter(ot => selectedBranch.orderTypes[ot.type]?.is_enabled !== false)
+        : allOrderTypes;
+
+    // Auto-select order type if only one is available
+    useEffect(() => {
+        if (enabledOrderTypes.length === 1 && orderType !== enabledOrderTypes[0].type) {
+            setOrderType(enabledOrderTypes[0].type);
+        }
+    }, [enabledOrderTypes.length]);
+
+    const branchUnavailable = selectedBranch && (!selectedBranch.isActive || !selectedBranch.isOpen);
+    const canProceed = !branchUnavailable && enabledOrderTypes.length > 0 && contact.name.trim() && contact.phone.trim() && isValidGhanaPhone(contact.phone) && (orderType === 'pickup' || contact.address.trim());
 
     return (
         <>
             <div className="flex flex-col gap-5">
                 <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
                     <h2 className="font-bold text-text-dark dark:text-text-light">How do you want your order?</h2>
-                    <div className="grid grid-cols-2 gap-3">
-                        {([
-                            { type: 'delivery' as const, icon: <TruckIcon weight="fill" size={22} />, label: 'Delivery', sub: 'Delivered to you' },
-                            { type: 'pickup' as const, icon: <BagIcon weight="fill" size={22} />, label: 'Pickup', sub: 'Pick up at branch' },
-                        ]).map(({ type, icon, label, sub }) => (
-                            <button key={type} onClick={() => setOrderType(type)}
-                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all duration-150 cursor-pointer
-                                    ${orderType === type ? 'border-primary bg-primary/8 text-primary' : 'border-neutral-gray/15 text-neutral-gray hover:border-primary/30'}`}>
-                                <span className={orderType === type ? 'text-primary' : 'text-neutral-gray'}>{icon}</span>
-                                <span className="text-sm font-bold">{label}</span>
-                                <span className="text-xs opacity-70">{sub}</span>
-                            </button>
-                        ))}
-                    </div>
+                    {enabledOrderTypes.length === 0 ? (
+                        <div className="flex items-center gap-3 p-4 rounded-2xl bg-error/5 border border-error/20">
+                            <WarningCircleIcon weight="fill" size={20} className="text-error shrink-0" />
+                            <p className="text-sm text-error">No order types are currently available at this branch.</p>
+                        </div>
+                    ) : (
+                        <div className={`grid gap-3 ${enabledOrderTypes.length === 1 ? 'grid-cols-1 max-w-xs' : 'grid-cols-2'}`}>
+                            {enabledOrderTypes.map(({ type, icon, label, sub }) => (
+                                <button key={type} onClick={() => setOrderType(type)}
+                                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all duration-150 cursor-pointer
+                                        ${orderType === type ? 'border-primary bg-primary/8 text-primary' : 'border-neutral-gray/15 text-neutral-gray hover:border-primary/30'}`}>
+                                    <span className={orderType === type ? 'text-primary' : 'text-neutral-gray'}>{icon}</span>
+                                    <span className="text-sm font-bold">{label}</span>
+                                    <span className="text-xs opacity-70">{sub}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {selectedBranch && (
@@ -441,7 +497,7 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
                         {orderType === 'delivery' && (
                             <div className="flex items-center gap-2 text-sm text-neutral-gray">
                                 <span>Estimated: <strong className="text-text-dark dark:text-text-light">25 – 40 mins</strong></span>
-                                <span className="ml-auto text-xs font-semibold text-text-dark dark:text-text-light">GHS {selectedBranch.deliveryFee} delivery fee</span>
+                                <span className="ml-auto text-xs font-semibold text-text-dark dark:text-text-light">₵{selectedBranch.deliveryFee} delivery fee</span>
                             </div>
                         )}
                     </div>
@@ -453,9 +509,12 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
                         <InputField icon={<UserIcon weight="fill" size={15} />} label="Full Name" required>
                             <input type="text" placeholder="e.g. Kwame Mensah" value={contact.name} onChange={update('name')} className="w-full bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/60" />
                         </InputField>
-                        <InputField icon={<PhoneIcon weight="fill" size={15} />} label="Phone Number" required>
-                            <input type="tel" placeholder="+233 24 000 0000" value={contact.phone} onChange={update('phone')} className="w-full bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/60" />
-                        </InputField>
+                        <div className="flex flex-col gap-1">
+                            <InputField icon={<PhoneIcon weight="fill" size={15} />} label="Phone Number" required>
+                                <input type="tel" placeholder="0241234567" value={contact.phone} onChange={update('phone')} onBlur={() => setPhoneTouched(true)} className="w-full bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/60" />
+                            </InputField>
+                            {phoneError && <p className="text-xs text-red-500 px-1">{phoneError}</p>}
+                        </div>
                     </div>
                     {orderType === 'delivery' && (
                         <AddressSearchField value={contact.address} onChange={addr => setContact({ ...contact, address: addr })} placeholder="Search your delivery address..." />
@@ -481,24 +540,34 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
 }
 
 // ─── Step 2 ───────────────────────────────────────────────────────────────────
-function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBack, onPlace, placing }: {
+function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBack, onPlace, placing, scConfig }: {
     paymentMethod: PaymentMethod; setPaymentMethod: (m: PaymentMethod) => void;
-    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: () => void; placing: boolean;
+    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: () => void; placing: boolean; scConfig: ServiceChargeConfig;
 }) {
     const { subtotal } = useCart();
     const { selectedBranch } = useBranch();
     const [branchSheetOpen, setBranchSheetOpen] = useState(false);
-    const tax = subtotal * TAX_RATE;
     const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
-    const total = subtotal + delivery + tax;
-    const [momoPhone, setMomoPhone] = useState(contact.phone);
-    const [momoNetwork, setMomoNetwork] = useState<'mtn' | 'telecel' | 'airteltigo'>('mtn');
+    const serviceCharge = calcServiceCharge(subtotal, scConfig);
+    const total = subtotal + delivery + serviceCharge;
 
-    const methods = [
-        { id: 'momo' as const, icon: <DeviceMobileIcon weight="fill" size={20} />, label: 'Mobile Money', sub: 'MTN MoMo · Telecel · AirtelTigo', color: 'text-warning' },
-        { id: 'cash_delivery' as const, icon: <MoneyIcon weight="fill" size={20} />, label: 'Cash on Delivery', sub: 'Pay when your order arrives', color: 'text-secondary', hide: orderType === 'pickup' },
-        { id: 'cash_pickup' as const, icon: <MoneyIcon weight="fill" size={20} />, label: 'Cash at Pickup', sub: 'Pay when you collect', color: 'text-secondary', hide: orderType === 'delivery' },
-    ].filter(m => !m.hide);
+    // Map frontend payment keys to backend DB keys for branch settings lookup
+    const paymentKeyMap: Record<string, string> = { mobile_money: 'momo', cash: 'cash_on_delivery' };
+
+    const allMethods = [
+        { id: 'mobile_money' as const, icon: <DeviceMobileIcon weight="fill" size={20} />, label: 'Mobile Money', sub: 'MTN MoMo · Telecel · AirtelTigo', color: 'text-warning' },
+        { id: 'cash' as const, icon: <MoneyIcon weight="fill" size={20} />, label: 'Cash on Delivery', sub: 'Pay when your order arrives', color: 'text-secondary' },
+    ];
+    const methods = selectedBranch
+        ? allMethods.filter(m => selectedBranch.paymentMethods[paymentKeyMap[m.id]]?.is_enabled !== false)
+        : allMethods;
+
+    // Auto-select payment method if only one is available
+    useEffect(() => {
+        if (methods.length === 1 && paymentMethod !== methods[0].id) {
+            setPaymentMethod(methods[0].id);
+        }
+    }, [methods.length]);
 
     return (
         <>
@@ -510,7 +579,7 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                         </div>
                         <div>
                             <p className="text-sm font-bold text-text-dark dark:text-text-light">{orderType === 'delivery' ? 'Delivering to' : 'Pickup at'}</p>
-                            <p className="text-xs text-neutral-gray truncate max-w-[200px]">{orderType === 'delivery' ? contact.address : selectedBranch?.name + ' Branch'}</p>
+                            <p className="text-xs text-neutral-gray truncate max-w-50">{orderType === 'delivery' ? contact.address : selectedBranch?.name + ' Branch'}</p>
                         </div>
                     </div>
                     <button onClick={onBack} className="text-xs cursor-pointer font-semibold text-primary hover:underline flex items-center gap-1 shrink-0"><PencilSimpleIcon size={12} /> Edit</button>
@@ -531,7 +600,12 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
 
                 <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 shadow-sm flex flex-col gap-3">
                     <h2 className="font-bold text-text-dark dark:text-text-light">Payment Method</h2>
-                    {methods.map(m => (
+                    {methods.length === 0 ? (
+                        <div className="flex items-center gap-3 p-4 rounded-2xl bg-error/5 border border-error/20">
+                            <WarningCircleIcon weight="fill" size={20} className="text-error shrink-0" />
+                            <p className="text-sm text-error">No payment methods are currently available at this branch.</p>
+                        </div>
+                    ) : methods.map(m => (
                         <div key={m.id}>
                             <button onClick={() => setPaymentMethod(m.id)}
                                 className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left cursor-pointer ${paymentMethod === m.id ? 'border-primary bg-primary/5' : 'border-neutral-gray/15 hover:border-primary/30'}`}>
@@ -544,25 +618,6 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                                     <p className="text-xs text-neutral-gray">{m.sub}</p>
                                 </div>
                             </button>
-                            {m.id === 'momo' && paymentMethod === 'momo' && (
-                                <div className="mt-2 ml-4 flex flex-col gap-3 p-4 rounded-xl bg-neutral-light dark:bg-brown/30">
-                                    <div>
-                                        <label className="text-xs font-semibold text-neutral-gray mb-1.5 block">Mobile Network</label>
-                                        <div className="flex gap-2">
-                                            {(['mtn', 'telecel', 'airteltigo'] as const).map(net => (
-                                                <button key={net} onClick={() => setMomoNetwork(net)}
-                                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all cursor-pointer ${momoNetwork === net ? 'border-primary bg-primary text-white' : 'border-neutral-gray/20 text-neutral-gray hover:border-primary/40'}`}>
-                                                    {net === 'airteltigo' ? 'AirtelTigo' : net.toUpperCase()}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <InputField icon={<PhoneIcon weight="fill" size={13} />} label="MoMo Number" required>
-                                        <input type="tel" placeholder="+233 24 000 0000" value={momoPhone} onChange={e => setMomoPhone(e.target.value)} className="w-full bg-transparent outline-none placeholder:text-neutral-gray/60 text-text-dark dark:text-text-light" />
-                                    </InputField>
-                                    <p className="text-xs text-neutral-gray flex items-center gap-1"><LockIcon size={11} /> You'll receive a prompt on your phone to confirm payment</p>
-                                </div>
-                            )}
                         </div>
                     ))}
                 </div>
@@ -571,15 +626,22 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                     <button onClick={onBack} className="flex cursor-pointer items-center gap-2 px-5 py-4 rounded-2xl border-2 border-neutral-gray/20 font-bold text-neutral-gray hover:border-primary/40 hover:text-primary transition-all">
                         <ArrowLeftIcon weight="bold" size={16} /> Back
                     </button>
-                    <button onClick={onPlace} disabled={placing}
+                    <button onClick={() => onPlace()} disabled={placing || methods.length === 0}
                         className="flex-1 flex cursor-pointer items-center justify-between bg-brown dark:bg-brand-dark hover:bg-brown-light disabled:opacity-70 text-white font-bold px-6 py-4 rounded-2xl transition-all active:scale-[0.98] group">
-                        <span>{placing ? 'Placing Order...' : paymentMethod === 'momo' ? 'Pay & Place Order' : 'Place Order'}</span>
+                        <span>{placing ? 'Placing Order...' : paymentMethod === 'mobile_money' ? 'Pay & Place Order' : 'Place Order'}</span>
                         <div className="flex items-center gap-2">
-                            <span className="text-primary font-bold">{formatPrice(total)}</span>
+                            <span className="text-primary font-bold">{formatPrice(paymentMethod === 'mobile_money' ? total - delivery : total)}</span>
                             <ArrowRightIcon weight="bold" size={18} className="group-hover:translate-x-1 transition-transform" />
                         </div>
                     </button>
                 </div>
+                {delivery > 0 && (
+                    <p className="text-xs text-center text-neutral-gray">
+                        {paymentMethod === 'mobile_money'
+                            ? `You pay ${formatPrice(total - delivery)} now for your order · ${formatPrice(delivery)} delivery is paid to the rider on delivery.`
+                            : `You'll pay ${formatPrice(total)} to the rider on delivery (incl. ${formatPrice(delivery)} delivery).`}
+                    </p>
+                )}
                 <p className="text-xs text-center text-neutral-gray flex items-center justify-center gap-1"><LockIcon size={11} /> Secured · Encrypted · Powered by Hubtel</p>
             </div>
             <BranchSelectorSheet isOpen={branchSheetOpen} onClose={() => setBranchSheetOpen(false)} />
@@ -587,20 +649,131 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
     );
 }
 
-// ─── Step 3 ───────────────────────────────────────────────────────────────────
+// ─── Step 3: Payment Processing (polls checkout session) ──────────────────────
+function StepProcessing({ sessionToken, onSuccess, onFail, onAbandon }: {
+    sessionToken: string;
+    onSuccess: (orderNumber: string) => void;
+    onFail: (message: string) => void;
+    onAbandon: () => void;
+}) {
+    const { session } = useCheckoutSessionStatus(sessionToken);
+    const abandon = useAbandonCheckoutSession();
+    const [showRecovery, setShowRecovery] = useState(false);
+
+    useEffect(() => {
+        if (!session) return;
+        if (session.status === 'confirmed' && session.order?.order_number) {
+            onSuccess(session.order.order_number);
+        } else if (session.status === 'failed' || session.status === 'expired') {
+            setShowRecovery(true);
+        }
+    }, [session, onSuccess, onFail]);
+
+    const handleAbandon = async () => {
+        try {
+            await abandon.mutateAsync(sessionToken);
+        } catch { /* ignore */ }
+        onAbandon();
+    };
+
+    // Show recovery UI when payment fails or expires
+    if (showRecovery && session) {
+        const isFailed = session.status === 'failed';
+        return (
+            <div className="flex flex-col items-center gap-5 py-10 text-center max-w-sm mx-auto">
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center ${isFailed ? 'bg-red-100 dark:bg-red-900/20' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
+                    <WarningCircleIcon weight="fill" size={40} className={isFailed ? 'text-red-500' : 'text-amber-500'} />
+                </div>
+                <div>
+                    <h2 className="text-xl font-bold text-text-dark dark:text-text-light">
+                        {isFailed ? 'Payment Failed' : 'Session Expired'}
+                    </h2>
+                    <p className="text-sm text-neutral-gray mt-2">
+                        {isFailed
+                            ? 'Your payment could not be completed. Choose an option below to try again.'
+                            : 'Your payment session has expired. You can retry or switch to cash.'}
+                    </p>
+                </div>
+
+                <PaymentRecoveryActions
+                    session={session}
+                    onOrderCreated={onSuccess}
+                    onAbandoned={onAbandon}
+                />
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col items-center gap-6 py-12 text-center">
+            <div className="w-20 h-20 rounded-full bg-primary/15 flex items-center justify-center">
+                <SpinnerGapIcon size={40} className="text-primary animate-spin" />
+            </div>
+            <div>
+                <h2 className="text-xl font-bold text-text-dark dark:text-text-light">Awaiting Payment</h2>
+                <p className="text-sm text-neutral-gray mt-2">
+                    Complete the payment on the Hubtel page.<br />
+                    This page will update automatically once confirmed.
+                </p>
+            </div>
+            <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 w-full max-w-sm text-sm text-text-dark dark:text-text-light text-left flex items-start gap-3">
+                <DeviceMobileIcon weight="fill" size={18} className="text-primary shrink-0 mt-0.5" />
+                <span>If prompted on your phone, approve the Mobile Money payment to continue.</span>
+            </div>
+            <button onClick={handleAbandon} disabled={abandon.isPending}
+                className="text-sm font-semibold text-neutral-gray hover:text-error transition-colors cursor-pointer mt-2">
+                {abandon.isPending ? 'Cancelling...' : 'Cancel & go back'}
+            </button>
+        </div>
+    );
+}
+
+// ─── Step 4 ───────────────────────────────────────────────────────────────────
 function StepDone({ orderNumber, orderType, contact }: {
     orderNumber: string; orderType: OrderType; contact: ContactDetails;
 }) {
-    const { isLoggedIn, saveFromCheckout } = useAuth();
+    const { isLoggedIn, requestCheckoutSaveOTP, confirmCheckoutSaveOTP } = useAuth();
     const { selectedBranch } = useBranch();
-    const [promptState, setPromptState] = useState<'idle' | 'saving' | 'saved' | 'dismissed'>(
+    // Saving the details means claiming the account behind this number, which
+    // carries its past orders and addresses — so it goes through an OTP rather
+    // than trusting that whoever typed the number owns it.
+    const [promptState, setPromptState] = useState<'idle' | 'sending' | 'code' | 'verifying' | 'saved' | 'dismissed'>(
         isLoggedIn ? 'saved' : 'idle'
     );
+    const [code, setCode] = useState('');
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const [resendIn, setResendIn] = useState(0);
 
-    const handleSave = async () => {
-        setPromptState('saving');
-        await new Promise(r => setTimeout(r, 600));
-        saveFromCheckout(contact.name, contact.phone);
+    useEffect(() => {
+        if (resendIn <= 0) return;
+        const t = setTimeout(() => setResendIn(s => s - 1), 1000);
+        return () => clearTimeout(t);
+    }, [resendIn]);
+
+    const sendCode = async () => {
+        setPromptState('sending');
+        setSaveError(null);
+        const result = await requestCheckoutSaveOTP(contact.phone);
+        if (!result.success) {
+            setSaveError(result.error ?? 'Could not send the code. Please try again.');
+            setPromptState('idle');
+            return;
+        }
+        setCode('');
+        setResendIn(30);
+        setPromptState('code');
+    };
+
+    const submitCode = async () => {
+        if (code.length !== 6) return;
+        setPromptState('verifying');
+        setSaveError(null);
+        const result = await confirmCheckoutSaveOTP(contact.name, contact.phone, code);
+        if (!result.success) {
+            setSaveError(result.error ?? 'That code did not work. Please try again.');
+            setPromptState('code');
+            return;
+        }
         setPromptState('saved');
     };
 
@@ -673,17 +846,72 @@ function StepDone({ orderNumber, orderType, contact }: {
                             <p className="text-xs text-neutral-gray">{contact.phone}</p>
                         </div>
                     </div>
-                    <button onClick={handleSave}
+                    {saveError && (
+                        <p className="text-xs text-error mb-3 text-left">{saveError}</p>
+                    )}
+                    <button onClick={sendCode}
                         className="w-full py-3 rounded-xl bg-secondary hover:bg-secondary/90 text-white font-bold text-sm transition-all active:scale-[0.98] cursor-pointer">
                         Yes, save my info
                     </button>
                 </div>
             )}
 
-            {promptState === 'saving' && (
+            {promptState === 'sending' && (
                 <div className="w-full bg-white dark:bg-brand-dark rounded-2xl p-4 shadow-sm flex items-center justify-center gap-2 text-sm text-neutral-gray">
                     <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    Saving your details...
+                    Sending your code...
+                </div>
+            )}
+
+            {/* ── Code entry ── */}
+            {(promptState === 'code' || promptState === 'verifying') && (
+                <div className="w-full bg-white dark:bg-brand-dark rounded-2xl p-4 shadow-sm border border-primary/15 relative">
+                    <button onClick={() => setPromptState('dismissed')}
+                        className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors cursor-pointer">
+                        <XIcon size={13} weight="bold" className="text-neutral-gray" />
+                    </button>
+                    <div className="text-left mb-4">
+                        <p className="text-sm font-bold text-text-dark dark:text-text-light">Enter the code we sent</p>
+                        <p className="text-xs text-neutral-gray mt-0.5">
+                            Sent to <strong>{contact.phone}</strong> — this confirms the number is yours.
+                        </p>
+                    </div>
+
+                    <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        value={code}
+                        disabled={promptState === 'verifying'}
+                        onChange={e => { setCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setSaveError(null); }}
+                        onKeyDown={e => { if (e.key === 'Enter') submitCode(); }}
+                        placeholder="------"
+                        className="w-full h-12 text-center tracking-[0.5em] font-mono text-lg rounded-xl bg-neutral-light dark:bg-brown/30 text-text-dark dark:text-text-light border border-neutral-gray/20 focus:border-primary/50 outline-none transition-colors disabled:opacity-60"
+                    />
+
+                    {saveError && (
+                        <p className="text-xs text-error mt-2 text-left">{saveError}</p>
+                    )}
+
+                    <button
+                        onClick={submitCode}
+                        disabled={code.length !== 6 || promptState === 'verifying'}
+                        className="w-full mt-4 py-3 rounded-xl bg-secondary hover:bg-secondary/90 disabled:bg-neutral-gray/30 disabled:cursor-not-allowed text-white font-bold text-sm transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
+                    >
+                        {promptState === 'verifying' && (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        )}
+                        {promptState === 'verifying' ? 'Confirming...' : 'Confirm'}
+                    </button>
+
+                    <button
+                        onClick={sendCode}
+                        disabled={resendIn > 0 || promptState === 'verifying'}
+                        className="w-full mt-2 py-2 text-xs font-semibold text-neutral-gray hover:text-primary disabled:hover:text-neutral-gray disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    >
+                        {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
+                    </button>
                 </div>
             )}
 
@@ -692,10 +920,10 @@ function StepDone({ orderNumber, orderType, contact }: {
                     <CheckCircleIcon weight="fill" size={20} className="text-secondary shrink-0" />
                     <div>
                         <p className="text-sm font-bold text-text-dark dark:text-text-light">
-                            {isLoggedIn ? "You're already signed in" : 'Details saved!'}
+                            {isLoggedIn ? "You're already signed in" : "Saved — you're signed in"}
                         </p>
                         <p className="text-xs text-neutral-gray">
-                            {isLoggedIn ? 'Your info is pre-filled on every order.' : 'Your next checkout will be instant.'}
+                            {isLoggedIn ? 'Your info is pre-filled on every order.' : 'Your next checkout will be instant, and your order history is now yours.'}
                         </p>
                     </div>
                 </div>
@@ -703,7 +931,7 @@ function StepDone({ orderNumber, orderType, contact }: {
 
             {/* CTA buttons */}
             <div className="flex flex-col gap-3 w-full">
-                <Link href="/orders"
+                <Link href={`/orders/${orderNumber}`}
                     className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold py-4 rounded-2xl transition-all active:scale-[0.98]">
                     Track My Order <ArrowRightIcon weight="bold" size={16} />
                 </Link>
@@ -734,45 +962,157 @@ function EmptyCartGuard() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CheckoutPage() {
-    const { items, clearCart } = useCart();
+    const { displayItems: items, clearCart, subtotal } = useCart();
+    const { selectedBranch, branches } = useBranch();
+    const { coordinates } = useLocation();
+    const createSession = useCreateCheckoutSession();
     const [step, setStep] = useState<Step>(1);
     const [orderType, setOrderType] = useState<OrderType>('delivery');
-    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('momo');
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mobile_money');
     const [placing, setPlacing] = useState(false);
     const [orderNumber, setOrderNumber] = useState('');
+    const [sessionToken, setSessionToken] = useState<string | null>(null);
     const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });
+    const [scConfig, setScConfig] = useState<ServiceChargeConfig>(DEFAULT_SC_CONFIG);
+    const [deliveryFeeEnabled, setDeliveryFeeEnabled] = useState(false);
+    const [activePromo, setActivePromo] = useState<Promo | null>(null);
+    const [promoDiscount, setPromoDiscount] = useState(0);
+
+    useEffect(() => {
+        apiClient.get('/checkout-config').then((res: unknown) => {
+            const d = (res as { data?: { service_charge_enabled?: boolean; service_charge_percent?: number; service_charge_cap?: number; delivery_fee_enabled?: boolean } })?.data;
+            if (d) {
+                setScConfig({ enabled: d.service_charge_enabled ?? true, percent: d.service_charge_percent ?? 1, cap: d.service_charge_cap ?? 5 });
+                setDeliveryFeeEnabled(d.delivery_fee_enabled ?? false);
+            }
+        }).catch(() => { /* fall back to defaults */ });
+    }, []);
+
+    const effectiveBranch = selectedBranch ?? branches.find(b => b.isOpen) ?? branches[0] ?? null;
+
+    // Auto-resolve best applicable promo
+    useEffect(() => {
+        if (!effectiveBranch || items.length === 0) { setActivePromo(null); setPromoDiscount(0); return; }
+        const itemIds = items.map(ci => String(ci.item.id));
+        getPromoService().resolvePromo(itemIds, String(effectiveBranch.id), subtotal).then(p => {
+            if (!p) { setActivePromo(null); setPromoDiscount(0); return; }
+            setActivePromo(p);
+            setPromoDiscount(getPromoService().calculateDiscount(p, subtotal));
+        }).catch(() => { setActivePromo(null); setPromoDiscount(0); });
+    }, [items, effectiveBranch, subtotal]);
 
     const handlePlaceOrder = useCallback(async () => {
+        if (!effectiveBranch) return;
         setPlacing(true);
-        await new Promise(r => setTimeout(r, 1800));
-        setOrderNumber(`CB${Date.now().toString().slice(-6)}`);
-        clearCart(); setPlacing(false); setStep(3);
+        try {
+            const session = await createSession.mutateAsync({
+                branch_id: Number(effectiveBranch.id),
+                order_type: orderType,
+                customer_name: contact.name,
+                customer_phone: normalizeGhanaPhone(contact.phone),
+                delivery_address: orderType === 'delivery' ? contact.address : undefined,
+                delivery_latitude: orderType === 'delivery' && coordinates ? coordinates.latitude : undefined,
+                delivery_longitude: orderType === 'delivery' && coordinates ? coordinates.longitude : undefined,
+                special_instructions: contact.note || undefined,
+                payment_method: paymentMethod,
+            });
+
+            if (paymentMethod === 'mobile_money') {
+                // Redirect to Hubtel checkout if we have a URL
+                if (session.checkout_url) {
+                    // Don't clear cart here — backend clears it when order is created.
+                    // If payment fails, the customer can retry with their cart intact.
+                    window.location.href = session.checkout_url;
+                    return;
+                }
+                // Otherwise poll for status (e.g. if redirect didn't happen)
+                setSessionToken(session.session_token);
+                setStep(3);
+            } else {
+                // Cash: backend creates order immediately
+                if (session.status === 'confirmed' && session.order?.order_number) {
+                    clearCart();
+                    setOrderNumber(session.order.order_number);
+                    setStep(4);
+                } else {
+                    // Session still pending — poll for status
+                    setSessionToken(session.session_token);
+                    setStep(3);
+                }
+            }
+        } catch (err: unknown) {
+            const msg = err instanceof ApiError ? err.message : 'Failed to place order. Please try again.';
+            toast.error(msg);
+        } finally {
+            setPlacing(false);
+        }
+    }, [effectiveBranch, paymentMethod, orderType, contact, coordinates, createSession, clearCart]);
+
+    const handleProcessingSuccess = useCallback((num: string) => {
+        clearCart();
+        setOrderNumber(num);
+        setStep(4);
     }, [clearCart]);
 
-    if (items.length === 0 && step !== 3) return <EmptyCartGuard />;
+    const handleProcessingFail = useCallback((message: string) => {
+        toast.error(message);
+        setStep(2);
+        setSessionToken(null);
+    }, []);
+
+    const handleProcessingAbandon = useCallback(() => {
+        setStep(2);
+        setSessionToken(null);
+    }, []);
+
+    if (items.length === 0 && step !== 3 && step !== 4) return <EmptyCartGuard />;
+
+    const branchClosed = effectiveBranch && !effectiveBranch.isOpen;
+    const branchInactive = effectiveBranch && !effectiveBranch.isActive;
+    const branchUnavailable = branchClosed || branchInactive;
 
     return (
         <div className="min-h-screen bg-neutral-light dark:bg-brand-darker pt-20 pb-12">
             <div className="w-[95%] md:w-[85%] xl:w-[75%] max-w-5xl mx-auto">
                 <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-text-dark dark:text-text-light">{step === 3 ? 'Order Confirmed' : 'Checkout'}</h1>
-                        {step !== 3 && <p className="text-sm text-neutral-gray mt-1">Complete your order details below</p>}
+                        <h1 className="text-2xl md:text-3xl font-bold text-text-dark dark:text-text-light">{step === 4 ? 'Order Confirmed' : step === 3 ? 'Processing Payment' : 'Checkout'}</h1>
+                        {step <= 2 && <p className="text-sm text-neutral-gray mt-1">Complete your order details below</p>}
                     </div>
-                    {step !== 3 && <StepIndicator current={step} />}
+                    {step <= 3 && <StepIndicator current={step} />}
                 </div>
 
-                {step === 3 ? (
+                {branchUnavailable && step <= 2 && (
+                    <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl bg-error/5 border border-error/20">
+                        <WarningCircleIcon weight="fill" size={22} className="text-error shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-sm font-bold text-error">
+                                {branchInactive ? 'This branch is currently inactive' : 'This branch is currently closed'}
+                            </p>
+                            <p className="text-xs text-error/80 mt-1">
+                                {branchInactive
+                                    ? 'This branch is not accepting orders at the moment. Please select a different branch or try again later.'
+                                    : 'This branch is closed right now. Please check back during operating hours or select a different branch.'}
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {step === 4 ? (
                     <div className="max-w-md mx-auto">
                         <StepDone orderNumber={orderNumber} orderType={orderType} contact={contact} />
+                    </div>
+                ) : step === 3 && sessionToken ? (
+                    <div className="max-w-md mx-auto">
+                        <StepProcessing sessionToken={sessionToken} onSuccess={handleProcessingSuccess} onFail={handleProcessingFail} onAbandon={handleProcessingAbandon} />
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
                         <div>
-                            {step === 1 && <StepDetails orderType={orderType} setOrderType={setOrderType} contact={contact} setContact={setContact} onNext={() => setStep(2)} />}
-                            {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} />}
+                            {step === 1 && <StepDetails orderType={orderType} setOrderType={setOrderType} contact={contact} setContact={setContact} onNext={() => { setContact(c => ({ ...c, phone: normalizeGhanaPhone(c.phone) })); setStep(2); }} />}
+                            {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} scConfig={scConfig} />}
                         </div>
-                        <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} /></div>
+                        <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} scConfig={scConfig} deliveryFeeEnabled={deliveryFeeEnabled} discount={promoDiscount} promoName={activePromo?.name} /></div>
                     </div>
                 )}
             </div>

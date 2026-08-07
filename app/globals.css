@@ -8,7 +8,7 @@
 
   /* Fonts */
   --font-family-brand: var(--font-caprasimo), cursive;
-  --font-family-body: var(--font-cabin), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-body: var(--font-manrope), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
 
   /* Main Colors (Always the same in both themes) */
@@ -22,6 +22,7 @@
 
   /* Neutral Colors */
   --color-neutral-light: #fbf6ed;
+  --color-neutral-card: #fffbf3;
   --color-neutral-gray: #8b7f70;
 
   /* Dark Colors */
@@ -44,8 +45,10 @@
 }
 
 body {
-  /* THIS IS THE KEY - Apply Cabin font to body */
-  font-family: var(--font-cabin), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  /* Body font — Manrope (see app/layout.tsx). Revert to var(--font-cabin) to restore Cabin. */
+  font-family: var(--font-manrope), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  /* Manrope reads light at 400 — default body copy to 500. Headings use explicit bold weights. */
+  font-weight: 500;
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -53,6 +56,44 @@ body {
   overflow-x: hidden;
   overflow-y: auto !important;
 
+  /* Global slim scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(55, 43, 30, 0.35) transparent;
+}
+
+/* Slim scrollbar for WebKit (Chrome, Safari, Edge) */
+body::-webkit-scrollbar {
+  width: 6px;
+}
+body::-webkit-scrollbar-track {
+  background: transparent;
+}
+body::-webkit-scrollbar-thumb {
+  background-color: rgba(55, 43, 30, 0.35);
+  border-radius: 9999px;
+}
+body::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(55, 43, 30, 0.55);
+}
+
+/* Apply slim scrollbar to all scrollable elements */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(55, 43, 30, 0.25) transparent;
+}
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(55, 43, 30, 0.25);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(55, 43, 30, 0.45);
 }
 
 
@@ -77,5 +118,105 @@ body {
     /* IE and Edge */
     scrollbar-width: none;
     /* Firefox */
+  }
+
+  /* ── Soft entrance / interaction animations (used by the staff auth screens) ── */
+  @keyframes cb-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes cb-fade-in-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes cb-fade-in-down {
+    from { opacity: 0; transform: translateY(-14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes cb-scale-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  @keyframes cb-slide-in-right {
+    from { opacity: 0; transform: translateX(24px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes cb-slide-in-left {
+    from { opacity: 0; transform: translateX(-24px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes cb-shake {
+    0%, 100% { transform: translateX(0); }
+    20%      { transform: translateX(-6px); }
+    40%      { transform: translateX(6px); }
+    60%      { transform: translateX(-4px); }
+    80%      { transform: translateX(4px); }
+  }
+  @keyframes cb-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-8px); }
+  }
+
+  .animate-fade-in       { animation: cb-fade-in 0.5s ease both; }
+  .animate-fade-in-up    { animation: cb-fade-in-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-fade-in-down  { animation: cb-fade-in-down 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-scale-in      { animation: cb-scale-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-slide-in-right{ animation: cb-slide-in-right 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-slide-in-left { animation: cb-slide-in-left 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-shake         { animation: cb-shake 0.4s ease both; }
+  .animate-float         { animation: cb-float 6s ease-in-out infinite; }
+
+  .anim-delay-75  { animation-delay: 75ms; }
+  .anim-delay-150 { animation-delay: 150ms; }
+  .anim-delay-200 { animation-delay: 200ms; }
+  .anim-delay-300 { animation-delay: 300ms; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in,
+    .animate-fade-in-up,
+    .animate-fade-in-down,
+    .animate-scale-in,
+    .animate-slide-in-right,
+    .animate-slide-in-left,
+    .animate-shake,
+    .animate-float {
+      animation: none !important;
+    }
+  }
+}
+
+@layer components {
+
+  /* Thin Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    @apply w-1 h-1 px-2 mx-2 opacity-0 hidden;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-neutral-light rounded-full opacity-10;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-brown/50 rounded-full px-1 mx-2;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-brown-light;
+  }
+
+  .custom-scrollbar2::-webkit-scrollbar {
+    @apply w-1 h-1 px-2 mx-2 opacity-0;
+  }
+
+  .custom-scrollbar2::-webkit-scrollbar-track {
+    @apply bg-neutral-light rounded-full opacity-10;
+  }
+
+  .custom-scrollbar2::-webkit-scrollbar-thumb {
+    @apply bg-brown/50 rounded-full px-1 mx-2;
+  }
+
+  .custom-scrollbar2::-webkit-scrollbar-thumb:hover {
+    @apply bg-brown-light;
   }
 }

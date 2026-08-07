@@ -5,7 +5,6 @@ import React, { useState } from 'react'
 import Button from '../components/base/Button'
 import Navbar from '../components/layout/Navbar'
 import Loader from '../components/base/Loader'
-import { sampleMenuItems } from '@/lib/data/SampleMenu'
 import UniversalSearch from '../components/ui/UniversalSearch'
 import DynamicGreeting from '../components/ui/DynamicGreeting'
 import HeroSearch from '../components/sections/HeroSearch'
@@ -16,7 +15,10 @@ import Footer from '../components/layout/Footer'
 
 
 
-export default function page() {
+// Capitalised so React - and `react-hooks/rules-of-hooks` - can tell this is a
+// component. Lowercase, the rule assumes any hook inside is being called from a
+// plain function and flags it, which is what kept the hooks gate red.
+export default function Page() {
   const [isLoading, setIsLoading] = useState(false);
 
 
