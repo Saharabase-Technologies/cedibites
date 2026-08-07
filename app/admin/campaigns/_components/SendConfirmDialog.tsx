@@ -11,14 +11,20 @@ import {
 } from '@phosphor-icons/react';
 import { campaignService } from '@/lib/api/services/campaign.service';
 import { useCampaignMutations } from '@/lib/api/hooks/useCampaigns';
+import { GHS } from '@/lib/sms/cost';
 import type { Campaign } from '@/types/marketing';
 
 /**
- * The confirm step, and the last thing standing between a draft and the bill.
+ * The last thing between a draft and the bill.
  *
- * Every figure here is resolved live on the server rather than read off the
- * draft, so the recipient count shown is the one the send will actually use.
- * A segment written against last week is a segment that has changed.
+ * Every figure is resolved live on the server rather than read off the draft, so
+ * the recipient count shown is the one the send will actually use. A segment
+ * written against last week is a segment that has changed.
+ *
+ * Each number says whether it is per person or for everyone, and the arithmetic
+ * between them is spelled out. "GHS 0.20" on its own was read as the price for
+ * one customer when it was the total for four — harmless at four, a four-figure
+ * surprise at 28,000.
  */
 export function SendConfirmDialog({
     campaign,
@@ -35,11 +41,14 @@ export function SendConfirmDialog({
     const { data: preview, isLoading } = useQuery({
         queryKey: ['campaigns', 'preview', campaign.id],
         queryFn: () => campaignService.previewCampaign(campaign.id),
-        // Never served from cache. The whole point is that these numbers are
-        // current at the moment the button is pressed.
+        // Never from cache. The whole point is that these are current at the
+        // moment the button is pressed.
         staleTime: 0,
         gcTime: 0,
     });
+
+    const going = preview?.effective_recipient_count ?? 0;
+    const perPerson = preview && going > 0 ? preview.estimated_cost / going : 0;
 
     async function confirm() {
         setError(null);
@@ -54,13 +63,14 @@ export function SendConfirmDialog({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8 overflow-y-auto">
-            <div className="w-full max-w-md bg-white dark:bg-brand-dark rounded-3xl shadow-xl border border-brown-light/20">
+            <div className="w-full max-w-md bg-neutral-card rounded-3xl shadow-xl border border-[#f0e8d8]">
 
-                <div className="flex items-center justify-between px-6 py-4 border-b border-[#f0e8d8] dark:border-brown-light/20">
-                    <h2 className="text-text-dark dark:text-text-light text-lg font-semibold font-body">
-                        Send this campaign?
-                    </h2>
-                    <button onClick={onClose} className="text-neutral-gray hover:text-text-dark transition-colors">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#f0e8d8]">
+                    <h2 className="text-text-dark text-lg font-semibold font-body">Send this campaign?</h2>
+                    <button
+                        onClick={onClose}
+                        className="text-neutral-gray hover:text-text-dark transition-colors cursor-pointer"
+                    >
                         <XIcon size={20} />
                     </button>
                 </div>
@@ -74,23 +84,20 @@ export function SendConfirmDialog({
                     ) : (
                         <>
                             {preview.seed_mode && (
-                                <div className="flex items-start gap-3 bg-secondary/10 border border-secondary/30 rounded-2xl px-4 py-3">
-                                    <FlaskIcon size={18} weight="fill" className="text-secondary shrink-0 mt-0.5" />
+                                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                                    <FlaskIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
                                     <p className="text-neutral-gray text-sm font-body">
-                                        <span className="text-text-dark dark:text-text-light font-semibold">
-                                            Test mode is on.
-                                        </span>{' '}
-                                        This goes to {preview.effective_recipient_count} staff test number
-                                        {preview.effective_recipient_count === 1 ? '' : 's'}, not to the{' '}
+                                        <span className="text-text-dark font-semibold">Test mode is on.</span>{' '}
+                                        This goes to {going} staff test number{going === 1 ? '' : 's'}, not to the{' '}
                                         {preview.recipient_count.toLocaleString()} people in this audience.
                                     </p>
                                 </div>
                             )}
 
                             {preview.over_cap && (
-                                <div className="flex items-start gap-3 bg-error/10 border border-error/30 rounded-2xl px-4 py-3">
-                                    <WarningCircleIcon size={18} weight="fill" className="text-error shrink-0 mt-0.5" />
-                                    <p className="text-error text-sm font-body">
+                                <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-2xl px-4 py-3">
+                                    <WarningCircleIcon size={18} weight="fill" className="text-rose-600 shrink-0 mt-0.5" />
+                                    <p className="text-rose-700 text-sm font-body">
                                         This audience holds {preview.recipient_count.toLocaleString()} people, over the
                                         limit of {preview.cap.toLocaleString()} for one campaign. Sending will be
                                         refused.
@@ -98,47 +105,60 @@ export function SendConfirmDialog({
                                 </div>
                             )}
 
-                            <dl className="rounded-2xl bg-neutral-light dark:bg-brand-darker px-4 py-3 flex flex-col gap-2.5">
+                            {going === 0 && !preview.seed_mode && (
+                                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                                    <WarningCircleIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+                                    <p className="text-neutral-gray text-sm font-body">
+                                        Nobody is in this audience right now, so there is nothing to send.
+                                    </p>
+                                </div>
+                            )}
+
+                            <dl className="rounded-2xl bg-white border border-[#f0e8d8] divide-y divide-[#f0e8d8]">
                                 <Line
                                     label="Going to"
-                                    value={`${preview.effective_recipient_count.toLocaleString()} ${
-                                        preview.effective_recipient_count === 1 ? 'person' : 'people'
-                                    }`}
+                                    value={`${going.toLocaleString()} ${going === 1 ? 'person' : 'people'}`}
                                 />
                                 <Line label="Length" value={`${preview.characters} characters`} />
                                 <Line
-                                    label="Costs per person"
-                                    value={`${preview.segments} text${preview.segments === 1 ? '' : 's'}`}
+                                    label="Costs each person"
+                                    value={`${preview.segments} text${preview.segments === 1 ? '' : 's'} · ${GHS(perPerson)}`}
                                 />
-                                <div className="border-t border-brown-light/20 pt-2.5">
-                                    <Line
-                                        label="Projected total"
-                                        value={`GHS ${preview.estimated_cost.toFixed(2)}`}
-                                        strong
-                                    />
+                                <div className="flex items-baseline justify-between gap-4 px-4 py-3.5">
+                                    <dt className="text-text-dark text-sm font-semibold font-body">
+                                        Total for everyone
+                                        <span className="block text-neutral-gray text-xs font-normal mt-0.5">
+                                            {preview.segments} text{preview.segments === 1 ? '' : 's'} ×{' '}
+                                            {going.toLocaleString()} {going === 1 ? 'person' : 'people'}
+                                        </span>
+                                    </dt>
+                                    <dd className="text-text-dark text-xl font-bold font-body tabular-nums">
+                                        {GHS(preview.estimated_cost)}
+                                    </dd>
                                 </div>
                             </dl>
 
                             {preview.encoding === 'UCS_2' && (
-                                <p className="text-warning text-xs font-body leading-relaxed">
-                                    This message contains characters ({preview.non_gsm_characters.join(' ')}) that cut
-                                    the limit from 160 to 70, so it costs {preview.segments} texts per person instead
-                                    of one. Go back and swap them if you can.
+                                <p className="text-amber-700 text-xs font-body leading-relaxed">
+                                    This message contains{' '}
+                                    <span className="font-mono">{preview.non_gsm_characters.join(' ')}</span>, which cut
+                                    the limit from 160 characters to 70 — so it costs {preview.segments} texts each
+                                    instead of one. Go back and swap them if you can.
                                 </p>
                             )}
 
                             <p className="text-neutral-gray text-xs font-body leading-relaxed">
-                                The projection uses our configured rate. Once Hubtel replies, the campaign will show
-                                what it actually charged.
+                                The total is a projection from our configured rate. Once Hubtel replies, the campaign
+                                shows what it actually charged.
                                 {!preview.seed_mode && ' Once this starts, it cannot be recalled.'}
                             </p>
                         </>
                     )}
 
                     {error && (
-                        <div className="flex items-start gap-3 bg-error/10 border border-error/30 rounded-2xl px-4 py-3">
-                            <WarningCircleIcon size={18} weight="fill" className="text-error shrink-0 mt-0.5" />
-                            <p className="text-error text-sm font-body">{error}</p>
+                        <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-2xl px-4 py-3">
+                            <WarningCircleIcon size={18} weight="fill" className="text-rose-600 shrink-0 mt-0.5" />
+                            <p className="text-rose-700 text-sm font-body">{error}</p>
                         </div>
                     )}
 
@@ -146,15 +166,15 @@ export function SendConfirmDialog({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 rounded-2xl border border-brown-light/25 text-text-dark dark:text-text-light text-sm font-semibold font-body py-3 hover:bg-neutral-light dark:hover:bg-brand-darker transition-colors"
+                            className="flex-1 rounded-xl border border-[#f0e8d8] bg-white text-text-dark text-sm font-semibold font-body py-3 hover:bg-neutral-light transition-colors min-h-11 cursor-pointer"
                         >
                             Not yet
                         </button>
                         <button
                             type="button"
                             onClick={confirm}
-                            disabled={send.isPending || isLoading || preview?.over_cap}
-                            className="flex-1 rounded-2xl bg-primary hover:bg-primary-hover disabled:opacity-60 text-white text-sm font-semibold font-body py-3 transition-colors flex items-center justify-center gap-2"
+                            disabled={send.isPending || isLoading || preview?.over_cap || going === 0}
+                            className="flex-1 rounded-xl bg-primary text-white text-sm font-semibold font-body py-3 hover:bg-primary/90 transition-colors min-h-11 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {send.isPending
                                 ? <SpinnerGapIcon size={16} className="animate-spin" />
@@ -168,17 +188,11 @@ export function SendConfirmDialog({
     );
 }
 
-function Line({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function Line({ label, value }: { label: string; value: string }) {
     return (
-        <div className="flex items-baseline justify-between gap-3">
+        <div className="flex items-baseline justify-between gap-4 px-4 py-3">
             <dt className="text-neutral-gray text-sm font-body">{label}</dt>
-            <dd className={`font-body ${
-                strong
-                    ? 'text-text-dark dark:text-text-light text-lg font-semibold'
-                    : 'text-text-dark dark:text-text-light text-sm font-medium'
-            }`}>
-                {value}
-            </dd>
+            <dd className="text-text-dark text-sm font-medium font-body text-right">{value}</dd>
         </div>
     );
 }
