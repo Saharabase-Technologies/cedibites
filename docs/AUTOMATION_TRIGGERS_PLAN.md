@@ -208,12 +208,27 @@ Steps 1–3 are safe to build and ship dark: they touch no customer.
 
 ---
 
-## 11. Open questions for the user
+## 11. Decisions taken 2026-08-08 — do not relitigate
 
-1. **Cooldown length.** 14 days? 30? This single number decides how much of the volume survives.
-2. **Sampling on or off** to begin with.
-3. **Who gets the bad-rating alert** — branch manager, or a central inbox?
-4. **Does a trigger message carry the brand or the branch?** "CediBites" or "CediBites Ashaiman".
-5. **Should trigger sends count toward SMS health?** Campaigns are excluded because bulk skews the
-   verdict. Triggers are a trickle, so arguably they should count — but a bad rule would then look
-   like an outage.
+1. **Cooldown: 3 days**, global across all rules. `AUTOMATION_COOLDOWN_DAYS`, changeable without a
+   deploy.
+
+   *Worth knowing what this buys:* a customer who orders twice a week can receive up to about ten
+   automated texts a month. The money is nothing — ten texts is GHS 0.24 — so the thing to watch is
+   patience, not cost. The dry run (§6) reports the busiest recipient in the sample precisely so this
+   is visible before anything is switched on, and the number can be raised at any time.
+
+2. **Sampling off to start**, `sample_rate` defaults to 100. The toggle is built and sits on the rule,
+   so it can be turned down for a busy branch without a deploy.
+
+3. **Bad ratings go to a central inbox** the admins see — not a per-branch alert. Simpler, cheaper,
+   and it means nothing depends on a manager having their phone to hand. Branch routing stays
+   possible later; the inbox is the thing that closes the loop.
+
+4. **Sender stays `CediBites`.** No branch branding. `{branch}` remains available inside the message
+   body, but who the text is *from* does not change.
+
+5. **Trigger sends count toward SMS health** — `is_campaign = false`, like any transactional message.
+   The consequence, accepted: a badly written rule that fails repeatedly will drag the health verdict
+   and look like an outage. That is the trade for noticing when automated messages stop arriving,
+   which is otherwise invisible because nobody is watching for a text they did not send by hand.
