@@ -22,6 +22,8 @@ export function AudienceStep({
     onChange,
     rules,
     onRulesChange,
+    mode,
+    onModeChange,
     isLoading,
     recipientCap,
     seedMode,
@@ -31,11 +33,13 @@ export function AudienceStep({
     onChange: (value: CampaignSegmentValue) => void;
     rules: AudienceRules;
     onRulesChange: (rules: AudienceRules) => void;
+    mode: 'preset' | 'custom';
+    onModeChange: (mode: 'preset' | 'custom') => void;
     isLoading: boolean;
     recipientCap: number;
     seedMode: boolean;
 }) {
-    const custom = Object.keys(rules).length > 0;
+    const custom = mode === 'custom';
     const chosen = segments.find((s) => s.value === value);
     const overCap = !custom && !seedMode && !!chosen && recipientCap > 0 && chosen.count > recipientCap;
 
@@ -52,18 +56,23 @@ export function AudienceStep({
         <div className="flex flex-col gap-4">
 
             {/*
-                A preset is a starting point, not a different kind of thing.
-                Switching to "Build your own" keeps the preset's label on the
-                campaign so the list still reads sensibly, and the rules take
-                over from there.
+                Opening the builder adds NO conditions. It used to add "ordered
+                in the last 30 days", not because anybody wanted that filter but
+                because the tab's own state was inferred from the rules being
+                non-empty and it needed something in there to stay open. On an
+                audience whose members had not ordered that month, arriving at
+                this tab silently resolved it to nobody.
+
+                An empty builder is everybody, which is the honest starting
+                point: every condition from here narrows.
             */}
             <SegmentedTabs
                 options={[
                     { value: 'preset', label: 'Use a group' },
                     { value: 'custom', label: 'Build your own' },
                 ]}
-                value={custom ? 'custom' : 'preset'}
-                onChange={(mode) => onRulesChange(mode === 'custom' ? { ordered_within_days: 30 } : {})}
+                value={mode}
+                onChange={onModeChange}
             />
 
             {custom ? (

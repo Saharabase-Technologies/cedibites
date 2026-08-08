@@ -1,7 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { PlusIcon, XIcon, SpinnerGapIcon, UsersThreeIcon } from '@phosphor-icons/react';
+import {
+    PlusIcon,
+    XIcon,
+    SpinnerGapIcon,
+    UsersThreeIcon,
+    CheckIcon,
+    WarningCircleIcon,
+} from '@phosphor-icons/react';
 import { TextInput, Select } from '@/app/inventory/_components';
 import { useAudienceCount, useAudienceOptions } from '@/lib/api/hooks/useCampaigns';
 import { useDebounced } from '@/lib/hooks/useDebounced';
@@ -139,19 +146,29 @@ export function AudienceBuilder({
                         {sources.map((source) => {
                             const on = selectedSources.includes(source.value);
                             return (
+                                /*
+                                 * Selected is a filled chip with a tick, not a
+                                 * tinted one. These two states were `bg-primary/10`
+                                 * against `bg-neutral-light` — on a cream page
+                                 * they were near enough identical that you could
+                                 * not tell which pool you were sending to, on the
+                                 * one control that decides who gets a text.
+                                 */
                                 <button
                                     key={source.value}
                                     type="button"
                                     onClick={() => toggleSource(source.value)}
                                     title={source.description}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-body font-medium transition-colors cursor-pointer border ${
+                                    aria-pressed={on}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-body font-semibold transition-colors cursor-pointer border ${
                                         on
-                                            ? 'bg-primary/10 border-primary/30 text-primary'
-                                            : 'bg-neutral-light border-transparent text-neutral-gray hover:text-text-dark'
+                                            ? 'bg-primary border-primary text-white'
+                                            : 'bg-white border-[#e3ddd0] text-neutral-gray hover:border-neutral-gray/50 hover:text-text-dark'
                                     }`}
                                 >
+                                    {on && <CheckIcon size={12} weight="bold" />}
                                     {source.label}
-                                    <span className="ml-1.5 tabular-nums opacity-70">
+                                    <span className={`tabular-nums ${on ? 'text-white/75' : 'text-neutral-gray/70'}`}>
                                         {source.count.toLocaleString()}
                                     </span>
                                 </button>
@@ -193,6 +210,24 @@ export function AudienceBuilder({
                 </div>
                 {isCounting && <SpinnerGapIcon size={16} className="animate-spin text-neutral-gray ml-auto shrink-0" />}
             </div>
+
+            {/*
+                An empty audience is a dead end that otherwise only announces
+                itself at the send screen, three steps later. The preset picker
+                has said this since it was built; the builder — where it is far
+                easier to do by accident, because conditions stack — did not.
+            */}
+            {count === 0 && !isCounting && (
+                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                    <WarningCircleIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-neutral-gray text-sm font-body">
+                        Nobody matches this yet, so there would be nothing to send.{' '}
+                        {visible.length > 0
+                            ? 'Every condition has to be true at once — remove one to widen it.'
+                            : 'Turn on a group above to draw from.'}
+                    </p>
+                </div>
+            )}
 
             {/* ── The conditions ────────────────────────────────────────── */}
             {visible.map((key) => (
