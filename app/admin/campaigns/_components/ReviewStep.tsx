@@ -59,7 +59,7 @@ export function ReviewStep({
                 <p className="text-neutral-gray text-xs font-body uppercase tracking-wide mb-2">
                     What they will receive
                 </p>
-                <div className="rounded-2xl bg-white border border-[#f0e8d8] px-4 py-3">
+                <div className="rounded-2xl bg-neutral-light/60 px-4 py-3">
                     <p className="text-text-dark text-sm font-body whitespace-pre-wrap">{message || '—'}</p>
                 </div>
                 {link && (
@@ -71,7 +71,7 @@ export function ReviewStep({
             </div>
 
             {/* ── The numbers ───────────────────────────────────────────── */}
-            <dl className="rounded-2xl bg-white border border-[#f0e8d8] divide-y divide-[#f0e8d8]">
+            <dl className="rounded-2xl bg-neutral-light/60 divide-y divide-[#f0e8d8]">
                 <Line label="Called" value={name || '—'} />
                 <Line
                     label="Going to"

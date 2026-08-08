@@ -118,7 +118,7 @@ function PresetPicker({
                                 text-left rounded-2xl border px-4 py-3.5 transition-colors
                                 ${active
                                     ? 'border-primary bg-primary/5 ring-2 ring-primary/10'
-                                    : 'border-[#f0e8d8] bg-white hover:border-neutral-gray/40'}
+                                    : 'border-transparent bg-neutral-light/60 hover:border-neutral-gray/30'}
                             `}
                         >
                             <div className="flex items-baseline justify-between gap-3">

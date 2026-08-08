@@ -154,6 +154,51 @@ export interface AudienceOptions {
     sources: ContactSourceOption[];
 }
 
+// ─── Delivery ────────────────────────────────────────────────────────────────
+
+/**
+ * Mirrors backend App\Enums\DeliveryOutcome.
+ *
+ * "Not delivered" is three things, not one. `failed` is a dead number and is
+ * permanent; `unconfirmed` is almost always a handset that was switched off and
+ * is worth trying again. Merging them is what makes a delivery report useless.
+ */
+export type DeliveryOutcomeValue = 'delivered' | 'failed' | 'pending' | 'unconfirmed';
+
+export interface CampaignDelivery {
+    id: number;
+    phone: string;
+    outcome: DeliveryOutcomeValue;
+    /** Hubtel's own wording, kept verbatim. */
+    provider_status: string | null;
+    rate: string | null;
+    updated_at: string | null;
+}
+
+export interface DeliverySummary {
+    /** What Hubtel accepted. The denominator. */
+    accepted: number;
+    delivered: number;
+    failed: number;
+    pending: number;
+    unconfirmed: number;
+    /** Accepted messages we hold no status row for — our gap, not theirs. */
+    unknown: number;
+    delivery_rate: number | null;
+    /** True once the polling window has closed and nothing will change. */
+    is_final: boolean;
+    checked_at: string | null;
+    window_hours: number;
+}
+
+export interface CampaignDeliveryReport {
+    summary: DeliverySummary;
+    /** Delivered counts at 1, 6, 24 and 48 hours after the send. */
+    curve: { hour: number; delivered: number }[];
+    deliveries: { data: CampaignDelivery[]; total: number; current_page: number; last_page: number };
+    outcomes: { value: DeliveryOutcomeValue; label: string; description: string }[];
+}
+
 export interface AudienceCount {
     count: number;
     /** The rules as sentences, for the review step and the audit trail. */

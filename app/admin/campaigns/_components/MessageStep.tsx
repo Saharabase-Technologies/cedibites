@@ -128,7 +128,7 @@ export function MessageStep({
 
             {/* ── The meter ─────────────────────────────────────────────── */}
             <aside className="lg:sticky lg:top-4 self-start w-full">
-                <div className="rounded-2xl bg-white border border-[#f0e8d8] p-4 flex flex-col gap-3">
+                <div className="rounded-2xl bg-neutral-light/60 p-4 flex flex-col gap-3">
                     <Metric
                         label="Characters"
                         value={String(meter.characters)}

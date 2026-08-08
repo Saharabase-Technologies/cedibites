@@ -151,7 +151,7 @@ export function AudienceBuilder({
 
             {/* ── Where the numbers come from ───────────────────────────── */}
             {sources.length > 0 && (
-                <div className="rounded-2xl bg-white border border-[#f0e8d8] px-4 py-3">
+                <div className="rounded-2xl bg-neutral-light/60 px-4 py-3">
                     <p className="text-text-dark text-sm font-semibold font-body mb-2">Draw from</p>
                     <div className="flex flex-wrap gap-2">
                         {sources.map((source) => {
@@ -202,7 +202,7 @@ export function AudienceBuilder({
             )}
 
             {/* ── The count ─────────────────────────────────────────────── */}
-            <div className="flex items-center gap-3 rounded-2xl bg-white border border-[#f0e8d8] px-4 py-3">
+            <div className="flex items-center gap-3 rounded-2xl bg-neutral-light/60 px-4 py-3">
                 <UsersThreeIcon size={20} weight="fill" className="text-primary shrink-0" />
                 <div className="min-w-0">
                     <p className="text-text-dark font-semibold font-body tabular-nums">
@@ -382,7 +382,7 @@ export function AudienceBuilder({
             {/* ── Adding one ────────────────────────────────────────────── */}
             {available.length > 0 && (
                 picking ? (
-                    <div className="rounded-2xl border border-[#f0e8d8] bg-white p-3">
+                    <div className="rounded-2xl bg-neutral-light/60 p-3">
                         <div className="flex items-center justify-between mb-2">
                             <p className="text-text-dark text-sm font-semibold font-body">Narrow it by…</p>
                             <button
@@ -431,7 +431,7 @@ function ConditionRow({
     children: React.ReactNode;
 }) {
     return (
-        <div className="rounded-2xl border border-[#f0e8d8] bg-white px-4 py-3">
+        <div className="rounded-2xl bg-neutral-light/60 px-4 py-3">
             <div className="flex items-start justify-between gap-3 mb-2">
                 <p className="text-text-dark text-sm font-semibold font-body">{label}</p>
                 <button

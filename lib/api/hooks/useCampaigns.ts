@@ -113,6 +113,38 @@ export function useAudienceCount(rules: AudienceRules, enabled = true) {
     };
 }
 
+/**
+ * The delivery breakdown for one campaign.
+ *
+ * Polls while the campaign is still settling — delivery is not instant, and a
+ * screen that showed the figures as they were when it loaded would have somebody
+ * conclude a send failed when the network was still retrying. Stops once the
+ * window has closed and nothing can change.
+ */
+export function useCampaignDeliveries(
+    id: number | null,
+    params: { outcome?: string; page?: number } = {},
+) {
+    const { data, isLoading, refetch } = useQuery({
+        queryKey: [CAMPAIGNS_KEY, 'deliveries', id, params],
+        queryFn: () => campaignService.getDeliveries(id as number, params),
+        enabled: hasStaffToken() && id !== null,
+        staleTime: 30 * 1000,
+        placeholderData: (previous) => previous,
+        refetchInterval: (query) => (query.state.data?.summary.is_final ? false : 60 * 1000),
+    });
+
+    return {
+        summary: data?.summary ?? null,
+        curve: data?.curve ?? [],
+        deliveries: data?.deliveries.data ?? [],
+        total: data?.deliveries.total ?? 0,
+        outcomes: data?.outcomes ?? [],
+        isLoading,
+        refetch,
+    };
+}
+
 export function useCampaignMutations() {
     const queryClient = useQueryClient();
     const invalidate = () => queryClient.invalidateQueries({ queryKey: [CAMPAIGNS_KEY] });

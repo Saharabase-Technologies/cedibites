@@ -4,6 +4,7 @@ import type {
     AudienceOptions,
     AudienceRules,
     Campaign,
+    CampaignDeliveryReport,
     CampaignPreview,
     CampaignStatus,
     SaveCampaignPayload,
@@ -94,6 +95,20 @@ export const campaignService = {
     previewCampaign: async (id: number): Promise<CampaignPreview> => {
         const response = await apiClient.get(`/admin/campaigns/${id}/preview`);
         return unwrap<CampaignPreview>(response);
+    },
+
+    /**
+     * Who received it and who did not.
+     *
+     * `outcome` accepts a single outcome or `not_delivered`, which is the view
+     * anybody actually opens this for.
+     */
+    getDeliveries: async (
+        id: number,
+        params: { outcome?: string; page?: number; per_page?: number } = {},
+    ): Promise<CampaignDeliveryReport> => {
+        const response = await apiClient.get(`/admin/campaigns/${id}/deliveries`, { params });
+        return unwrap<CampaignDeliveryReport>(response);
     },
 
     /** The only call in this file that spends money. */

@@ -17,6 +17,7 @@ import { useCampaign, useCampaignMutations } from '@/lib/api/hooks/useCampaigns'
 import { GHS } from '@/lib/sms/cost';
 import { CampaignStatusBadge } from '../_components/CampaignStatusBadge';
 import { SendConfirmDialog } from '../_components/SendConfirmDialog';
+import { DeliveryBreakdown } from '../_components/DeliveryBreakdown';
 
 /**
  * One campaign: what it says, what it will cost, and afterwards what it did.
@@ -131,7 +132,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                 )}
 
-                <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-5 py-4 mb-4">
+                <div className="bg-neutral-card rounded-2xl shadow-sm px-5 py-4 mb-4">
                     <p className="text-neutral-gray text-xs font-body uppercase tracking-wide mb-2">The message</p>
                     <p className="text-text-dark text-sm font-body whitespace-pre-wrap">{campaign.message}</p>
                     <p className="text-neutral-gray text-xs mt-3 font-body">
@@ -141,7 +142,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 </div>
 
                 {started && (
-                    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-5 py-4 mb-4">
+                    <div className="bg-neutral-card rounded-2xl shadow-sm px-5 py-4 mb-4">
                         <div className="flex items-baseline justify-between mb-2">
                             <p className="text-neutral-gray text-xs font-body uppercase tracking-wide">Progress</p>
                             <p className="text-text-dark text-sm font-semibold font-body tabular-nums">
@@ -208,8 +209,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     />
                 </div>
 
+                {/*
+                    The per-recipient truth behind the Delivered tile above.
+                    Renders nothing until a send has been accepted, so a draft
+                    does not carry an empty delivery panel.
+                */}
+                <DeliveryBreakdown campaignId={campaign.id} />
+
                 {campaign.short_link && (
-                    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-5 py-4 mb-4">
+                    <div className="bg-neutral-card rounded-2xl shadow-sm px-5 py-4 mb-4">
                         <p className="text-neutral-gray text-xs font-body uppercase tracking-wide mb-1.5">
                             The link in this message
                         </p>
@@ -261,7 +269,7 @@ function Stat({
     accent?: boolean;
 }) {
     return (
-        <div className="rounded-2xl border border-[#f0e8d8] bg-neutral-card px-4 py-3">
+        <div className="rounded-2xl bg-neutral-card shadow-sm px-4 py-3">
             <p className="text-neutral-gray text-xs font-body">{label}</p>
             <p className={`text-lg font-semibold font-body tabular-nums mt-0.5 ${accent ? 'text-primary' : 'text-text-dark'}`}>
                 {value}
