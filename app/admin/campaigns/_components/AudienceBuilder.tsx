@@ -5,7 +5,7 @@ import { PlusIcon, XIcon, SpinnerGapIcon, UsersThreeIcon } from '@phosphor-icons
 import { TextInput, Select } from '@/app/inventory/_components';
 import { useAudienceCount, useAudienceOptions } from '@/lib/api/hooks/useCampaigns';
 import { useDebounced } from '@/lib/hooks/useDebounced';
-import type { AudienceRules, GhanaNetwork } from '@/types/marketing';
+import type { AudienceRules, ContactSourceValue, GhanaNetwork } from '@/types/marketing';
 
 /**
  * Assembling an audience out of conditions.
@@ -71,7 +71,7 @@ export function AudienceBuilder({
     rules: AudienceRules;
     onChange: (rules: AudienceRules) => void;
 }) {
-    const { branches, menuItems, networks } = useAudienceOptions();
+    const { branches, menuItems, networks, sources } = useAudienceOptions();
 
     // Conditions added but not yet filled in still need to show their inputs,
     // so the visible set is what is in the rules plus what was just added.
@@ -101,8 +101,77 @@ export function AudienceBuilder({
 
     const available = CONDITIONS.filter((c) => !visible.includes(c.key));
 
+    /*
+     * Sources are not a condition and are deliberately not in the list above.
+     *
+     * Every condition narrows; this one widens. Putting it in the same "add a
+     * condition" menu would file the only rule that can make a send bigger
+     * alongside nine that cannot, which is exactly the distinction the operator
+     * needs to keep. It sits above the count, always visible, defaulting to
+     * customers only.
+     */
+    const selectedSources: ContactSourceValue[] =
+        rules.sources && rules.sources.length > 0 ? rules.sources : ['customers'];
+
+    function toggleSource(value: ContactSourceValue) {
+        const next = selectedSources.includes(value)
+            ? selectedSources.filter((s) => s !== value)
+            : [...selectedSources, value];
+
+        // Turning everything off would mean an audience of nobody, which is
+        // never what the click meant. The last one stays on.
+        if (next.length === 0) return;
+
+        // Written back as undefined when it is the default, so a plain audience
+        // stays a plain audience and the backend still treats it as one.
+        const isDefault = next.length === 1 && next[0] === 'customers';
+        set({ sources: isDefault ? undefined : next });
+    }
+
     return (
         <div className="flex flex-col gap-4">
+
+            {/* ── Where the numbers come from ───────────────────────────── */}
+            {sources.length > 0 && (
+                <div className="rounded-2xl bg-white border border-[#f0e8d8] px-4 py-3">
+                    <p className="text-text-dark text-sm font-semibold font-body mb-2">Draw from</p>
+                    <div className="flex flex-wrap gap-2">
+                        {sources.map((source) => {
+                            const on = selectedSources.includes(source.value);
+                            return (
+                                <button
+                                    key={source.value}
+                                    type="button"
+                                    onClick={() => toggleSource(source.value)}
+                                    title={source.description}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-body font-medium transition-colors cursor-pointer border ${
+                                        on
+                                            ? 'bg-primary/10 border-primary/30 text-primary'
+                                            : 'bg-neutral-light border-transparent text-neutral-gray hover:text-text-dark'
+                                    }`}
+                                >
+                                    {source.label}
+                                    <span className="ml-1.5 tabular-nums opacity-70">
+                                        {source.count.toLocaleString()}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {selectedSources.includes('supplementary') ? (
+                        <p className="text-neutral-gray text-xs font-body mt-2 leading-relaxed">
+                            Supplementary contacts have never ordered, so every condition below about
+                            orders, dishes, branches or spend excludes them. Network still applies.
+                            Anyone an imported list has already won is counted under Customers, not here.
+                        </p>
+                    ) : (
+                        <p className="text-neutral-gray text-xs font-body mt-2 leading-relaxed">
+                            Everybody who has ordered from us. Imported contacts who have since
+                            ordered are already in here.
+                        </p>
+                    )}
+                </div>
+            )}
 
             {/* ── The count ─────────────────────────────────────────────── */}
             <div className="flex items-center gap-3 rounded-2xl bg-white border border-[#f0e8d8] px-4 py-3">
@@ -116,7 +185,9 @@ export function AudienceBuilder({
                     </p>
                     <p className="text-neutral-gray text-xs font-body">
                         {visible.length === 0
-                            ? 'No conditions yet — this is everybody we hold a number for.'
+                            ? selectedSources.includes('supplementary')
+                                ? 'No conditions yet — everybody in the sources above.'
+                                : 'No conditions yet — this is every customer we hold a number for.'
                             : `${visible.length} condition${visible.length === 1 ? '' : 's'}, all of which must be true`}
                     </p>
                 </div>

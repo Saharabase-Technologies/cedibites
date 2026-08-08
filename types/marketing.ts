@@ -95,6 +95,32 @@ export interface AudienceRules {
     max_spend?: number | null;
     hour_from?: number | null;
     hour_to?: number | null;
+
+    /**
+     * Which pools to draw from. Omitted or empty means customers only.
+     *
+     * The one rule here that can make an audience BIGGER. Every other rule
+     * narrows, which is what makes the builder safe to stack — this one has to
+     * be asked for, and the review step says so first.
+     */
+    sources?: ContactSourceValue[] | null;
+}
+
+/**
+ * Mirrors backend App\Enums\ContactSource.
+ *
+ * A partition, not two overlapping lists: `customers` is everybody who has
+ * ordered, `supplementary` is everybody we hold a number for who has not.
+ * Nobody is in both, so the counts add up and picking both reaches each person
+ * once. A contact leaves `supplementary` the moment they order.
+ */
+export type ContactSourceValue = 'customers' | 'supplementary';
+
+export interface ContactSourceOption {
+    value: ContactSourceValue;
+    label: string;
+    description: string;
+    count: number;
 }
 
 export interface AudienceOption {
@@ -107,6 +133,7 @@ export interface AudienceOptions {
     branches: AudienceOption[];
     menu_items: AudienceOption[];
     networks: { value: GhanaNetwork; label: string }[];
+    sources: ContactSourceOption[];
 }
 
 export interface AudienceCount {

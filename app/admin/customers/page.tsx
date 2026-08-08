@@ -24,6 +24,7 @@ import { customerService, type ContactSegment } from '@/lib/api/services/custome
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/utils/toast';
 import { DeleteConfirmDialog } from '@/app/components/ui/DeleteConfirmDialog';
+import { CustomersTabNav } from './_components/CustomersTabNav';
 import type { DisplayCustomer } from '@/lib/api/adapters/customer.adapter';
 
 const STATUS_STYLES: Record<string, { dot: string; label: string }> = {
@@ -358,10 +359,19 @@ export default function AdminCustomersPage() {
     return (
         <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
 
+            <div className="mb-5">
+                <CustomersTabNav />
+            </div>
+
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
                 <div>
                     <h1 className="text-text-dark text-2xl font-bold font-body">Customers</h1>
+                    {/*
+                      * People who have ordered. Imported contacts are counted on
+                      * their own tab and never added in here — that separation is
+                      * the whole reason the second tab exists.
+                      */}
                     <p className="text-neutral-gray text-sm font-body mt-0.5">{meta?.total ?? customers.length} customers</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

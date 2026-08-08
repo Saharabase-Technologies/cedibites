@@ -77,6 +77,10 @@ export function useAudienceOptions() {
         branches: data?.branches ?? [],
         menuItems: data?.menu_items ?? [],
         networks: data?.networks ?? [],
+        // Customers and imported contacts, each with a headcount. Empty until
+        // loaded rather than defaulted, so the picker never renders a source
+        // with a wrong number beside it.
+        sources: data?.sources ?? [],
         isLoading,
     };
 }
