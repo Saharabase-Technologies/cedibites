@@ -86,8 +86,22 @@ export interface AudienceRules {
     not_ordered_for_days?: number | null;
     ordered_after?: string | null;
     ordered_before?: string | null;
+    /** The receipt line — what was actually bought. The useful one. */
+    menu_item_option_ids?: number[] | null;
+    /**
+     * Every version of a dish. Broader, and it never loses history:
+     * menu_item_option_id is nulled on an order when the option is deleted.
+     */
     menu_item_ids?: number[] | null;
+
+    /** Ever ordered at any of these. */
     branch_ids?: number[] | null;
+    /** Buys mostly at one of these — their home branch. */
+    primary_branch_ids?: number[] | null;
+    /** Ignore a primary branch built on fewer orders than this. */
+    primary_branch_min_orders?: number | null;
+    /** Has never ordered anywhere but one of these. */
+    only_branch_ids?: number[] | null;
     networks?: GhanaNetwork[] | null;
     min_orders?: number | null;
     max_orders?: number | null;
@@ -126,11 +140,15 @@ export interface ContactSourceOption {
 export interface AudienceOption {
     value: number | string;
     label: string;
+    /** The dish an option belongs to, for grouping the picker. */
+    group?: string | null;
 }
 
 /** Everything the builder can filter on, served so the lists cannot go stale. */
 export interface AudienceOptions {
     branches: AudienceOption[];
+    /** The sellable lines, labelled "Dish — Option". What people actually buy. */
+    menu_item_options: AudienceOption[];
     menu_items: AudienceOption[];
     networks: { value: GhanaNetwork; label: string }[];
     sources: ContactSourceOption[];

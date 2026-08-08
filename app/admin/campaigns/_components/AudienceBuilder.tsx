@@ -30,8 +30,11 @@ type ConditionKey =
     | 'recency'
     | 'dormancy'
     | 'window'
+    | 'items'
     | 'dishes'
     | 'branches'
+    | 'primaryBranch'
+    | 'onlyBranch'
     | 'networks'
     | 'orders'
     | 'spend'
@@ -41,8 +44,13 @@ const CONDITIONS: { key: ConditionKey; label: string; hint: string }[] = [
     { key: 'recency', label: 'Ordered recently', hint: 'Bought in the last N days' },
     { key: 'dormancy', label: 'Gone quiet', hint: 'Has not bought for N days' },
     { key: 'window', label: 'Ordered between dates', hint: 'A specific period' },
-    { key: 'dishes', label: 'Bought a dish', hint: 'Ever ordered specific items' },
-    { key: 'branches', label: 'From a branch', hint: 'Ordered at specific branches' },
+    // Options first, dishes second: the option is the receipt line and the
+    // thing a promotion is actually about.
+    { key: 'items', label: 'Bought a menu item', hint: 'The exact thing on the receipt' },
+    { key: 'dishes', label: 'Bought any version of a dish', hint: 'Every size or variant of it' },
+    { key: 'branches', label: 'Has ordered at a branch', hint: 'Ever bought there, even once' },
+    { key: 'primaryBranch', label: 'Belongs to a branch', hint: 'Buys there more than anywhere else' },
+    { key: 'onlyBranch', label: 'Only ever one branch', hint: 'Has never bought anywhere else' },
     { key: 'networks', label: 'On a network', hint: 'MTN, Telecel, AirtelTigo' },
     { key: 'orders', label: 'How many orders', hint: 'At least / at most' },
     { key: 'spend', label: 'How much spent', hint: 'Total across all orders' },
@@ -54,8 +62,11 @@ const OWNED_KEYS: Record<ConditionKey, (keyof AudienceRules)[]> = {
     recency: ['ordered_within_days'],
     dormancy: ['not_ordered_for_days'],
     window: ['ordered_after', 'ordered_before'],
+    items: ['menu_item_option_ids'],
     dishes: ['menu_item_ids'],
     branches: ['branch_ids'],
+    primaryBranch: ['primary_branch_ids', 'primary_branch_min_orders'],
+    onlyBranch: ['only_branch_ids'],
     networks: ['networks'],
     orders: ['min_orders', 'max_orders'],
     spend: ['min_spend', 'max_spend'],
@@ -78,7 +89,7 @@ export function AudienceBuilder({
     rules: AudienceRules;
     onChange: (rules: AudienceRules) => void;
 }) {
-    const { branches, menuItems, networks, sources } = useAudienceOptions();
+    const { branches, menuItems, menuItemOptions, networks, sources } = useAudienceOptions();
 
     // Conditions added but not yet filled in still need to show their inputs,
     // so the visible set is what is in the rules plus what was just added.
@@ -265,6 +276,15 @@ export function AudienceBuilder({
                         </Inline>
                     )}
 
+                    {key === 'items' && (
+                        <Chips
+                            options={menuItemOptions.map((o) => ({ value: Number(o.value), label: o.label }))}
+                            selected={rules.menu_item_option_ids ?? []}
+                            onChange={(ids) => set({ menu_item_option_ids: ids })}
+                            empty="No menu items yet."
+                        />
+                    )}
+
                     {key === 'dishes' && (
                         <Chips
                             options={menuItems.map((m) => ({ value: Number(m.value), label: m.label }))}
@@ -280,6 +300,42 @@ export function AudienceBuilder({
                             selected={rules.branch_ids ?? []}
                             onChange={(ids) => set({ branch_ids: ids })}
                             empty="No branches yet."
+                            note="Anyone who has ever bought there, even once, years ago."
+                        />
+                    )}
+
+                    {key === 'primaryBranch' && (
+                        <div className="flex flex-col gap-3">
+                            <Chips
+                                options={branches.map((b) => ({ value: Number(b.value), label: b.label }))}
+                                selected={rules.primary_branch_ids ?? []}
+                                onChange={(ids) => set({ primary_branch_ids: ids })}
+                                empty="No branches yet."
+                                note="Where they buy more than anywhere else. We hold no customer address, so this is the nearest thing to a home branch. Ties go to the branch they were at last."
+                            />
+                            <Inline>
+                                <span>Only count people with at least</span>
+                                <NumberBox
+                                    value={rules.primary_branch_min_orders}
+                                    onChange={(v) => set({ primary_branch_min_orders: v })}
+                                    placeholder="2"
+                                />
+                                <span>orders</span>
+                            </Inline>
+                            <p className="text-neutral-gray text-xs font-body">
+                                Leave blank to include everyone. A single order makes a
+                                &ldquo;main branch&rdquo; that means very little.
+                            </p>
+                        </div>
+                    )}
+
+                    {key === 'onlyBranch' && (
+                        <Chips
+                            options={branches.map((b) => ({ value: Number(b.value), label: b.label }))}
+                            selected={rules.only_branch_ids ?? []}
+                            onChange={(ids) => set({ only_branch_ids: ids })}
+                            empty="No branches yet."
+                            note="Has never bought at any other branch. The strictest of the three — right for something only that branch can honour."
                         />
                     )}
 

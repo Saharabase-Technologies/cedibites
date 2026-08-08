@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MegaphoneIcon, FlaskIcon, WarningCircleIcon, PlusIcon } from '@phosphor-icons/react';
+import { MegaphoneIcon, FlaskIcon, WarningCircleIcon, PlusIcon, PaperPlaneTiltIcon } from '@phosphor-icons/react';
 import {
     PageHeader,
     FilterBar,
@@ -16,6 +16,7 @@ import { useCampaigns, useCampaignSegments } from '@/lib/api/hooks/useCampaigns'
 import { GHS } from '@/lib/sms/cost';
 import type { Campaign, CampaignStatus } from '@/types/marketing';
 import { CampaignStatusBadge } from './_components/CampaignStatusBadge';
+import { SendDirectDialog } from './_components/SendDirectDialog';
 
 const STATUS_OPTIONS: { value: CampaignStatus; label: string }[] = [
     { value: 'draft', label: 'Draft' },
@@ -30,6 +31,7 @@ export default function AdminCampaignsPage() {
     const router = useRouter();
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState('');
+    const [sendingDirect, setSendingDirect] = useState(false);
 
     const { campaigns, isLoading, error } = useCampaigns();
     const { seedMode } = useCampaignSegments();
@@ -145,12 +147,23 @@ export default function AdminCampaignsPage() {
                 <PageHeader
                     title="Campaigns"
                     subtitle="Write a text, pick who gets it, see what it costs, and send — without leaving here."
+                    // One text to one number. Sits beside the campaign button
+                    // rather than somewhere else entirely: it is the same job at
+                    // a different scale, and staff who cannot find it here will
+                    // use their own handset, where nothing is recorded.
+                    secondaryAction={{
+                        label: 'Send a text',
+                        onClick: () => setSendingDirect(true),
+                        icon: <PaperPlaneTiltIcon size={15} weight="fill" />,
+                    }}
                     action={{
                         label: 'New campaign',
                         onClick: () => router.push('/admin/campaigns/new'),
                         icon: <PlusIcon size={16} weight="bold" />,
                     }}
                 />
+
+                <SendDirectDialog isOpen={sendingDirect} onClose={() => setSendingDirect(false)} />
 
                 {/*
                     Stated at the top rather than buried, because the alternative

@@ -75,6 +75,9 @@ export function useAudienceOptions() {
 
     return {
         branches: data?.branches ?? [],
+        // The receipt lines. Listed before menuItems because this is the one
+        // the builder leads with — an item name is not what anybody bought.
+        menuItemOptions: data?.menu_item_options ?? [],
         menuItems: data?.menu_items ?? [],
         networks: data?.networks ?? [],
         // Customers and imported contacts, each with a headcount. Empty until

@@ -106,4 +106,21 @@ export const campaignService = {
         const response = await apiClient.post(`/admin/campaigns/${id}/cancel`);
         return unwrap<Campaign>(response);
     },
+
+    /**
+     * One text to one number.
+     *
+     * Not a campaign of one — it skips the send window and seed mode, both of
+     * which exist for bulk. See the backend DirectMessageController for the
+     * reasoning and for what it deliberately does not skip.
+     */
+    measureDirect: async (message: string): Promise<{ characters: number; segments: number; encoding: string; non_gsm_characters: string[]; estimated_cost: number }> => {
+        const response = await apiClient.post('/admin/messages/measure', { message });
+        return unwrap(response);
+    },
+
+    sendDirect: async (phone: string, message: string): Promise<{ phone: string; segments: number; estimated_cost: number }> => {
+        const response = await apiClient.post('/admin/messages/send', { phone, message });
+        return unwrap(response);
+    },
 };
