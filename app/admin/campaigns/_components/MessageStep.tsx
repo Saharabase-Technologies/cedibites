@@ -97,7 +97,7 @@ export function MessageStep({
 
                 <FormField
                     label="Attach a short link"
-                    hint="A link is what makes taps countable afterwards. Without one you can say how many messages went out, but not how many people did anything about it."
+                    hint="A short link is the only way to count taps. Without one you will know how many texts went out, but not how many people acted on them."
                 >
                     <Select
                         value={shortLinkId ?? ''}
@@ -106,7 +106,7 @@ export function MessageStep({
                         <option value="">No link</option>
                         {links.filter((l) => !l.is_expired).map((link) => (
                             <option key={link.id} value={link.id}>
-                                {link.label} — {link.sms_url}
+                                {link.label} · {link.sms_url}
                             </option>
                         ))}
                     </Select>
@@ -115,14 +115,14 @@ export function MessageStep({
                 {links.length === 0 && (
                     <p className="flex items-center gap-1.5 text-neutral-gray text-xs font-body">
                         <LinkSimpleIcon size={13} />
-                        No short links yet — make one under Short Links and it will appear here.
+                        No short links yet. Make one under Short Links and it will appear here.
                     </p>
                 )}
 
                 <p className="text-neutral-gray text-xs font-body leading-relaxed">
-                    Write a web address without <span className="font-mono">https://</span> — phones turn{' '}
-                    <span className="font-mono">cedibites.com/r/A7X9Kp</span> into a link on their own, and the
-                    scheme costs eight characters for nothing.
+                    Leave <span className="font-mono">https://</span> off any web address. Phones turn{' '}
+                    <span className="font-mono">cedibites.com/r/A7X9Kp</span> into a link on their own, and those
+                    eight characters only push you closer to a second text.
                 </p>
             </div>
 
@@ -143,7 +143,7 @@ export function MessageStep({
                     <Metric
                         label="Texts per person"
                         value={String(meter.segments)}
-                        note={unicode ? 'Special characters — 70 per text' : '160 characters per text'}
+                        note={unicode ? 'Special characters: 70 per text' : '160 characters per text'}
                         warn={meter.segments > 1}
                     />
 

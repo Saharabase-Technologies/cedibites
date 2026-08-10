@@ -211,7 +211,7 @@ export default function PlatformHealthPage() {
             setPasscodeAction(null);
             refetch();
         } catch {
-            toast.error('Action failed — check your passcode');
+            toast.error('Action failed. Check your passcode.');
         } finally {
             setActionLoading(false);
         }

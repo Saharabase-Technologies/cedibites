@@ -496,7 +496,7 @@ function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
                         </div>
                         {orderType === 'delivery' && (
                             <div className="flex items-center gap-2 text-sm text-neutral-gray">
-                                <span>Estimated: <strong className="text-text-dark dark:text-text-light">25 – 40 mins</strong></span>
+                                <span>Estimated: <strong className="text-text-dark dark:text-text-light">25-40 mins</strong></span>
                                 <span className="ml-auto text-xs font-semibold text-text-dark dark:text-text-light">₵{selectedBranch.deliveryFee} delivery fee</span>
                             </div>
                         )}
@@ -810,7 +810,7 @@ function StepDone({ orderNumber, orderType, contact }: {
                 <div className="flex items-center justify-between">
                     <span className="text-sm text-neutral-gray">Estimated Time</span>
                     <span className="text-sm font-semibold text-text-dark dark:text-text-light">
-                        {orderType === 'delivery' ? '25 – 40 mins' : '15 – 20 mins'}
+                        {orderType === 'delivery' ? '25-40 mins' : '15-20 mins'}
                     </span>
                 </div>
             </div>
@@ -833,7 +833,7 @@ function StepDone({ orderNumber, orderType, contact }: {
                         </div>
                         <div>
                             <p className="text-sm font-bold text-text-dark dark:text-text-light">Save your info for next time?</p>
-                            <p className="text-xs text-neutral-gray mt-0.5">Faster checkout — your name and number are pre-filled automatically.</p>
+                            <p className="text-xs text-neutral-gray mt-0.5">Faster checkout. Your name and number are filled in automatically.</p>
                         </div>
                     </div>
                     {/* Pre-filled preview */}
@@ -873,7 +873,7 @@ function StepDone({ orderNumber, orderType, contact }: {
                     <div className="text-left mb-4">
                         <p className="text-sm font-bold text-text-dark dark:text-text-light">Enter the code we sent</p>
                         <p className="text-xs text-neutral-gray mt-0.5">
-                            Sent to <strong>{contact.phone}</strong> — this confirms the number is yours.
+                            Sent to <strong>{contact.phone}</strong>. This confirms the number is yours.
                         </p>
                     </div>
 
@@ -920,7 +920,7 @@ function StepDone({ orderNumber, orderType, contact }: {
                     <CheckCircleIcon weight="fill" size={20} className="text-secondary shrink-0" />
                     <div>
                         <p className="text-sm font-bold text-text-dark dark:text-text-light">
-                            {isLoggedIn ? "You're already signed in" : "Saved — you're signed in"}
+                            {isLoggedIn ? "You're already signed in" : "Saved, you're signed in"}
                         </p>
                         <p className="text-xs text-neutral-gray">
                             {isLoggedIn ? 'Your info is pre-filled on every order.' : 'Your next checkout will be instant, and your order history is now yours.'}

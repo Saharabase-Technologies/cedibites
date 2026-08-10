@@ -485,7 +485,7 @@ function OrderDetailPanel({
                                     }}
                                     className="flex-1 px-3 py-2 rounded-xl bg-neutral-light text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer"
                                 >
-                                    Reject — Keep Order
+                                    Reject & Keep Order
                                 </button>
                             </div>
                         </div>

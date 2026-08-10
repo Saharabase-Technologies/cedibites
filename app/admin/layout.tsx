@@ -3,7 +3,7 @@ import AdminLayoutClient from './layout-client';
 
 export const metadata: Metadata = {
   title: {
-    template: '%s — Admin | CediBites',
+    template: '%s · Admin | CediBites',
     default: 'Admin',
   },
   robots: { index: false, follow: false },

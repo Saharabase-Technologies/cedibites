@@ -18,7 +18,7 @@ function CancelledContent() {
                 <div>
                     <h1 className="text-2xl font-bold text-text-dark dark:text-text-light">Payment Cancelled</h1>
                     <p className="text-neutral-gray text-sm mt-1">
-                        Your payment was not completed. Don&apos;t worry — your cart items are still saved.
+                        Your payment was not completed. Don&apos;t worry, your cart items are still saved.
                     </p>
                 </div>
                 <div className="w-full flex flex-col gap-3">

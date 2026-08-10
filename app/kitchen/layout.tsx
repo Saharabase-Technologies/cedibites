@@ -3,7 +3,7 @@ import KitchenLayoutClient from './layout-client';
 
 export const metadata: Metadata = {
   title: {
-    template: '%s — Kitchen | CediBites',
+    template: '%s · Kitchen | CediBites',
     default: 'Kitchen',
   },
   robots: { index: false, follow: false },

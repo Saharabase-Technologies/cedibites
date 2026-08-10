@@ -120,7 +120,7 @@ export default function PlatformAdminsPage() {
             setSearch('');
             refetch();
         } catch {
-            toast.error('Failed to create admin — check your passcode');
+            toast.error('Failed to create admin. Check your passcode.');
         } finally {
             setPromoteLoading(false);
         }
@@ -135,7 +135,7 @@ export default function PlatformAdminsPage() {
             setRevokeTarget(null);
             refetch();
         } catch {
-            toast.error('Failed to revoke — check your passcode');
+            toast.error('Failed to revoke. Check your passcode.');
         } finally {
             setRevokeLoading(false);
         }
@@ -149,7 +149,7 @@ export default function PlatformAdminsPage() {
             toast.success(`Password reset for ${resetTarget.name}. Temp: ${res.temporary_password}`);
             setResetTarget(null);
         } catch {
-            toast.error('Password reset failed — check your passcode');
+            toast.error('Password reset failed. Check your passcode.');
         } finally {
             setResetLoading(false);
         }

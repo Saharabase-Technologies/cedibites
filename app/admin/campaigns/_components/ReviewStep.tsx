@@ -73,7 +73,7 @@ export function ReviewStep({
                     label="Going to"
                     value={
                         segment
-                            ? `${segment.label} — ${audience.toLocaleString()} ${audience === 1 ? 'person' : 'people'}`
+                            ? `${segment.label} · ${audience.toLocaleString()} ${audience === 1 ? 'person' : 'people'}`
                             : '—'
                     }
                 />

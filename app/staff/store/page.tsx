@@ -542,7 +542,7 @@ function StepCustomer({
                     value={details.email}
                     onChange={v => onDetails({ email: v })}
                     leftIcon={<EnvelopeIcon size={20} weight="bold" />}
-                    helperText="Optional — for order confirmation"
+                    helperText="Optional, for order confirmation"
                     autoComplete="off"
                 />
             ) : (

@@ -371,7 +371,7 @@ function RevenueChart({ salesByDay }: { salesByDay?: Array<{ date: string; total
         <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl p-5 mb-7">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                 <div>
-                    <p className="text-text-dark text-sm font-bold font-body">Revenue — All Branches (7 days)</p>
+                    <p className="text-text-dark text-sm font-bold font-body">All Branches Revenue (7 days)</p>
                     <p className="text-primary text-base font-bold font-body mt-0.5">{formatGHS(weekTotal)}</p>
                 </div>
             </div>

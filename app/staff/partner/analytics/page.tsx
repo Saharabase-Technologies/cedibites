@@ -95,7 +95,7 @@ function RevenueChart({ data, branchName }: { data: number[]; branchName: string
         <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl p-5">
             <div className="flex items-center justify-between mb-5">
                 <div>
-                    <p className="text-text-dark text-sm font-bold font-body">{branchName} — Revenue (7 days)</p>
+                    <p className="text-text-dark text-sm font-bold font-body">{branchName} Revenue (7 days)</p>
                     <p className="text-primary text-base font-bold font-body mt-0.5">{formatPrice(weekTotal)}</p>
                 </div>
             </div>

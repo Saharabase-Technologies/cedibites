@@ -146,7 +146,7 @@ function GeneralTab() {
                     </div>
                     <div>
                         <FieldLabel>Default Currency</FieldLabel>
-                        <div className="px-3 py-2.5 bg-neutral-light border border-[#f0e8d8] rounded-xl text-neutral-gray text-sm font-body">₵— Ghanaian Cedi (locked)</div>
+                        <div className="px-3 py-2.5 bg-neutral-light border border-[#f0e8d8] rounded-xl text-neutral-gray text-sm font-body">₵ Ghanaian Cedi (locked)</div>
                     </div>
                     <div>
                         <FieldLabel>Default Order Type</FieldLabel>
@@ -415,7 +415,7 @@ function PaymentTab() {
                     <div className="flex items-center justify-between p-3 bg-warning/5 border border-warning/20 rounded-xl">
                         <div>
                             <p className="text-text-dark text-sm font-semibold font-body">Test Mode (Sandbox)</p>
-                            <p className="text-neutral-gray text-xs font-body">Uses Hubtel sandbox — no real charges</p>
+                            <p className="text-neutral-gray text-xs font-body">Uses Hubtel sandbox. No real charges.</p>
                         </div>
                         <Toggle checked={testMode} onChange={setTestMode} />
                     </div>
@@ -771,10 +771,10 @@ function BranchAccessTab() {
                 />
                 <div className="p-3 bg-primary/5 border border-primary/15 rounded-xl mb-4">
                     <p className="text-text-dark text-xs font-body">
-                        <strong>Staff Access</strong> — Allows staff to view and manage orders on POS, KDS, and Order Manager when the branch is closed (e.g., for sales reconciliation).
+                        <strong>Staff Access</strong> lets staff view and manage orders on POS, KDS, and Order Manager when the branch is closed (e.g., for sales reconciliation).
                     </p>
                     <p className="text-text-dark text-xs font-body mt-1">
-                        <strong>Order Access</strong> — Additionally allows placing new orders via POS when the branch is closed (e.g., for special/after-hours orders). Requires Staff Access to be enabled.
+                        <strong>Order Access</strong> additionally allows placing new orders via POS when the branch is closed (e.g., for special/after-hours orders). Requires Staff Access to be enabled.
                     </p>
                 </div>
             </Card>

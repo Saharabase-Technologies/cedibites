@@ -191,7 +191,7 @@ function SessionCard({
 
       {/* Status messages */}
       {isConfirmed && (
-        <p className="text-xs text-green-700 font-medium mb-2">Payment confirmed — order created</p>
+        <p className="text-xs text-green-700 font-medium mb-2">Payment confirmed. Order created.</p>
       )}
       {isExpired && (
         <p className="text-xs text-error font-medium mb-2">Payment timed out</p>

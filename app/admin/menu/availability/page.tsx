@@ -268,9 +268,9 @@ function Cell({
     };
 
     const titles: Record<CellState, string> = {
-        'served': `Served — ${label}. Click to remove from this branch.`,
-        'sold-out': `Sold out today — ${label}. Set by the branch; click to put it back on sale here.`,
-        'not-served': `Not served — ${label}. Click to add to this branch.`,
+        'served': `Served: ${label}. Click to remove from this branch.`,
+        'sold-out': `Sold out today: ${label}. Set by the branch; click to put it back on sale here.`,
+        'not-served': `Not served: ${label}. Click to add to this branch.`,
     };
 
     return (

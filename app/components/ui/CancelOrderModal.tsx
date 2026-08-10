@@ -105,7 +105,7 @@ export default function CancelOrderModal({
                         </p>
                         <p className={`text-sm font-body ${subColor}`}>
                             {context === 'staff'
-                                ? `#${orderNumber} — a manager will review your request.`
+                                ? `#${orderNumber}. A manager will review your request.`
                                 : `#${orderNumber} has been successfully cancelled.`}
                         </p>
                     </div>

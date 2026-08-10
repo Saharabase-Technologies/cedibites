@@ -554,7 +554,7 @@ function BranchInfoCard() {
                 <p className={`text-xs font-semibold ${isOpen ? 'text-secondary' : 'text-error'}`}>
                     {isOpen ? 'Open Now' : 'Closed'}
                 </p>
-                <span className="text-xs text-neutral-gray ml-1">{selectedBranch.operatingHours ?? '8am – 10pm'}</span>
+                <span className="text-xs text-neutral-gray ml-1">{selectedBranch.operatingHours ?? '8am-10pm'}</span>
             </div>
             <p className="text-xs text-neutral-gray mb-3 line-clamp-2">{selectedBranch.address}</p>
             <button

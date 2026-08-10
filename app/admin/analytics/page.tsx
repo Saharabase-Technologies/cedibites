@@ -241,11 +241,11 @@ function PeakHoursHeatmap({ ordersByHour }: { ordersByHour?: Array<{ hour: numbe
     }
 
     const hasData = ordersByHour && ordersByHour.length > 0;
-    const openLabel = `${startHour}:00 – ${endHour}:00`;
+    const openLabel = `${startHour}:00 - ${endHour}:00`;
 
     return (
         <Card>
-            <SectionTitle title="Peak Hours Heatmap" sub={`Orders by hour — darker = busier · ${openLabel}`} />
+            <SectionTitle title="Peak Hours Heatmap" sub={`Orders by hour, darker = busier · ${openLabel}`} />
             {!hasData ? (
                 <div className="flex items-center justify-center h-32 text-neutral-gray text-sm">
                     No peak hours data available
@@ -987,7 +987,7 @@ function CustomerLifecycleCard({ data }: { data?: CustomerLifecycleMetrics }) {
                     </div>
                     <div className="grid grid-cols-3 gap-2 mb-3">
                         <LifecycleBucket label="Active" hint="≤30 days" value={data!.active_customers} color="text-secondary" />
-                        <LifecycleBucket label="At risk" hint="31–60 days" value={data!.at_risk_customers} color="text-warning" />
+                        <LifecycleBucket label="At risk" hint="31-60 days" value={data!.at_risk_customers} color="text-warning" />
                         <LifecycleBucket label="Churned" hint=">60 days" value={data!.churned_customers} color="text-error" />
                     </div>
                     <div className="flex items-center justify-between text-xs font-body text-neutral-gray">
@@ -1441,7 +1441,7 @@ export default function AdminAnalyticsPage() {
             const range = getDateRange(period, customRange ?? undefined);
             const periodLabel = PERIOD_LABELS[period] ?? period;
             const branchName = branchId ? `Branch #${branchId}` : 'All Branches';
-            const dateRange = `${range.date_from} – ${range.date_to}`;
+            const dateRange = `${range.date_from} - ${range.date_to}`;
             const generatedAt = new Date().toLocaleString('en-GH', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
             // Fetch all items if needed (full list, not just top 10)

@@ -120,7 +120,7 @@ export function BulkImportModal({
             ) : (
                 <div className="flex flex-col gap-4">
                     <p className="text-neutral-gray text-sm font-body">
-                        {preview.total_rows} row{preview.total_rows !== 1 ? 's' : ''} read —{' '}
+                        {preview.total_rows} row{preview.total_rows !== 1 ? 's' : ''} read:{' '}
                         <span className="text-secondary font-semibold">{preview.valid_rows} valid</span>
                         {preview.invalid_rows > 0 && (
                             <>, <span className="text-red-500 font-semibold">{preview.invalid_rows} with errors</span></>

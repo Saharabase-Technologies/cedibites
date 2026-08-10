@@ -89,7 +89,7 @@ export default function GrowthTrendCard({ trend, period, title = 'Growth Traject
     const spanCaption = useMemo(() => {
         if (points.length === 0) return '';
         if (points.length === 1) return points[0].fullLabel;
-        return `${points[0].fullLabel} – ${points[points.length - 1].fullLabel}`;
+        return `${points[0].fullLabel} - ${points[points.length - 1].fullLabel}`;
     }, [points]);
 
     // Best / slowest non-zero revenue period (callout chips).

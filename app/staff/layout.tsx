@@ -3,7 +3,7 @@ import StaffLayoutClient from './layout-client';
 
 export const metadata: Metadata = {
   title: {
-    template: '%s — Staff | CediBites',
+    template: '%s · Staff | CediBites',
     default: 'Staff Portal',
   },
   robots: { index: false, follow: false },

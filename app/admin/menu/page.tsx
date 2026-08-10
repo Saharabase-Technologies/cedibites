@@ -295,7 +295,7 @@ export default function AdminMenuItemsPage() {
                                     both untrue and the kind of thing that stops
                                     people doing a safe action. */}
                                 <p className="text-neutral-gray text-xs font-body mt-1.5">
-                                    Past orders and reports keep it — nothing historical changes.
+                                    Past orders and reports keep it. Nothing historical changes.
                                 </p>
                             </div>
                         </div>

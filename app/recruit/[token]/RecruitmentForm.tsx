@@ -309,7 +309,7 @@ export function RecruitmentForm({ token }: { token: string }) {
                     <div className="flex flex-col items-center text-center py-6">
                         <CheckCircleIcon size={44} weight="fill" className="text-secondary mb-4" />
                         <h2 className="text-text-dark dark:text-text-light text-xl font-semibold font-body">
-                            Thanks — we&rsquo;ve got your details
+                            Thanks, we&rsquo;ve got your details
                         </h2>
                         {/* No status and no way to check back: the account does not
                             exist yet and the page must not imply otherwise. */}
@@ -442,7 +442,7 @@ export function RecruitmentForm({ token }: { token: string }) {
                         </Field>
                     </Section>
 
-                    <Section title="About you" note="All optional — leave anything blank if you don't have it to hand.">
+                    <Section title="About you" note="All optional. Leave anything blank if you don't have it to hand.">
                         <Field label="Date of birth" {...bind('dateOfBirth')}>
                             <input
                                 type="date"

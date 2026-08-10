@@ -233,7 +233,7 @@ export default function PlatformErrorsPage() {
             setRetryTarget(null);
             refetchJobs();
         } catch {
-            toast.error('Retry failed — check your passcode');
+            toast.error('Retry failed. Check your passcode.');
         } finally {
             setRetryLoading(false);
         }

@@ -97,7 +97,7 @@ export default function SalesTable({ activeOrders, cancelledOrders, totalRevenue
             {totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-[#f0e8d8] dark:border-brown-light/15">
                     <p className="text-neutral-gray text-xs font-body">
-                        {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, allOrders.length)} of {allOrders.length}
+                        {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, allOrders.length)} of {allOrders.length}
                     </p>
                     <div className="flex items-center gap-1">
                         <button

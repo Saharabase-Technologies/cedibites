@@ -275,7 +275,7 @@ export function printReceipt(
   const kind: ReceiptKind = options?.kind === 'reprint' ? 'reprint' : 'original';
   const win = window.open('', '_blank', 'width=420,height=700');
   if (!win) {
-    toast.error('Popup blocked — please allow popups for this site to print receipts.');
+    toast.error('Popup blocked. Allow popups for this site to print receipts.');
     return;
   }
   try {

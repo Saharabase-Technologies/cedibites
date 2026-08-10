@@ -66,7 +66,7 @@ export default function StaffAuthShell({ children, tagline }: StaffAuthShellProp
                         {tagline ?? 'Run your kitchen,\ncounter and deliveries\nfrom one place.'}
                     </h2>
                     <p className="mt-4 max-w-sm text-text-light/60 leading-relaxed">
-                        The CediBites staff portal — orders, POS, kitchen and analytics, built for speed.
+                        The CediBites staff portal: orders, POS, kitchen and analytics, built for speed.
                     </p>
                 </div>
 

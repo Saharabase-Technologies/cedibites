@@ -144,7 +144,7 @@ export default function AdminCampaignsPage() {
 
                 <PageHeader
                     title="Campaigns"
-                    subtitle="Write a text, pick who gets it, see what it costs, and send — without leaving here."
+                    subtitle="Write a text, choose who gets it, check the cost, then send."
                     action={{
                         label: 'New campaign',
                         onClick: () => router.push('/admin/campaigns/new'),
