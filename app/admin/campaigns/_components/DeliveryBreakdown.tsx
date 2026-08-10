@@ -46,8 +46,8 @@ export function DeliveryBreakdown({ campaignId }: { campaignId: number }) {
                 <h2 className="text-text-dark font-semibold font-body">Delivery</h2>
                 <p className="text-neutral-gray text-xs font-body">
                     {summary.is_final
-                        ? `Final — we stopped checking ${summary.window_hours}h after the send`
-                        : 'Still settling — networks keep retrying for hours'}
+                        ? `Final. We stopped checking ${summary.window_hours}h after the send.`
+                        : 'Still settling. Networks keep retrying for hours.'}
                 </p>
             </div>
 
@@ -90,8 +90,8 @@ export function DeliveryBreakdown({ campaignId }: { campaignId: number }) {
             {summary.unconfirmed > 0 && (
                 <p className="text-neutral-gray text-xs font-body mb-4 leading-relaxed">
                     <strong className="text-text-dark">Never confirmed is not failed.</strong>{' '}
-                    Those numbers are worth sending to again another day — unlike the failed ones,
-                    which will cost the same and fail the same.
+                    Those numbers are worth trying again another day. The failed ones
+                    would only cost the same and fail again.
                 </p>
             )}
 

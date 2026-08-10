@@ -75,7 +75,7 @@ export function ReviewStep({
                 <Line label="Called" value={name || '—'} />
                 <Line
                     label="Going to"
-                    value={`${audienceLabel} — ${audience.toLocaleString()} ${audience === 1 ? 'person' : 'people'}`}
+                    value={`${audienceLabel} · ${audience.toLocaleString()} ${audience === 1 ? 'person' : 'people'}`}
                 />
                 <Line
                     label="Length"

@@ -188,9 +188,9 @@ export function AudienceBuilder({
                     </div>
                     {selectedSources.includes('supplementary') ? (
                         <p className="text-neutral-gray text-xs font-body mt-2 leading-relaxed">
-                            Supplementary contacts have never ordered, so every condition below about
-                            orders, dishes, branches or spend excludes them. Network still applies.
-                            Anyone an imported list has already won is counted under Customers, not here.
+                            Supplementary contacts have never ordered, so any condition below about
+                            orders, dishes, branches or spend leaves them out. Network still applies.
+                            Imported contacts who have since ordered count as customers, not here.
                         </p>
                     ) : (
                         <p className="text-neutral-gray text-xs font-body mt-2 leading-relaxed">
@@ -214,8 +214,8 @@ export function AudienceBuilder({
                     <p className="text-neutral-gray text-xs font-body">
                         {visible.length === 0
                             ? selectedSources.includes('supplementary')
-                                ? 'No conditions yet — everybody in the sources above.'
-                                : 'No conditions yet — this is every customer we hold a number for.'
+                                ? 'No conditions yet. This is everybody in the groups above.'
+                                : 'No conditions yet. This is every customer with a phone number.'
                             : `${visible.length} condition${visible.length === 1 ? '' : 's'}, all of which must be true`}
                     </p>
                 </div>
@@ -234,7 +234,7 @@ export function AudienceBuilder({
                     <p className="text-neutral-gray text-sm font-body">
                         Nobody matches this yet, so there would be nothing to send.{' '}
                         {visible.length > 0
-                            ? 'Every condition has to be true at once — remove one to widen it.'
+                            ? 'Every condition has to be true at once. Remove one to widen it.'
                             : 'Turn on a group above to draw from.'}
                     </p>
                 </div>
@@ -311,7 +311,7 @@ export function AudienceBuilder({
                                 selected={rules.primary_branch_ids ?? []}
                                 onChange={(ids) => set({ primary_branch_ids: ids })}
                                 empty="No branches yet."
-                                note="Where they buy more than anywhere else. We hold no customer address, so this is the nearest thing to a home branch. Ties go to the branch they were at last."
+                                note="Where they buy more often than anywhere else. If they buy the same amount at two branches, the one they visited last wins."
                             />
                             <Inline>
                                 <span>Only count people with at least</span>
@@ -323,8 +323,8 @@ export function AudienceBuilder({
                                 <span>orders</span>
                             </Inline>
                             <p className="text-neutral-gray text-xs font-body">
-                                Leave blank to include everyone. A single order makes a
-                                &ldquo;main branch&rdquo; that means very little.
+                                Leave blank to include everyone. One order on its own does not
+                                really make a main branch.
                             </p>
                         </div>
                     )}
@@ -335,7 +335,7 @@ export function AudienceBuilder({
                             selected={rules.only_branch_ids ?? []}
                             onChange={(ids) => set({ only_branch_ids: ids })}
                             empty="No branches yet."
-                            note="Has never bought at any other branch. The strictest of the three — right for something only that branch can honour."
+                            note="Has never bought at any other branch. Use this for an offer only that branch can honour."
                         />
                     )}
 
@@ -345,7 +345,7 @@ export function AudienceBuilder({
                             selected={rules.networks ?? []}
                             onChange={(v) => set({ networks: v as GhanaNetwork[] })}
                             empty=""
-                            note="Read from the number's prefix. A number ported to another network still reports the one it was issued by."
+                            note="Worked out from the number's prefix. A number moved to another network still shows the one it started on."
                         />
                     )}
 

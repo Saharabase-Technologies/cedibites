@@ -116,7 +116,7 @@ export default function ImportedContactsPage() {
             const kept = result.converted_count;
             toast.success(
                 kept > 0
-                    ? `List removed. Kept ${kept.toLocaleString()} who have since ordered — they are customers now.`
+                    ? `List removed. Kept ${kept.toLocaleString()} who have since ordered, because they are customers now.`
                     : 'List removed.',
             );
         } catch {
@@ -495,7 +495,7 @@ export default function ImportedContactsPage() {
                 title="Undo this import?"
                 message={
                     'Removes the contacts this list brought in that have not ordered. Anyone from it who has ' +
-                    'since ordered is kept — they are customers now, and this row is the record of where they came from.'
+                    'since ordered is kept. They are customers now, and this row records where they came from.'
                 }
                 itemName={undoing?.label ?? ''}
             />

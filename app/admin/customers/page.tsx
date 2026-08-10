@@ -46,10 +46,10 @@ function formatGHS(v: number) { return `₵${v.toFixed(2)}`; }
 const SEGMENTS: { value: ContactSegment; label: string; hint: string }[] = [
     { value: 'all',      label: 'All customers',       hint: 'Everyone with a valid number' },
     { value: 'active',   label: 'Active (≤30 days)',   hint: 'Ordered in the last 30 days' },
-    { value: 'at_risk',  label: 'At risk (31–60 days)', hint: 'Slipping away — win them back' },
-    { value: 'churned',  label: 'Churned (>60 days)',  hint: 'Lapsed — re-engagement blast' },
-    { value: 'loyal',    label: 'Loyal (2+ orders)',   hint: 'Repeat customers — reward them' },
-    { value: 'one_time', label: 'One-time buyers',     hint: 'Ordered once — convert to repeat' },
+    { value: 'at_risk',  label: 'At risk (31-60 days)', hint: 'Slipping away. Win them back.' },
+    { value: 'churned',  label: 'Churned (>60 days)',  hint: 'Lapsed. Worth a win-back message.' },
+    { value: 'loyal',    label: 'Loyal (2+ orders)',   hint: 'Repeat customers. Reward them.' },
+    { value: 'one_time', label: 'One-time buyers',     hint: 'Ordered once. Turn them into regulars.' },
 ];
 
 // ─── Customer detail panel ────────────────────────────────────────────────────
@@ -470,7 +470,7 @@ export default function AdminCustomersPage() {
             {meta && meta.last_page > 1 && (
                 <div className="flex items-center justify-between mt-4">
                     <p className="text-neutral-gray text-xs font-body">
-                        Showing {meta.from}–{meta.to} of {meta.total}
+                        Showing {meta.from}-{meta.to} of {meta.total}
                     </p>
                     <div className="flex items-center gap-1">
                         <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}

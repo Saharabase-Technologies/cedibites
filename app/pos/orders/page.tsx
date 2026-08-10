@@ -219,7 +219,7 @@ export default function POSOrdersPage() {
               toast.success('Order cancelled');
             } else {
               await requestCancel({ id: Number(cancelTarget.id), reason: reason || 'Requested by POS staff' });
-              toast.success('Cancel request submitted — awaiting manager approval');
+              toast.success('Cancel request submitted. Awaiting manager approval.');
             }
           }}
         />

@@ -72,12 +72,12 @@ function RefundModal({
                     {isMomo ? (
                         <div className="w-full bg-brand-dark rounded-xl px-4 py-3 text-left">
                             <p className="text-neutral-gray text-[10px] font-body uppercase tracking-wider mb-1">Refund via</p>
-                            <p className="text-text-light text-sm font-semibold font-body">Mobile Money – Hubtel reversal</p>
+                            <p className="text-text-light text-sm font-semibold font-body">Mobile Money: Hubtel reversal</p>
                             <p className="text-neutral-gray text-xs font-body mt-0.5">Returned to {customerPhone}</p>
                         </div>
                     ) : (
                         <div className="w-full bg-warning/10 border border-warning/25 rounded-xl px-4 py-3 text-left">
-                            <p className="text-warning text-xs font-semibold font-body">Cash payment – manual refund required</p>
+                            <p className="text-warning text-xs font-semibold font-body">Cash payment: manual refund required</p>
                             <p className="text-neutral-gray text-xs font-body mt-1">
                                 This order was paid in cash. A refund record will be created and your branch manager will be notified to process it manually.
                             </p>
@@ -359,7 +359,7 @@ export default function OrderDetailPanel() {
                                 className="w-full flex items-center justify-center gap-2 border border-brown-light/25 hover:bg-brown-light/5 text-neutral-gray font-semibold font-body py-3 rounded-full text-sm transition-colors cursor-pointer"
                             >
                                 <XIcon size={16} weight="bold" />
-                                Reject — Keep Order Active
+                                Reject & Keep Order Active
                             </button>
                             <button
                                 type="button"
@@ -427,7 +427,7 @@ export default function OrderDetailPanel() {
                                 className="w-full flex items-center justify-center gap-2 border border-error/30 hover:bg-error/10 text-error font-semibold font-body py-3.5 rounded-full text-sm transition-colors cursor-pointer"
                             >
                                 <ArrowCounterClockwiseIcon size={16} weight="bold" />
-                                Process Refund — {formatGHS(order.total)}
+                                Process Refund {formatGHS(order.total)}
                             </button>
                         </div>
                     )}

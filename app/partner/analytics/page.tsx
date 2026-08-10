@@ -215,7 +215,7 @@ function PeakHoursHeatmap({ ordersByHour }: { ordersByHour?: Array<{ hour: numbe
 
     return (
         <Card>
-            <SectionTitle title="Peak Hours Heatmap" sub="Orders by hour — darker = busier" />
+            <SectionTitle title="Peak Hours Heatmap" sub="Orders by hour, darker = busier" />
             {!hasData ? (
                 <div className="flex items-center justify-center h-32 text-neutral-gray text-sm">No peak hours data available</div>
             ) : (

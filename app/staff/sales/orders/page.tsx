@@ -233,7 +233,7 @@ export default function SalesOrdersPage() {
             toast.success('Order cancelled');
         } else {
             await requestCancel({ id: Number(cancelTarget.id), reason });
-            toast.success('Cancel request submitted — awaiting manager approval');
+            toast.success('Cancel request submitted. Awaiting manager approval.');
         }
     }, [cancelTarget, isAdmin, cancelOrder, requestCancel]);
 
@@ -341,7 +341,7 @@ export default function SalesOrdersPage() {
             {filtered.length > PAGE_SIZE && (
                 <div className="flex items-center justify-between mt-4 px-1">
                     <span className="text-neutral-gray text-xs font-body">
-                        Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+                        Showing {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
                     </span>
                     <div className="flex items-center gap-2">
                         <button

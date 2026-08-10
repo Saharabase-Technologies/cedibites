@@ -153,12 +153,12 @@ export default function AutomationsPage() {
                     <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-5">
                         <WarningCircleIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
                         <p className="text-neutral-gray text-sm font-body">
-                            Automation is switched off globally, so nothing sends —
+                            Automation is switched off globally, so nothing sends,
                             {liveRules > 0
                                 ? ` including the ${liveRules} rule${liveRules === 1 ? '' : 's'} switched on below.`
                                 : ' whatever is switched on below.'}{' '}
-                            Rules still match real orders and record what they would have done, which is
-                            how you judge one before turning it on.
+                            Rules still match real orders and record what they would have done, so you
+                            can check a rule before turning it on.
                         </p>
                     </div>
                 )}
@@ -176,8 +176,8 @@ export default function AutomationsPage() {
                         <div className="flex flex-col items-center justify-center py-14 px-6 text-center">
                             <p className="text-text-dark text-sm font-semibold font-body">No rules yet</p>
                             <p className="text-neutral-gray text-xs font-body mt-1 max-w-sm">
-                                A rule waits for something — a first order, a first delivery, somebody
-                                coming back after a while — and texts them a few hours later.
+                                A rule watches for something, like a first order or a customer coming
+                                back after a while, then texts them a few hours later.
                             </p>
                         </div>
                     }

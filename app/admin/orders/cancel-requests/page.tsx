@@ -65,7 +65,7 @@ function CancelRequestDrawer({
     const rejectMutation = useMutation({
         mutationFn: (orderId: number) => apiClient.post(`/admin/orders/${orderId}/reject-cancel`),
         onSuccess: () => {
-            toast.success('Cancel request rejected — order restored');
+            toast.success('Cancel request rejected. Order restored.');
             queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
             onClose();
         },
@@ -249,7 +249,7 @@ function CancelRequestDrawer({
                             className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-neutral-light text-text-dark text-sm font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer disabled:opacity-50"
                         >
                             <XCircleIcon size={16} weight="bold" />
-                            Reject — Keep Order
+                            Reject & Keep Order
                         </button>
                     </div>
                 </div>
@@ -477,7 +477,7 @@ function QuickActionButton({ orderId, action }: { orderId: number; action: 'appr
             type="button"
             onClick={() => mutation.mutate()}
             disabled={mutation.isPending}
-            title="Reject — keep order"
+            title="Reject and keep order"
             className="w-7 h-7 flex items-center justify-center rounded-lg bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors cursor-pointer disabled:opacity-50"
         >
             <XCircleIcon size={14} weight="bold" />

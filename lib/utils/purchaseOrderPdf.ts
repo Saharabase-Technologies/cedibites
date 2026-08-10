@@ -52,7 +52,7 @@ export async function downloadPurchaseOrderPdf(po: PurchaseOrder): Promise<void>
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(110);
-  doc.text('Mother Kitchen — Inventory', margin, y);
+  doc.text('Mother Kitchen Inventory', margin, y);
   doc.setTextColor(30);
   doc.setFont('helvetica', 'bold');
   doc.text(po.reference, right, y, { align: 'right' });

@@ -3,7 +3,7 @@ import POSLayoutClient from './layout-client';
 
 export const metadata: Metadata = {
   title: {
-    template: '%s — POS | CediBites',
+    template: '%s · POS | CediBites',
     default: 'POS',
   },
   robots: { index: false, follow: false },

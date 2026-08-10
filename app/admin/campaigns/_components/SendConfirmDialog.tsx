@@ -151,7 +151,7 @@ export function SendConfirmDialog({
                                 <p className="text-amber-700 text-xs font-body leading-relaxed">
                                     This message contains{' '}
                                     <span className="font-mono">{preview.non_gsm_characters.join(' ')}</span>, which cut
-                                    the limit from 160 characters to 70 — so it costs {preview.segments} texts each
+                                    the limit from 160 characters to 70, so it costs {preview.segments} texts each
                                     instead of one. Go back and swap them if you can.
                                 </p>
                             )}

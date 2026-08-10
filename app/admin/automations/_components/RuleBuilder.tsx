@@ -135,7 +135,7 @@ export function RuleBuilder({
                             </span>
                         ))}
                         , wait <strong>{formatDelay(delayMinutes)}</strong>, then text them
-                        {sampleRate < 100 && <> — but only <strong>{sampleRate}%</strong> of them</>}
+                        {sampleRate < 100 && <>, but only <strong>{sampleRate}%</strong> of them</>}
                         . Never more than once every <strong>{cooldownDays} days</strong>.
                     </p>
                 </div>
@@ -238,8 +238,8 @@ export function RuleBuilder({
                 <div className="flex gap-3 p-3 rounded-xl bg-info/5 border border-info/20">
                     <WarningCircleIcon size={16} weight="fill" className="text-info shrink-0 mt-0.5" />
                     <p className="text-text-dark text-xs font-body leading-relaxed">
-                        Saving does not switch it on. Dry-run it against the last 30 days first —
-                        that is what catches a rule that would fire on every order.
+                        Saving does not switch it on. Dry-run it against the last 30 days first.
+                        That is how you catch a rule that would fire on every order.
                     </p>
                 </div>
 

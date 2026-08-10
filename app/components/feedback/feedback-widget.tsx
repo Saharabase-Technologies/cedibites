@@ -268,7 +268,7 @@ function RichWidget() {
     setSubmitting(true);
     try {
       await sendReport(description, severity, shots, audio, notes);
-      toast.success('Thanks — your report was sent.');
+      toast.success('Thanks, your report was sent.');
       resetDraft();
       setOpen(false);
     } catch (e) {
@@ -500,7 +500,7 @@ function RichWidget() {
                     </div>
                   ) : (
                     <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl bg-neutral-light font-body text-sm text-neutral-gray">
-                      No screenshot — upload one or skip.
+                      No screenshot. Upload one or skip.
                     </div>
                   )}
 
@@ -718,7 +718,7 @@ function TextOnlyFallback() {
     setSubmitting(true);
     try {
       await sendReport(description, severity, [], null);
-      toast.success('Thanks — your report was sent.');
+      toast.success('Thanks, your report was sent.');
       setDescription('');
       setOpen(false);
     } catch (e) {

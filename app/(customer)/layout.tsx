@@ -15,7 +15,7 @@ const restaurantJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Restaurant',
   name: 'CediBites',
-  description: 'Authentic Ghanaian food delivery — jollof rice, fried rice, banku, grilled chicken, wraps, combos and more. Order online for delivery or pickup in Tema and Accra.',
+  description: 'Authentic Ghanaian food delivery: jollof rice, fried rice, banku, grilled chicken, wraps, combos and more. Order online for delivery or pickup in Tema and Accra.',
   url: 'https://app.cedibites.com',
   servesCuisine: ['Ghanaian', 'West African', 'African'],
   priceRange: 'GH₵60 - GH₵255',

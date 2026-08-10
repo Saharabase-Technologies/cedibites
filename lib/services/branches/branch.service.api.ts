@@ -35,7 +35,7 @@ function toBranch(raw: ApiBranch, menuItemIds: string[] = []): Branch {
     },
     deliveryRadius: Number(raw.delivery_radius_km) ?? 5,
     deliveryFee: Number(raw.delivery_fee) ?? 0,
-    operatingHours: raw.operating_hours ?? '8:00 AM – 10:00 PM',
+    operatingHours: raw.operating_hours ?? '8:00 AM - 10:00 PM',
     isOpen: Boolean(raw.is_active),
     menuItemIds,
   };

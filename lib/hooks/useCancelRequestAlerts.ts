@@ -83,12 +83,12 @@ export function useCancelRequestAlerts(branchIds: (string | number)[]) {
       // 2. In-app toast
       const orderNum = event.order.order_number;
       const requester = event.order.cancel_requested_by_user?.name ?? 'Staff';
-      toast.warning(`Cancel Request — #${orderNum} by ${requester}`);
+      toast.warning(`Cancel request for #${orderNum} by ${requester}`);
 
       // 3. Browser notification (if permitted, for when tab is backgrounded)
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try {
-          new Notification(`Cancel Request — #${orderNum}`, {
+          new Notification(`Cancel request for #${orderNum}`, {
             body: `${requester} wants to cancel ${event.order.contact_name ?? 'customer'}'s order`,
             icon: '/cblogo.webp',
             tag: `cancel-request-${event.order.id}`,

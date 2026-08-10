@@ -214,11 +214,11 @@ export default function KitchenDisplayPage() {
         <div className="shrink-0 flex items-center gap-6 px-6 py-2 bg-gray-900/60 border-b border-white/5 text-xs font-medium text-white/40">
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
-            0–5 min
+            0-5 min
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-            5–10 min
+            5-10 min
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />

@@ -43,7 +43,7 @@ function PriceSummary({ item }: { item: AdminMenuItem }) {
 
     return (
         <span className="text-text-dark text-sm font-semibold font-body whitespace-nowrap">
-            {min === max ? `₵${min}` : `₵${min} – ₵${max}`}
+            {min === max ? `₵${min}` : `₵${min} - ₵${max}`}
             <span className="text-neutral-gray font-normal text-xs ml-1.5">
                 {prices.length} option{prices.length !== 1 ? 's' : ''}
             </span>

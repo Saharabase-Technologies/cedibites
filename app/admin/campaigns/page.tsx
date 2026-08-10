@@ -146,7 +146,7 @@ export default function AdminCampaignsPage() {
 
                 <PageHeader
                     title="Campaigns"
-                    subtitle="Write a text, pick who gets it, see what it costs, and send — without leaving here."
+                    subtitle="Write a text, choose who gets it, check the cost, then send."
                     // One text to one number. Sits beside the campaign button
                     // rather than somewhere else entirely: it is the same job at
                     // a different scale, and staff who cannot find it here will

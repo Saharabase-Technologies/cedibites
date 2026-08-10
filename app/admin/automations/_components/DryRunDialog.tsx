@@ -49,7 +49,7 @@ export function DryRunDialog({
     };
 
     return (
-        <InventoryModal isOpen={rule !== null} onClose={onClose} title={`Dry run — ${rule?.name ?? ''}`} size="lg">
+        <InventoryModal isOpen={rule !== null} onClose={onClose} title={`Dry run: ${rule?.name ?? ''}`} size="lg">
             {isRunning || !dryRun ? (
                 <p className="text-neutral-gray text-sm font-body py-10 text-center">
                     Replaying the last 30 days…
@@ -57,7 +57,7 @@ export function DryRunDialog({
             ) : (
                 <div className="space-y-5">
                     <p className="text-neutral-gray text-sm font-body">
-                        Against the last <strong className="text-text-dark">{dryRun.days} days</strong> —{' '}
+                        Against the last <strong className="text-text-dark">{dryRun.days} days</strong>,{' '}
                         {dryRun.orders_examined.toLocaleString()} orders. Nothing was sent.
                     </p>
 
@@ -129,8 +129,8 @@ export function DryRunDialog({
                     )}
 
                     <p className="text-neutral-gray text-xs font-body leading-relaxed">
-                        This ignores your other rules, so the real number will be lower — they share
-                        one cooldown between them.
+                        This ignores your other rules, so the real number will be lower. Every rule
+                        shares one cooldown between them.
                     </p>
 
                     <div className="flex items-center justify-end gap-3">

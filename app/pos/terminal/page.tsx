@@ -1370,7 +1370,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
             if (token) {
               setBackgroundMomoToken(token);
               setIsPendingDrawerOpen(true);
-              toast.error('Payment timed out. Moved to Pending Payments — you can retry from there.');
+              toast.error('Payment timed out. It is now in Pending Payments, where you can retry it.');
             } else {
               toast.error('Payment timed out. Please ask the customer to try again.');
             }
@@ -1535,7 +1535,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
             {stockShortNotice.canOverride && (
               <p className="text-xs text-neutral-gray font-body leading-relaxed">
                 If the stock is on the shelf and simply has not been recorded, receive it in the
-                inventory portal first — an override is logged against your name.
+                inventory portal first. An override is logged against your name.
               </p>
             )}
 
@@ -1786,7 +1786,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
                       bg-neutral-light text-text-dark border-neutral-gray/20
                     `}
                   />
-                  <p className="text-xs text-neutral-gray/70">Only past dates &amp; times allowed — you cannot log a future order.</p>
+                  <p className="text-xs text-neutral-gray/70">Only past dates &amp; times allowed. You cannot log a future order.</p>
                 </>
               ) : (
                 <>
@@ -1801,7 +1801,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
                       bg-neutral-light text-text-dark border-neutral-gray/20
                     `}
                   />
-                  <p className="text-xs text-neutral-gray/70">Only past times allowed — you cannot log a future order.</p>
+                  <p className="text-xs text-neutral-gray/70">Only past times allowed. You cannot log a future order.</p>
                 </>
               )}
             </div>
@@ -1991,7 +1991,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
 
           {selectedMethod === 'no_charge' && (
             <div className="pt-2 text-center text-neutral-gray">
-              <p>Staff meal — no payment required</p>
+              <p>Staff meal. No payment required.</p>
               <p className="text-xs mt-1 opacity-60">Order will be logged for cost tracking</p>
             </div>
           )}

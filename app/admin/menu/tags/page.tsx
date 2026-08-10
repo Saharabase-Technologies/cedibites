@@ -187,7 +187,7 @@ export default function AdminMenuTagsPage() {
         <>
             <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
                 <p className="text-neutral-gray text-sm font-body max-w-xl">
-                    Attributes of a dish that cannot be worked out from orders — spicy, vegetarian, and the like.
+                    Attributes of a dish that cannot be worked out from orders, such as spicy or vegetarian.
                     Popularity and newness are computed by Smart Categories, not tagged here.
                 </p>
                 <button

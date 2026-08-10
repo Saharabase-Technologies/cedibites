@@ -45,7 +45,7 @@ export default function EditCampaignPage({ params }: { params: Promise<{ id: str
                         <WarningCircleIcon size={20} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
                         <p className="text-neutral-gray text-sm font-body">
                             <span className="text-text-dark font-semibold">This campaign has already gone out.</span>{' '}
-                            It cannot be changed — what was sent is what was sent. Copy it into a new campaign
+                            It cannot be changed. Copy it into a new campaign
                             instead.
                         </p>
                     </div>

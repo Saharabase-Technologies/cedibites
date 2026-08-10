@@ -155,7 +155,7 @@ export function ItemModal({
         <InventoryModal
             isOpen
             onClose={onClose}
-            title={isNew ? 'Add menu item' : `Edit — ${item?.name}`}
+            title={isNew ? 'Add menu item' : `Edit ${item?.name}`}
             size="lg"
         >
             <div className="flex flex-col gap-5">
@@ -310,7 +310,7 @@ export function ItemModal({
                     <div>
                         <p className="text-text-dark text-sm font-medium font-body mb-1">Tags</p>
                         <p className="text-neutral-gray text-xs font-body mb-2">
-                            Attributes of the dish. Popularity and newness are worked out from orders — they are not set here.
+                            Attributes of the dish. Popularity and newness are worked out from orders. They are not set here.
                         </p>
                         <div className="flex gap-2 flex-wrap">
                             {menuTags.map(tag => (

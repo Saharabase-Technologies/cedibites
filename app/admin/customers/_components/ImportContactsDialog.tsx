@@ -242,7 +242,7 @@ export function ImportContactsDialog({ isOpen, onClose }: { isOpen: boolean; onC
                                 <Tally
                                     value={preview.counts.already_customer}
                                     label="Already customers"
-                                    hint="Imported and marked as customers straight away — they have ordered before."
+                                    hint="Imported and marked as customers straight away, because they have ordered before."
                                 />
                                 <Tally
                                     value={preview.counts.duplicate_in_file + preview.counts.existing_contact}
@@ -327,7 +327,7 @@ export function ImportContactsDialog({ isOpen, onClose }: { isOpen: boolean; onC
                                 value={sourceNote}
                                 onChange={(e) => setSourceNote(e.target.value)}
                                 rows={2}
-                                placeholder="Collected at the stand — people who signed up for the raffle."
+                                placeholder="Collected at the stand, people who signed up for the raffle."
                             />
                         </FormField>
                     </>

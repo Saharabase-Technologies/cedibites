@@ -221,7 +221,7 @@ export default function PartnerBranchPage() {
                                         {h.open ? (
                                             <div className="flex items-center gap-1">
                                                 <ClockIcon size={11} weight="fill" className="text-secondary" />
-                                                <span className="text-text-dark text-xs font-body">{h.from} – {h.to}</span>
+                                                <span className="text-text-dark text-xs font-body">{h.from} - {h.to}</span>
                                             </div>
                                         ) : (
                                             <span className="text-neutral-gray/50 text-xs font-body">Closed</span>

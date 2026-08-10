@@ -72,7 +72,7 @@ async function exportOrdersPdf(orders: Order[], branchName: string, periodLabel:
 
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('CediBites — Order Statement', margin, y);
+    doc.text('CediBites Order Statement', margin, y);
     y += 22;
 
     doc.setFontSize(10);
@@ -157,7 +157,7 @@ function PaginationBar({ page, totalPages, total, pageSize, onPrev, onNext }: {
     return (
         <div className="flex items-center justify-between px-1">
             <span className="text-neutral-gray text-xs font-body">
-                Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} of {total}
+                Showing {page * pageSize + 1}-{Math.min((page + 1) * pageSize, total)} of {total}
             </span>
             <div className="flex items-center gap-2">
                 <button type="button" disabled={page === 0} onClick={onPrev}

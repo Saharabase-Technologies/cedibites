@@ -408,7 +408,7 @@ export function FeedbackDetailPage({ id }: { id: number }) {
           <div className="flex flex-col gap-1">
             {logs.length === 0 && (
               <p className="font-body text-xs text-neutral-gray">
-                {windowMode ? 'Nothing logged in that window.' : 'No correlated logs — this report shipped no request ids.'}
+                {windowMode ? 'Nothing logged in that window.' : 'No correlated logs. This report shipped no request ids.'}
               </p>
             )}
             {logs.map((l) => (

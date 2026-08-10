@@ -81,7 +81,7 @@ export default function DateFilter({ value, onChange }: DateFilterProps) {
 
     const triggerLabel = value
         ? value.preset === 'custom'
-            ? `${formatShort(value.from)} – ${formatShort(value.to)}`
+            ? `${formatShort(value.from)} - ${formatShort(value.to)}`
             : PRESETS.find(p => p.id === value.preset)?.label ?? 'Date'
         : 'Date';
 

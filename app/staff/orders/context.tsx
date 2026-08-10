@@ -256,7 +256,7 @@ export function OrdersProvider({ children, role = 'call_center' }: { children: R
             notify({
                 type: 'kitchen',
                 title: 'Kitchen Confirmed',
-                message: `Order #${orderId} accepted — kitchen is on it`,
+                message: `Order #${orderId} accepted. Kitchen is on it.`,
                 orderId,
             }, 'advance');
         }, 30_000);
@@ -278,7 +278,7 @@ export function OrdersProvider({ children, role = 'call_center' }: { children: R
             notify({
                 type: 'success',
                 title: 'Order Ready!',
-                message: `#${orderId} is ready — dispatch to ${customerName}`,
+                message: `#${orderId} is ready. Dispatch to ${customerName}.`,
                 orderId,
             }, 'complete');
         }, 120_000);

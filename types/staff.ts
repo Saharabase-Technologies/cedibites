@@ -159,7 +159,7 @@ export function roleAllowsManyBranches(role: StaffRole): boolean {
 
 export function branchRuleLabel(role: StaffRole): string {
     switch (ROLE_RULES[role].branch) {
-        case 'none':        return 'Company-wide — no branch';
+        case 'none':        return 'Company-wide, no branch';
         case 'exactly_one': return 'One branch';
         case 'one_or_more': return 'One or more branches';
     }

@@ -162,7 +162,7 @@ export default function MenuAuditPage() {
                 {/* Coverage bar */}
                 <div className="mb-6">
                     <div className="flex items-center justify-between text-xs text-neutral-gray mb-1.5">
-                        <span>{activeBranch?.name} Branch — Menu Coverage</span>
+                        <span>{activeBranch?.name} Branch Menu Coverage</span>
                         <span>{availableCount} of {allItemsCount} items</span>
                     </div>
                     <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
@@ -266,7 +266,7 @@ export default function MenuAuditPage() {
 
                                             <div className="mt-2 text-xs text-neutral-gray">
                                                 {item.options?.length
-                                                    ? `₵${item.options[0].price} – ${item.options[item.options.length - 1].price}`
+                                                    ? `₵${item.options[0].price} - ${item.options[item.options.length - 1].price}`
                                                     : '—'}
                                             </div>
                                         </div>
