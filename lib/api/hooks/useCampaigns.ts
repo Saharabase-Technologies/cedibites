@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { campaignService } from '../services/campaign.service';
-import type { CampaignStatus, SaveCampaignPayload } from '@/types/marketing';
+import type { AudienceRules, CampaignStatus, SaveCampaignPayload } from '@/types/marketing';
 
 const CAMPAIGNS_KEY = 'campaigns';
 
@@ -56,8 +56,92 @@ export function useCampaignSegments() {
         segments: data?.segments ?? [],
         seedMode: data?.seed_mode ?? true,
         recipientCap: data?.recipient_cap ?? 0,
+        // The rate Hubtel last charged. Falls back to the same figure the
+        // backend defaults to, so a slow load never quotes a different price.
+        ratePerSegment: data?.rate_per_segment ?? 0.0243,
         isLoading,
         error,
+    };
+}
+
+/** Dishes, branches and networks the builder can filter on. Rarely changes. */
+export function useAudienceOptions() {
+    const { data, isLoading } = useQuery({
+        queryKey: [CAMPAIGNS_KEY, 'audience-options'],
+        queryFn: campaignService.getAudienceOptions,
+        enabled: hasStaffToken(),
+        staleTime: 10 * 60 * 1000,
+    });
+
+    return {
+        branches: data?.branches ?? [],
+        // The receipt lines. Listed before menuItems because this is the one
+        // the builder leads with — an item name is not what anybody bought.
+        menuItemOptions: data?.menu_item_options ?? [],
+        menuItems: data?.menu_items ?? [],
+        networks: data?.networks ?? [],
+        // Customers and imported contacts, each with a headcount. Empty until
+        // loaded rather than defaulted, so the picker never renders a source
+        // with a wrong number beside it.
+        sources: data?.sources ?? [],
+        isLoading,
+    };
+}
+
+/**
+ * How many people the rules in hand match.
+ *
+ * Debounced by the caller rather than here: every count is a scan of the order
+ * history, and firing one per keystroke while somebody types "30" into a day
+ * box would run it twice for a number they had not finished typing.
+ */
+export function useAudienceCount(rules: AudienceRules, enabled = true) {
+    const { data, isFetching } = useQuery({
+        queryKey: [CAMPAIGNS_KEY, 'audience-count', rules],
+        queryFn: () => campaignService.countAudience(rules),
+        enabled: hasStaffToken() && enabled,
+        staleTime: 60 * 1000,
+        // Keep the last count on screen while the next one resolves, so the
+        // number does not blink to zero between edits and read as "nobody".
+        placeholderData: (previous) => previous,
+    });
+
+    return {
+        count: data?.count ?? null,
+        description: data?.description ?? [],
+        isCounting: isFetching,
+    };
+}
+
+/**
+ * The delivery breakdown for one campaign.
+ *
+ * Polls while the campaign is still settling — delivery is not instant, and a
+ * screen that showed the figures as they were when it loaded would have somebody
+ * conclude a send failed when the network was still retrying. Stops once the
+ * window has closed and nothing can change.
+ */
+export function useCampaignDeliveries(
+    id: number | null,
+    params: { outcome?: string; page?: number } = {},
+) {
+    const { data, isLoading, refetch } = useQuery({
+        queryKey: [CAMPAIGNS_KEY, 'deliveries', id, params],
+        queryFn: () => campaignService.getDeliveries(id as number, params),
+        enabled: hasStaffToken() && id !== null,
+        staleTime: 30 * 1000,
+        placeholderData: (previous) => previous,
+        refetchInterval: (query) => (query.state.data?.summary.is_final ? false : 60 * 1000),
+    });
+
+    return {
+        summary: data?.summary ?? null,
+        curve: data?.curve ?? [],
+        deliveries: data?.deliveries.data ?? [],
+        total: data?.deliveries.total ?? 0,
+        outcomes: data?.outcomes ?? [],
+        isLoading,
+        refetch,
     };
 }
 

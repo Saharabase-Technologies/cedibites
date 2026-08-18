@@ -3,7 +3,7 @@
 import { WarningCircleIcon, SparkleIcon, LinkSimpleIcon } from '@phosphor-icons/react';
 import { FormField, Textarea, Select } from '@/app/inventory/_components';
 import { measureMessage, canPlainify, plainify } from '@/lib/sms/meter';
-import { breakDownCost, GHS } from '@/lib/sms/cost';
+import { breakDownCost, GHS, GHSRate } from '@/lib/sms/cost';
 import type { ShortLink } from '@/types/marketing';
 
 /**
@@ -128,7 +128,7 @@ export function MessageStep({
 
             {/* ── The meter ─────────────────────────────────────────────── */}
             <aside className="lg:sticky lg:top-4 self-start w-full">
-                <div className="rounded-2xl bg-white border border-[#f0e8d8] p-4 flex flex-col gap-3">
+                <div className="rounded-2xl bg-neutral-light/60 p-4 flex flex-col gap-3">
                     <Metric
                         label="Characters"
                         value={String(meter.characters)}
@@ -147,12 +147,21 @@ export function MessageStep({
                         warn={meter.segments > 1}
                     />
 
+                    {/*
+                        We pay Hubtel; the customer pays nothing. This said "each
+                        person pays us", which is not a wording quibble — it
+                        describes revenue where there is a cost.
+                    */}
                     <div className="border-t border-[#f0e8d8] pt-3">
-                        <Metric label="Each person pays us" value={GHS(cost.perPerson)} note="" />
+                        <Metric
+                            label="Costs us per person"
+                            value={GHSRate(cost.perPerson)}
+                            note={`${GHSRate(ratePerSegment)} a text`}
+                        />
                     </div>
 
                     <div className="border-t border-[#f0e8d8] pt-3">
-                        <p className="text-neutral-gray text-xs font-body">Total for everyone</p>
+                        <p className="text-neutral-gray text-xs font-body">Total we pay for this send</p>
                         <p className="text-text-dark text-2xl font-bold font-body tabular-nums mt-0.5">
                             {GHS(cost.total)}
                         </p>

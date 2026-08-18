@@ -1,0 +1,562 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import {
+    PlusIcon,
+    XIcon,
+    SpinnerGapIcon,
+    UsersThreeIcon,
+    CheckIcon,
+    WarningCircleIcon,
+} from '@phosphor-icons/react';
+import { TextInput, Select } from '@/app/inventory/_components';
+import { useAudienceCount, useAudienceOptions } from '@/lib/api/hooks/useCampaigns';
+import { useDebounced } from '@/lib/hooks/useDebounced';
+import type { AudienceRules, ContactSourceValue, GhanaNetwork } from '@/types/marketing';
+
+/**
+ * Assembling an audience out of conditions.
+ *
+ * Conditions are added one at a time and every one narrows — they combine with
+ * AND, so the count can only go down as you add. That is the property that makes
+ * this safe to hand to somebody: there is no arrangement of filters that
+ * accidentally sends to more people than you started with.
+ *
+ * The live count is the whole point. "Lapsed MTN customers who bought jollof" is
+ * a sentence; it becomes a decision only when it says 312 beside it.
+ */
+
+type ConditionKey =
+    | 'recency'
+    | 'dormancy'
+    | 'window'
+    | 'items'
+    | 'dishes'
+    | 'branches'
+    | 'primaryBranch'
+    | 'onlyBranch'
+    | 'networks'
+    | 'orders'
+    | 'spend'
+    | 'hours';
+
+const CONDITIONS: { key: ConditionKey; label: string; hint: string }[] = [
+    { key: 'recency', label: 'Ordered recently', hint: 'Bought in the last N days' },
+    { key: 'dormancy', label: 'Gone quiet', hint: 'Has not bought for N days' },
+    { key: 'window', label: 'Ordered between dates', hint: 'A specific period' },
+    // Options first, dishes second: the option is the receipt line and the
+    // thing a promotion is actually about.
+    { key: 'items', label: 'Bought a menu item', hint: 'The exact thing on the receipt' },
+    { key: 'dishes', label: 'Bought any version of a dish', hint: 'Every size or variant of it' },
+    { key: 'branches', label: 'Has ordered at a branch', hint: 'Ever bought there, even once' },
+    { key: 'primaryBranch', label: 'Belongs to a branch', hint: 'Buys there more than anywhere else' },
+    { key: 'onlyBranch', label: 'Only ever one branch', hint: 'Has never bought anywhere else' },
+    { key: 'networks', label: 'On a network', hint: 'MTN, Telecel, AirtelTigo' },
+    { key: 'orders', label: 'How many orders', hint: 'At least / at most' },
+    { key: 'spend', label: 'How much spent', hint: 'Total across all orders' },
+    { key: 'hours', label: 'Time of day', hint: 'Lunch crowd, dinner crowd' },
+];
+
+/** Which rule keys each condition owns, so removing one clears exactly its own. */
+const OWNED_KEYS: Record<ConditionKey, (keyof AudienceRules)[]> = {
+    recency: ['ordered_within_days'],
+    dormancy: ['not_ordered_for_days'],
+    window: ['ordered_after', 'ordered_before'],
+    items: ['menu_item_option_ids'],
+    dishes: ['menu_item_ids'],
+    branches: ['branch_ids'],
+    primaryBranch: ['primary_branch_ids', 'primary_branch_min_orders'],
+    onlyBranch: ['only_branch_ids'],
+    networks: ['networks'],
+    orders: ['min_orders', 'max_orders'],
+    spend: ['min_spend', 'max_spend'],
+    hours: ['hour_from', 'hour_to'],
+};
+
+function activeConditions(rules: AudienceRules): ConditionKey[] {
+    return (Object.keys(OWNED_KEYS) as ConditionKey[]).filter((key) =>
+        OWNED_KEYS[key].some((k) => {
+            const v = rules[k];
+            return Array.isArray(v) ? v.length > 0 : v !== undefined && v !== null && v !== '';
+        }),
+    );
+}
+
+export function AudienceBuilder({
+    rules,
+    onChange,
+}: {
+    rules: AudienceRules;
+    onChange: (rules: AudienceRules) => void;
+}) {
+    const { branches, menuItems, menuItemOptions, networks, sources } = useAudienceOptions();
+
+    // Conditions added but not yet filled in still need to show their inputs,
+    // so the visible set is what is in the rules plus what was just added.
+    const [added, setAdded] = useState<ConditionKey[]>(() => activeConditions(rules));
+    const [picking, setPicking] = useState(false);
+
+    const visible = useMemo(() => {
+        const fromRules = activeConditions(rules);
+        return CONDITIONS.map((c) => c.key).filter((k) => added.includes(k) || fromRules.includes(k));
+    }, [rules, added]);
+
+    // Counting is a scan of the order history; one per keystroke would run it
+    // for numbers nobody had finished typing.
+    const debounced = useDebounced(rules, 400);
+    const { count, isCounting } = useAudienceCount(debounced);
+
+    function set(patch: Partial<AudienceRules>) {
+        onChange({ ...rules, ...patch });
+    }
+
+    function remove(key: ConditionKey) {
+        const next = { ...rules };
+        OWNED_KEYS[key].forEach((k) => delete next[k]);
+        setAdded((a) => a.filter((k) => k !== key));
+        onChange(next);
+    }
+
+    const available = CONDITIONS.filter((c) => !visible.includes(c.key));
+
+    /*
+     * Sources are not a condition and are deliberately not in the list above.
+     *
+     * Every condition narrows; this one widens. Putting it in the same "add a
+     * condition" menu would file the only rule that can make a send bigger
+     * alongside nine that cannot, which is exactly the distinction the operator
+     * needs to keep. It sits above the count, always visible, defaulting to
+     * customers only.
+     */
+    const selectedSources: ContactSourceValue[] =
+        rules.sources && rules.sources.length > 0 ? rules.sources : ['customers'];
+
+    function toggleSource(value: ContactSourceValue) {
+        const next = selectedSources.includes(value)
+            ? selectedSources.filter((s) => s !== value)
+            : [...selectedSources, value];
+
+        // Turning everything off would mean an audience of nobody, which is
+        // never what the click meant. The last one stays on.
+        if (next.length === 0) return;
+
+        // Written back as undefined when it is the default, so a plain audience
+        // stays a plain audience and the backend still treats it as one.
+        const isDefault = next.length === 1 && next[0] === 'customers';
+        set({ sources: isDefault ? undefined : next });
+    }
+
+    return (
+        <div className="flex flex-col gap-4">
+
+            {/* ── Where the numbers come from ───────────────────────────── */}
+            {sources.length > 0 && (
+                <div className="rounded-2xl bg-neutral-light/60 px-4 py-3">
+                    <p className="text-text-dark text-sm font-semibold font-body mb-2">Draw from</p>
+                    <div className="flex flex-wrap gap-2">
+                        {sources.map((source) => {
+                            const on = selectedSources.includes(source.value);
+                            return (
+                                /*
+                                 * Selected is a filled chip with a tick, not a
+                                 * tinted one. These two states were `bg-primary/10`
+                                 * against `bg-neutral-light` — on a cream page
+                                 * they were near enough identical that you could
+                                 * not tell which pool you were sending to, on the
+                                 * one control that decides who gets a text.
+                                 */
+                                <button
+                                    key={source.value}
+                                    type="button"
+                                    onClick={() => toggleSource(source.value)}
+                                    title={source.description}
+                                    aria-pressed={on}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-body font-semibold transition-colors cursor-pointer border ${
+                                        on
+                                            ? 'bg-primary border-primary text-white'
+                                            : 'bg-white border-[#e3ddd0] text-neutral-gray hover:border-neutral-gray/50 hover:text-text-dark'
+                                    }`}
+                                >
+                                    {on && <CheckIcon size={12} weight="bold" />}
+                                    {source.label}
+                                    <span className={`tabular-nums ${on ? 'text-white/75' : 'text-neutral-gray/70'}`}>
+                                        {source.count.toLocaleString()}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {selectedSources.includes('supplementary') ? (
+                        <p className="text-neutral-gray text-xs font-body mt-2 leading-relaxed">
+                            Supplementary contacts have never ordered, so any condition below about
+                            orders, dishes, branches or spend leaves them out. Network still applies.
+                            Imported contacts who have since ordered count as customers, not here.
+                        </p>
+                    ) : (
+                        <p className="text-neutral-gray text-xs font-body mt-2 leading-relaxed">
+                            Everybody who has ordered from us. Imported contacts who have since
+                            ordered are already in here.
+                        </p>
+                    )}
+                </div>
+            )}
+
+            {/* ── The count ─────────────────────────────────────────────── */}
+            <div className="flex items-center gap-3 rounded-2xl bg-neutral-light/60 px-4 py-3">
+                <UsersThreeIcon size={20} weight="fill" className="text-primary shrink-0" />
+                <div className="min-w-0">
+                    <p className="text-text-dark font-semibold font-body tabular-nums">
+                        {count === null ? '—' : count.toLocaleString()}{' '}
+                        <span className="font-normal text-neutral-gray">
+                            {count === 1 ? 'person matches' : 'people match'}
+                        </span>
+                    </p>
+                    <p className="text-neutral-gray text-xs font-body">
+                        {visible.length === 0
+                            ? selectedSources.includes('supplementary')
+                                ? 'No conditions yet. This is everybody in the groups above.'
+                                : 'No conditions yet. This is every customer with a phone number.'
+                            : `${visible.length} condition${visible.length === 1 ? '' : 's'}, all of which must be true`}
+                    </p>
+                </div>
+                {isCounting && <SpinnerGapIcon size={16} className="animate-spin text-neutral-gray ml-auto shrink-0" />}
+            </div>
+
+            {/*
+                An empty audience is a dead end that otherwise only announces
+                itself at the send screen, three steps later. The preset picker
+                has said this since it was built; the builder — where it is far
+                easier to do by accident, because conditions stack — did not.
+            */}
+            {count === 0 && !isCounting && (
+                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                    <WarningCircleIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-neutral-gray text-sm font-body">
+                        Nobody matches this yet, so there would be nothing to send.{' '}
+                        {visible.length > 0
+                            ? 'Every condition has to be true at once. Remove one to widen it.'
+                            : 'Turn on a group above to draw from.'}
+                    </p>
+                </div>
+            )}
+
+            {/* ── The conditions ────────────────────────────────────────── */}
+            {visible.map((key) => (
+                <ConditionRow key={key} label={CONDITIONS.find((c) => c.key === key)!.label} onRemove={() => remove(key)}>
+                    {key === 'recency' && (
+                        <Inline>
+                            <span>Ordered in the last</span>
+                            <NumberBox
+                                value={rules.ordered_within_days}
+                                onChange={(v) => set({ ordered_within_days: v })}
+                                placeholder="30"
+                            />
+                            <span>days</span>
+                        </Inline>
+                    )}
+
+                    {key === 'dormancy' && (
+                        <Inline>
+                            <span>Has not ordered for</span>
+                            <NumberBox
+                                value={rules.not_ordered_for_days}
+                                onChange={(v) => set({ not_ordered_for_days: v })}
+                                placeholder="60"
+                            />
+                            <span>days or more</span>
+                        </Inline>
+                    )}
+
+                    {key === 'window' && (
+                        <Inline>
+                            <span>Ordered between</span>
+                            <DateBox value={rules.ordered_after} onChange={(v) => set({ ordered_after: v })} />
+                            <span>and</span>
+                            <DateBox value={rules.ordered_before} onChange={(v) => set({ ordered_before: v })} />
+                        </Inline>
+                    )}
+
+                    {key === 'items' && (
+                        <Chips
+                            options={menuItemOptions.map((o) => ({ value: Number(o.value), label: o.label }))}
+                            selected={rules.menu_item_option_ids ?? []}
+                            onChange={(ids) => set({ menu_item_option_ids: ids })}
+                            empty="No menu items yet."
+                        />
+                    )}
+
+                    {key === 'dishes' && (
+                        <Chips
+                            options={menuItems.map((m) => ({ value: Number(m.value), label: m.label }))}
+                            selected={rules.menu_item_ids ?? []}
+                            onChange={(ids) => set({ menu_item_ids: ids })}
+                            empty="No dishes on the menu yet."
+                        />
+                    )}
+
+                    {key === 'branches' && (
+                        <Chips
+                            options={branches.map((b) => ({ value: Number(b.value), label: b.label }))}
+                            selected={rules.branch_ids ?? []}
+                            onChange={(ids) => set({ branch_ids: ids })}
+                            empty="No branches yet."
+                            note="Anyone who has ever bought there, even once, years ago."
+                        />
+                    )}
+
+                    {key === 'primaryBranch' && (
+                        <div className="flex flex-col gap-3">
+                            <Chips
+                                options={branches.map((b) => ({ value: Number(b.value), label: b.label }))}
+                                selected={rules.primary_branch_ids ?? []}
+                                onChange={(ids) => set({ primary_branch_ids: ids })}
+                                empty="No branches yet."
+                                note="Where they buy more often than anywhere else. If they buy the same amount at two branches, the one they visited last wins."
+                            />
+                            <Inline>
+                                <span>Only count people with at least</span>
+                                <NumberBox
+                                    value={rules.primary_branch_min_orders}
+                                    onChange={(v) => set({ primary_branch_min_orders: v })}
+                                    placeholder="2"
+                                />
+                                <span>orders</span>
+                            </Inline>
+                            <p className="text-neutral-gray text-xs font-body">
+                                Leave blank to include everyone. One order on its own does not
+                                really make a main branch.
+                            </p>
+                        </div>
+                    )}
+
+                    {key === 'onlyBranch' && (
+                        <Chips
+                            options={branches.map((b) => ({ value: Number(b.value), label: b.label }))}
+                            selected={rules.only_branch_ids ?? []}
+                            onChange={(ids) => set({ only_branch_ids: ids })}
+                            empty="No branches yet."
+                            note="Has never bought at any other branch. Use this for an offer only that branch can honour."
+                        />
+                    )}
+
+                    {key === 'networks' && (
+                        <Chips
+                            options={networks.map((n) => ({ value: n.value, label: n.label }))}
+                            selected={rules.networks ?? []}
+                            onChange={(v) => set({ networks: v as GhanaNetwork[] })}
+                            empty=""
+                            note="Worked out from the number's prefix. A number moved to another network still shows the one it started on."
+                        />
+                    )}
+
+                    {key === 'orders' && (
+                        <Inline>
+                            <span>At least</span>
+                            <NumberBox value={rules.min_orders} onChange={(v) => set({ min_orders: v })} placeholder="2" />
+                            <span>and at most</span>
+                            <NumberBox value={rules.max_orders} onChange={(v) => set({ max_orders: v })} placeholder="any" />
+                            <span>orders</span>
+                        </Inline>
+                    )}
+
+                    {key === 'spend' && (
+                        <Inline>
+                            <span>Spent at least GHS</span>
+                            <NumberBox value={rules.min_spend} onChange={(v) => set({ min_spend: v })} placeholder="100" />
+                            <span>and at most GHS</span>
+                            <NumberBox value={rules.max_spend} onChange={(v) => set({ max_spend: v })} placeholder="any" />
+                        </Inline>
+                    )}
+
+                    {key === 'hours' && (
+                        <Inline>
+                            <span>Ordered between</span>
+                            <HourBox value={rules.hour_from} onChange={(v) => set({ hour_from: v })} />
+                            <span>and</span>
+                            <HourBox value={rules.hour_to} onChange={(v) => set({ hour_to: v })} />
+                        </Inline>
+                    )}
+                </ConditionRow>
+            ))}
+
+            {/* ── Adding one ────────────────────────────────────────────── */}
+            {available.length > 0 && (
+                picking ? (
+                    <div className="rounded-2xl bg-neutral-light/60 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <p className="text-text-dark text-sm font-semibold font-body">Narrow it by…</p>
+                            <button
+                                onClick={() => setPicking(false)}
+                                className="text-neutral-gray hover:text-text-dark cursor-pointer"
+                            >
+                                <XIcon size={16} />
+                            </button>
+                        </div>
+                        <div className="grid sm:grid-cols-2 gap-2">
+                            {available.map((c) => (
+                                <button
+                                    key={c.key}
+                                    type="button"
+                                    onClick={() => { setAdded((a) => [...a, c.key]); setPicking(false); }}
+                                    className="text-left rounded-xl border border-[#f0e8d8] px-3 py-2 hover:border-primary hover:bg-primary/5 transition-colors cursor-pointer"
+                                >
+                                    <p className="text-text-dark text-sm font-medium font-body">{c.label}</p>
+                                    <p className="text-neutral-gray text-xs font-body">{c.hint}</p>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => setPicking(true)}
+                        className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-[#d9d2c4] px-4 py-3 text-sm font-medium font-body text-neutral-gray hover:text-text-dark hover:border-primary transition-colors cursor-pointer"
+                    >
+                        <PlusIcon size={15} weight="bold" />
+                        Add a condition
+                    </button>
+                )
+            )}
+        </div>
+    );
+}
+
+// ─── Pieces ──────────────────────────────────────────────────────────────────
+
+function ConditionRow({
+    label, onRemove, children,
+}: {
+    label: string;
+    onRemove: () => void;
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="rounded-2xl bg-neutral-light/60 px-4 py-3">
+            <div className="flex items-start justify-between gap-3 mb-2">
+                <p className="text-text-dark text-sm font-semibold font-body">{label}</p>
+                <button
+                    type="button"
+                    onClick={onRemove}
+                    aria-label={`Remove ${label}`}
+                    className="text-neutral-gray hover:text-rose-600 transition-colors cursor-pointer shrink-0"
+                >
+                    <XIcon size={15} />
+                </button>
+            </div>
+            {children}
+        </div>
+    );
+}
+
+function Inline({ children }: { children: React.ReactNode }) {
+    return (
+        <div className="flex flex-wrap items-center gap-2 text-sm font-body text-neutral-gray">{children}</div>
+    );
+}
+
+function NumberBox({
+    value, onChange, placeholder,
+}: {
+    value: number | null | undefined;
+    onChange: (v: number | null) => void;
+    placeholder: string;
+}) {
+    return (
+        <TextInput
+            type="number"
+            min={0}
+            value={value ?? ''}
+            placeholder={placeholder}
+            onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+            className="w-24 min-h-9 py-1.5"
+        />
+    );
+}
+
+function DateBox({
+    value, onChange,
+}: {
+    value: string | null | undefined;
+    onChange: (v: string | null) => void;
+}) {
+    return (
+        <TextInput
+            type="date"
+            value={value ?? ''}
+            onChange={(e) => onChange(e.target.value || null)}
+            className="w-40 min-h-9 py-1.5"
+        />
+    );
+}
+
+function HourBox({
+    value, onChange,
+}: {
+    value: number | null | undefined;
+    onChange: (v: number | null) => void;
+}) {
+    return (
+        <Select
+            value={value ?? ''}
+            onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+            className="w-28 min-h-9 py-1.5"
+        >
+            <option value="">any time</option>
+            {Array.from({ length: 25 }, (_, h) => (
+                <option key={h} value={h}>
+                    {String(h).padStart(2, '0')}:00
+                </option>
+            ))}
+        </Select>
+    );
+}
+
+function Chips<T extends number | string>({
+    options, selected, onChange, empty, note,
+}: {
+    options: { value: T; label: string }[];
+    selected: T[];
+    onChange: (values: T[]) => void;
+    empty: string;
+    note?: string;
+}) {
+    if (options.length === 0 && empty) {
+        return <p className="text-neutral-gray text-sm font-body">{empty}</p>;
+    }
+
+    function toggle(value: T) {
+        onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value]);
+    }
+
+    return (
+        <div>
+            <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto">
+                {options.map((o) => {
+                    const active = selected.includes(o.value);
+                    return (
+                        <button
+                            key={String(o.value)}
+                            type="button"
+                            onClick={() => toggle(o.value)}
+                            aria-pressed={active}
+                            className={`
+                                rounded-full px-3 py-1.5 text-xs font-medium font-body transition-colors cursor-pointer
+                                ${active
+                                    ? 'bg-primary text-white'
+                                    : 'bg-neutral-light text-neutral-gray hover:text-text-dark'}
+                            `}
+                        >
+                            {o.label}
+                        </button>
+                    );
+                })}
+            </div>
+            {/* Any one of the chosen options is a match — it is between
+                conditions that everything must hold, not within one. */}
+            {selected.length > 1 && (
+                <p className="text-neutral-gray text-xs font-body mt-2">Any one of these counts.</p>
+            )}
+            {note && <p className="text-neutral-gray text-xs font-body mt-2">{note}</p>}
+        </div>
+    );
+}

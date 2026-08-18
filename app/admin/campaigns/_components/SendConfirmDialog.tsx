@@ -11,7 +11,7 @@ import {
 } from '@phosphor-icons/react';
 import { campaignService } from '@/lib/api/services/campaign.service';
 import { useCampaignMutations } from '@/lib/api/hooks/useCampaigns';
-import { GHS } from '@/lib/sms/cost';
+import { GHS, GHSRate } from '@/lib/sms/cost';
 import type { Campaign } from '@/types/marketing';
 
 /**
@@ -120,16 +120,25 @@ export function SendConfirmDialog({
                                     value={`${going.toLocaleString()} ${going === 1 ? 'person' : 'people'}`}
                                 />
                                 <Line label="Length" value={`${preview.characters} characters`} />
+                                {/*
+                                    At the rate's own precision, not two
+                                    decimals. Hubtel charges GHS 0.0243 a text;
+                                    shown as "0.02" the line stops multiplying
+                                    to the total below it, and a total that
+                                    cannot be checked against its parts is one
+                                    nobody should trust.
+                                */}
                                 <Line
-                                    label="Costs each person"
-                                    value={`${preview.segments} text${preview.segments === 1 ? '' : 's'} · ${GHS(perPerson)}`}
+                                    label="Costs us per person"
+                                    value={`${preview.segments} text${preview.segments === 1 ? '' : 's'} · ${GHSRate(perPerson)}`}
                                 />
                                 <div className="flex items-baseline justify-between gap-4 px-4 py-3.5">
                                     <dt className="text-text-dark text-sm font-semibold font-body">
-                                        Total for everyone
+                                        Total we pay for this send
                                         <span className="block text-neutral-gray text-xs font-normal mt-0.5">
                                             {preview.segments} text{preview.segments === 1 ? '' : 's'} ×{' '}
-                                            {going.toLocaleString()} {going === 1 ? 'person' : 'people'}
+                                            {going.toLocaleString()} {going === 1 ? 'person' : 'people'} ×{' '}
+                                            {GHSRate(perPerson / Math.max(preview.segments, 1))}
                                         </span>
                                     </dt>
                                     <dd className="text-text-dark text-xl font-bold font-body tabular-nums">
@@ -148,8 +157,8 @@ export function SendConfirmDialog({
                             )}
 
                             <p className="text-neutral-gray text-xs font-body leading-relaxed">
-                                The total is a projection from our configured rate. Once Hubtel replies, the campaign
-                                shows what it actually charged.
+                                The total is a projection from the rate Hubtel last charged us. Once the send
+                                completes, the campaign shows what it was actually billed.
                                 {!preview.seed_mode && ' Once this starts, it cannot be recalled.'}
                             </p>
                         </>

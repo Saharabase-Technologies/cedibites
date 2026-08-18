@@ -39,26 +39,36 @@ export function WizardShell({
 }) {
     const step = steps[current];
 
+    /*
+     * Steps run across the top, not down a side rail.
+     *
+     * The rail cost 220px of every row on the widest screens and gave nothing
+     * back — four short labels do not need a column. The message step in
+     * particular is a textarea beside a cost panel, and the panel was the thing
+     * being squeezed: the total we are about to spend is the one figure on this
+     * page nobody should have to hunt for.
+     */
     return (
-        <div className="grid lg:grid-cols-[220px_1fr] gap-6 lg:gap-10">
+        <div className="max-w-3xl mx-auto">
 
-            {/* ── Step rail ─────────────────────────────────────────────── */}
-            <nav aria-label="Campaign steps" className="lg:pt-1">
-                <ol className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible">
+            {/* ── Steps ─────────────────────────────────────────────────── */}
+            <nav aria-label="Campaign steps" className="mb-5">
+                <ol className="flex items-center gap-1 sm:gap-2 overflow-x-auto pb-1">
                     {steps.map((s, i) => {
                         const done = i < furthest;
                         const active = i === current;
                         const reachable = i <= furthest;
 
                         return (
-                            <li key={s.key} className="shrink-0 lg:w-full">
+                            <li key={s.key} className="flex items-center gap-1 sm:gap-2 shrink-0">
                                 <button
                                     type="button"
                                     disabled={!reachable}
+                                    aria-current={active ? 'step' : undefined}
                                     onClick={() => reachable && onStepClick(i)}
                                     className={`
-                                        w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left
-                                        text-sm font-medium font-body transition-colors
+                                        flex items-center gap-2 px-3 py-2 rounded-xl
+                                        text-sm font-medium font-body transition-colors whitespace-nowrap
                                         ${active ? 'bg-neutral-card text-text-dark shadow-sm' : ''}
                                         ${!active && reachable ? 'text-neutral-gray hover:text-text-dark cursor-pointer' : ''}
                                         ${!reachable ? 'text-neutral-gray/40 cursor-not-allowed' : ''}
@@ -69,14 +79,20 @@ export function WizardShell({
                                             flex items-center justify-center w-6 h-6 rounded-full shrink-0
                                             text-[11px] font-semibold
                                             ${active ? 'bg-primary text-white' : ''}
-                                            ${done && !active ? 'bg-emerald-100 text-emerald-700' : ''}
+                                            ${done && !active ? 'bg-secondary/15 text-secondary' : ''}
                                             ${!done && !active ? 'bg-neutral-light text-neutral-gray' : ''}
                                         `}
                                     >
                                         {done && !active ? <CheckIcon size={12} weight="bold" /> : i + 1}
                                     </span>
-                                    {s.label}
+                                    {/* The number carries the meaning on a phone;
+                                        the label is what needs the room. */}
+                                    <span className="hidden sm:inline">{s.label}</span>
                                 </button>
+
+                                {i < steps.length - 1 && (
+                                    <span aria-hidden className="w-4 sm:w-8 h-px bg-[#e8dfcc] shrink-0" />
+                                )}
                             </li>
                         );
                     })}
@@ -85,7 +101,10 @@ export function WizardShell({
 
             {/* ── Step body ─────────────────────────────────────────────── */}
             <div className="min-w-0">
-                <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl p-5 md:p-7">
+                {/* Depth from shadow rather than an outline — the same card the
+                    staff section uses. Borders on a cream page read as clutter
+                    once there are several of them stacked. */}
+                <div className="bg-neutral-card rounded-2xl shadow-sm p-5 md:p-7">
                     <h2 className="text-text-dark text-lg font-semibold font-body">{step.label}</h2>
                     <p className="text-neutral-gray text-sm font-body mt-1 mb-6">{step.blurb}</p>
 

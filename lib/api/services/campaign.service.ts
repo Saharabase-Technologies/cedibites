@@ -1,6 +1,10 @@
 import apiClient from '../client';
 import type {
+    AudienceCount,
+    AudienceOptions,
+    AudienceRules,
     Campaign,
+    CampaignDeliveryReport,
     CampaignPreview,
     CampaignStatus,
     SaveCampaignPayload,
@@ -33,6 +37,26 @@ export const campaignService = {
     getSegments: async (): Promise<SegmentsResponse> => {
         const response = await apiClient.get('/admin/campaigns/segments');
         return unwrap<SegmentsResponse>(response);
+    },
+
+    /** Everything the audience builder can filter on — dishes, branches, networks. */
+    getAudienceOptions: async (): Promise<AudienceOptions> => {
+        const response = await apiClient.get('/admin/campaigns/audience-options');
+        return unwrap<AudienceOptions>(response);
+    },
+
+    /**
+     * How many people a rule set matches, right now.
+     *
+     * A resolve, not an estimate — the same code answers this and decides who
+     * actually receives the campaign, so this number is the number that gets
+     * sent to.
+     */
+    countAudience: async (rules: AudienceRules): Promise<AudienceCount> => {
+        const response = await apiClient.post('/admin/campaigns/count-audience', {
+            audience_rules: rules,
+        });
+        return unwrap<AudienceCount>(response);
     },
 
     getCampaigns: async (
@@ -73,6 +97,20 @@ export const campaignService = {
         return unwrap<CampaignPreview>(response);
     },
 
+    /**
+     * Who received it and who did not.
+     *
+     * `outcome` accepts a single outcome or `not_delivered`, which is the view
+     * anybody actually opens this for.
+     */
+    getDeliveries: async (
+        id: number,
+        params: { outcome?: string; page?: number; per_page?: number } = {},
+    ): Promise<CampaignDeliveryReport> => {
+        const response = await apiClient.get(`/admin/campaigns/${id}/deliveries`, { params });
+        return unwrap<CampaignDeliveryReport>(response);
+    },
+
     /** The only call in this file that spends money. */
     sendCampaign: async (id: number): Promise<Campaign> => {
         const response = await apiClient.post(`/admin/campaigns/${id}/send`);
@@ -82,5 +120,22 @@ export const campaignService = {
     cancelCampaign: async (id: number): Promise<Campaign> => {
         const response = await apiClient.post(`/admin/campaigns/${id}/cancel`);
         return unwrap<Campaign>(response);
+    },
+
+    /**
+     * One text to one number.
+     *
+     * Not a campaign of one — it skips the send window and seed mode, both of
+     * which exist for bulk. See the backend DirectMessageController for the
+     * reasoning and for what it deliberately does not skip.
+     */
+    measureDirect: async (message: string): Promise<{ characters: number; segments: number; encoding: string; non_gsm_characters: string[]; estimated_cost: number }> => {
+        const response = await apiClient.post('/admin/messages/measure', { message });
+        return unwrap(response);
+    },
+
+    sendDirect: async (phone: string, message: string): Promise<{ phone: string; segments: number; estimated_cost: number }> => {
+        const response = await apiClient.post('/admin/messages/send', { phone, message });
+        return unwrap(response);
     },
 };

@@ -2,8 +2,8 @@
 
 import { FlaskIcon, WarningCircleIcon, LinkSimpleIcon } from '@phosphor-icons/react';
 import { measureMessage } from '@/lib/sms/meter';
-import { breakDownCost, GHS } from '@/lib/sms/cost';
-import type { CampaignSegmentOption, ShortLink } from '@/types/marketing';
+import { breakDownCost, GHS, GHSRate } from '@/lib/sms/cost';
+import type { ShortLink } from '@/types/marketing';
 
 /**
  * The last screen before the money.
@@ -16,7 +16,8 @@ import type { CampaignSegmentOption, ShortLink } from '@/types/marketing';
 export function ReviewStep({
     name,
     message,
-    segment,
+    audienceLabel,
+    recipients,
     link,
     ratePerSegment,
     seedMode,
@@ -24,7 +25,10 @@ export function ReviewStep({
 }: {
     name: string;
     message: string;
-    segment?: CampaignSegmentOption;
+    /** The preset's name, or "Custom audience" when rules were assembled. */
+    audienceLabel: string;
+    /** Resolved live — the preset's count, or the rules' count when there are rules. */
+    recipients: number;
     link?: ShortLink;
     ratePerSegment: number;
     seedMode: boolean;
@@ -32,7 +36,7 @@ export function ReviewStep({
     seedCount: number | null;
 }) {
     const meter = measureMessage(message);
-    const audience = segment?.count ?? 0;
+    const audience = recipients;
     const cost = breakDownCost(meter.segments, audience, ratePerSegment);
 
     return (
@@ -55,7 +59,7 @@ export function ReviewStep({
                 <p className="text-neutral-gray text-xs font-body uppercase tracking-wide mb-2">
                     What they will receive
                 </p>
-                <div className="rounded-2xl bg-white border border-[#f0e8d8] px-4 py-3">
+                <div className="rounded-2xl bg-neutral-light/60 px-4 py-3">
                     <p className="text-text-dark text-sm font-body whitespace-pre-wrap">{message || '—'}</p>
                 </div>
                 {link && (
@@ -67,27 +71,24 @@ export function ReviewStep({
             </div>
 
             {/* ── The numbers ───────────────────────────────────────────── */}
-            <dl className="rounded-2xl bg-white border border-[#f0e8d8] divide-y divide-[#f0e8d8]">
+            <dl className="rounded-2xl bg-neutral-light/60 divide-y divide-[#f0e8d8]">
                 <Line label="Called" value={name || '—'} />
                 <Line
                     label="Going to"
-                    value={
-                        segment
-                            ? `${segment.label} · ${audience.toLocaleString()} ${audience === 1 ? 'person' : 'people'}`
-                            : '—'
-                    }
+                    value={`${audienceLabel} · ${audience.toLocaleString()} ${audience === 1 ? 'person' : 'people'}`}
                 />
                 <Line
                     label="Length"
                     value={`${meter.characters} characters${meter.encoding === 'UCS_2' ? ' (special characters)' : ''}`}
                 />
+                {/* We pay Hubtel. The customer pays nothing. */}
                 <Line
-                    label="Costs each person"
-                    value={`${meter.segments} text${meter.segments === 1 ? '' : 's'} · ${GHS(cost.perPerson)}`}
+                    label="Costs us per person"
+                    value={`${meter.segments} text${meter.segments === 1 ? '' : 's'} · ${GHSRate(cost.perPerson)}`}
                 />
                 <div className="flex items-baseline justify-between gap-4 px-4 py-3.5">
                     <dt className="text-text-dark text-sm font-semibold font-body">
-                        Total for everyone
+                        Total we pay for this send
                         {/* The arithmetic, so the total is checkable rather than trusted. */}
                         <span className="block text-neutral-gray text-xs font-normal mt-0.5">
                             {cost.workingOut}
@@ -109,8 +110,8 @@ export function ReviewStep({
             )}
 
             <p className="text-neutral-gray text-xs font-body leading-relaxed">
-                The total uses our configured rate of {GHS(ratePerSegment)} per text. Once Hubtel replies, the
-                campaign shows what it actually charged.
+                The total uses the rate Hubtel last charged us, {GHSRate(ratePerSegment)} a text. Once the send
+                completes, the campaign shows what it was actually billed.
             </p>
         </div>
     );

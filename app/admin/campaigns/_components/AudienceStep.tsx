@@ -1,7 +1,9 @@
 'use client';
 
 import { UsersThreeIcon, SpinnerGapIcon, WarningCircleIcon } from '@phosphor-icons/react';
-import type { CampaignSegmentOption, CampaignSegmentValue } from '@/types/marketing';
+import { SegmentedTabs } from '@/app/inventory/_components';
+import type { AudienceRules, CampaignSegmentOption, CampaignSegmentValue } from '@/types/marketing';
+import { AudienceBuilder } from './AudienceBuilder';
 
 /**
  * Who gets it.
@@ -18,6 +20,10 @@ export function AudienceStep({
     segments,
     value,
     onChange,
+    rules,
+    onRulesChange,
+    mode,
+    onModeChange,
     isLoading,
     recipientCap,
     seedMode,
@@ -25,12 +31,17 @@ export function AudienceStep({
     segments: CampaignSegmentOption[];
     value: CampaignSegmentValue;
     onChange: (value: CampaignSegmentValue) => void;
+    rules: AudienceRules;
+    onRulesChange: (rules: AudienceRules) => void;
+    mode: 'preset' | 'custom';
+    onModeChange: (mode: 'preset' | 'custom') => void;
     isLoading: boolean;
     recipientCap: number;
     seedMode: boolean;
 }) {
+    const custom = mode === 'custom';
     const chosen = segments.find((s) => s.value === value);
-    const overCap = !seedMode && !!chosen && recipientCap > 0 && chosen.count > recipientCap;
+    const overCap = !custom && !seedMode && !!chosen && recipientCap > 0 && chosen.count > recipientCap;
 
     if (isLoading) {
         return (
@@ -41,6 +52,55 @@ export function AudienceStep({
         );
     }
 
+    return (
+        <div className="flex flex-col gap-4">
+
+            {/*
+                Opening the builder adds NO conditions. It used to add "ordered
+                in the last 30 days", not because anybody wanted that filter but
+                because the tab's own state was inferred from the rules being
+                non-empty and it needed something in there to stay open. On an
+                audience whose members had not ordered that month, arriving at
+                this tab silently resolved it to nobody.
+
+                An empty builder is everybody, which is the honest starting
+                point: every condition from here narrows.
+            */}
+            <SegmentedTabs
+                options={[
+                    { value: 'preset', label: 'Use a group' },
+                    { value: 'custom', label: 'Build your own' },
+                ]}
+                value={mode}
+                onChange={onModeChange}
+            />
+
+            {custom ? (
+                <AudienceBuilder rules={rules} onChange={onRulesChange} />
+            ) : (
+                <PresetPicker
+                    segments={segments}
+                    value={value}
+                    onChange={onChange}
+                    chosen={chosen}
+                    overCap={overCap}
+                    recipientCap={recipientCap}
+                />
+            )}
+        </div>
+    );
+}
+
+function PresetPicker({
+    segments, value, onChange, chosen, overCap, recipientCap,
+}: {
+    segments: CampaignSegmentOption[];
+    value: CampaignSegmentValue;
+    onChange: (value: CampaignSegmentValue) => void;
+    chosen?: CampaignSegmentOption;
+    overCap: boolean;
+    recipientCap: number;
+}) {
     return (
         <div className="flex flex-col gap-4">
             <div className="grid sm:grid-cols-2 gap-3">
@@ -58,7 +118,7 @@ export function AudienceStep({
                                 text-left rounded-2xl border px-4 py-3.5 transition-colors
                                 ${active
                                     ? 'border-primary bg-primary/5 ring-2 ring-primary/10'
-                                    : 'border-[#f0e8d8] bg-white hover:border-neutral-gray/40'}
+                                    : 'border-transparent bg-neutral-light/60 hover:border-neutral-gray/30'}
                             `}
                         >
                             <div className="flex items-baseline justify-between gap-3">
@@ -90,7 +150,7 @@ export function AudienceStep({
                 </p>
             )}
 
-            {overCap && (
+            {overCap && chosen && (
                 <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
                     <WarningCircleIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
                     <p className="text-neutral-gray text-sm font-body">

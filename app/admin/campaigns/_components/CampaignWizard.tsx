@@ -10,9 +10,9 @@ import {
     FloppyDiskIcon,
 } from '@phosphor-icons/react';
 import { FormField, TextInput } from '@/app/inventory/_components';
-import { useCampaignMutations, useCampaignSegments } from '@/lib/api/hooks/useCampaigns';
+import { useAudienceCount, useCampaignMutations, useCampaignSegments } from '@/lib/api/hooks/useCampaigns';
 import { useLinks } from '@/lib/api/hooks/useLinks';
-import type { Campaign, CampaignSegmentValue } from '@/types/marketing';
+import type { AudienceRules, Campaign, CampaignSegmentValue } from '@/types/marketing';
 import { WizardShell, type WizardStep } from './WizardShell';
 import { AudienceStep } from './AudienceStep';
 import { MessageStep } from './MessageStep';
@@ -25,15 +25,19 @@ const STEPS: WizardStep[] = [
     { key: 'review', label: 'Review', blurb: 'Check the total before anything is spent.' },
 ];
 
-/** The estimate rate, mirrored from config/campaigns.php. */
-const RATE_PER_SEGMENT = 0.05;
-
 export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
     const router = useRouter();
     const editing = !!campaign;
 
     const { create, update } = useCampaignMutations();
-    const { segments, seedMode, recipientCap, isLoading: segmentsLoading } = useCampaignSegments();
+    /*
+     * The rate comes from the server, never from a constant here. It was
+     * hard-coded as 0.05 while config/campaigns.php said 0.0243, so the composer
+     * quoted double what the confirm dialog did for the very same message.
+     */
+    const {
+        segments, seedMode, recipientCap, ratePerSegment, isLoading: segmentsLoading,
+    } = useCampaignSegments();
     const { links } = useLinks({ per_page: 100 });
 
     const [step, setStep] = useState(0);
@@ -42,12 +46,42 @@ export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
 
     const [name, setName] = useState(campaign?.name ?? '');
     const [segment, setSegment] = useState<CampaignSegmentValue>(campaign?.segment ?? 'all');
+    const [rules, setRules] = useState<AudienceRules>(campaign?.audience_rules ?? {});
     const [message, setMessage] = useState(campaign?.message ?? '');
     const [shortLinkId, setShortLinkId] = useState<number | null>(campaign?.short_link?.id ?? null);
 
     const saving = create.isPending || update.isPending;
     const chosenSegment = segments.find((s) => s.value === segment);
     const chosenLink = links.find((l) => l.id === shortLinkId);
+
+    /*
+     * Which way the audience is being described — a preset, or assembled
+     * conditions.
+     *
+     * Held as its own state rather than inferred from `rules` being non-empty,
+     * which is how it used to work and could not work: an empty rule set is a
+     * perfectly good custom audience meaning "everybody", but inferring the mode
+     * made it indistinguishable from "no custom audience" and bounced the tab
+     * straight back to the presets. The workaround was to inject a starter
+     * condition — "ordered in the last 30 days" — the moment you opened the
+     * builder, which is a real filter nobody asked for. On a list whose members
+     * had not ordered that month it silently resolved to nobody, and the
+     * operator found out two steps later at the send screen.
+     */
+    const [mode, setMode] = useState<'preset' | 'custom'>(
+        campaign?.audience_rules && Object.keys(campaign.audience_rules).length > 0 ? 'custom' : 'preset',
+    );
+    const custom = mode === 'custom';
+
+    /*
+     * How many people this actually reaches, which is not always the preset's
+     * count. Once conditions are added the rules take over, and the cost shown
+     * on the message and review steps has to follow them — otherwise the
+     * operator narrows an audience from 4,000 to 300 and still sees the bill
+     * for 4,000.
+     */
+    const { count: ruleCount } = useAudienceCount(rules, custom);
+    const recipients = custom ? (ruleCount ?? 0) : (chosenSegment?.count ?? 0);
 
     /** What stops you leaving the step you are on. */
     const blocker = ((): string | null => {
@@ -77,6 +111,9 @@ export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
             name: name.trim(),
             message: message.trim(),
             segment,
+            // Null rather than an empty object when no conditions were added —
+            // that is what tells the server to fall back to the preset.
+            audience_rules: Object.keys(rules).length > 0 ? rules : null,
             short_link_id: shortLinkId,
         };
 
@@ -162,6 +199,23 @@ export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
                     segments={segments}
                     value={segment}
                     onChange={setSegment}
+                    rules={rules}
+                    onRulesChange={setRules}
+                    mode={mode}
+                    onModeChange={(next) => {
+                        setMode(next);
+
+                        if (next === 'custom') {
+                            // An assembled audience with no conditions means
+                            // everybody, so the preset it falls back to has to
+                            // mean everybody too. Leaving it on "Lapsed" would
+                            // have the builder show one number and the saved
+                            // campaign send to another.
+                            setSegment('all');
+                        } else {
+                            setRules({});
+                        }
+                    }}
                     isLoading={segmentsLoading}
                     recipientCap={recipientCap}
                     seedMode={seedMode}
@@ -175,8 +229,8 @@ export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
                     links={links}
                     shortLinkId={shortLinkId}
                     onShortLinkChange={setShortLinkId}
-                    recipients={chosenSegment?.count ?? 0}
-                    ratePerSegment={RATE_PER_SEGMENT}
+                    recipients={recipients}
+                    ratePerSegment={ratePerSegment}
                 />
             )}
 
@@ -184,9 +238,10 @@ export function CampaignWizard({ campaign }: { campaign?: Campaign }) {
                 <ReviewStep
                     name={name}
                     message={message}
-                    segment={chosenSegment}
+                    audienceLabel={custom ? 'Custom audience' : (chosenSegment?.label ?? '—')}
+                    recipients={recipients}
                     link={chosenLink}
-                    ratePerSegment={RATE_PER_SEGMENT}
+                    ratePerSegment={ratePerSegment}
                     seedMode={seedMode}
                     seedCount={null}
                 />

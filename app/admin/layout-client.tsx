@@ -35,6 +35,7 @@ import {
     WarehouseIcon,
     LinkSimpleIcon,
     MegaphoneIcon,
+    RobotIcon,
     ChatCircleTextIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
@@ -79,8 +80,10 @@ const ADMIN_GROUPS = [
 // `manage_campaigns` — admin and tech_admin only, the same ceiling the contact
 // export already enforces. Rendered separately from ADMIN_GROUPS for that reason.
 const MARKETING_NAV = [
-    { href: '/admin/campaigns', label: 'Campaigns',   icon: MegaphoneIcon  },
-    { href: '/admin/links',     label: 'Short Links', icon: LinkSimpleIcon },
+    { href: '/admin/campaigns',   label: 'Campaigns',   icon: MegaphoneIcon  },
+    // Same reach as a campaign, spread thin — one person at a time, over time.
+    { href: '/admin/automations', label: 'Automations', icon: RobotIcon      },
+    { href: '/admin/links',       label: 'Short Links', icon: LinkSimpleIcon },
     // What customers said about their orders. Distinct from "Feedback" under
     // System, which is the in-app bug reporter — hence the fuller label.
     { href: '/admin/customer-feedback', label: 'Customer Feedback', icon: ChatCircleTextIcon },

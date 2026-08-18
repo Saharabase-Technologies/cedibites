@@ -61,6 +61,148 @@ export interface SegmentsResponse {
     /** When on, sends go to a fixed staff list and no customer is messaged. */
     seed_mode: boolean;
     recipient_cap: number;
+    /**
+     * GHS per billed text, from the server.
+     *
+     * Never hard-code this in the frontend. It was, as 0.05, while the backend
+     * said 0.0243 — so the composer quoted double what the confirm dialog did
+     * for the same message.
+     */
+    rate_per_segment: number;
+}
+
+/** Mirrors backend App\Enums\GhanaNetwork. */
+export type GhanaNetwork = 'mtn' | 'telecel' | 'airteltigo' | 'glo';
+
+/**
+ * An audience assembled by the operator.
+ *
+ * Every rule that is set must hold — they combine with AND, never OR. An empty
+ * rule set is everybody, so adding a rule can only ever shrink the audience.
+ * Mirrors backend App\Services\Campaigns\AudienceRules.
+ */
+export interface AudienceRules {
+    ordered_within_days?: number | null;
+    not_ordered_for_days?: number | null;
+    ordered_after?: string | null;
+    ordered_before?: string | null;
+    /** The receipt line — what was actually bought. The useful one. */
+    menu_item_option_ids?: number[] | null;
+    /**
+     * Every version of a dish. Broader, and it never loses history:
+     * menu_item_option_id is nulled on an order when the option is deleted.
+     */
+    menu_item_ids?: number[] | null;
+
+    /** Ever ordered at any of these. */
+    branch_ids?: number[] | null;
+    /** Buys mostly at one of these — their home branch. */
+    primary_branch_ids?: number[] | null;
+    /** Ignore a primary branch built on fewer orders than this. */
+    primary_branch_min_orders?: number | null;
+    /** Has never ordered anywhere but one of these. */
+    only_branch_ids?: number[] | null;
+    networks?: GhanaNetwork[] | null;
+    min_orders?: number | null;
+    max_orders?: number | null;
+    min_spend?: number | null;
+    max_spend?: number | null;
+    hour_from?: number | null;
+    hour_to?: number | null;
+
+    /**
+     * Which pools to draw from. Omitted or empty means customers only.
+     *
+     * The one rule here that can make an audience BIGGER. Every other rule
+     * narrows, which is what makes the builder safe to stack — this one has to
+     * be asked for, and the review step says so first.
+     */
+    sources?: ContactSourceValue[] | null;
+}
+
+/**
+ * Mirrors backend App\Enums\ContactSource.
+ *
+ * A partition, not two overlapping lists: `customers` is everybody who has
+ * ordered, `supplementary` is everybody we hold a number for who has not.
+ * Nobody is in both, so the counts add up and picking both reaches each person
+ * once. A contact leaves `supplementary` the moment they order.
+ */
+export type ContactSourceValue = 'customers' | 'supplementary';
+
+export interface ContactSourceOption {
+    value: ContactSourceValue;
+    label: string;
+    description: string;
+    count: number;
+}
+
+export interface AudienceOption {
+    value: number | string;
+    label: string;
+    /** The dish an option belongs to, for grouping the picker. */
+    group?: string | null;
+}
+
+/** Everything the builder can filter on, served so the lists cannot go stale. */
+export interface AudienceOptions {
+    branches: AudienceOption[];
+    /** The sellable lines, labelled "Dish — Option". What people actually buy. */
+    menu_item_options: AudienceOption[];
+    menu_items: AudienceOption[];
+    networks: { value: GhanaNetwork; label: string }[];
+    sources: ContactSourceOption[];
+}
+
+// ─── Delivery ────────────────────────────────────────────────────────────────
+
+/**
+ * Mirrors backend App\Enums\DeliveryOutcome.
+ *
+ * "Not delivered" is three things, not one. `failed` is a dead number and is
+ * permanent; `unconfirmed` is almost always a handset that was switched off and
+ * is worth trying again. Merging them is what makes a delivery report useless.
+ */
+export type DeliveryOutcomeValue = 'delivered' | 'failed' | 'pending' | 'unconfirmed';
+
+export interface CampaignDelivery {
+    id: number;
+    phone: string;
+    outcome: DeliveryOutcomeValue;
+    /** Hubtel's own wording, kept verbatim. */
+    provider_status: string | null;
+    rate: string | null;
+    updated_at: string | null;
+}
+
+export interface DeliverySummary {
+    /** What Hubtel accepted. The denominator. */
+    accepted: number;
+    delivered: number;
+    failed: number;
+    pending: number;
+    unconfirmed: number;
+    /** Accepted messages we hold no status row for — our gap, not theirs. */
+    unknown: number;
+    delivery_rate: number | null;
+    /** True once the polling window has closed and nothing will change. */
+    is_final: boolean;
+    checked_at: string | null;
+    window_hours: number;
+}
+
+export interface CampaignDeliveryReport {
+    summary: DeliverySummary;
+    /** Delivered counts at 1, 6, 24 and 48 hours after the send. */
+    curve: { hour: number; delivered: number }[];
+    deliveries: { data: CampaignDelivery[]; total: number; current_page: number; last_page: number };
+    outcomes: { value: DeliveryOutcomeValue; label: string; description: string }[];
+}
+
+export interface AudienceCount {
+    count: number;
+    /** The rules as sentences, for the review step and the audit trail. */
+    description: string[];
 }
 
 export interface Campaign {
@@ -70,6 +212,11 @@ export interface Campaign {
 
     segment: CampaignSegmentValue;
     segment_label: string;
+
+    /** Null when the campaign used a preset rather than an assembled audience. */
+    audience_rules: AudienceRules | null;
+    /** The audience in plain English, however it was described. */
+    audience_description: string[];
 
     status: CampaignStatus;
     status_label: string;
@@ -86,8 +233,12 @@ export interface Campaign {
 
     /** Permanent — never recomputed from the prunable attempt rows. */
     recipient_count: number;
+    /** Accepted by Hubtel. Not the same as arriving. */
     sent_count: number;
     failed_count: number;
+    /** Confirmed as arriving. Zero until the delivery poll has run. */
+    delivered_count: number;
+    delivery_checked_at: string | null;
 
     segments_per_message: number;
     estimated_cost: number;
@@ -109,6 +260,8 @@ export interface SaveCampaignPayload {
     name?: string;
     message?: string;
     segment?: CampaignSegmentValue;
+    /** Omit or send empty to fall back to the preset named by `segment`. */
+    audience_rules?: AudienceRules | null;
     short_link_id?: number | null;
     scheduled_for?: string | null;
 }

@@ -12,6 +12,9 @@ import { SegmentedTabsLink, type SegmentedTabItem } from '@/app/inventory/_compo
  */
 const TABS: SegmentedTabItem[] = [
     { href: '/admin/campaigns', label: 'Campaigns' },
+    // Sits beside Campaigns because it is the same job on a different clock:
+    // one is a message you push, the other is a message that waits.
+    { href: '/admin/automations', label: 'Automations' },
     { href: '/admin/links', label: 'Short Links' },
     { href: '/admin/customer-feedback', label: 'Customer Feedback' },
 ];
