@@ -253,7 +253,9 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                     {/* The bell was previously only inside the md:hidden mobile
                         header, so on desktop - where staff actually spend the
                         shift - there was no bell at all. */}
-                    <StaffMessageBell className="ml-auto" />
+                    {/* Opens rightward: the sidebar is 224px and the panel is
+                        320px, so a right-anchored panel starts off-screen. */}
+                    <StaffMessageBell className="ml-auto" align="left" />
                 </div>
 
                 {/* Nav */}

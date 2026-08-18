@@ -14,7 +14,22 @@ import type { InboxMessage } from '@/types/messaging';
  * front of somebody — the bell alone is opt-in attention, and the whole point of
  * a caution is that it is not.
  */
-export function StaffMessageBell({ className }: { className?: string }) {
+export function StaffMessageBell({
+    className,
+    align = 'right',
+}: {
+    className?: string;
+    /**
+     * Which edge the panel hangs from.
+     *
+     * `right` suits a bell in the top-right of a full-width header. In the
+     * 224px-wide desktop sidebar it is wrong and badly so: the panel is 320px,
+     * so anchoring its right edge to the bell puts its left edge at roughly
+     * -112px and the first two words of every message are off the screen.
+     * Sidebar callers pass `left` and the panel opens rightward over the page.
+     */
+    align?: 'left' | 'right';
+}) {
     const staffAuth = useStaffAuthOptional();
     const userId = staffAuth?.staffUser?.user_id ?? null;
     const { summary, messages, reply } = useStaffInbox(userId);
@@ -61,7 +76,9 @@ export function StaffMessageBell({ className }: { className?: string }) {
             </button>
 
             {open && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 max-h-[70vh] overflow-y-auto rounded-2xl bg-neutral-card shadow-lg border border-black/5 z-50">
+                <div
+                    className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} mt-2 w-80 sm:w-96 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto rounded-2xl bg-neutral-card shadow-lg border border-black/5 z-50`}
+                >
                     <div className="flex items-center justify-between px-4 py-3 border-b border-black/5">
                         <p className="font-body font-semibold text-sm text-brand-dark">Messages</p>
                         <Link
