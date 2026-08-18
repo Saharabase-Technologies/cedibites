@@ -85,6 +85,13 @@ const MARKETING_NAV = [
     { href: '/admin/customer-feedback', label: 'Customer Feedback', icon: ChatCircleTextIcon },
 ];
 
+// Messages to staff, and the rules that send them without anybody pressing
+// send. Separate from Marketing: that reaches customers and costs money per
+// send; this reaches our own people and is free.
+const STAFF_COMMS_NAV = [
+    { href: '/admin/messages', label: 'Staff Messages', icon: ChatCircleTextIcon },
+];
+
 // Rendered after Displays, near the bottom of the sidebar.
 const SYSTEM_GROUP = {
     title: 'System',
@@ -267,6 +274,28 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                             ))}
                         </div>
                     ))}
+
+                    {/* Reaching every member of staff at once, and the rules that
+                        do it unprompted. `staff_messages.manage` is admin and
+                        tech_admin only — branch managers deliberately do not
+                        send. Receiving needs no permission at all. */}
+                    {staffUser.permissions?.includes('staff_messages.manage') && (
+                        <>
+                            <div className="my-2 border-t border-[#f0e8d8]" />
+                            <p className="text-[10px] font-body font-medium text-neutral-gray/60 uppercase tracking-wider px-3 pb-1">
+                                Staff comms
+                            </p>
+                            {STAFF_COMMS_NAV.map(item => (
+                                <SidebarLink
+                                    key={item.href}
+                                    href={item.href}
+                                    label={item.label}
+                                    icon={item.icon}
+                                    active={isNavActive(pathname, item.href)}
+                                />
+                            ))}
+                        </>
+                    )}
 
                     {staffUser.permissions?.includes('manage_campaigns') && (
                         <>

@@ -1,0 +1,103 @@
+import apiClient from '../client';
+import type {
+    AudiencePreview,
+    DryRunResult,
+    InboxMessage,
+    InboxSummary,
+    RuleOptions,
+    StaffAudience,
+    StaffMessage,
+    StaffMessageKind,
+    StaffMessageRule,
+} from '@/types/messaging';
+
+/** Body of a hand-written send. */
+export interface SendMessagePayload {
+    kind: StaffMessageKind;
+    subject?: string | null;
+    body: string;
+    audience: StaffAudience;
+    requires_acknowledgement?: boolean;
+    allow_custom_reply?: boolean;
+    quick_replies?: string[];
+    sms_fallback_after_minutes?: number | null;
+    expires_at?: string | null;
+}
+
+/**
+ * The staff member's own inbox. No permission required — receiving a message
+ * is the job, not a privilege.
+ */
+export const inboxService = {
+    list: (unreadOnly = false): Promise<{ data: InboxMessage[] }> =>
+        apiClient.get('/messages/inbox', { params: { unread_only: unreadOnly ? 1 : 0 } }),
+
+    /** Bell count and the pending cautions in one call. */
+    summary: (): Promise<{ data: InboxSummary }> => apiClient.get('/messages/inbox/summary'),
+
+    /** Opening it is what reading means — the server stamps read_at here. */
+    show: (recipientId: number): Promise<{ data: InboxMessage }> =>
+        apiClient.get(`/messages/inbox/${recipientId}`),
+
+    acknowledge: (recipientId: number): Promise<{ data: InboxMessage }> =>
+        apiClient.post(`/messages/inbox/${recipientId}/acknowledge`),
+
+    reply: (
+        recipientId: number,
+        payload: { quick_reply?: string; body?: string },
+    ): Promise<{ data: InboxMessage }> =>
+        apiClient.post(`/messages/inbox/${recipientId}/reply`, payload),
+
+    /** The upward direction — goes to every admin, not one named person. */
+    raise: (payload: { subject?: string; body: string }): Promise<void> =>
+        apiClient.post('/messages/raise', payload),
+
+    raised: (): Promise<{ data: unknown[] }> => apiClient.get('/messages/raised'),
+};
+
+/** Admin and tech_admin only — gated on `staff_messages.manage`. */
+export const messagingAdminService = {
+    list: (params: Record<string, string | number> = {}): Promise<{ data: StaffMessage[] }> =>
+        apiClient.get('/admin/messages', { params }),
+
+    show: (id: number): Promise<{ data: StaffMessage }> => apiClient.get(`/admin/messages/${id}`),
+
+    /** How many people this reaches, before the send button is pressed. */
+    preview: (audience: StaffAudience): Promise<{ data: AudiencePreview }> =>
+        apiClient.post('/admin/messages/preview', { audience }),
+
+    send: (payload: SendMessagePayload): Promise<{ data: StaffMessage }> =>
+        apiClient.post('/admin/messages', payload),
+
+    reply: (id: number, body: string): Promise<{ data: StaffMessage }> =>
+        apiClient.post(`/admin/messages/${id}/reply`, { body }),
+
+    withdraw: (id: number): Promise<void> => apiClient.delete(`/admin/messages/${id}`),
+};
+
+export const messagingRuleService = {
+    list: (): Promise<{ data: { rules: StaffMessageRule[]; automation_enabled: boolean } }> =>
+        apiClient.get('/admin/messages/rules'),
+
+    options: (): Promise<{ data: RuleOptions }> => apiClient.get('/admin/messages/rules/options'),
+
+    show: (id: number): Promise<{ data: StaffMessageRule }> =>
+        apiClient.get(`/admin/messages/rules/${id}`),
+
+    /** Always saved switched off. Liveness is a separate call, on purpose. */
+    create: (payload: Partial<StaffMessageRule>): Promise<{ data: StaffMessageRule }> =>
+        apiClient.post('/admin/messages/rules', payload),
+
+    update: (id: number, payload: Partial<StaffMessageRule>): Promise<{ data: StaffMessageRule }> =>
+        apiClient.put(`/admin/messages/rules/${id}`, payload),
+
+    /** The only thing that starts, or stops, real messages. */
+    toggle: (id: number): Promise<{ data: StaffMessageRule; message: string }> =>
+        apiClient.post(`/admin/messages/rules/${id}/toggle`),
+
+    /** Replays history. Writes nothing, sends nothing. */
+    dryRun: (id: number, days = 30): Promise<{ data: DryRunResult }> =>
+        apiClient.get(`/admin/messages/rules/${id}/dry-run`, { params: { days } }),
+
+    destroy: (id: number): Promise<void> => apiClient.delete(`/admin/messages/rules/${id}`),
+};
