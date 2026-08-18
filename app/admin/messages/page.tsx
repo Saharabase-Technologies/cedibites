@@ -9,11 +9,14 @@ import {
     SlidersIcon,
     UsersThreeIcon,
     WarningCircleIcon,
+    XIcon,
 } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { messagingAdminService } from '@/lib/api/services/messaging.service';
 import { useBranches } from '@/lib/api/hooks/useBranches';
+import { useEmployees } from '@/lib/api/hooks/useEmployees';
 import type { StaffAudience, StaffMessage, StaffMessageKind } from '@/types/messaging';
+import { roleDisplayName } from '@/types/staff';
 
 // Riders and kitchen staff are here as well as the obvious desk roles — the
 // people hardest to reach by any other means are exactly the ones this is for.
@@ -42,6 +45,8 @@ export default function AdminMessagesPage() {
     const [body, setBody] = useState('');
     const [roles, setRoles] = useState<string[]>([]);
     const [branchIds, setBranchIds] = useState<number[]>([]);
+    const [userIds, setUserIds] = useState<number[]>([]);
+    const [personQuery, setPersonQuery] = useState('');
     const [everyone, setEveryone] = useState(false);
     const [requiresAck, setRequiresAck] = useState(false);
     const [allowCustomReply, setAllowCustomReply] = useState(true);
@@ -56,11 +61,16 @@ export default function AdminMessagesPage() {
             everyone,
             roles: everyone ? [] : roles,
             branch_ids: everyone ? [] : branchIds,
+            // Named people are added even when `everyone` is set. On the server
+            // they bypass the role and branch filters rather than intersecting
+            // with them, so "all riders, plus Ama from head office" is
+            // expressible.
+            user_ids: userIds,
         }),
-        [everyone, roles, branchIds],
+        [everyone, roles, branchIds, userIds],
     );
 
-    const hasSelection = everyone || roles.length > 0 || branchIds.length > 0;
+    const hasSelection = everyone || roles.length > 0 || branchIds.length > 0 || userIds.length > 0;
 
     // The audience count, live. The last chance anybody has to notice that "all
     // staff" is 41 people and not the four they pictured. A query rather than an
@@ -108,6 +118,8 @@ export default function AdminMessagesPage() {
             setSentNote(`Sent to ${response.data.recipient_count} people.`);
             setSubject('');
             setBody('');
+            setUserIds([]);
+            setPersonQuery('');
             queryClient.invalidateQueries({ queryKey: ['admin-staff-messages'] });
         } catch (caught) {
             const message =
@@ -231,6 +243,23 @@ export default function AdminMessagesPage() {
                             </>
                         )}
 
+                        {/* Named people. Outside the `everyone` guard on purpose:
+                            picking somebody by name is an override of the role
+                            and branch filters, not a further condition on them,
+                            so it stays available whatever else is selected. */}
+                        <PersonPicker
+                            selected={userIds}
+                            query={personQuery}
+                            onQueryChange={setPersonQuery}
+                            onToggle={(id) =>
+                                setUserIds((current) =>
+                                    current.includes(id)
+                                        ? current.filter((entry) => entry !== id)
+                                        : [...current, id],
+                                )
+                            }
+                        />
+
                         {reach !== undefined && (
                             <p className="flex items-center gap-1.5 mt-3 font-body text-sm text-secondary">
                                 <UsersThreeIcon size={16} weight="fill" />
@@ -328,6 +357,110 @@ export default function AdminMessagesPage() {
                     )}
                 </section>
             </div>
+        </div>
+    );
+}
+
+/**
+ * Pick individual staff by name.
+ *
+ * Addresses people by their USERS-table id, never the employee id. Both are
+ * small integers and either will usually resolve to somebody, so getting it
+ * wrong does not error - it quietly messages the wrong person. See
+ * StaffMember.userId.
+ *
+ * Suspended staff are filtered server-side by the audience resolver, so a name
+ * picked here that has since been suspended simply drops out of the send rather
+ * than failing it.
+ */
+function PersonPicker({
+    selected,
+    query,
+    onQueryChange,
+    onToggle,
+}: {
+    selected: number[];
+    query: string;
+    onQueryChange: (value: string) => void;
+    onToggle: (userId: number) => void;
+}) {
+    const { employees, isLoading } = useEmployees({ per_page: 200 });
+
+    // `userId` is optional on StaffMember because the staff editor builds a
+    // draft before the account exists. Anything from the API has one; narrowing
+    // here keeps the rest of this component free of null checks.
+    const addressable = (employees ?? []).filter(
+        (person): person is typeof person & { userId: number } => typeof person.userId === 'number',
+    );
+
+    const chosen = addressable.filter((person) => selected.includes(person.userId));
+
+    const matches = query.trim()
+        ? addressable
+              .filter((person) => {
+                  const q = query.toLowerCase();
+                  return (
+                      (person.name ?? '').toLowerCase().includes(q) ||
+                      (person.phone ?? '').toLowerCase().includes(q) ||
+                      roleDisplayName(person.role).toLowerCase().includes(q)
+                  );
+              })
+              .slice(0, 8)
+        : [];
+
+    return (
+        <div className="mt-4">
+            <p className="font-body text-xs font-semibold text-brand-dark mb-2">Or pick people by name</p>
+
+            {chosen.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                    {chosen.map((person) => (
+                        <button
+                            key={person.userId}
+                            type="button"
+                            onClick={() => onToggle(person.userId)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary text-white text-xs font-body cursor-pointer"
+                        >
+                            {person.name}
+                            <XIcon size={11} weight="bold" />
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            <input
+                value={query}
+                onChange={(event) => onQueryChange(event.target.value)}
+                placeholder={isLoading ? 'Loading staff…' : 'Type a name…'}
+                disabled={isLoading}
+                className="w-full px-3 py-2 rounded-xl border border-black/10 bg-neutral-light/40 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+
+            {matches.length > 0 && (
+                <ul className="mt-1.5 rounded-xl border border-black/10 bg-neutral-card overflow-hidden divide-y divide-black/5">
+                    {matches.map((person) => (
+                        <li key={person.userId}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onToggle(person.userId);
+                                    onQueryChange('');
+                                }}
+                                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-neutral-light/60 transition-colors cursor-pointer"
+                            >
+                                <span className="font-body text-sm text-brand-dark truncate">{person.name}</span>
+                                <span className="font-body text-[11px] text-neutral-gray shrink-0">
+                                    {roleDisplayName(person.role)}
+                                </span>
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+
+            {query.trim() && matches.length === 0 && !isLoading && (
+                <p className="mt-1.5 font-body text-xs text-neutral-gray">Nobody by that name.</p>
+            )}
         </div>
     );
 }

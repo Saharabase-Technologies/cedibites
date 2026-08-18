@@ -29,6 +29,7 @@ import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import { InterruptionGateProvider } from '@/app/components/providers/InterruptionGate';
 import { CautionInterstitial } from '@/app/components/messaging/CautionInterstitial';
 import { StaffMessageBell } from '@/app/components/messaging/StaffMessageBell';
+import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
 
 // ─── Nav configs (permission-gated) ───────────────────────────────────────────
 
@@ -80,10 +81,16 @@ const DISPLAYS_NAV = [
 // ─── Sidebar link ─────────────────────────────────────────────────────────────
 
 function SidebarLink({
-    href, label, icon: Icon, active, external,
+    href, label, icon: Icon, active, external, badge, urgent,
 }: {
     href: string; label: string; icon: React.ElementType; active: boolean; external?: boolean;
+    /** Unread count. Hidden at zero — a badge showing 0 is noise. */
+    badge?: number;
+    /** Something is waiting that must be acknowledged. Red, and it pulses. */
+    urgent?: boolean;
 }) {
+    const showBadge = (badge ?? 0) > 0;
+
     return (
         <Link
             href={href}
@@ -97,9 +104,24 @@ function SidebarLink({
                 }
       `}
         >
-            <Icon size={20} weight={active ? 'fill' : 'regular'} className="shrink-0" />
+            <Icon size={20} weight={active || showBadge ? 'fill' : 'regular'} className="shrink-0" />
             <span>{label}</span>
-            {active && <CaretRightIcon size={14} weight="bold" className="ml-auto opacity-60" />}
+
+            {showBadge && (
+                <span
+                    className={`
+            ml-auto flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full
+            text-[10px] font-bold font-body leading-none text-white
+            ${urgent ? 'bg-error animate-pulse' : 'bg-primary text-brand-darker'}
+          `}
+                >
+                    {badge! > 9 ? '9+' : badge}
+                </span>
+            )}
+
+            {active && !showBadge && (
+                <CaretRightIcon size={14} weight="bold" className="ml-auto opacity-60" />
+            )}
         </Link>
     );
 }
@@ -107,20 +129,41 @@ function SidebarLink({
 // ─── Bottom nav link ──────────────────────────────────────────────────────────
 
 function BottomNavLink({
-    href, label, icon: Icon, active,
+    href, label, icon: Icon, active, badge, urgent,
 }: {
     href: string; label: string; icon: React.ElementType; active: boolean;
+    badge?: number; urgent?: boolean;
 }) {
+    const showBadge = (badge ?? 0) > 0;
+
     return (
         <Link
             href={href}
             className={`
-        flex flex-col items-center gap-1 flex-1 py-2
+        relative flex flex-col items-center gap-1 flex-1 py-2
         text-xs font-medium font-body transition-colors duration-150
         ${active ? 'text-primary' : 'text-neutral-gray'}
       `}
         >
-            <Icon size={22} weight={active ? 'fill' : 'regular'} className="shrink-0" />
+            <span className="relative">
+                <Icon size={22} weight={active || showBadge ? 'fill' : 'regular'} className="shrink-0" />
+
+                {/* Sits on the icon rather than after the label: the bottom bar
+                    is width-constrained and a badge on the text pushes the
+                    label into an ellipsis on a narrow handset. */}
+                {showBadge && (
+                    <span
+                        className={`
+              absolute -top-1.5 -right-2 flex items-center justify-center
+              min-w-4 h-4 px-1 rounded-full text-[9px] font-bold leading-none text-white
+              ${urgent ? 'bg-error animate-pulse' : 'bg-primary text-brand-darker'}
+            `}
+                    >
+                        {badge! > 9 ? '9+' : badge}
+                    </span>
+                )}
+            </span>
+
             <span className="truncate max-w-13 text-center">{label}</span>
         </Link>
     );
@@ -149,6 +192,16 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const { staffUser, isLoading, logout, can } = useStaffAuth();
     const [isSignOutOpen, setIsSignOutOpen] = useState(false);
+
+    // Called before the early returns below, unconditionally, because hooks must
+    // be. It tolerates a null user id and simply stays idle until there is one.
+    const { summary: inboxSummary } = useStaffInbox(staffUser?.user_id ?? null);
+
+    const unreadMessages = inboxSummary.unread;
+    // A caution waiting on an acknowledgement is a different thing from an
+    // unread notice, and the badge says so in red rather than burying it in one
+    // undifferentiated count.
+    const pendingCautions = inboxSummary.pending.length;
 
     const isPublicPath = pathname === '/staff/login'
         || pathname === '/staff/forgot-password'
@@ -193,10 +246,14 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                 {/* Logo */}
                 <div className="flex items-center gap-2.5 px-4 py-5 border-b border-brown-light/15">
                     <Image src="/cblogo.webp" alt="CediBites" width={44} height={44} className="shrink-0" priority />
-                    <div>
+                    <div className="min-w-0">
                         <p className="font-body font-bold text-primary text-lg leading-none">CediBites</p>
                         <p className="text-neutral-gray text-[10px] font-body mt-0.5">Staff Portal</p>
                     </div>
+                    {/* The bell was previously only inside the md:hidden mobile
+                        header, so on desktop - where staff actually spend the
+                        shift - there was no bell at all. */}
+                    <StaffMessageBell className="ml-auto" />
                 </div>
 
                 {/* Nav */}
@@ -208,6 +265,8 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                             label={item.label}
                             icon={item.icon}
                             active={pathname === item.href || pathname.startsWith(item.href + '/')}
+                            badge={item.href === '/staff/messages' ? unreadMessages : undefined}
+                            urgent={item.href === '/staff/messages' && pendingCautions > 0}
                         />
                     ))}
 
@@ -324,6 +383,8 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                         label={item.label}
                         icon={item.icon}
                         active={pathname === item.href || pathname.startsWith(item.href + '/')}
+                        badge={item.href === '/staff/messages' ? unreadMessages : undefined}
+                        urgent={item.href === '/staff/messages' && pendingCautions > 0}
                     />
                 ))}
                 <button

@@ -180,7 +180,22 @@ export function validateBranchSelection(role: StaffRole, branchIds: string[]): s
 // ─── Staff member ─────────────────────────────────────────────────────────────
 
 export interface StaffMember {
+    /** EMPLOYEE id. Not the users-table id — see `userId`. */
     id:               string;
+    /**
+     * users-table id.
+     *
+     * The only correct handle for anything that addresses the person rather
+     * than the employment: message audiences, "was this me?" checks, permission
+     * lookups. `id` above is the employee row and the two are not
+     * interchangeable — mixing them silently messages the wrong person, because
+     * both are small integers and one will usually resolve to somebody.
+     *
+     * Optional because the staff editor builds a blank draft before the account
+     * exists, and at that point there genuinely is no user to point at. Every
+     * record that came back from the API has one.
+     */
+    userId?:          number;
     name:             string;
     email:            string;
     phone:            string;

@@ -589,11 +589,25 @@ export default function StaffPasswordsPage() {
     const filtered = useMemo(() => {
         if (!search) return passwords;
         const q = search.toLowerCase();
+
+        // Every field is guarded, not just `role`.
+        //
+        // These come back from the API as null for real staff — somebody hired
+        // before employee numbers were issued, a rider with no phone on file —
+        // and `null.toLowerCase()` throws during render, which unmounts the tree
+        // and white-screens the whole page. Typing one character into the search
+        // box was enough to do it.
+        //
+        // `role` alone carried a `?.` here, which is the shape of a fix applied
+        // to whichever field crashed first rather than to the class of bug.
+        const matches = (value: string | null | undefined) =>
+            (value ?? '').toLowerCase().includes(q);
+
         return passwords.filter(e =>
-            e.name.toLowerCase().includes(q) ||
-            e.phone.includes(q) ||
-            e.employee_no.toLowerCase().includes(q) ||
-            (e.role?.toLowerCase().includes(q))
+            matches(e.name) ||
+            matches(e.phone) ||
+            matches(e.employee_no) ||
+            matches(e.role)
         );
     }, [passwords, search]);
 

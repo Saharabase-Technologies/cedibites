@@ -83,6 +83,7 @@ function apiEmployeeToStaffMember(api: ApiEmployee): StaffMember {
 
   return {
     id: String(api.id),
+    userId: api.user_id,
     name: api.user?.name ?? `[Deleted User #${api.user_id}]`,
     email: api.user?.email ?? '',
     phone: api.user?.phone ?? '',
