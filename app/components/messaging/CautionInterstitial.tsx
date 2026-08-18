@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { WarningCircleIcon } from '@phosphor-icons/react';
 import { useStaffAuthOptional } from '@/app/components/providers/StaffAuthProvider';
 import { useInterruptionGate } from '@/app/components/providers/InterruptionGate';
 import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
@@ -20,11 +21,12 @@ import type { InboxMessage } from '@/types/messaging';
  * Deliberately NOT built on InventoryModal: that closes on Escape and on a
  * backdrop click, which is exactly what this kind must not do.
  *
- * Visually it is a plain cream sheet with one primary rule across the top and
- * hairline dividers between its three parts. The previous version wrapped it in
- * a pale yellow alert band, which is a stock alert colour from outside this
- * brand's palette entirely — the thing that made it read as generic. Weight and
- * space carry the seriousness instead.
+ * Visually it is a plain cream sheet: a large icon on the left, the kind far
+ * right, and hairline dividers between its three parts. The first version used a
+ * pale yellow alert band — a stock colour from outside this brand's palette —
+ * and the second traded it for a rule across the top, which was still a bar of
+ * colour doing a job the icon does better. Weight and space carry the
+ * seriousness now.
  */
 export function CautionInterstitial() {
     const staffAuth = useStaffAuthOptional();
@@ -78,24 +80,31 @@ function CautionCard({
         <div className="fixed inset-0 z-100 flex items-center justify-center bg-brand-darker/70 backdrop-blur-sm p-4">
             <div className="w-full max-w-lg max-h-[88vh] flex flex-col rounded-2xl bg-neutral-card shadow-2xl overflow-hidden">
 
-                {/* The one piece of colour in the whole sheet. A 3px rule reads as
-                    a seal on an official notice; a filled band reads as a stock
-                    browser alert. */}
-                <div className="h-[3px] bg-primary shrink-0" />
-
                 <div className="overflow-y-auto flex-1 min-h-0">
-                    {/* ── Who and what ──────────────────────────────────── */}
-                    <header className="px-6 pt-6 pb-5">
-                        <p className="font-body text-[11px] font-bold uppercase tracking-[0.14em] text-neutral-gray">
+                    {/* Icon left, big, centred against the whole block; the kind
+                        sits far right. No rule across the top — a bar of colour
+                        above a card is decoration, and the icon says the same
+                        thing with more authority. */}
+                    <header className="flex items-center gap-4 px-6 py-5">
+                        <WarningCircleIcon
+                            size={40}
+                            weight="fill"
+                            className="text-primary shrink-0"
+                        />
+
+                        <div className="min-w-0 flex-1">
+                            <h2 className="font-brand text-2xl font-bold text-text-dark leading-tight">
+                                {pending.subject ?? 'A message for you'}
+                            </h2>
+                            <p className="font-body text-xs text-neutral-gray mt-1">
+                                {pending.sender_name}
+                                {pending.sent_at && ` · ${new Date(pending.sent_at).toLocaleString()}`}
+                            </p>
+                        </div>
+
+                        <span className="hidden sm:inline shrink-0 font-body text-[11px] font-bold uppercase tracking-[0.14em] text-neutral-gray">
                             {pending.kind_label}
-                        </p>
-                        <h2 className="font-brand text-2xl font-bold text-text-dark leading-tight mt-1.5">
-                            {pending.subject ?? 'A message for you'}
-                        </h2>
-                        <p className="font-body text-xs text-neutral-gray mt-1.5">
-                            {pending.sender_name}
-                            {pending.sent_at && ` · ${new Date(pending.sent_at).toLocaleString()}`}
-                        </p>
+                        </span>
                     </header>
 
                     <div className="h-px bg-[#f0e8d8]" />

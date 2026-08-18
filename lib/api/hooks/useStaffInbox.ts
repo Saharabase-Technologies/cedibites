@@ -64,6 +64,23 @@ export function useStaffInbox(userId?: number | null) {
         queryClient.invalidateQueries({ queryKey: LIST_KEY });
     };
 
+    /**
+     * Open one message, which is what marks it read.
+     *
+     * Until this existed nothing ever stamped `read_at` unless the person
+     * replied or acknowledged — the list renders full bodies straight from the
+     * index endpoint and never touched the detail one, so a notice that asked
+     * for nothing back stayed unread for ever. Expanding it is the honest
+     * signal that somebody looked at it.
+     */
+    const open = useMutation({
+        mutationFn: (recipientId: number) => inboxService.show(recipientId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: SUMMARY_KEY });
+            queryClient.invalidateQueries({ queryKey: LIST_KEY });
+        },
+    });
+
     const acknowledge = useMutation({
         mutationFn: (recipientId: number) => inboxService.acknowledge(recipientId),
         onSuccess: invalidate,
@@ -89,6 +106,7 @@ export function useStaffInbox(userId?: number | null) {
         summary: (summary ?? { unread: 0, pending: [] }) as InboxSummary,
         messages: (messages ?? []) as InboxMessage[],
         isLoading,
+        open: open.mutateAsync,
         acknowledge: acknowledge.mutateAsync,
         isAcknowledging: acknowledge.isPending,
         reply: reply.mutateAsync,

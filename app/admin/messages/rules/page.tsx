@@ -156,7 +156,7 @@ export default function MessageRulesPage() {
                 {/* Without this, a list of live rules sending nothing is
                     inexplicable and somebody concludes the feature is broken. */}
                 {!automationEnabled && (
-                    <div className="mb-5 flex items-start gap-3 bg-neutral-card border border-[#e3ddd0] border-l-[3px] border-l-primary rounded-2xl px-4 py-3">
+                    <div className="mb-5 flex items-start gap-3 bg-neutral-card border border-[#e3ddd0] rounded-2xl px-4 py-3">
                         <WarningCircleIcon size={18} weight="fill" className="text-primary shrink-0 mt-0.5" />
                         <div>
                             <p className="font-body text-sm font-semibold text-text-dark">
@@ -232,7 +232,7 @@ function DryRunDialog({
             </div>
 
             {noisy && (
-                <p className="mt-4 rounded-xl bg-neutral-light border border-[#e3ddd0] border-l-[3px] border-l-primary p-3 font-body text-xs text-text-dark">
+                <p className="mt-4 rounded-xl bg-neutral-light border border-[#e3ddd0] p-3 font-body text-xs text-text-dark">
                     One person would have received {result.busiest_recipient} messages in this window.
                     Consider a longer cooldown before switching this on.
                 </p>

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Image from 'next/image';
 import {
+    CaretDownIcon,
     ChatCircleTextIcon,
     PaperPlaneTiltIcon,
     QuestionIcon,
@@ -35,8 +36,13 @@ import type { InboxMessage } from '@/types/messaging';
  */
 export default function StaffMessagesPage() {
     const { staffUser } = useStaffAuth();
-    const { messages, summary, isLoading, acknowledge, reply, raise, isRaising, isReplying } =
+    const { messages, summary, isLoading, open, acknowledge, reply, raise, isRaising, isReplying } =
         useStaffInbox(staffUser?.user_id ?? null);
+
+    // Which message is open. One at a time: this is a list somebody scans, and
+    // several expanded at once puts the reply boxes of two different messages on
+    // screen together, which is how a reply lands on the wrong one.
+    const [expandedId, setExpandedId] = useState<number | null>(null);
 
     // Unread first, All last. The reason somebody opens this page is to find
     // what they have not seen; making them pick that out of everything is
@@ -91,7 +97,7 @@ export default function StaffMessagesPage() {
                 )}
 
                 {summary.pending.length > 0 && (
-                    <div className="mb-5 flex items-start gap-3 bg-neutral-card border border-[#e3ddd0] border-l-[3px] border-l-primary rounded-2xl px-4 py-3">
+                    <div className="mb-5 flex items-start gap-3 bg-neutral-card border border-[#e3ddd0] rounded-2xl px-4 py-3">
                         <WarningCircleIcon size={18} weight="fill" className="text-primary shrink-0 mt-0.5" />
                         <p className="font-body text-sm text-text-dark">
                             {summary.pending.length} {summary.pending.length === 1 ? 'message needs' : 'messages need'}{' '}
@@ -132,6 +138,18 @@ export default function StaffMessagesPage() {
                                 key={message.id}
                                 message={message}
                                 busy={isReplying}
+                                expanded={expandedId === message.id}
+                                onToggle={() => {
+                                    const opening = expandedId !== message.id;
+                                    setExpandedId(opening ? message.id : null);
+
+                                    // Only on the way open, and only once —
+                                    // re-opening a message must not keep firing
+                                    // a write that does nothing.
+                                    if (opening && message.read_at === null) {
+                                        void open(message.id);
+                                    }
+                                }}
                                 onSubmit={async ({ quickReply, body, acknowledge: shouldAck }) => {
                                     if (quickReply || body.trim()) {
                                         await reply({
@@ -190,14 +208,25 @@ export default function StaffMessagesPage() {
     );
 }
 
-/** One message: header, body, then the reply block. Same order as the modal. */
+/**
+ * One message, collapsed until opened.
+ *
+ * The accordion is not decoration: expanding is what marks the message read.
+ * Before this, `read_at` was only ever stamped by replying or acknowledging, so
+ * a notice that asked for nothing back sat unread for ever and the bell count
+ * never came down. Opening it is the honest signal that somebody looked.
+ */
 function MessageCard({
     message,
     busy,
+    expanded,
+    onToggle,
     onSubmit,
 }: {
     message: InboxMessage;
     busy: boolean;
+    expanded: boolean;
+    onToggle: () => void;
     onSubmit: (payload: { quickReply: string | null; body: string; acknowledge: boolean }) => void;
 }) {
     const isCaution = message.kind === 'caution';
@@ -205,54 +234,74 @@ function MessageCard({
 
     return (
         <li className="rounded-2xl bg-neutral-card shadow-sm overflow-hidden">
-            {/* A caution gets a thin primary rule along the top, the same seal as
-                the modal. The previous pale-yellow fill and yellow ring were a
-                stock alert colour from outside this palette, and they made every
-                caution look like a browser warning. */}
-            {isCaution && <div className="h-[3px] bg-primary" />}
+            <button
+                type="button"
+                onClick={onToggle}
+                aria-expanded={expanded}
+                className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-neutral-light/60 transition-colors cursor-pointer"
+            >
+                {/* Big, and vertically centred against the whole block rather
+                    than pinned to the first line. A caution should be readable
+                    as a caution from across the room. */}
+                <WarningCircleIcon
+                    size={30}
+                    weight={isCaution ? 'fill' : 'regular'}
+                    className={`shrink-0 ${isCaution ? 'text-primary' : 'text-neutral-gray/50'}`}
+                />
 
-            <header className="px-5 pt-4 pb-3">
-                <div className="flex items-center gap-2">
-                    <p className="font-body text-[11px] font-bold uppercase tracking-[0.14em] text-neutral-gray">
-                        {message.kind_label}
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                        <h2 className="font-brand text-lg font-bold text-text-dark leading-tight truncate">
+                            {message.subject ?? 'Message'}
+                        </h2>
+                        {isUnread && (
+                            <span className="w-2 h-2 rounded-full bg-primary shrink-0" aria-label="Unread" />
+                        )}
+                    </div>
+                    <p className="font-body text-xs text-neutral-gray mt-0.5 truncate">
+                        {message.sender_name}
+                        {message.sent_at && ` · ${new Date(message.sent_at).toLocaleString()}`}
                     </p>
-                    {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-label="Unread" />}
                 </div>
 
-                {message.subject && (
-                    <h2 className="font-brand text-lg font-bold text-text-dark leading-tight mt-1">
-                        {message.subject}
-                    </h2>
-                )}
-
-                <p className="font-body text-[11px] text-neutral-gray mt-1">
-                    {message.sender_name}
-                    {message.sent_at && ` · ${new Date(message.sent_at).toLocaleString()}`}
-                </p>
-            </header>
-
-            <div className="h-px bg-[#f0e8d8]" />
-
-            <div className="px-5 py-4 font-body text-sm text-text-dark leading-relaxed">
-                {renderMessageBody(message.body)}
-
-                {message.image_url && (
-                    <Image
-                        src={message.image_url}
-                        alt=""
-                        width={800}
-                        height={600}
-                        unoptimized
-                        className="mt-3 w-full h-auto rounded-xl border border-[#e3ddd0]"
+                <div className="flex items-center gap-3 shrink-0">
+                    <span className="hidden sm:inline font-body text-[11px] font-bold uppercase tracking-[0.14em] text-neutral-gray">
+                        {message.kind_label}
+                    </span>
+                    <CaretDownIcon
+                        size={16}
+                        weight="bold"
+                        className={`text-neutral-gray transition-transform ${expanded ? 'rotate-180' : ''}`}
                     />
-                )}
-            </div>
+                </div>
+            </button>
 
-            <div className="h-px bg-[#f0e8d8]" />
+            {expanded && (
+                <>
+                    <div className="h-px bg-[#f0e8d8]" />
 
-            <div className="px-5 py-4">
-                <ReplyPanel message={message} busy={busy} onSubmit={onSubmit} />
-            </div>
+                    <div className="px-5 py-4 font-body text-sm text-text-dark leading-relaxed">
+                        {renderMessageBody(message.body)}
+
+                        {message.image_url && (
+                            <Image
+                                src={message.image_url}
+                                alt=""
+                                width={800}
+                                height={600}
+                                unoptimized
+                                className="mt-3 w-full h-auto rounded-xl border border-[#e3ddd0]"
+                            />
+                        )}
+                    </div>
+
+                    <div className="h-px bg-[#f0e8d8]" />
+
+                    <div className="px-5 py-4">
+                        <ReplyPanel message={message} busy={busy} onSubmit={onSubmit} />
+                    </div>
+                </>
+            )}
         </li>
     );
 }
