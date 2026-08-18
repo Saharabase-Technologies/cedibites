@@ -168,12 +168,22 @@ export function ComposeDialog({
                 </FormField>
 
                 <FormField label="Who gets it" required>
-                    <div className="space-y-2.5">
-                        <Toggle checked={everyone} onChange={setEveryone} label="Everyone" />
+                    <div className="rounded-xl border border-[#e3ddd0] bg-neutral-light/60 divide-y divide-[#f0e8d8] overflow-hidden">
+                        <div className="px-3.5 py-3">
+                            <Toggle
+                                checked={everyone}
+                                onChange={setEveryone}
+                                label="Everyone on staff"
+                            />
+                        </div>
 
                         {!everyone && (
                             <>
-                                <div className="flex flex-wrap gap-1.5">
+                                <ChipGroup
+                                    title="Roles"
+                                    count={roles.length}
+                                    onClear={() => setRoles([])}
+                                >
                                     {ROLES.map((role) => (
                                         <Chip
                                             key={role.value}
@@ -188,9 +198,13 @@ export function ComposeDialog({
                                             }
                                         />
                                     ))}
-                                </div>
+                                </ChipGroup>
 
-                                <div className="flex flex-wrap gap-1.5">
+                                <ChipGroup
+                                    title="Branches"
+                                    count={branchIds.length}
+                                    onClear={() => setBranchIds([])}
+                                >
                                     {(branches ?? []).map((branch) => (
                                         <Chip
                                             key={branch.id}
@@ -205,36 +219,63 @@ export function ComposeDialog({
                                             }
                                         />
                                     ))}
-                                </div>
+                                </ChipGroup>
                             </>
                         )}
+
+                        {/* Outside the `everyone` guard on purpose: picking
+                            somebody by name overrides the role and branch
+                            filters rather than narrowing them, so it stays
+                            available whatever else is set. */}
+                        <ChipGroup
+                            title="Specific people"
+                            count={userIds.length}
+                            onClear={() => setUserIds([])}
+                            hint="Added on top of whatever is selected above."
+                        >
+                            <div className="w-full">
+                                <PersonPicker
+                                    selected={userIds}
+                                    query={personQuery}
+                                    onQueryChange={setPersonQuery}
+                                    onToggle={(id) =>
+                                        setUserIds((current) =>
+                                            current.includes(id)
+                                                ? current.filter((entry) => entry !== id)
+                                                : [...current, id],
+                                        )
+                                    }
+                                />
+                            </div>
+                        </ChipGroup>
                     </div>
-                </FormField>
 
-                {/* Outside the `everyone` guard on purpose: picking somebody by
-                    name overrides the role and branch filters rather than
-                    narrowing them, so it stays available whatever else is set. */}
-                <FormField label="Or pick people by name">
-                    <PersonPicker
-                        selected={userIds}
-                        query={personQuery}
-                        onQueryChange={setPersonQuery}
-                        onToggle={(id) =>
-                            setUserIds((current) =>
-                                current.includes(id)
-                                    ? current.filter((entry) => entry !== id)
-                                    : [...current, id],
-                            )
-                        }
-                    />
-                </FormField>
+                    {/* Roles and branches INTERSECT, which is not guessable from
+                        two rows of identical chips — and guessing it wrong is how
+                        a caution meant for four riders reaches forty people. */}
+                    {!everyone && roles.length > 0 && branchIds.length > 0 && (
+                        <p className="mt-2 font-body text-xs text-neutral-gray">
+                            Only people who match <strong>both</strong> — so the chosen roles, at the chosen
+                            branches. Head office, the call centre and the warehouse hold no branch and are
+                            included regardless.
+                        </p>
+                    )}
 
-                {reach !== undefined && (
-                    <p className="flex items-center gap-1.5 font-body text-sm text-secondary">
-                        <UsersThreeIcon size={16} weight="fill" />
-                        Goes to {reach} {reach === 1 ? 'person' : 'people'}
+                    <p className="mt-2.5 flex items-center gap-1.5 font-body text-sm">
+                        <UsersThreeIcon
+                            size={16}
+                            weight="fill"
+                            className={reach ? 'text-secondary' : 'text-neutral-gray'}
+                        />
+                        <span className={reach ? 'text-secondary' : 'text-neutral-gray'}>
+                            {!hasSelection
+                                ? 'Nobody selected yet'
+                                : reach === undefined
+                                  ? 'Counting…'
+                                  : `Goes to ${reach} ${reach === 1 ? 'person' : 'people'}`}
+                        </span>
                     </p>
-                )}
+                </FormField>
 
                 <FormField label="Quick replies" hint="Comma separated, up to five.">
                     <TextInput
@@ -290,6 +331,55 @@ export function ComposeDialog({
     );
 }
 
+/**
+ * One labelled band of the audience panel.
+ *
+ * The section previously ran roles and branches together as two indistinguishable
+ * rows of chips, so which row was which could only be inferred from the words
+ * inside them — and "Kitchen" reads equally well as a role or a branch. The
+ * heading, the running count and the divider are what make the panel readable.
+ */
+function ChipGroup({
+    title,
+    count,
+    onClear,
+    hint,
+    children,
+}: {
+    title: string;
+    count: number;
+    onClear: () => void;
+    hint?: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="px-3.5 py-3">
+            <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="font-body text-xs font-semibold text-text-dark">
+                    {title}
+                    {count > 0 && <span className="text-neutral-gray font-normal"> · {count} chosen</span>}
+                </p>
+
+                {/* Only when there is something to clear. A permanently-visible
+                    Clear on an empty group is a button that does nothing. */}
+                {count > 0 && (
+                    <button
+                        type="button"
+                        onClick={onClear}
+                        className="font-body text-[11px] text-neutral-gray hover:text-text-dark underline cursor-pointer"
+                    >
+                        Clear
+                    </button>
+                )}
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">{children}</div>
+
+            {hint && <p className="mt-2 font-body text-[11px] text-neutral-gray">{hint}</p>}
+        </div>
+    );
+}
+
 function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
     return (
         <button
@@ -298,7 +388,9 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
             className={`px-3 py-1.5 rounded-full text-xs font-body border transition-colors cursor-pointer ${
                 active
                     ? 'bg-primary text-white border-primary'
-                    : 'bg-neutral-light text-text-dark border-[#e3ddd0] hover:border-neutral-gray/50'
+                    // Card, not neutral-light: the panel behind these is already
+                    // neutral-light, and an unselected chip on it disappeared.
+                    : 'bg-neutral-card text-text-dark border-[#e3ddd0] hover:border-neutral-gray/50'
             }`}
         >
             {label}

@@ -74,7 +74,9 @@ export function PersonPicker({
                 onChange={(event) => onQueryChange(event.target.value)}
                 placeholder={isLoading ? 'Loading staff…' : 'Type a name…'}
                 disabled={isLoading}
-                className="w-full bg-neutral-light border border-[#e3ddd0] rounded-xl px-3.5 py-2.5 text-sm font-body text-text-dark placeholder:text-neutral-gray/70 focus:outline-none focus:border-primary transition-colors min-h-11"
+                // Card rather than neutral-light: this sits inside the audience
+                // panel, which is itself neutral-light.
+                className="w-full bg-neutral-card border border-[#e3ddd0] rounded-xl px-3.5 py-2.5 text-sm font-body text-text-dark placeholder:text-neutral-gray/70 focus:outline-none focus:border-primary transition-colors min-h-11"
             />
 
             {matches.length > 0 && (

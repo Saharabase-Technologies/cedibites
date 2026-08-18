@@ -1,9 +1,27 @@
 'use client';
 
-import { useState } from 'react';
-import { ChatCircleTextIcon, PaperPlaneTiltIcon, RobotIcon, WarningCircleIcon } from '@phosphor-icons/react';
+import { useMemo, useState } from 'react';
+import {
+    ChatCircleTextIcon,
+    PaperPlaneTiltIcon,
+    QuestionIcon,
+    RobotIcon,
+    WarningCircleIcon,
+} from '@phosphor-icons/react';
+import {
+    PageHeader,
+    SegmentedTabs,
+    FilterBar,
+    SearchBar,
+    InventoryModal,
+    FormField,
+    TextInput,
+    Textarea,
+    PrimaryButton,
+} from '@/app/inventory/_components';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
+import { ReplyPanel } from '@/app/components/messaging/ReplyPanel';
 import type { InboxMessage } from '@/types/messaging';
 
 /**
@@ -16,194 +34,217 @@ import type { InboxMessage } from '@/types/messaging';
  */
 export default function StaffMessagesPage() {
     const { staffUser } = useStaffAuth();
-    const { messages, isLoading, acknowledge, reply, raise, isRaising } = useStaffInbox(
-        staffUser?.user_id ?? null,
-    );
+    const { messages, summary, isLoading, acknowledge, reply, raise, isRaising, isReplying } =
+        useStaffInbox(staffUser?.user_id ?? null);
 
+    const [tab, setTab] = useState('all');
+    const [search, setSearch] = useState('');
     const [askOpen, setAskOpen] = useState(false);
     const [askSubject, setAskSubject] = useState('');
     const [askBody, setAskBody] = useState('');
-    const [askSent, setAskSent] = useState(false);
+    const [note, setNote] = useState<string | null>(null);
+
+    const filtered = useMemo(() => {
+        const term = search.trim().toLowerCase();
+
+        return messages.filter((message) => {
+            if (tab === 'unread' && message.read_at !== null) return false;
+            if (tab === 'cautions' && message.kind !== 'caution') return false;
+            if (!term) return true;
+            return (
+                (message.subject ?? '').toLowerCase().includes(term) ||
+                message.body.toLowerCase().includes(term)
+            );
+        });
+    }, [messages, tab, search]);
 
     async function submitQuery() {
         await raise({ subject: askSubject.trim() || undefined, body: askBody.trim() });
-        setAskSent(true);
+        setNote('Sent to the IT team. They will reply here.');
         setAskSubject('');
         setAskBody('');
         setAskOpen(false);
     }
 
     return (
-        <div className="p-4 sm:p-6 max-w-2xl mx-auto">
-            <header className="flex items-start justify-between gap-3 mb-5">
-                <div>
-                    <h1 className="font-brand text-2xl text-brand-dark">Messages</h1>
-                    <p className="font-body text-sm text-neutral-gray mt-1">
-                        From the office, and from the system.
-                    </p>
+        <div className="h-full overflow-y-auto bg-neutral-light">
+            <div className="max-w-3xl mx-auto px-4 md:px-8 py-6">
+                <PageHeader
+                    title="Messages"
+                    subtitle="From the office, and from the system."
+                    action={{
+                        label: 'Ask IT',
+                        onClick: () => setAskOpen(true),
+                        icon: <QuestionIcon size={16} weight="bold" />,
+                    }}
+                />
+
+                {note && (
+                    <div className="mb-5 flex items-start gap-3 bg-secondary-light/50 border border-secondary/20 rounded-2xl px-4 py-3">
+                        <ChatCircleTextIcon size={18} weight="fill" className="text-secondary shrink-0 mt-0.5" />
+                        <p className="font-body text-sm text-text-dark">{note}</p>
+                    </div>
+                )}
+
+                {summary.pending.length > 0 && (
+                    <div className="mb-5 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                        <WarningCircleIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+                        <p className="font-body text-sm text-text-dark">
+                            {summary.pending.length} {summary.pending.length === 1 ? 'message needs' : 'messages need'}{' '}
+                            your confirmation.
+                        </p>
+                    </div>
+                )}
+
+                <div className="mb-4">
+                    <SegmentedTabs
+                        value={tab}
+                        onChange={setTab}
+                        options={[
+                            { value: 'all', label: 'All' },
+                            { value: 'unread', label: `Unread${summary.unread ? ` (${summary.unread})` : ''}` },
+                            { value: 'cautions', label: 'Cautions' },
+                        ]}
+                    />
                 </div>
 
-                <button
-                    type="button"
-                    onClick={() => setAskOpen((value) => !value)}
-                    className="shrink-0 px-3 py-2 rounded-xl bg-neutral-light hover:bg-primary-light text-sm font-body text-brand-dark transition-colors cursor-pointer"
-                >
-                    Ask IT
-                </button>
-            </header>
+                <FilterBar>
+                    <SearchBar value={search} onChange={setSearch} placeholder="Search messages…" />
+                </FilterBar>
 
-            {askSent && (
-                <p className="mb-4 rounded-xl bg-secondary-light/60 px-4 py-3 font-body text-sm text-secondary">
-                    Sent to the IT team. They will reply here.
-                </p>
-            )}
+                {isLoading ? (
+                    <p className="font-body text-sm text-neutral-gray">Loading…</p>
+                ) : filtered.length === 0 ? (
+                    <div className="rounded-2xl bg-neutral-card shadow-sm flex flex-col items-center text-center py-16">
+                        <ChatCircleTextIcon size={34} className="text-neutral-gray mb-3" />
+                        <p className="font-body text-sm text-neutral-gray">
+                            {search || tab !== 'all' ? 'Nothing matches that.' : 'No messages.'}
+                        </p>
+                    </div>
+                ) : (
+                    <ul className="space-y-3">
+                        {filtered.map((message) => (
+                            <MessageCard
+                                key={message.id}
+                                message={message}
+                                busy={isReplying}
+                                onSubmit={async ({ quickReply, body, acknowledge: shouldAck }) => {
+                                    if (quickReply || body.trim()) {
+                                        await reply({
+                                            recipientId: message.id,
+                                            ...(quickReply ? { quick_reply: quickReply } : {}),
+                                            ...(body.trim() ? { body: body.trim() } : {}),
+                                        });
+                                    }
+                                    if (shouldAck) await acknowledge(message.id);
+                                }}
+                            />
+                        ))}
+                    </ul>
+                )}
+            </div>
 
-            {askOpen && (
-                <div className="rounded-2xl bg-neutral-card shadow-sm p-4 mb-5">
-                    <input
-                        value={askSubject}
-                        onChange={(event) => setAskSubject(event.target.value)}
-                        placeholder="What is it about? (optional)"
-                        className="w-full px-3 py-2 mb-2 rounded-xl border border-black/10 bg-neutral-light/40 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                    <textarea
-                        value={askBody}
-                        onChange={(event) => setAskBody(event.target.value)}
-                        rows={3}
-                        placeholder="Tell them what is happening."
-                        className="w-full px-3 py-2 rounded-xl border border-black/10 bg-neutral-light/40 text-sm font-body resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                    <button
-                        type="button"
+            <InventoryModal
+                isOpen={askOpen}
+                onClose={() => setAskOpen(false)}
+                title="Ask the IT team"
+                size="md"
+            >
+                <div className="space-y-4">
+                    <p className="font-body text-xs text-neutral-gray">
+                        Goes to the whole team rather than one person, so it will not sit unread because
+                        somebody is on leave.
+                    </p>
+
+                    <FormField label="What is it about">
+                        <TextInput
+                            value={askSubject}
+                            onChange={(event) => setAskSubject(event.target.value)}
+                            placeholder="Optional"
+                        />
+                    </FormField>
+
+                    <FormField label="Tell them what is happening" required>
+                        <Textarea
+                            value={askBody}
+                            onChange={(event) => setAskBody(event.target.value)}
+                            rows={4}
+                        />
+                    </FormField>
+
+                    <PrimaryButton
                         onClick={submitQuery}
                         disabled={isRaising || !askBody.trim()}
-                        className="flex items-center gap-2 mt-3 px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover text-brand-darker text-sm font-body font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                        className="flex items-center justify-center gap-2"
                     >
                         <PaperPlaneTiltIcon size={15} weight="fill" />
                         {isRaising ? 'Sending…' : 'Send to IT'}
-                    </button>
+                    </PrimaryButton>
                 </div>
-            )}
-
-            {isLoading ? (
-                <p className="font-body text-sm text-neutral-gray">Loading…</p>
-            ) : messages.length === 0 ? (
-                <div className="rounded-2xl bg-neutral-card shadow-sm p-8 text-center">
-                    <ChatCircleTextIcon size={30} className="text-neutral-gray mx-auto mb-2" />
-                    <p className="font-body text-sm text-neutral-gray">No messages.</p>
-                </div>
-            ) : (
-                <ul className="space-y-3">
-                    {messages.map((message) => (
-                        <MessageCard
-                            key={message.id}
-                            message={message}
-                            onAcknowledge={() => acknowledge(message.id)}
-                            onQuickReply={(text) => reply({ recipientId: message.id, quick_reply: text })}
-                            onCustomReply={(text) => reply({ recipientId: message.id, body: text })}
-                        />
-                    ))}
-                </ul>
-            )}
+            </InventoryModal>
         </div>
     );
 }
 
+/** One message: header, body, then the reply block. Same order as the modal. */
 function MessageCard({
     message,
-    onAcknowledge,
-    onQuickReply,
-    onCustomReply,
+    busy,
+    onSubmit,
 }: {
     message: InboxMessage;
-    onAcknowledge: () => void;
-    onQuickReply: (text: string) => void;
-    onCustomReply: (text: string) => void;
+    busy: boolean;
+    onSubmit: (payload: { quickReply: string | null; body: string; acknowledge: boolean }) => void;
 }) {
-    const [draft, setDraft] = useState('');
     const isCaution = message.kind === 'caution';
+    const isUnread = message.read_at === null;
 
     return (
         <li
-            className={`rounded-2xl shadow-sm p-4 ${
-                isCaution ? 'bg-warning/5 border border-warning/20' : 'bg-neutral-card'
+            className={`rounded-2xl bg-neutral-card shadow-sm overflow-hidden ${
+                isCaution ? 'border border-amber-200' : ''
             }`}
         >
-            <div className="flex items-start gap-2">
+            <header
+                className={`flex items-start gap-3 px-4 py-3 border-b ${
+                    isCaution ? 'bg-amber-50 border-amber-200' : 'bg-neutral-light border-[#f0e8d8]'
+                }`}
+            >
                 {isCaution && (
-                    <WarningCircleIcon size={18} weight="fill" className="text-warning shrink-0 mt-0.5" />
+                    <WarningCircleIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
                 )}
+
                 <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                        <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-neutral-gray">
+                            {message.kind_label}
+                        </p>
+                        {isUnread && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-label="Unread" />
+                        )}
+                    </div>
+
                     {message.subject && (
-                        <p className="font-body font-semibold text-brand-dark">{message.subject}</p>
+                        <p className="font-body font-semibold text-text-dark truncate mt-0.5">
+                            {message.subject}
+                        </p>
                     )}
-                    <p className="font-body text-sm text-brand-dark whitespace-pre-line mt-1 leading-relaxed">
-                        {message.body}
-                    </p>
-                    <p className="font-body text-[11px] text-neutral-gray mt-2 flex items-center gap-1">
+
+                    <p className="font-body text-[11px] text-neutral-gray flex items-center gap-1 mt-0.5">
                         {message.is_automatic && <RobotIcon size={12} />}
-                        {message.is_automatic ? 'Automatic' : message.sender_name}
+                        {message.is_automatic ? 'Sent automatically' : message.sender_name}
+                        {message.sent_at && ` · ${new Date(message.sent_at).toLocaleString()}`}
                     </p>
                 </div>
-            </div>
+            </header>
 
-            {message.replied_at ? (
-                <p className="mt-3 rounded-xl bg-neutral-light/60 px-3 py-2 font-body text-xs text-neutral-gray">
-                    You replied: {message.quick_reply}
-                    {message.quick_reply && message.reply_body ? ' — ' : ''}
-                    {message.reply_body}
+            <div className="px-4 py-3">
+                <p className="font-body text-sm text-text-dark whitespace-pre-line leading-relaxed">
+                    {message.body}
                 </p>
-            ) : (
-                <>
-                    {message.quick_replies.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-3">
-                            {message.quick_replies.map((text) => (
-                                <button
-                                    key={text}
-                                    type="button"
-                                    onClick={() => onQuickReply(text)}
-                                    className="px-2.5 py-1 rounded-full border border-black/10 bg-neutral-light/60 text-xs font-body text-brand-dark hover:bg-primary-light transition-colors cursor-pointer"
-                                >
-                                    {text}
-                                </button>
-                            ))}
-                        </div>
-                    )}
 
-                    {message.allow_custom_reply && (
-                        <div className="flex gap-2 mt-2">
-                            <input
-                                value={draft}
-                                onChange={(event) => setDraft(event.target.value)}
-                                placeholder="Reply…"
-                                className="flex-1 px-3 py-1.5 rounded-xl border border-black/10 bg-neutral-light/40 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/40"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (draft.trim()) {
-                                        onCustomReply(draft.trim());
-                                        setDraft('');
-                                    }
-                                }}
-                                className="px-3 py-1.5 rounded-xl bg-neutral-light hover:bg-primary-light text-xs font-body text-brand-dark transition-colors cursor-pointer"
-                            >
-                                Send
-                            </button>
-                        </div>
-                    )}
-                </>
-            )}
-
-            {message.requires_acknowledgement && !message.acknowledged_at && (
-                <button
-                    type="button"
-                    onClick={onAcknowledge}
-                    className="mt-3 px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover text-brand-darker text-xs font-body font-semibold transition-colors cursor-pointer"
-                >
-                    Got it
-                </button>
-            )}
+                <ReplyPanel message={message} busy={busy} onSubmit={onSubmit} compact />
+            </div>
         </li>
     );
 }
