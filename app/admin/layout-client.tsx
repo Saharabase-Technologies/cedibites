@@ -31,6 +31,7 @@ import {
     WarningCircleIcon,
     UsersIcon,
     KeyIcon,
+    SlidersIcon,
     WarehouseIcon,
     LinkSimpleIcon,
     MegaphoneIcon,
@@ -129,6 +130,9 @@ const PLATFORM_NAV = [
     { href: '/admin/platform/errors',     label: 'Error Feed',      icon: WarningCircleIcon },
     { href: '/admin/platform/admins',     label: 'Platform Team',   icon: UsersIcon         },
     { href: '/admin/platform/passwords',  label: 'Staff Passwords', icon: KeyIcon           },
+    // Toggles that used to need an SSH session and a .env edit. DB overrides on
+    // an allowlist — no credentials, and a bad value cannot stop the app booting.
+    { href: '/admin/platform/settings',   label: 'Settings',        icon: SlidersIcon       },
 ];
 
 // ─── Sidebar link ─────────────────────────────────────────────────────────────
