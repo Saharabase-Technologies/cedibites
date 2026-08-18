@@ -112,7 +112,7 @@ export function VoiceRecorder({
   }, [drawWave, onRecorded, stopEverything, stop]);
 
   if (denied) {
-    return <p className="font-body text-[11px] text-neutral-gray">Microphone unavailable — type it instead.</p>;
+    return <p className="font-body text-[11px] text-neutral-gray">Microphone unavailable. Type it instead.</p>;
   }
 
   if (audio && !recording) {

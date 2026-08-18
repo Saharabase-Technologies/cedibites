@@ -181,7 +181,7 @@ export default function CartDrawer() {
                                         </p>
                                         <p className="text-xs text-neutral-gray mt-0.5">
                                             {result.unavailable.map(ci => getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })).join(', ')}
-                                            {' '}— not on the {selectedBranch.name} menu.
+                                            {' '}{result.unavailable.length === 1 ? 'is' : 'are'} not on the {selectedBranch.name} menu.
                                         </p>
                                         <button
                                             onClick={() => setView('branch-select')}

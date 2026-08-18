@@ -156,8 +156,8 @@ export function DailyConsumptionReport() {
               Nothing was deducted {isToday ? 'today' : 'on this day'}.
             </p>
             <p className="text-neutral-gray/70 text-xs font-body mt-1 max-w-sm mx-auto">
-              Sales only appear here once the dish has a recipe — without one there is nothing to
-              deduct.
+              Sales only appear here once the dish has a recipe. Without one there is nothing
+              to deduct.
             </p>
           </div>
         ) : (

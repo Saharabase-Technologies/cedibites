@@ -104,7 +104,7 @@ export function EditLinkDialog({
                     <div className="rounded-2xl bg-neutral-light dark:bg-brand-darker px-4 py-3">
                         <p className="text-neutral-gray text-xs font-body leading-relaxed">
                             The branch and the type cannot change. People already have this link, and some may
-                            have used it — switching the branch would move them to one they were never sent to.
+                            have used it, and switching the branch would move them to one they were never sent to.
                             If it was set up wrong, close it and make a new one.
                         </p>
                     </div>
@@ -147,7 +147,7 @@ export function EditLinkDialog({
                     <div className="border-t border-[#f0e8d8] dark:border-brown-light/20 pt-4">
                         {hasSubmissions ? (
                             <p className="text-neutral-gray text-xs font-body leading-relaxed">
-                                This link can&rsquo;t be deleted — {link.applications_count} {link.applications_count === 1 ? 'person has' : 'people have'}
+                                This link can&rsquo;t be deleted. {link.applications_count} {link.applications_count === 1 ? 'person has' : 'people have'}
                                 {' '}sent their details through it, and deleting it would delete those too.
                                 Close it instead.
                             </p>

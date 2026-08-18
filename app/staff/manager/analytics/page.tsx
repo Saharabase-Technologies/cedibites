@@ -120,7 +120,7 @@ function WeeklyRevenue({
 
     return (
         <Card>
-            <SectionHeader title="Revenue vs Last Week" sub="Daily — hover a bar for details" />
+            <SectionHeader title="Revenue vs Last Week" sub="Daily. Hover a bar for details." />
             <div className="flex items-end gap-1.5 h-24">
                 {DAYS.map((day, i) => {
                     const thisVal = weekRev[i] ?? 0;
@@ -217,7 +217,7 @@ function PeakHoursHeatmap({ ordersByHour, branchId }: { ordersByHour?: Array<{ h
         return hours.map((_, i) => byHour[startHour + i] ?? 0);
     }, [ordersByHour, hours, startHour]);
     const max  = Math.max(...data, 1);
-    const openLabel = `${startHour}:00–${endHour}:00`;
+    const openLabel = `${startHour}:00-${endHour}:00`;
 
     function cellBg(val: number) {
         const i = val / max;
@@ -230,7 +230,7 @@ function PeakHoursHeatmap({ ordersByHour, branchId }: { ordersByHour?: Array<{ h
 
     return (
         <Card>
-            <SectionHeader title="Peak Hours Heatmap" sub={`Orders by hour — darker = busier · ${openLabel}`} />
+            <SectionHeader title="Peak Hours Heatmap" sub={`Orders by hour, darker = busier · ${openLabel}`} />
             <div className="flex gap-1 items-end">
                 {hours.map((h, i) => (
                     <div key={h} className="flex-1 flex flex-col items-center gap-1">
@@ -319,7 +319,7 @@ function PaymentSplitCard({ methods }: { methods?: PaymentMethod[] }) {
 
     return (
         <Card>
-            <SectionHeader title="Payment Method Split" sub="Today — affects cash float" />
+            <SectionHeader title="Payment Method Split" sub="Today. Affects cash float." />
             <div className="flex items-center gap-5">
                 {/* Donut */}
                 <div className="relative w-20 h-20 shrink-0">
@@ -420,7 +420,7 @@ function TopItemsCard({ items, periodLabel = 'Today' }: { items?: TopItem[]; per
     if (topItems.length === 0) {
         return (
             <Card className="flex-1 min-w-0">
-                <SectionHeader title={`Top 5 Items — ${periodLabel}`} sub="By revenue — units in brackets" />
+                <SectionHeader title={`Top 5 Items (${periodLabel})`} sub="By revenue. Units in brackets." />
                 <div className="text-center py-8 text-neutral-gray text-sm font-body">
                     No data available
                 </div>
@@ -430,7 +430,7 @@ function TopItemsCard({ items, periodLabel = 'Today' }: { items?: TopItem[]; per
     
     return (
         <Card className="flex-1 min-w-0">
-            <SectionHeader title={`Top 5 Items — ${periodLabel}`} sub="By revenue — units in brackets" />
+            <SectionHeader title={`Top 5 Items (${periodLabel})`} sub="By revenue. Units in brackets." />
             <div className="flex flex-col gap-3">
                 {topItems.map((item, i) => (
                     <div key={item.id ?? item.name}>
@@ -704,7 +704,7 @@ export default function ManagerAnalyticsPage() {
 
     // Period label
     const periodLabel = period === 'custom'
-        ? `${new Date(range.date_from).toLocaleDateString('en-GH', { day: 'numeric', month: 'short' })} – ${new Date(range.date_to).toLocaleDateString('en-GH', { day: 'numeric', month: 'short' })}`
+        ? `${new Date(range.date_from).toLocaleDateString('en-GH', { day: 'numeric', month: 'short' })} - ${new Date(range.date_to).toLocaleDateString('en-GH', { day: 'numeric', month: 'short' })}`
         : MANAGER_PERIODS.find(p => p.key === period)?.label ?? 'Today';
 
     // ── Data fetching driven by selected period ──────────────────────────────
@@ -797,7 +797,7 @@ export default function ManagerAnalyticsPage() {
         try {
             const dateRange = range.date_from === range.date_to
                 ? range.date_from
-                : `${range.date_from} – ${range.date_to}`;
+                : `${range.date_from} - ${range.date_to}`;
             const generatedAt = new Date().toLocaleString('en-GH', { timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
             const [salesData, ordersData, customersData, allItemsData] = await Promise.all([
@@ -980,7 +980,7 @@ export default function ManagerAnalyticsPage() {
                         <span className="text-neutral-gray/50">·</span>
                         {range.date_from === range.date_to
                             ? new Date(range.date_from).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' })
-                            : `${new Date(range.date_from).toLocaleDateString('en-GH', { day: 'numeric', month: 'short' })} – ${new Date(range.date_to).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                            : `${new Date(range.date_from).toLocaleDateString('en-GH', { day: 'numeric', month: 'short' })} - ${new Date(range.date_to).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' })}`
                         }
                     </p>
                 )}

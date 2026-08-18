@@ -73,7 +73,7 @@ const CATEGORY_DESCRIPTIONS: Record<string, string> = {
     'lunch': 'Midday items shown during lunch hours. Automatically hides outside the configured window.',
     'dinner': 'Evening meal items shown during dinner hours. Time-gated so customers see the right menu at the right time.',
     'late-night': 'Late-night options for after-hours orders. Perfect for branches that operate late.',
-    'recently-ordered': 'Shows items this customer ordered before. Only visible to logged-in customers — personalises the experience.',
+    'recently-ordered': 'Shows items this customer has ordered before. Only signed-in customers see it.',
 };
 
 function formatHour(h: number | null): string {
@@ -127,7 +127,7 @@ function CategoryCard({
                         {setting.is_time_based && (
                             <span className="flex items-center gap-1 text-[10px] font-body text-neutral-gray">
                                 <ClockIcon size={10} />
-                                {formatHour(setting.visible_hour_start)}–{formatHour(setting.visible_hour_end)}
+                                {formatHour(setting.visible_hour_start)}-{formatHour(setting.visible_hour_end)}
                             </span>
                         )}
                         {setting.requires_customer && (
@@ -528,7 +528,7 @@ export default function SmartCategoriesSection({ branches }: SmartCategoriesSect
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5 text-xs font-body text-neutral-gray leading-relaxed">
                         <div className="flex gap-2">
                             <SparkleIcon size={14} weight="fill" className="text-primary shrink-0 mt-0.5" />
-                            <p>Items are picked <strong className="text-text-dark">automatically</strong> from orders, ratings, and time of day — you don&apos;t curate them manually.</p>
+                            <p>Items are picked <strong className="text-text-dark">automatically</strong> from orders, ratings, and time of day. You don&apos;t choose them yourself.</p>
                         </div>
                         <div className="flex gap-2">
                             <EyeIcon size={14} weight="fill" className="text-primary shrink-0 mt-0.5" />

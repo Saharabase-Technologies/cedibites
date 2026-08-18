@@ -3,7 +3,7 @@ import PartnerLayoutClient from './layout-client';
 
 export const metadata: Metadata = {
   title: {
-    template: '%s — Partner | CediBites',
+    template: '%s · Partner | CediBites',
     default: 'Partner',
   },
 };

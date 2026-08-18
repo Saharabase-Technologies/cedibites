@@ -21,7 +21,7 @@ const menuJsonLd = {
     '@type': 'Menu',
     name: 'CediBites Menu',
     url: 'https://app.cedibites.com/menu',
-    description: 'Authentic Ghanaian dishes — jollof rice, fried rice, noodles, banku, grilled chicken, drumsticks, wraps and combos.',
+    description: 'Authentic Ghanaian dishes: jollof rice, fried rice, noodles, banku, grilled chicken, drumsticks, wraps and combos.',
     hasMenuSection: [
       {
         '@type': 'MenuSection',
@@ -71,7 +71,7 @@ const menuJsonLd = {
       {
         '@type': 'MenuSection',
         name: 'Soft Bites',
-        description: 'Cedi Wraps — chicken, beef and mix',
+        description: 'Cedi Wraps: chicken, beef and mix',
         hasMenuItem: [
           { '@type': 'MenuItem', name: 'Chicken Wrap', offers: { '@type': 'Offer', price: '60', priceCurrency: 'GHS' } },
           { '@type': 'MenuItem', name: 'Beef Wrap', offers: { '@type': 'Offer', price: '60', priceCurrency: 'GHS' } },

@@ -201,7 +201,7 @@ export function WeekdayHourHeatmap({ cells }: { cells?: WeekdayHourCell[] }) {
     }
 
     return (
-        <Card title="Busiest Times" sub="Orders by weekday & hour — darker = busier" icon={CalendarBlankIcon}>
+        <Card title="Busiest Times" sub="Orders by weekday & hour, darker = busier" icon={CalendarBlankIcon}>
             {hours.length === 0 ? (
                 <div className="flex items-center justify-center h-24 text-neutral-gray text-sm">No order timing data available</div>
             ) : (

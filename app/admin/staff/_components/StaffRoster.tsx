@@ -182,7 +182,7 @@ export function StaffRoster({
             {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
                     <p className="text-neutral-gray text-xs font-body">
-                        Showing {(safePage - 1) * PER_PAGE + 1}–{Math.min(safePage * PER_PAGE, filtered.length)} of {filtered.length}
+                        Showing {(safePage - 1) * PER_PAGE + 1}-{Math.min(safePage * PER_PAGE, filtered.length)} of {filtered.length}
                     </p>
                     <div className="flex items-center gap-1.5">
                         <button type="button" onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage <= 1}

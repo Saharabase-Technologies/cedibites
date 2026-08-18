@@ -53,7 +53,7 @@ export default function Footer() {
         }).catch(() => { /* keep defaults */ });
     }, []);
 
-    const hoursDisplay = `${formatTime12h(hours.open)} – ${formatTime12h(hours.close)}`;
+    const hoursDisplay = `${formatTime12h(hours.open)} - ${formatTime12h(hours.close)}`;
 
     return (
         <footer className="bg-brand-darker border-t border-white/5 mt-8">

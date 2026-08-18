@@ -312,7 +312,7 @@ function CreateUserModal({ passcode, branches, onClose, onCreated }: {
             const msg = e && typeof e === 'object' && 'response' in e
                 ? (e as { response?: { data?: { message?: string } } }).response?.data?.message ?? ''
                 : '';
-            setError(msg || 'Failed to create user — check your passcode and the details.');
+            setError(msg || 'Failed to create user. Check your passcode and the details.');
         } finally {
             setLoading(false);
         }
@@ -579,7 +579,7 @@ export default function StaffPasswordsPage() {
             const res = await platformService.getStaffPasswords(passcode);
             setPasswords(res.data);
         } catch {
-            toast.error('Failed to refresh — session may have expired');
+            toast.error('Failed to refresh. Your session may have expired.');
             setPasscode(null);
         } finally {
             setLoading(false);
@@ -714,7 +714,7 @@ export default function StaffPasswordsPage() {
                     </div>
                     <div className="px-5 py-3.5 border-t border-[#f0e8d8] bg-neutral-light/30 flex items-center justify-between">
                         <p className="text-xs font-body text-neutral-gray">
-                            Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} staff
+                            Showing {(safePage - 1) * PAGE_SIZE + 1}-{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} staff
                         </p>
                         {totalPages > 1 && (
                             <div className="flex items-center gap-1">

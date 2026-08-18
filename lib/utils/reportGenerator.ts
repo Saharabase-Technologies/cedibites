@@ -198,7 +198,7 @@ export function buildReportHtml(data: ReportData): string {
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>${esc(meta.title)} — CediBites</title>
+<title>${esc(meta.title)} | CediBites</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {

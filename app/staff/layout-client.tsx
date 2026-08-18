@@ -21,16 +21,24 @@ import {
     ClipboardTextIcon,
     CurrencyCircleDollarIcon,
     WarehouseIcon,
+    ChatCircleTextIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { StaffAuthProvider, useStaffAuth, type StaffRole } from '@/app/components/providers/StaffAuthProvider';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
+import { InterruptionGateProvider } from '@/app/components/providers/InterruptionGate';
+import { CautionInterstitial } from '@/app/components/messaging/CautionInterstitial';
+import { StaffMessageBell } from '@/app/components/messaging/StaffMessageBell';
 
 // ─── Nav configs (permission-gated) ───────────────────────────────────────────
 
 const MANAGER_NAV_MAIN = [
     { href: '/staff/manager/dashboard', label: 'Dashboard', icon: SquaresFourIcon },
     { href: '/staff/manager/orders',    label: 'Orders',    icon: ListIcon },
+    // No permission gate. Receiving a message is the job, not a privilege —
+    // gating the inbox would mean editing all ten roles and silently excluding
+    // whichever one was missed.
+    { href: '/staff/messages',          label: 'Messages',  icon: ChatCircleTextIcon },
 ];
 
 const MANAGER_NAV_TOOLS = [
@@ -56,6 +64,7 @@ const SALES_NAV = [
     { href: '/staff/sales/orders',     label: 'Orders',    icon: ListIcon },
     { href: '/staff/sales/my-sales',   label: 'My Sales',  icon: ReceiptIcon,     permission: 'view_my_sales' },
     { href: '/staff/sales/my-shifts',  label: 'My Shifts', icon: ClockIcon,       permission: 'view_my_shifts' },
+    { href: '/staff/messages',         label: 'Messages',  icon: ChatCircleTextIcon },
 ];
 
 const DISPLAYS_NAV = [
@@ -283,12 +292,15 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                         <Image src="/cblogo.webp" alt="CediBites" width={24} height={24} />
                         <span className="font-brand text-primary text-base">CediBites</span>
                     </div>
-                    <Link href="/staff/profile" className="flex items-center gap-1.5">
-                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
-                            <UserCircleIcon size={14} weight="fill" className="text-primary" />
-                        </div>
-                        <p className="text-text-light text-xs font-body">{staffUser.name.split(' ')[0]}</p>
-                    </Link>
+                    <div className="flex items-center gap-1">
+                        <StaffMessageBell />
+                        <Link href="/staff/profile" className="flex items-center gap-1.5">
+                            <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                                <UserCircleIcon size={14} weight="fill" className="text-primary" />
+                            </div>
+                            <p className="text-text-light text-xs font-body">{staffUser.name.split(' ')[0]}</p>
+                        </Link>
+                    </div>
                 </header>
 
                 {/* Page content */}
@@ -338,7 +350,15 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
 export default function StaffLayout({ children }: { children: React.ReactNode }) {
     return (
         <StaffAuthProvider>
-            <StaffLayoutShell>{children}</StaffLayoutShell>
+            {/* The gate wraps the whole staff shell so a claim registered by the
+                new-order wizard is still honoured after navigating to another
+                page inside it. Mounting it per-page would drop the claim on
+                every route change, which is precisely when somebody is
+                mid-task. */}
+            <InterruptionGateProvider>
+                <StaffLayoutShell>{children}</StaffLayoutShell>
+                <CautionInterstitial />
+            </InterruptionGateProvider>
         </StaffAuthProvider>
     );
 }

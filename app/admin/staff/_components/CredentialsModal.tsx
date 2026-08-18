@@ -24,7 +24,7 @@ export function CredentialsModal({ creds, onClose }: { creds: RevealedCredential
                     <h3 className="text-text-dark text-lg font-bold font-body">Account created</h3>
                 </div>
                 <p className="text-neutral-gray text-sm font-body mb-4">
-                    A welcome email was sent to <span className="font-semibold text-text-dark">{creds.name}</span>. Share these credentials confidentially — this password won&apos;t be shown again.
+                    A welcome email was sent to <span className="font-semibold text-text-dark">{creds.name}</span>. Share these credentials confidentially. This password won&apos;t be shown again.
                 </p>
                 <div className="flex flex-col gap-2 mb-5">
                     <div className="flex items-center justify-between gap-3 bg-neutral-light border border-[#f0e8d8] rounded-xl px-3 py-2.5">

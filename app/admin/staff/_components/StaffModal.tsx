@@ -235,7 +235,7 @@ export function StaffModal({ staff, onClose, onSave, defaultBranchId, defaultRol
             <div className="bg-neutral-card rounded-2xl shadow-2xl w-full max-w-lg my-8">
                 <div className="flex items-center justify-between px-6 py-5 border-b border-[#f0e8d8]">
                     <h2 className="text-text-dark text-lg font-bold font-body">
-                        {isNew ? 'Add Staff Member' : `Edit — ${staff?.name}`}
+                        {isNew ? 'Add Staff Member' : `Edit ${staff?.name}`}
                     </h2>
                     <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-neutral-light cursor-pointer">
                         <XIcon size={16} className="text-neutral-gray" />
@@ -286,7 +286,7 @@ export function StaffModal({ staff, onClose, onSave, defaultBranchId, defaultRol
                                         ))}
                                     </ul>
                                     <p className="text-neutral-gray text-[10px] font-body mt-2 pt-2 border-t border-[#f0e8d8]">
-                                        Permissions come from the role. There is nothing to tick — to change what this person can do, change their role.
+                                        Permissions come from the role. There is nothing to tick. To change what this person can do, change their role.
                                     </p>
                                 </div>
                             </div>
@@ -358,7 +358,7 @@ export function StaffModal({ staff, onClose, onSave, defaultBranchId, defaultRol
                                     </div>
                                     <p className="text-neutral-gray text-[10px] font-body mb-2">
                                         {form.passwordMode === 'auto' && 'A secure password will be generated and shared with the staff member.'}
-                                        {form.passwordMode === 'custom' && 'You set the password — the staff member will receive it directly.'}
+                                        {form.passwordMode === 'custom' && 'You set the password. The staff member will receive it directly.'}
                                         {form.passwordMode === 'prompt' && 'Staff member will receive a prompt to create their own password on first login.'}
                                     </p>
                                     {form.passwordMode === 'custom' && (
@@ -397,16 +397,16 @@ export function StaffModal({ staff, onClose, onSave, defaultBranchId, defaultRol
                                 <div>
                                     <p className="text-text-dark text-sm font-bold font-body">System Access</p>
                                     <p className="text-neutral-gray text-xs font-body">
-                                        Follows employment status — it is not a second switch that can disagree with it.
+                                        Follows employment status. It is not a second switch that can disagree with it.
                                     </p>
                                 </div>
                                 {form.employmentStatus === 'active' ? (
                                     <p className="text-secondary text-xs font-bold font-body">
-                                        Enabled — can sign in to the staff portal and POS.
+                                        Enabled: can sign in to the staff portal and POS.
                                     </p>
                                 ) : (
                                     <p className="text-error text-xs font-bold font-body">
-                                        Disabled — saving this signs them out everywhere and blocks sign-in.
+                                        Disabled: saving this signs them out everywhere and blocks sign-in.
                                     </p>
                                 )}
                             </div>

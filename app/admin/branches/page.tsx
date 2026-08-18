@@ -230,7 +230,7 @@ function BranchModal({
 
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-[#f0e8d8]">
-                    <h2 className="text-text-dark text-lg font-bold font-body">{isNew ? 'Add New Branch' : `Edit — ${branch?.name}`}</h2>
+                    <h2 className="text-text-dark text-lg font-bold font-body">{isNew ? 'Add New Branch' : `Edit ${branch?.name}`}</h2>
                     <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-neutral-light cursor-pointer">
                         <XIcon size={16} className="text-neutral-gray" />
                     </button>

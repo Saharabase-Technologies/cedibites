@@ -107,7 +107,7 @@ export default function AdminMenuConfigurePage() {
             await deleteMutation.mutateAsync(deleteTarget.id);
             setDeleteTarget(null);
         } catch {
-            setError(`Cannot delete "${deleteTarget.name}" — it has menu items. Move or archive them first.`);
+            setError(`Cannot delete "${deleteTarget.name}". It has menu items. Move or archive them first.`);
             setDeleteTarget(null);
         }
     }
@@ -153,7 +153,7 @@ export default function AdminMenuConfigurePage() {
                 <div>
                     <h2 className="text-text-dark text-lg font-bold font-body">Menu Categories</h2>
                     <p className="text-neutral-gray text-xs font-body mt-0.5">
-                        Organize menu items into categories. Renaming a category is safe — items reference categories by ID.
+                        Organize menu items into categories. Renaming a category is safe, and items stay where they are.
                     </p>
                 </div>
                 {!adding && (
@@ -275,7 +275,7 @@ export default function AdminMenuConfigurePage() {
                                     <button type="button" onClick={() => setDeleteTarget(cat)}
                                         disabled={(cat.items_count ?? 0) > 0}
                                         className="p-1.5 rounded-lg text-neutral-gray hover:text-error hover:bg-error/10 transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
-                                        title={(cat.items_count ?? 0) > 0 ? `Has ${cat.items_count} items — move them first` : 'Delete category'}>
+                                        title={(cat.items_count ?? 0) > 0 ? `Has ${cat.items_count} items. Move them first` : 'Delete category'}>
                                         <TrashIcon size={14} weight="bold" />
                                     </button>
                                 </div>
@@ -314,7 +314,7 @@ export default function AdminMenuConfigurePage() {
 
                     {/* Data safety note */}
                     <p className="text-neutral-gray/60 text-xs font-body mt-4 leading-relaxed">
-                        Renaming categories is cosmetic — items link by ID, not name. Deleting is only allowed when a category has no items.
+                        Renaming a category only changes its label, and items stay attached to it. You can delete a category once it holds no items.
                         Historical order data is never affected by menu changes.
                     </p>
                 </>

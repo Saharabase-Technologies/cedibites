@@ -72,7 +72,7 @@ const EMPTY_FORM: Omit<Promo, 'id'> = {
 function conditionLabel(promo: Promo): string {
     const parts: string[] = [];
     if (promo.minOrderValue != null && promo.maxOrderValue != null) {
-        parts.push(`orders ₵${promo.minOrderValue}–₵${promo.maxOrderValue}`);
+        parts.push(`orders ₵${promo.minOrderValue}-₵${promo.maxOrderValue}`);
     } else if (promo.minOrderValue != null) {
         parts.push(`orders ≥ ₵${promo.minOrderValue}`);
     } else if (promo.maxOrderValue != null) {
@@ -233,12 +233,12 @@ function PromoModal({
                     {form.type === 'percentage' && (
                         <div>
                             <label className="block text-neutral-gray text-xs font-body uppercase tracking-wider mb-1.5">
-                                Max Discount Cap — GHS <span className="text-neutral-gray/60 normal-case font-normal">(optional)</span>
+                                Max Discount Cap in GHS <span className="text-neutral-gray/60 normal-case font-normal">(optional)</span>
                             </label>
                             <input
                                 type="number"
                                 min={1}
-                                placeholder="e.g. 30 — limits ₵ amount even if % yields more"
+                                placeholder="e.g. 30, caps the ₵ amount even if % works out higher"
                                 value={numOpt(form.maxDiscount)}
                                 onChange={e => patch({ maxDiscount: parseOpt(e.target.value) })}
                                 className="w-full border border-[#f0e8d8] rounded-xl px-3 py-2.5 text-text-dark text-sm font-body bg-neutral-light focus:outline-none focus:border-primary"
@@ -577,7 +577,7 @@ export default function PromosPage() {
                                         {promo.scope === 'global' ? 'All branches' : `${promo.branchIds?.length ?? 0} branch(es)`}
                                         {cond ? ` · ${cond}` : ''}
                                         {' · '}
-                                        {formatDate(promo.startDate)} – {formatDate(promo.endDate)}
+                                        {formatDate(promo.startDate)} - {formatDate(promo.endDate)}
                                     </p>
                                 </div>
 

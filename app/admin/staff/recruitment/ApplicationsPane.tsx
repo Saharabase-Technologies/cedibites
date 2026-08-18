@@ -216,7 +216,7 @@ function ApplicationDialog({
                                 </select>
                                 <p className="text-neutral-gray text-xs mt-1.5 font-body leading-relaxed">
                                     {application.link?.kind === 'call_center'
-                                        ? 'Call centre staff belong to no branch — they take calls for all of them.'
+                                        ? 'Call centre staff belong to no branch. They take calls for all of them.'
                                         : `They will be assigned to ${application.link?.posting}, from the link they were sent.`}
                                 </p>
                             </div>
@@ -224,7 +224,7 @@ function ApplicationDialog({
                             <div className="rounded-2xl bg-neutral-light dark:bg-brand-darker px-4 py-3">
                                 <p className="text-neutral-gray text-xs font-body leading-relaxed">
                                     This creates their account straight away and sends them a message. They sign in
-                                    with the password they chose on the form — nobody here can read it, so there is
+                                    with the password they chose on the form. Nobody here can read it, so there is
                                     nothing to pass on.
                                 </p>
                             </div>

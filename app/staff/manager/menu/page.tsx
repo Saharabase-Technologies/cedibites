@@ -180,8 +180,8 @@ export default function ManagerMenuPage() {
             <div className="mb-5">
                 <h1 className="text-2xl font-bold font-brand text-text-dark">Menu</h1>
                 <p className="text-neutral-gray text-sm font-body mt-1">
-                    What {branchName} is serving today. Mark a dish sold out when you run out of it —
-                    it stays on the menu at every other branch.
+                    What {branchName} is serving today. Mark a dish sold out when you run out of it.
+                    It stays on the menu at every other branch.
                 </p>
             </div>
 
@@ -194,7 +194,7 @@ export default function ManagerMenuPage() {
                     <WarningCircleIcon size={16} weight="fill" className="text-error shrink-0 mt-0.5" />
                     <p className="text-text-dark text-sm font-body">
                         Could not read what is sold out at {branchName}.
-                        <span className="text-neutral-gray"> Everything below is shown as on sale, which may be wrong — reload before trusting it.</span>
+                        <span className="text-neutral-gray"> Everything below is shown as on sale, which may be wrong. Reload before trusting it.</span>
                     </p>
                 </div>
             ) : (

@@ -32,6 +32,9 @@ import {
     UsersIcon,
     KeyIcon,
     WarehouseIcon,
+    LinkSimpleIcon,
+    MegaphoneIcon,
+    ChatCircleTextIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
@@ -69,6 +72,24 @@ const ADMIN_GROUPS = [
             { href: '/admin/staff',      label: 'Staff',      icon: UsersThreeIcon },
         ],
     },
+];
+
+// Reaching the whole customer list in one act, at four figures a send. Gated on
+// `manage_campaigns` — admin and tech_admin only, the same ceiling the contact
+// export already enforces. Rendered separately from ADMIN_GROUPS for that reason.
+const MARKETING_NAV = [
+    { href: '/admin/campaigns', label: 'Campaigns',   icon: MegaphoneIcon  },
+    { href: '/admin/links',     label: 'Short Links', icon: LinkSimpleIcon },
+    // What customers said about their orders. Distinct from "Feedback" under
+    // System, which is the in-app bug reporter — hence the fuller label.
+    { href: '/admin/customer-feedback', label: 'Customer Feedback', icon: ChatCircleTextIcon },
+];
+
+// Messages to staff, and the rules that send them without anybody pressing
+// send. Separate from Marketing: that reaches customers and costs money per
+// send; this reaches our own people and is free.
+const STAFF_COMMS_NAV = [
+    { href: '/admin/messages', label: 'Staff Messages', icon: ChatCircleTextIcon },
 ];
 
 // Rendered after Displays, near the bottom of the sidebar.
@@ -253,6 +274,46 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                             ))}
                         </div>
                     ))}
+
+                    {/* Reaching every member of staff at once, and the rules that
+                        do it unprompted. `staff_messages.manage` is admin and
+                        tech_admin only — branch managers deliberately do not
+                        send. Receiving needs no permission at all. */}
+                    {staffUser.permissions?.includes('staff_messages.manage') && (
+                        <>
+                            <div className="my-2 border-t border-[#f0e8d8]" />
+                            <p className="text-[10px] font-body font-medium text-neutral-gray/60 uppercase tracking-wider px-3 pb-1">
+                                Staff comms
+                            </p>
+                            {STAFF_COMMS_NAV.map(item => (
+                                <SidebarLink
+                                    key={item.href}
+                                    href={item.href}
+                                    label={item.label}
+                                    icon={item.icon}
+                                    active={isNavActive(pathname, item.href)}
+                                />
+                            ))}
+                        </>
+                    )}
+
+                    {staffUser.permissions?.includes('manage_campaigns') && (
+                        <>
+                            <div className="my-2 border-t border-[#f0e8d8]" />
+                            <p className="text-[10px] font-body font-medium text-neutral-gray/60 uppercase tracking-wider px-3 pb-1">
+                                Marketing
+                            </p>
+                            {MARKETING_NAV.map(item => (
+                                <SidebarLink
+                                    key={item.href}
+                                    href={item.href}
+                                    label={item.label}
+                                    icon={item.icon}
+                                    active={isNavActive(pathname, item.href)}
+                                />
+                            ))}
+                        </>
+                    )}
 
                     <div className="my-2 border-t border-[#f0e8d8]" />
                     <p className="text-[10px] font-body font-medium text-neutral-gray/60 uppercase tracking-wider px-3 pb-1">

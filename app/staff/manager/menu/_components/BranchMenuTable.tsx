@@ -39,7 +39,7 @@ function PriceSummary({ row }: { row: BranchMenuRow }) {
 
     return (
         <span className="text-text-dark text-sm font-semibold font-body whitespace-nowrap">
-            {min === max ? `₵${min}` : `₵${min} – ₵${max}`}
+            {min === max ? `₵${min}` : `₵${min} - ₵${max}`}
             {prices.length > 1 && (
                 <span className="text-neutral-gray font-normal text-xs ml-1.5">
                     {prices.length} options

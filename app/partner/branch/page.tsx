@@ -250,7 +250,7 @@ function BranchDetail({ branchId, fallbackName, onBack }: { branchId: number; fa
                                                     <ClockIcon size={10} weight="fill" className="text-secondary" />
                                                     <span className="text-text-dark text-[11px] font-body">{h.from}</span>
                                                 </div>
-                                                <span className="text-neutral-gray text-[11px] font-body">– {h.to}</span>
+                                                <span className="text-neutral-gray text-[11px] font-body">- {h.to}</span>
                                             </div>
                                         ) : (
                                             <span className="text-neutral-gray/50 text-xs font-body">Closed</span>

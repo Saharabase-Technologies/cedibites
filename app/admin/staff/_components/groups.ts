@@ -157,7 +157,7 @@ export function buildStaffGroups(staff: StaffMember[], branches: BranchLike[]): 
         makeGroup({
             id: 'general',
             name: 'General',
-            blurb: 'Call centre and riders — company-wide staff who are not tied to one branch.',
+            blurb: 'Call centre and riders. Company-wide staff who are not tied to one branch.',
             kind: 'general',
             members: inRoles(GENERAL_ROLES),
         }),
