@@ -9,6 +9,7 @@ import type {
     StaffMessage,
     StaffMessageKind,
     StaffMessageRule,
+    RuleActivityRow,
 } from '@/types/messaging';
 
 /** Body of a hand-written send. */
@@ -110,6 +111,15 @@ export const messagingRuleService = {
     /** Replays history. Writes nothing, sends nothing. */
     dryRun: (id: number, days = 30): Promise<{ data: DryRunResult }> =>
         apiClient.get(`/admin/messages/rules/${id}/dry-run`, { params: { days } }),
+
+    /** Who the rule reached and what came back — held-back rows included. */
+    activity: (
+        id: number,
+        sentOnly = false,
+    ): Promise<{ data: RuleActivityRow[]; meta: { total: number; rule: { name: string; is_active: boolean } } }> =>
+        apiClient.get(`/admin/messages/rules/${id}/activity`, {
+            params: { sent_only: sentOnly ? 1 : 0, per_page: 100 },
+        }),
 
     destroy: (id: number): Promise<void> => apiClient.delete(`/admin/messages/rules/${id}`),
 };

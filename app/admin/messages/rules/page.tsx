@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { FlaskIcon, PowerIcon, RobotIcon, WarningCircleIcon } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -23,6 +24,7 @@ import type { DryRunResult, StaffMessageRule } from '@/types/messaging';
  * banner.
  */
 export default function MessageRulesPage() {
+    const router = useRouter();
     const queryClient = useQueryClient();
     const [dryRun, setDryRun] = useState<{ rule: StaffMessageRule; result: DryRunResult } | null>(null);
     const [busy, setBusy] = useState<number | null>(null);
@@ -65,7 +67,10 @@ export default function MessageRulesPage() {
                 <div className="min-w-0">
                     <p className="text-text-dark font-semibold font-body truncate">{r.name}</p>
                     <p className="text-neutral-gray text-xs font-body truncate max-w-md mt-0.5">
-                        {r.event_label}
+                        {/* The rule's own description, not the event label —
+                            four rules share `order_stalled` and all read "An
+                            order sits unmoved", which distinguishes nothing. */}
+                        {r.description ?? r.event_label}
                     </p>
                 </div>
             ),
@@ -175,6 +180,7 @@ export default function MessageRulesPage() {
                     columns={columns}
                     rowKey={(r) => r.id}
                     isLoading={isLoading}
+                    onRowClick={(r) => router.push(`/admin/messages/rules/${r.id}`)}
                     emptyState={
                         <div className="flex flex-col items-center text-center py-16">
                             <RobotIcon size={34} className="text-neutral-gray mb-3" />

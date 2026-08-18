@@ -32,6 +32,7 @@ export default function AdminMessagesPage() {
     const [sentNote, setSentNote] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [kind, setKind] = useState('');
+    const [origin, setOrigin] = useState('');
 
     const { data: messages, isLoading } = useQuery({
         queryKey: ['admin-staff-messages'],
@@ -43,13 +44,15 @@ export default function AdminMessagesPage() {
 
         return (messages ?? []).filter((message) => {
             if (kind && message.kind !== kind) return false;
+            if (origin === 'automatic' && !message.is_automatic) return false;
+            if (origin === 'manual' && message.is_automatic) return false;
             if (!term) return true;
             return (
                 (message.subject ?? '').toLowerCase().includes(term) ||
                 message.body.toLowerCase().includes(term)
             );
         });
-    }, [messages, search, kind]);
+    }, [messages, search, kind, origin]);
 
     const columns: DataTableColumn<StaffMessage>[] = [
         {
@@ -142,6 +145,15 @@ export default function AdminMessagesPage() {
                         options={KIND_OPTIONS}
                         placeholder="All kinds"
                     />
+                    <FilterSelect
+                        value={origin}
+                        onChange={setOrigin}
+                        options={[
+                            { value: 'automatic', label: 'Sent by a rule' },
+                            { value: 'manual', label: 'Written by a person' },
+                        ]}
+                        placeholder="Anyone"
+                    />
                 </FilterBar>
 
                 <DataTable
@@ -155,7 +167,7 @@ export default function AdminMessagesPage() {
                         <div className="flex flex-col items-center text-center py-16">
                             <ChatCircleTextIcon size={34} className="text-neutral-gray mb-3" />
                             <p className="font-body text-sm text-neutral-gray">
-                                {search || kind ? 'No messages match that.' : 'Nothing sent yet.'}
+                                {search || kind || origin ? 'No messages match that.' : 'Nothing sent yet.'}
                             </p>
                         </div>
                     }

@@ -201,3 +201,27 @@ export interface AudiencePreview {
     count: number;
     sample: { id: number; name: string; role: string | null }[];
 }
+
+/**
+ * One consideration a rule made about one person — sent or held back.
+ *
+ * Held-back rows are included deliberately: "why did Kwame not get this?" is
+ * the question that gets asked, and only the suppressed rows answer it.
+ */
+export interface RuleActivityRow {
+    id: number;
+    fired_at: string | null;
+    user: { id: number | null; name: string; role: string | null };
+    /** What it was about, e.g. "Order #1042". Null for the spike rules. */
+    about: string | null;
+    sent: boolean;
+    held_back_reason: string | null;
+    held_back_label: string | null;
+    message_id: number | null;
+    body: string | null;
+    read_at: string | null;
+    acknowledged_at: string | null;
+    quick_reply: string | null;
+    reply_body: string | null;
+    sms_status: string | null;
+}
