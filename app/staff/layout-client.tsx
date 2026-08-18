@@ -241,7 +241,7 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
         <div className="h-screen overflow-hidden bg-neutral-light dark:bg-brand-darker w-full flex">
 
             {/* ── Sidebar (desktop) ───────────────────────────────────────────── */}
-            <aside className="hidden md:flex flex-col w-56 shrink-0 bg-brown border-r border-brown-light/15 sticky top-0 h-screen">
+            <aside className="hidden md:flex flex-col w-56 shrink-0 bg-brown border-r border-brown-light/15 sticky top-0 h-screen z-40">
 
                 {/* Logo */}
                 <div className="flex items-center gap-2.5 px-4 py-5 border-b border-brown-light/15">

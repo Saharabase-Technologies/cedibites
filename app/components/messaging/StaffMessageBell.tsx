@@ -149,7 +149,7 @@ function BellRow({ message, onOpen }: { message: InboxMessage; onOpen: () => voi
             >
                 <div className="flex items-start gap-2.5">
                     {isCaution ? (
-                        <WarningCircleIcon size={16} weight="fill" className="text-amber-600 mt-0.5 shrink-0" />
+                        <WarningCircleIcon size={16} weight="fill" className="text-primary mt-0.5 shrink-0" />
                     ) : (
                         <ChatCircleTextIcon size={16} className="text-neutral-gray mt-0.5 shrink-0" />
                     )}
@@ -170,7 +170,7 @@ function BellRow({ message, onOpen }: { message: InboxMessage; onOpen: () => voi
                     </div>
 
                     {message.requires_acknowledgement && message.acknowledged_at === null && (
-                        <span className="shrink-0 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-body text-amber-700">
+                        <span className="shrink-0 px-2 py-0.5 rounded-full bg-text-dark text-[10px] font-body text-neutral-card">
                             Confirm
                         </span>
                     )}

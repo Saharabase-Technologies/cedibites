@@ -1,28 +1,30 @@
 'use client';
 
-import { RobotIcon, WarningCircleIcon } from '@phosphor-icons/react';
+import Image from 'next/image';
 import { useStaffAuthOptional } from '@/app/components/providers/StaffAuthProvider';
 import { useInterruptionGate } from '@/app/components/providers/InterruptionGate';
 import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
+import { renderMessageBody } from '@/lib/utils/messageMarkdown';
 import { ReplyPanel } from './ReplyPanel';
 import type { InboxMessage } from '@/types/messaging';
 
 /**
  * A caution, shown once the person is not mid-task.
  *
- * This is the only thing in the app that takes over the screen uninvited, so the
- * conditions are deliberately narrow:
- *
- *  - The interruption gate must be open. No cart with lines, no payment sheet,
- *    no order being built. Decided with the user: the question comes after a
- *    transaction, never during one.
- *  - Only cautions. A notice never reaches here.
- *  - One at a time, oldest first. Four stacked modals is not a message, it is an
- *    ambush, and everything after the first gets dismissed unread.
+ * The only thing in the app that takes over the screen uninvited, so the
+ * conditions are narrow: the interruption gate must be open (no cart with
+ * lines, no payment sheet), only cautions reach here, and they come one at a
+ * time, oldest first — four stacked modals is an ambush and everything after the
+ * first gets dismissed unread.
  *
  * Deliberately NOT built on InventoryModal: that closes on Escape and on a
- * backdrop click, which is exactly what this kind must not do. The styling is
- * matched to it by hand instead.
+ * backdrop click, which is exactly what this kind must not do.
+ *
+ * Visually it is a plain cream sheet with one primary rule across the top and
+ * hairline dividers between its three parts. The previous version wrapped it in
+ * a pale yellow alert band, which is a stock alert colour from outside this
+ * brand's palette entirely — the thing that made it read as generic. Weight and
+ * space carry the seriousness instead.
  */
 export function CautionInterstitial() {
     const staffAuth = useStaffAuthOptional();
@@ -73,35 +75,51 @@ function CautionCard({
     onConfirm: (payload: { quickReply: string | null; body: string }) => Promise<void>;
 }) {
     return (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-brand-darker/60 backdrop-blur-sm p-4">
-            <div className="w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl bg-neutral-card shadow-xl overflow-hidden">
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-brand-darker/70 backdrop-blur-sm p-4">
+            <div className="w-full max-w-lg max-h-[88vh] flex flex-col rounded-2xl bg-neutral-card shadow-2xl overflow-hidden">
 
-                {/* ── Header ─────────────────────────────────────────────── */}
-                <header className="flex items-start gap-3 px-5 py-4 bg-amber-50 border-b border-amber-200 shrink-0">
-                    <WarningCircleIcon size={22} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                        <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-amber-700">
-                            Caution
+                {/* The one piece of colour in the whole sheet. A 3px rule reads as
+                    a seal on an official notice; a filled band reads as a stock
+                    browser alert. */}
+                <div className="h-[3px] bg-primary shrink-0" />
+
+                <div className="overflow-y-auto flex-1 min-h-0">
+                    {/* ── Who and what ──────────────────────────────────── */}
+                    <header className="px-6 pt-6 pb-5">
+                        <p className="font-body text-[11px] font-bold uppercase tracking-[0.14em] text-neutral-gray">
+                            {pending.kind_label}
                         </p>
-                        <h2 className="font-brand text-lg font-bold text-text-dark leading-tight mt-0.5">
+                        <h2 className="font-brand text-2xl font-bold text-text-dark leading-tight mt-1.5">
                             {pending.subject ?? 'A message for you'}
                         </h2>
-                        <p className="font-body text-xs text-neutral-gray flex items-center gap-1 mt-1">
-                            {/* A rule sent it, not a person. Saying so stops an
-                                automatic caution reading as a personal rebuke. */}
-                            {pending.is_automatic && <RobotIcon size={12} />}
-                            {pending.is_automatic ? 'Sent automatically' : pending.sender_name}
+                        <p className="font-body text-xs text-neutral-gray mt-1.5">
+                            {pending.sender_name}
+                            {pending.sent_at && ` · ${new Date(pending.sent_at).toLocaleString()}`}
                         </p>
+                    </header>
+
+                    <div className="h-px bg-[#f0e8d8]" />
+
+                    {/* ── What it says ──────────────────────────────────── */}
+                    <div className="px-6 py-5 font-body text-[15px] text-text-dark leading-relaxed">
+                        {renderMessageBody(pending.body)}
+
+                        {pending.image_url && (
+                            <Image
+                                src={pending.image_url}
+                                alt=""
+                                width={800}
+                                height={600}
+                                unoptimized
+                                className="mt-4 w-full h-auto rounded-xl border border-[#e3ddd0]"
+                            />
+                        )}
                     </div>
-                </header>
 
-                {/* ── Body + reply ───────────────────────────────────────── */}
-                <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">
-                    <p className="font-body text-sm text-text-dark whitespace-pre-line leading-relaxed">
-                        {pending.body}
-                    </p>
+                    <div className="h-px bg-[#f0e8d8]" />
 
-                    <div className="mt-4 pt-4 border-t border-[#f0e8d8]">
+                    {/* ── What to do about it ───────────────────────────── */}
+                    <div className="px-6 py-5">
                         <ReplyPanel
                             message={pending}
                             busy={busy}
@@ -110,9 +128,8 @@ function CautionCard({
                     </div>
                 </div>
 
-                {/* ── Footer ─────────────────────────────────────────────── */}
                 {remaining > 0 && (
-                    <footer className="px-5 py-3 border-t border-[#f0e8d8] bg-neutral-light shrink-0">
+                    <footer className="px-6 py-3 border-t border-[#f0e8d8] bg-neutral-light shrink-0">
                         <p className="font-body text-[11px] text-neutral-gray">
                             {remaining} more {remaining === 1 ? 'message' : 'messages'} after this
                         </p>

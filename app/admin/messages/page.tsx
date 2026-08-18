@@ -179,9 +179,9 @@ function KindBadge({ kind, label }: { kind: StaffMessageKind; label: string }) {
     // only one that gets a loud colour here.
     const tone =
         kind === 'caution'
-            ? 'bg-amber-50 text-amber-700 border-amber-200'
+            ? 'bg-primary-light text-brand-dark border-primary/40'
             : kind === 'staff_query'
-              ? 'bg-sky-50 text-sky-700 border-sky-200'
+              ? 'bg-secondary-light text-secondary border-secondary/30'
               : 'bg-neutral-light text-neutral-gray border-[#e3ddd0]';
 
     return (

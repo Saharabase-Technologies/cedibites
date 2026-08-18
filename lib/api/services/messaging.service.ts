@@ -16,6 +16,8 @@ export interface SendMessagePayload {
     kind: StaffMessageKind;
     subject?: string | null;
     body: string;
+    /** A path issued by uploadImage — never a URL chosen by the client. */
+    image_path?: string | null;
     audience: StaffAudience;
     requires_acknowledgement?: boolean;
     allow_custom_reply?: boolean;
@@ -68,6 +70,16 @@ export const messagingAdminService = {
 
     send: (payload: SendMessagePayload): Promise<{ data: StaffMessage }> =>
         apiClient.post('/admin/messages', payload),
+
+    /** Store an image and get back the path to attach to a message. */
+    uploadImage: (file: File): Promise<{ data: { path: string; url: string } }> => {
+        const form = new FormData();
+        form.append('image', file);
+
+        return apiClient.post('/admin/messages/image', form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+    },
 
     reply: (id: number, body: string): Promise<{ data: StaffMessage }> =>
         apiClient.post(`/admin/messages/${id}/reply`, { body }),

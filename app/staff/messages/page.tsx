@@ -1,11 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Image from 'next/image';
 import {
     ChatCircleTextIcon,
     PaperPlaneTiltIcon,
     QuestionIcon,
-    RobotIcon,
     WarningCircleIcon,
 } from '@phosphor-icons/react';
 import {
@@ -22,6 +22,7 @@ import {
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
 import { ReplyPanel } from '@/app/components/messaging/ReplyPanel';
+import { renderMessageBody } from '@/lib/utils/messageMarkdown';
 import type { InboxMessage } from '@/types/messaging';
 
 /**
@@ -37,7 +38,10 @@ export default function StaffMessagesPage() {
     const { messages, summary, isLoading, acknowledge, reply, raise, isRaising, isReplying } =
         useStaffInbox(staffUser?.user_id ?? null);
 
-    const [tab, setTab] = useState('all');
+    // Unread first, All last. The reason somebody opens this page is to find
+    // what they have not seen; making them pick that out of everything is
+    // backwards.
+    const [tab, setTab] = useState('unread');
     const [search, setSearch] = useState('');
     const [askOpen, setAskOpen] = useState(false);
     const [askSubject, setAskSubject] = useState('');
@@ -87,8 +91,8 @@ export default function StaffMessagesPage() {
                 )}
 
                 {summary.pending.length > 0 && (
-                    <div className="mb-5 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-                        <WarningCircleIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+                    <div className="mb-5 flex items-start gap-3 bg-neutral-card border border-[#e3ddd0] border-l-[3px] border-l-primary rounded-2xl px-4 py-3">
+                        <WarningCircleIcon size={18} weight="fill" className="text-primary shrink-0 mt-0.5" />
                         <p className="font-body text-sm text-text-dark">
                             {summary.pending.length} {summary.pending.length === 1 ? 'message needs' : 'messages need'}{' '}
                             your confirmation.
@@ -101,9 +105,9 @@ export default function StaffMessagesPage() {
                         value={tab}
                         onChange={setTab}
                         options={[
-                            { value: 'all', label: 'All' },
                             { value: 'unread', label: `Unread${summary.unread ? ` (${summary.unread})` : ''}` },
                             { value: 'cautions', label: 'Cautions' },
+                            { value: 'all', label: 'All' },
                         ]}
                     />
                 </div>
@@ -200,50 +204,54 @@ function MessageCard({
     const isUnread = message.read_at === null;
 
     return (
-        <li
-            className={`rounded-2xl bg-neutral-card shadow-sm overflow-hidden ${
-                isCaution ? 'border border-amber-200' : ''
-            }`}
-        >
-            <header
-                className={`flex items-start gap-3 px-4 py-3 border-b ${
-                    isCaution ? 'bg-amber-50 border-amber-200' : 'bg-neutral-light border-[#f0e8d8]'
-                }`}
-            >
-                {isCaution && (
-                    <WarningCircleIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+        <li className="rounded-2xl bg-neutral-card shadow-sm overflow-hidden">
+            {/* A caution gets a thin primary rule along the top, the same seal as
+                the modal. The previous pale-yellow fill and yellow ring were a
+                stock alert colour from outside this palette, and they made every
+                caution look like a browser warning. */}
+            {isCaution && <div className="h-[3px] bg-primary" />}
+
+            <header className="px-5 pt-4 pb-3">
+                <div className="flex items-center gap-2">
+                    <p className="font-body text-[11px] font-bold uppercase tracking-[0.14em] text-neutral-gray">
+                        {message.kind_label}
+                    </p>
+                    {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-label="Unread" />}
+                </div>
+
+                {message.subject && (
+                    <h2 className="font-brand text-lg font-bold text-text-dark leading-tight mt-1">
+                        {message.subject}
+                    </h2>
                 )}
 
-                <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                        <p className="font-body text-[11px] font-semibold uppercase tracking-wider text-neutral-gray">
-                            {message.kind_label}
-                        </p>
-                        {isUnread && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-label="Unread" />
-                        )}
-                    </div>
-
-                    {message.subject && (
-                        <p className="font-body font-semibold text-text-dark truncate mt-0.5">
-                            {message.subject}
-                        </p>
-                    )}
-
-                    <p className="font-body text-[11px] text-neutral-gray flex items-center gap-1 mt-0.5">
-                        {message.is_automatic && <RobotIcon size={12} />}
-                        {message.is_automatic ? 'Sent automatically' : message.sender_name}
-                        {message.sent_at && ` · ${new Date(message.sent_at).toLocaleString()}`}
-                    </p>
-                </div>
+                <p className="font-body text-[11px] text-neutral-gray mt-1">
+                    {message.sender_name}
+                    {message.sent_at && ` · ${new Date(message.sent_at).toLocaleString()}`}
+                </p>
             </header>
 
-            <div className="px-4 py-3">
-                <p className="font-body text-sm text-text-dark whitespace-pre-line leading-relaxed">
-                    {message.body}
-                </p>
+            <div className="h-px bg-[#f0e8d8]" />
 
-                <ReplyPanel message={message} busy={busy} onSubmit={onSubmit} compact />
+            <div className="px-5 py-4 font-body text-sm text-text-dark leading-relaxed">
+                {renderMessageBody(message.body)}
+
+                {message.image_url && (
+                    <Image
+                        src={message.image_url}
+                        alt=""
+                        width={800}
+                        height={600}
+                        unoptimized
+                        className="mt-3 w-full h-auto rounded-xl border border-[#e3ddd0]"
+                    />
+                )}
+            </div>
+
+            <div className="h-px bg-[#f0e8d8]" />
+
+            <div className="px-5 py-4">
+                <ReplyPanel message={message} busy={busy} onSubmit={onSubmit} />
             </div>
         </li>
     );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { PaperPlaneTiltIcon, UsersThreeIcon, WarningCircleIcon } from '@phosphor-icons/react';
+import { ImageIcon, PaperPlaneTiltIcon, UsersThreeIcon, WarningCircleIcon, XIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import {
     InventoryModal,
@@ -57,6 +57,9 @@ export function ComposeDialog({
     const [allowCustomReply, setAllowCustomReply] = useState(true);
     const [quickReplies, setQuickReplies] = useState('Got it, Understood');
     const [smsAfter, setSmsAfter] = useState('');
+    const [imagePath, setImagePath] = useState<string | null>(null);
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [uploading, setUploading] = useState(false);
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -98,6 +101,8 @@ export function ComposeDialog({
         setBody('');
         setUserIds([]);
         setPersonQuery('');
+        setImagePath(null);
+        setImageUrl(null);
         setError(null);
     }
 
@@ -110,6 +115,7 @@ export function ComposeDialog({
                 kind,
                 subject: subject.trim() || null,
                 body: body.trim(),
+                image_path: imagePath,
                 audience,
                 requires_acknowledgement: effectiveRequiresAck,
                 allow_custom_reply: allowCustomReply,
@@ -158,13 +164,71 @@ export function ComposeDialog({
                     />
                 </FormField>
 
-                <FormField label="Message" required>
+                <FormField
+                    label="Message"
+                    required
+                    hint="**bold**, *italic*, `code`, [link](https://…), and - or 1. for lists."
+                >
                     <Textarea
                         value={body}
                         onChange={(event) => setBody(event.target.value)}
-                        rows={4}
+                        rows={5}
                         placeholder="What do you want them to know?"
                     />
+                </FormField>
+
+                <FormField label="Image" hint="Optional. JPG, PNG or WebP, up to 5MB.">
+                    {imageUrl ? (
+                        <div className="relative inline-block">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={imageUrl}
+                                alt=""
+                                className="max-h-40 rounded-xl border border-[#e3ddd0]"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setImagePath(null);
+                                    setImageUrl(null);
+                                }}
+                                className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center rounded-full bg-text-dark text-neutral-card cursor-pointer"
+                                aria-label="Remove image"
+                            >
+                                <XIcon size={12} weight="bold" />
+                            </button>
+                        </div>
+                    ) : (
+                        <label className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-dashed border-[#e3ddd0] bg-neutral-light text-sm font-body text-neutral-gray cursor-pointer hover:border-neutral-gray/60 transition-colors">
+                            <ImageIcon size={16} />
+                            {uploading ? 'Uploading…' : 'Attach an image'}
+                            <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                disabled={uploading}
+                                onChange={async (event) => {
+                                    const file = event.target.files?.[0];
+                                    if (!file) return;
+
+                                    setUploading(true);
+                                    setError(null);
+                                    try {
+                                        const response = await messagingAdminService.uploadImage(file);
+                                        setImagePath(response.data.path);
+                                        setImageUrl(response.data.url);
+                                    } catch {
+                                        setError('That image could not be uploaded.');
+                                    } finally {
+                                        setUploading(false);
+                                        // Clear the input so re-picking the same
+                                        // file fires change again.
+                                        event.target.value = '';
+                                    }
+                                }}
+                            />
+                        </label>
+                    )}
                 </FormField>
 
                 <FormField label="Who gets it" required>

@@ -49,6 +49,12 @@ export interface InboxMessage {
     interrupts: boolean;
     subject: string | null;
     body: string;
+    /** Markdown subset — see lib/utils/messageMarkdown.tsx. */
+    image_url: string | null;
+    /**
+     * Always the team ("CediBites IT"), never the individual who pressed send.
+     * The real sender stays on the record and is shown throughout the admin side.
+     */
     sender_name: string;
     /** A rule sent it, not a person. Shown as "Automatic" rather than a name. */
     is_automatic: boolean;
@@ -93,6 +99,7 @@ export interface StaffMessage {
     kind_label: string;
     subject: string | null;
     body: string;
+    image_url: string | null;
     audience: StaffAudience | null;
     requires_acknowledgement: boolean;
     allow_custom_reply: boolean;
