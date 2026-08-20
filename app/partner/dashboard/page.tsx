@@ -24,6 +24,7 @@ import {
     type AnalyticsPeriod,
 } from '@/lib/api/hooks/useAnalytics';
 import PeriodFilter, { type CustomRange } from '@/app/components/analytics/PeriodFilter';
+import BranchScopeSelector from '@/app/components/partner/BranchScopeSelector';
 import GrowthTrendCard from '@/app/components/analytics/GrowthTrendCard';
 import { formatPrice } from '@/types/order';
 
@@ -112,7 +113,7 @@ function BranchCard({ name, rev, orders, fulfilment, onClick }: {
 export default function PartnerDashboardPage() {
     const router = useRouter();
     const { staffUser } = useStaffAuth();
-    const { branchIds, isAll, hasMultiple, primaryBranchId, scopeLabel, setScope } = usePartnerScope();
+    const { branchIds, isAll, hasMultiple, primaryBranchId, setScope } = usePartnerScope();
 
     const [period, setPeriod] = useState<AnalyticsPeriod>('month');
     const [customRange, setCustomRange] = useState<CustomRange>(() => {
@@ -173,14 +174,9 @@ export default function PartnerDashboardPage() {
                     <h1 className="text-text-dark text-[26px] md:text-2xl font-extrabold font-body leading-tight">
                         {greeting()}, <span className="text-primary">{staffUser?.name?.split(' ')[0] ?? 'Partner'}</span>
                     </h1>
-                    <p className="text-neutral-gray text-sm font-body mt-1 flex items-center gap-2">
-                        {dateStr}
-                        <span className="inline-flex items-center gap-1 text-secondary font-semibold">
-                            <BuildingsIcon size={12} weight="fill" />
-                            {scopeLabel}
-                        </span>
-                    </p>
+                    <p className="text-neutral-gray text-sm font-body mt-1">{dateStr}</p>
                 </div>
+                <BranchScopeSelector className="shrink-0" />
             </div>
 
             {/* Period selector */}

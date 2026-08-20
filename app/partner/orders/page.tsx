@@ -15,6 +15,7 @@ import {
     DownloadSimpleIcon,
     SpinnerIcon,
     WarningIcon,
+    BuildingsIcon,
 } from '@phosphor-icons/react';
 import { usePartnerScope } from '@/app/components/providers/PartnerScopeProvider';
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
@@ -23,6 +24,7 @@ import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
 import { formatPrice, type Order } from '@/types/order';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import PeriodFilter, { PERIOD_LABELS, type CustomRange } from '@/app/components/analytics/PeriodFilter';
+import BranchScopeSelector from '@/app/components/partner/BranchScopeSelector';
 
 // ─── Export helpers ─────────────────────────────────────────────────────────────
 
@@ -45,11 +47,12 @@ function slug(s: string): string {
     return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'all';
 }
 
-function exportOrdersCsv(orders: Order[], periodLabel: string) {
-    const headers = ['Order #', 'Date', 'Customer', 'Phone', 'Items', 'Status', 'Fulfilment', 'Payment', 'Total (GHS)'];
+function exportOrdersCsv(orders: Order[], periodLabel: string, withBranch: boolean) {
+    const headers = ['Order #', 'Date', ...(withBranch ? ['Branch'] : []), 'Customer', 'Phone', 'Items', 'Status', 'Fulfilment', 'Payment', 'Total (GHS)'];
     const rows = orders.map(o => [
         o.orderNumber,
         new Date(o.placedAt).toLocaleString('en-GH'),
+        ...(withBranch ? [o.branch?.name ?? ''] : []),
         o.contact.name,
         o.contact.phone ?? '',
         o.items.reduce((s, it) => s + it.quantity, 0),
@@ -63,7 +66,7 @@ function exportOrdersCsv(orders: Order[], periodLabel: string) {
     downloadBlob('﻿' + csv, `cedibites-orders-${slug(periodLabel)}.csv`, 'text/csv;charset=utf-8;');
 }
 
-async function exportOrdersPdf(orders: Order[], branchName: string, periodLabel: string) {
+async function exportOrdersPdf(orders: Order[], branchName: string, periodLabel: string, withBranch: boolean) {
     const { jsPDF } = await import('jspdf');
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
     const margin = 40;
@@ -87,13 +90,18 @@ async function exportOrdersPdf(orders: Order[], branchName: string, periodLabel:
     y += 18;
 
     const pageH = doc.internal.pageSize.getHeight();
+    // Squeeze in a branch column only when the statement actually spans branches.
+    const xBranch = margin + 150;
+    const xCustomer = margin + (withBranch ? 250 : 160);
+    const xStatus = margin + (withBranch ? 370 : 300);
     const drawHeader = () => {
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
         doc.text('Order #', margin, y);
         doc.text('Date', margin + 70, y);
-        doc.text('Customer', margin + 160, y);
-        doc.text('Status', margin + 300, y);
+        if (withBranch) doc.text('Branch', xBranch, y);
+        doc.text('Customer', xCustomer, y);
+        doc.text('Status', xStatus, y);
         doc.text('Total', right, y, { align: 'right' });
         y += 5;
         doc.line(margin, y, right, y);
@@ -106,8 +114,9 @@ async function exportOrdersPdf(orders: Order[], branchName: string, periodLabel:
         if (y > pageH - margin) { doc.addPage(); y = margin; drawHeader(); }
         doc.text(String(o.orderNumber), margin, y);
         doc.text(new Date(o.placedAt).toLocaleDateString('en-GH', { day: '2-digit', month: 'short', year: '2-digit' }), margin + 70, y);
-        doc.text((o.contact.name ?? '').slice(0, 24), margin + 160, y);
-        doc.text(o.status.replace(/_/g, ' '), margin + 300, y);
+        if (withBranch) doc.text((o.branch?.name ?? '').slice(0, 18), xBranch, y);
+        doc.text((o.contact.name ?? '').slice(0, withBranch ? 20 : 24), xCustomer, y);
+        doc.text(o.status.replace(/_/g, ' '), xStatus, y);
         doc.text(o.total.toFixed(2), right, y, { align: 'right' });
         y += 15;
     }
@@ -176,7 +185,11 @@ function PaginationBar({ page, totalPages, total, pageSize, onPrev, onNext }: {
 
 // ─── Order row (expandable) ───────────────────────────────────────────────────
 
-function OrderRow({ order, isLast }: { order: Order; isLast: boolean }) {
+/** Column layout, with and without the branch column. */
+const GRID_COLS = 'grid-cols-[1.6fr_1.1fr_1.1fr_0.6fr_0.9fr_1fr_auto]';
+const GRID_COLS_NO_BRANCH = 'grid-cols-[1.8fr_1.3fr_0.7fr_1fr_1fr_auto]';
+
+function OrderRow({ order, isLast, showBranch }: { order: Order; isLast: boolean; showBranch: boolean }) {
     const [open, setOpen] = useState(false);
     const itemCount = order.items.reduce((s, it) => s + it.quantity, 0);
 
@@ -199,6 +212,12 @@ function OrderRow({ order, isLast }: { order: Order; isLast: boolean }) {
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] font-body text-neutral-gray">
+                        {showBranch && order.branch?.name && (
+                            <span className="inline-flex items-center gap-1 text-primary font-semibold">
+                                <BuildingsIcon size={10} weight="fill" />
+                                {order.branch.name}
+                            </span>
+                        )}
                         <span>{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
                         {order.fulfillmentType && <><span className="text-neutral-gray/40">·</span><span className="capitalize">{order.fulfillmentType.replace('_', ' ')}</span></>}
                         {order.contact.phone && <><span className="text-neutral-gray/40">·</span><span className="truncate">{order.contact.phone}</span></>}
@@ -206,11 +225,14 @@ function OrderRow({ order, isLast }: { order: Order; isLast: boolean }) {
                 </div>
 
                 {/* Desktop: column grid */}
-                <div className="hidden md:grid md:grid-cols-[1.8fr_1.3fr_0.7fr_1fr_1fr_auto] gap-4 items-center">
+                <div className={`hidden md:grid ${showBranch ? GRID_COLS : GRID_COLS_NO_BRANCH} gap-4 items-center`}>
                     <div className="min-w-0">
                         <p className="text-text-dark text-sm font-semibold font-body truncate">{order.contact.name}</p>
                         <p className="text-neutral-gray text-xs font-body">#{order.orderNumber}</p>
                     </div>
+                    {showBranch && (
+                        <span className="text-primary text-xs font-semibold font-body truncate">{order.branch?.name || '—'}</span>
+                    )}
                     <span className="text-neutral-gray text-xs font-body truncate">{order.contact.phone ?? '—'}</span>
                     <span className="text-neutral-gray text-xs font-body">{itemCount}</span>
                     <span className="text-neutral-gray text-xs font-body capitalize truncate">{order.fulfillmentType ? order.fulfillmentType.replace('_', ' ') : '—'}</span>
@@ -268,8 +290,11 @@ function OrderRow({ order, isLast }: { order: Order; isLast: boolean }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PartnerOrdersPage() {
-    const { branchId, primaryBranchId, scopeLabel } = usePartnerScope();
-    const singleBranchId = branchId ?? primaryBranchId;
+    const { branchId, primaryBranchId, scopeLabel, isAll, hasMultiple } = usePartnerScope();
+    // 'All Branches' → send no branch_id at all; the API then scopes the ledger
+    // to every branch this partner is assigned to. Sending primaryBranchId here
+    // used to show one branch's orders under an "All Branches" heading.
+    const showBranch = isAll && hasMultiple;
 
     const [period, setPeriod] = useState<AnalyticsPeriod>('month');
     const [customRange, setCustomRange] = useState<CustomRange>(() => {
@@ -279,7 +304,9 @@ export default function PartnerOrdersPage() {
     const range = useMemo(() => getDateRange(period, period === 'custom' ? customRange : undefined), [period, customRange]);
 
     const { orders: apiOrders, isLoading, error } = useEmployeeOrders({
-        branch_id: singleBranchId,
+        // Omit the key entirely rather than sending an undefined value, so a
+        // serializer change can never turn "all branches" into branch_id=0.
+        ...(branchId !== undefined ? { branch_id: branchId } : {}),
         date_from: range.date_from,
         date_to: range.date_to,
         per_page: 200,
@@ -309,7 +336,7 @@ export default function PartnerOrdersPage() {
     const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
     // Reset page when search/period changes
-    useEffect(() => { setPage(0); }, [search, period]);
+    useEffect(() => { setPage(0); }, [search, period, branchId]);
 
     // Period gross (excludes cancelled) for the ledger header.
     const periodGross = useMemo(
@@ -358,14 +385,17 @@ export default function PartnerOrdersPage() {
                             <h1 className="text-text-dark text-2xl font-bold font-body">Order Ledger</h1>
                         </div>
                         <p className="text-neutral-gray text-sm font-body">
-                            {scopeLabel} · {branchOrders.length} order{branchOrders.length !== 1 ? 's' : ''} · <span className="text-text-dark font-semibold">{formatPrice(periodGross)}</span> gross
+                            {branchOrders.length} order{branchOrders.length !== 1 ? 's' : ''} · <span className="text-text-dark font-semibold">{formatPrice(periodGross)}</span> gross
                         </p>
                     </div>
-                    <ExportMenu
-                        onCsv={() => exportOrdersCsv(filtered, periodLabel)}
-                        onPdf={() => exportOrdersPdf(filtered, scopeLabel, periodLabel)}
-                        disabled={filtered.length === 0}
-                    />
+                    <div className="flex items-center gap-2">
+                        <BranchScopeSelector />
+                        <ExportMenu
+                            onCsv={() => exportOrdersCsv(filtered, periodLabel, showBranch)}
+                            onPdf={() => exportOrdersPdf(filtered, scopeLabel, periodLabel, showBranch)}
+                            disabled={filtered.length === 0}
+                        />
+                    </div>
                 </div>
 
                 {/* Period selector */}
@@ -412,13 +442,16 @@ export default function PartnerOrdersPage() {
                 </div>
             ) : (
                 <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden">
-                    <div className="hidden md:grid grid-cols-[1.8fr_1.3fr_0.7fr_1fr_1fr_auto] gap-4 px-5 py-3 border-b border-[#f0e8d8] bg-[#faf6f0]">
-                        {['Customer', 'Phone', 'Items', 'Type', 'Amount', ''].map((h, i) => (
+                    <div className={`hidden md:grid ${showBranch ? GRID_COLS : GRID_COLS_NO_BRANCH} gap-4 px-5 py-3 border-b border-[#f0e8d8] bg-[#faf6f0]`}>
+                        {(showBranch
+                            ? ['Customer', 'Branch', 'Phone', 'Items', 'Type', 'Amount', '']
+                            : ['Customer', 'Phone', 'Items', 'Type', 'Amount', '']
+                        ).map((h, i) => (
                             <span key={i} className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-wider">{h}</span>
                         ))}
                     </div>
                     {paged.map((order, i) => (
-                        <OrderRow key={order.id} order={order} isLast={i === paged.length - 1} />
+                        <OrderRow key={order.id} order={order} isLast={i === paged.length - 1} showBranch={showBranch} />
                     ))}
                 </div>
             )}

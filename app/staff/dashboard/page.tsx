@@ -13,7 +13,7 @@ export default function DashboardRedirect() {
         const role = staffUser?.role;
         router.replace(
             role === 'manager' || role === 'admin' || role === 'tech_admin' ? '/staff/manager/dashboard' :
-            role === 'branch_partner'                    ? '/staff/partner/dashboard' :
+            role === 'branch_partner'                    ? '/partner/dashboard' :
             '/staff/sales/dashboard'
         );
     }, [staffUser, isLoading, router]);

@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from 'react';
 import {
-    CalendarIcon,
     ChartBarIcon,
     CurrencyCircleDollarIcon,
     TruckIcon,
@@ -31,6 +30,7 @@ import {
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import PeriodFilter, { type CustomRange } from '@/app/components/analytics/PeriodFilter';
+import BranchScopeSelector from '@/app/components/partner/BranchScopeSelector';
 import GrowthTrendCard from '@/app/components/analytics/GrowthTrendCard';
 import MenuComparison from '@/app/components/analytics/MenuComparison';
 import { RevenueConcentrationCard, FulfilmentFunnelCard, RepeatCustomersCard, WeekdayHourHeatmap } from '@/app/components/analytics/MetricCards';
@@ -515,8 +515,7 @@ function CustomerInsights({ byOrders, bySpending, deliveryPickup, paymentMethods
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PartnerAnalyticsPage() {
-    const { branchIds, primaryBranchId, scopeLabel } = usePartnerScope();
-    const branchName = scopeLabel;
+    const { branchIds, primaryBranchId } = usePartnerScope();
 
     const [period, setPeriod] = useState<AnalyticsPeriod>('today');
     const [customRange, setCustomRange] = useState<CustomRange>(() => {
@@ -580,11 +579,9 @@ export default function PartnerAnalyticsPage() {
                         <ChartBarIcon size={20} weight="fill" className="text-primary" />
                         <h1 className="text-text-dark text-2xl font-bold font-body">Analytics</h1>
                     </div>
-                    <p className="text-neutral-gray text-sm font-body flex items-center gap-1.5">
-                        <CalendarIcon size={13} weight="fill" />
-                        {branchName} Branch
-                    </p>
+                    <p className="text-neutral-gray text-sm font-body">Revenue, menu and customer performance for the branches you fund.</p>
                 </div>
+                <BranchScopeSelector className="shrink-0" />
             </div>
 
             {/* Period filter */}
