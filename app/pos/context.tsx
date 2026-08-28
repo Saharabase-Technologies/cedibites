@@ -495,9 +495,14 @@ export function POSProvider({ children }: POSProviderProps) {
    */
   const resetBranchForNextOrder = useCallback(() => {
     if (!isCompanyWide) return;
+    // Asking again only makes sense when there is another answer available.
+    // An admin is company-wide, so on a single-branch estate this threw the
+    // branch picker up after every single sale — a full-screen question with
+    // one possible response, between the operator and the next customer.
+    if (operableBranches.length < 2) return;
     localStorage.removeItem(POS_BRANCH_KEY);
     setSession(prev => (prev ? { ...prev, branchId: '' } : prev));
-  }, [isCompanyWide]);
+  }, [isCompanyWide, operableBranches.length]);
 
   const updateOrderStatus = useCallback((orderId: string, status: Order['status']) => {
     const timestamps: Partial<Pick<Order, 'acceptedAt' | 'startedAt' | 'readyAt' | 'completedAt'>> = {};
