@@ -29,7 +29,13 @@ import { OrderTicket } from './_components/OrderTicket';
 import { StageColumn } from './_components/StageColumn';
 import { OrderDetailSheet } from './_components/OrderDetailSheet';
 import { useFlipLayout, FLIP_DURATION_MS } from './_components/useFlipLayout';
-import { STAGE, STAGE_ORDER, type BoardStage } from './_components/board.constants';
+import {
+  STAGE,
+  STAGE_ORDER,
+  STAGE_SLA_S,
+  formatElapsed,
+  type BoardStage,
+} from './_components/board.constants';
 
 const BRANCH_KEY = 'cedibites-om-branchId';
 const SOUND_KEY = 'cedibites-om-sound';
@@ -114,6 +120,19 @@ export default function OrderManagerPage() {
 
   // ── Alerts ────────────────────────────────────────────────────────────────
 
+  /**
+   * Only a manager or an admin may silence this screen.
+   *
+   * The alerts exist because orders were being missed, so the ability to turn
+   * them off is a supervisory decision, not a personal preference — otherwise
+   * the first person irritated by the alarm quietly removes the safeguard for
+   * everybody on shift, and nobody knows it happened.
+   */
+  const canSilence =
+    staffUser?.role === 'admin' ||
+    staffUser?.role === 'tech_admin' ||
+    staffUser?.role === 'manager';
+
   // Read once, at mount, the same way the branch choice is. Sound defaults on:
   // a kitchen screen that comes up silent after a reload is the failure mode
   // this whole layer exists to prevent.
@@ -122,23 +141,40 @@ export default function OrderManagerPage() {
     return localStorage.getItem(SOUND_KEY) !== '0';
   });
   const toggleSound = useCallback(() => {
+    if (!canSilence) return;
     setSoundEnabled((v) => {
       localStorage.setItem(SOUND_KEY, v ? '0' : '1');
       return !v;
     });
-  }, []);
+  }, [canSilence]);
 
-  const waitingIds = useMemo(() => columns.received.map((o) => o.id), [columns.received]);
-  const placedAtMap = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const order of orders) map[order.id] = order.placedAt;
-    return map;
-  }, [orders]);
+  // A mute left in localStorage by a manager must not follow the screen into a
+  // shift worked by someone who cannot undo it.
+  const effectiveSoundEnabled = canSilence ? soundEnabled : true;
+
+  /**
+   * Every live order, with the clock that its stage is judged against.
+   *
+   * `stageEnteredAt` only knows about moves this device made, so anything it
+   * has not seen falls back to `placedAt`. That errs towards raising the alarm
+   * early rather than late, which is the right way round for a safeguard.
+   */
+  const alertOrders = useMemo(
+    () =>
+      orders.map((order) => ({
+        id: order.id,
+        label: order.orderNumber,
+        stage: order.status,
+        since: stageEnteredAt[order.id] ?? order.placedAt,
+        awaitingAccept: order.status === 'received',
+      })),
+    [orders, stageEnteredAt],
+  );
 
   const alerts = useOrderAlerts({
-    waitingIds,
-    placedAt: placedAtMap,
-    enabled: soundEnabled,
+    orders: alertOrders,
+    sla: STAGE_SLA_S,
+    enabled: effectiveSoundEnabled,
     resetKey: effectiveBranchId,
   });
 
@@ -394,21 +430,38 @@ export default function OrderManagerPage() {
           {/* Switching sound on plays the chime back, so the act of turning it
               on is also the proof that this screen can be heard. That check
               needs no separate control, and it is the one staff will actually
-              perform — it happens on the way to the thing they wanted anyway. */}
+              perform — it happens on the way to the thing they wanted anyway.
+
+              Staff get the same button, inert and labelled, rather than no
+              button at all: a control that silently vanishes reads as a broken
+              screen, and the first thing somebody does about a sound they
+              cannot stop is start hunting for the setting. */}
           <button
             type="button"
             onClick={() => {
+              if (!canSilence) return;
               const wasOn = soundEnabled;
               toggleSound();
               if (!wasOn) alerts.test();
             }}
-            title={soundEnabled ? 'Sound on — tap to mute' : 'Sound off — tap to turn on'}
+            aria-disabled={!canSilence}
+            title={
+              !canSilence
+                ? 'Only a manager or an admin can turn the sound off'
+                : soundEnabled
+                  ? 'Sound on — tap to mute'
+                  : 'Sound off — tap to turn on'
+            }
             className={`
               flex h-11 w-11 items-center justify-center rounded-xl transition-colors touch-manipulation
-              ${soundEnabled ? 'bg-[#fdf3e2] text-[#8a5a12]' : 'bg-neutral-light text-neutral-gray'}
+              ${!canSilence
+                ? 'cursor-not-allowed bg-neutral-light text-neutral-gray/50'
+                : effectiveSoundEnabled
+                  ? 'bg-[#fdf3e2] text-[#8a5a12]'
+                  : 'bg-neutral-light text-neutral-gray'}
             `}
           >
-            {soundEnabled ? (
+            {effectiveSoundEnabled ? (
               <SpeakerHighIcon weight="fill" className="h-5 w-5" />
             ) : (
               <SpeakerSlashIcon className="h-5 w-5" />
@@ -429,7 +482,7 @@ export default function OrderManagerPage() {
       {/* ── Alert bar ───────────────────────────────────────────────────── */}
       {/* Audio being silently blocked is the failure the kitchen cannot see, so
           it outranks the escalation banner and is not dismissible. */}
-      {soundEnabled && alerts.isBlocked ? (
+      {effectiveSoundEnabled && alerts.isBlocked ? (
         <button
           type="button"
           onClick={alerts.test}
@@ -438,21 +491,33 @@ export default function OrderManagerPage() {
           <BellSlashIcon weight="fill" className="h-4 w-4" />
           This screen cannot make a sound — tap here to switch it on
         </button>
-      ) : alerts.tier !== 'calm' && newCount > 0 ? (
+      ) : alerts.tier !== 'calm' && alerts.worst ? (
         <button
           type="button"
-          onClick={alerts.snooze}
+          onClick={canSilence ? alerts.snooze : undefined}
+          aria-disabled={!canSilence}
           className={`
             flex shrink-0 items-center justify-center gap-2 px-4 py-2.5 font-body text-sm font-bold touch-manipulation
-            ${alerts.tier === 'urgent' ? 'bg-[#c05252] text-white' : 'bg-[#fdf3e2] text-[#8a5a12]'}
+            ${alerts.tier === 'urgent'
+              ? 'bg-[#c05252] text-white'
+              : alerts.tier === 'caution'
+                ? 'bg-[#f7ece5] text-[#8a4b2c]'
+                : 'bg-[#fdf3e2] text-[#8a5a12]'}
+            ${canSilence ? '' : 'cursor-default'}
           `}
         >
           <BellRingingIcon weight="fill" className="h-4 w-4" />
-          {newCount === 1 ? '1 order has' : `${newCount} orders have`} been waiting{' '}
-          {Math.floor(alerts.oldestWaitS / 60) > 0
-            ? `${Math.floor(alerts.oldestWaitS / 60)}m`
-            : `${alerts.oldestWaitS}s`}
-          {alerts.isSnoozed ? ' · snoozed' : ' · tap to snooze'}
+          {/* Name the order. "3 orders are late" tells the kitchen there is a
+              problem; "#1042 has been cooking 16m" tells them which pan. */}
+          <span>
+            {alerts.worst.label}{' '}
+            {alerts.worst.awaitingAccept
+              ? 'has not been accepted'
+              : `has been ${STAGE[alerts.worst.stage as BoardStage].label.toLowerCase()}`}{' '}
+            for {formatElapsed(alerts.worst.elapsedS)}
+            {alerts.lateCount > 1 ? ` · ${alerts.lateCount} orders late` : ''}
+            {alerts.isSnoozed ? ' · snoozed' : canSilence ? ' · tap to snooze' : ''}
+          </span>
         </button>
       ) : null}
 

@@ -7,13 +7,14 @@ import {
   useCallback,
   useMemo,
   useEffect,
-  useRef,
   ReactNode,
 } from 'react';
 import type { Order, FulfillmentType, OrderSource, CreateOrderInput, OrderStatus } from '@/types/order';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useKitchenOrders } from './hooks/useKitchenOrders';
 import { useKitchenSounds } from './hooks/useSounds';
+import { useOrderAlerts, type OrderAlerts } from '@/lib/hooks/useOrderAlerts';
+import { STAGE_SLA_S as KITCHEN_SLA_S } from '@/lib/constants/order.constants';
 import { useSwitchKitchenBranch } from './branch-context';
 
 // ─── Kitchen-specific stats (UI only) ──────────────────────────────────────
@@ -45,6 +46,8 @@ interface KitchenContextValue {
   rejectCancel: (order: Order) => void;
   soundEnabled: boolean;
   setSoundEnabled: (enabled: boolean) => void;
+  /** Arrival + overdue state, shared with the Order Manager's alert layer. */
+  alerts: OrderAlerts;
   isFullscreen: boolean;
   toggleFullscreen: () => void;
   simulateNewOrder: () => void;
@@ -66,21 +69,48 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // `useKitchenSounds` is kept only for the per-action feedback below (tap,
+  // started, ready). Arrivals are no longer its job.
   const sounds = useKitchenSounds();
-  const prevOrderCountRef = useRef(kitchenOrders.length);
 
   // Sync sound enabled state
   useEffect(() => {
     sounds.setEnabled(soundEnabled);
   }, [soundEnabled, sounds]);
 
-  // Play sound when new order arrives
-  useEffect(() => {
-    if (kitchenOrders.length > prevOrderCountRef.current) {
-      sounds.playNewOrder();
-    }
-    prevOrderCountRef.current = kitchenOrders.length;
-  }, [kitchenOrders.length, sounds]);
+  /**
+   * Arrivals and overdue tickets, shared with the Order Manager.
+   *
+   * This used to be a count watch — `kitchenOrders.length > previous` — firing
+   * `playNewOrder`, a three-note phrase that repeats itself once. Two things
+   * were wrong with it. It could not tell an arrival from a net change, so an
+   * order arriving in the same refresh window that another was completed made
+   * no sound at all. And because this screen polled every second it beat the
+   * websocket, so on a bench with both screens open the kitchen heard this
+   * announce an order seconds before the Order Manager showed it — the two
+   * boards disagreeing out loud.
+   *
+   * Both now run the same identity-based hook against the same thresholds, so
+   * they agree by construction.
+   */
+  const alertOrders = useMemo(
+    () =>
+      kitchenOrders.map(order => ({
+        id: order.id,
+        label: order.orderNumber,
+        stage: order.status,
+        since: order.placedAt,
+        awaitingAccept: order.status === 'received',
+      })),
+    [kitchenOrders],
+  );
+
+  const alerts = useOrderAlerts({
+    orders: alertOrders,
+    sla: KITCHEN_SLA_S,
+    enabled: soundEnabled,
+    resetKey: branchId ?? null,
+  });
 
   // Group and sort orders by status
   const ordersByStatus = useMemo(() => {
@@ -214,7 +244,7 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
       orders: kitchenOrders, ordersByStatus, stats,
       acceptOrder, startOrder, markReady, completeOrder, completeAllReady,
       approveCancel, rejectCancel,
-      soundEnabled, setSoundEnabled,
+      soundEnabled, setSoundEnabled, alerts,
       isFullscreen, toggleFullscreen,
       simulateNewOrder,
     }}>

@@ -138,3 +138,29 @@ export const KANBAN_COLUMNS: KanbanColumn[] = [
     },
 ];
 
+
+// ─── Stage service levels ───────────────────────────────────────────────────
+
+/**
+ * How long an order may sit in a stage before the board says something —
+ * visually, and out loud.
+ *
+ * Per-stage on purpose. A ticket unacknowledged for two minutes is a problem;
+ * a ticket that has been cooking for two minutes is just cooking. One global
+ * "old order" threshold cannot tell those apart, so it would be noise on the
+ * screen rather than signal.
+ *
+ * Shared by the Order Manager and the Kitchen Display so the two boards cannot
+ * disagree about what counts as late — and so what a screen draws and what it
+ * plays are driven by the same numbers.
+ *
+ * `received` matches the audio escalation in `useOrderAlerts`; `preparing.late`
+ * is the fifteen minutes the kitchen asked to be warned at.
+ */
+export const STAGE_SLA_S: Record<string, { warn: number; late: number }> = {
+    cancel_requested: { warn: 30,  late: 120 },
+    received:         { warn: 30,  late: 90  },
+    accepted:         { warn: 180, late: 360 },
+    preparing:        { warn: 600, late: 900 },
+    ready:            { warn: 300, late: 600 },
+};

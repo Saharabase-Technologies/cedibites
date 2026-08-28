@@ -135,11 +135,9 @@ function OrderTicketBase({
         ${isBusy ? 'opacity-60' : 'shadow-[0_1px_2px_rgba(29,26,22,0.05)]'}
       `}
     >
-      {/* Stage edge */}
-      <span aria-hidden className={`absolute inset-y-0 left-0 z-10 w-1 ${tone.edge}`} />
       {!isSelected && <UrgencyOutline since={stageSince} stage={stage} />}
 
-      <div className="flex flex-col gap-2.5 p-3 pl-4">
+      <div className="flex flex-col gap-2.5 p-3">
 
         {/* Number, type, age */}
         <header className="flex items-start justify-between gap-2">

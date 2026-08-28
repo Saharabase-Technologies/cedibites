@@ -1,4 +1,5 @@
 import type { OrderStatus } from '@/types/order';
+import { STAGE_SLA_S as SHARED_SLA } from '@/lib/constants/order.constants';
 
 /**
  * The Order Manager's visual language.
@@ -23,8 +24,6 @@ export interface StageTone {
   bg: string;
   /** Text on `bg`. */
   text: string;
-  /** The 4px edge down the left of the ticket, and the column's header rule. */
-  edge: string;
   /** Solid fill for the column-count pill and legend dot. */
   dot: string;
   /** The primary action button that moves a ticket out of this stage. */
@@ -42,7 +41,6 @@ export const STAGE: Record<BoardStage, StageTone> = {
     columnLabel: 'Cancel Requests',
     bg: 'bg-[#f9ecec]',
     text: 'text-[#8a3333]',
-    edge: 'bg-[#c05252]',
     dot: 'bg-[#c05252]',
     action: 'bg-[#c05252] hover:bg-[#a94545] text-white',
     actionLabel: null,
@@ -54,7 +52,6 @@ export const STAGE: Record<BoardStage, StageTone> = {
     columnLabel: 'New',
     bg: 'bg-[#fdf3e2]',
     text: 'text-[#8a5a12]',
-    edge: 'bg-primary',
     dot: 'bg-primary',
     action: 'bg-primary hover:bg-primary-hover text-white',
     actionLabel: 'Accept',
@@ -66,7 +63,6 @@ export const STAGE: Record<BoardStage, StageTone> = {
     columnLabel: 'Accepted',
     bg: 'bg-[#e7edf3]',
     text: 'text-[#2f5570]',
-    edge: 'bg-[#4f7a99]',
     dot: 'bg-[#4f7a99]',
     action: 'bg-[#4f7a99] hover:bg-[#436b85] text-white',
     actionLabel: 'Start Cooking',
@@ -78,7 +74,6 @@ export const STAGE: Record<BoardStage, StageTone> = {
     columnLabel: 'Cooking',
     bg: 'bg-[#f7ece5]',
     text: 'text-[#8a4b2c]',
-    edge: 'bg-[#c1703f]',
     dot: 'bg-[#c1703f]',
     action: 'bg-[#c1703f] hover:bg-[#a85f33] text-white',
     actionLabel: 'Mark Ready',
@@ -90,7 +85,6 @@ export const STAGE: Record<BoardStage, StageTone> = {
     columnLabel: 'Ready',
     bg: 'bg-[#eaf3ec]',
     text: 'text-[#2f6b45]',
-    edge: 'bg-[#4a9469]',
     dot: 'bg-[#4a9469]',
     action: 'bg-[#4a9469] hover:bg-[#3d7d58] text-white',
     actionLabel: 'Complete',
@@ -104,23 +98,12 @@ export const STAGE_ORDER: BoardStage[] = ['received', 'accepted', 'preparing', '
 // ─── Time pressure ───────────────────────────────────────────────────────────
 
 /**
- * How long a ticket may sit in each stage before the board says something.
- *
- * These are per-stage on purpose. A ticket unacknowledged for two minutes is a
- * problem; a ticket that has been cooking for two minutes is just cooking. One
- * global "old order" threshold cannot tell those apart, which is why an
- * undifferentiated age colour would be noise on this screen rather than signal.
- *
- * The `received` numbers deliberately match the audio escalation in
- * `useOrderAlerts`, so what the kitchen sees and what it hears agree.
+ * Re-exported from the shared table so the Order Manager and the Kitchen
+ * Display cannot drift apart on what counts as late. Typed to this screen's
+ * stages here, where they are known.
  */
-export const STAGE_SLA_S: Record<BoardStage, { warn: number; late: number }> = {
-  cancel_requested: { warn: 30, late: 120 },
-  received: { warn: 30, late: 90 },
-  accepted: { warn: 180, late: 360 },
-  preparing: { warn: 600, late: 900 },
-  ready: { warn: 300, late: 600 },
-};
+export const STAGE_SLA_S: Record<BoardStage, { warn: number; late: number }> =
+  SHARED_SLA as Record<BoardStage, { warn: number; late: number }>;
 
 export type Urgency = 'calm' | 'warn' | 'late';
 
