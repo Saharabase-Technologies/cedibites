@@ -1,440 +1,541 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
-  ClockIcon,
-  CheckIcon,
-  CheckCircleIcon,
+  BellRingingIcon,
+  BellSlashIcon,
+  CloudSlashIcon,
+  SignOutIcon,
   SpeakerHighIcon,
   SpeakerSlashIcon,
-  ForkKnifeIcon,
-  PackageIcon,
-  BicycleIcon,
   StorefrontIcon,
   WarningCircleIcon,
-  ListIcon,
-  XIcon,
-  ProhibitIcon,
-  SignOutIcon,
 } from '@phosphor-icons/react';
-import { useKitchenSounds } from '@/app/kitchen/hooks/useSounds';
-import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
-import { useOrderChannel } from '@/lib/hooks/useOrderChannel';
+
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useOperableBranches } from '@/lib/hooks/useOperableBranches';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
-import { useBranch } from '@/app/components/providers/BranchProvider';
-import type { Order, OrderStatus, FulfillmentType } from '@/types/order';
-import { STATUS_CONFIG } from '@/lib/constants/order.constants';
-import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
+import { useOrderBoard } from '@/lib/hooks/useOrderBoard';
+import { useOrderAlerts } from '@/lib/hooks/useOrderAlerts';
 import { toast } from '@/lib/utils/toast';
 import apiClient from '@/lib/api/client';
+import type { Order } from '@/types/order';
 
-function formatTimeAgo(timestamp: number): string {
-  const minutes = Math.floor((Date.now() - timestamp) / 60000);
-  if (minutes < 1) return 'Just now';
-  if (minutes === 1) return '1 min';
-  return `${minutes} min`;
-}
+import { OrderTicket } from './_components/OrderTicket';
+import { StageColumn } from './_components/StageColumn';
+import { OrderDetailSheet } from './_components/OrderDetailSheet';
+import { useFlipLayout, FLIP_DURATION_MS } from './_components/useFlipLayout';
+import { STAGE, STAGE_ORDER, type BoardStage } from './_components/board.constants';
 
-const ORDER_TYPE_LABELS: Record<FulfillmentType, { icon: React.ElementType; label: string }> = {
-  dine_in: { icon: ForkKnifeIcon, label: 'Dine In' },
-  takeaway: { icon: PackageIcon, label: 'Takeaway' },
-  delivery: { icon: BicycleIcon, label: 'Delivery' },
-  pickup: { icon: StorefrontIcon, label: 'Pickup' },
-};
+const BRANCH_KEY = 'cedibites-om-branchId';
+const SOUND_KEY = 'cedibites-om-sound';
 
-// Kitchen-style display labels
-const OM_LABELS: Partial<Record<OrderStatus, string>> = {
-  received: 'New',
-  accepted: 'Accepted',
-  preparing: 'Cooking',
-  ready: 'Ready',
-  cancel_requested: 'Cancel Req.',
-};
-
-function getDisplayLabel(status: OrderStatus): string {
-  return OM_LABELS[status] ?? STATUS_CONFIG[status].label;
-}
-
-const STATUS_STRIPE: Partial<Record<OrderStatus, string>> = {
-  received: 'border-l-blue-500',
-  accepted: 'border-l-teal-500',
-  preparing: 'border-l-amber-500',
-  ready: 'border-l-green-600',
-  cancel_requested: 'border-l-orange-500',
-};
-
-type ActiveStatus = 'received' | 'accepted' | 'preparing' | 'ready' | 'cancel_requested';
-
-const ACTIVE_STATUSES = new Set<OrderStatus>(['received', 'accepted', 'preparing', 'ready', 'cancel_requested']);
+/**
+ * How long every action button on the board stays inert after any action.
+ *
+ * This is the direct fix for the mis-tap. Staff tapped Accept, saw nothing
+ * happen (the board wrote to a store it did not render from), and tapped again
+ * — by which time the poll had landed, the ticket had moved to another column,
+ * and the second tap hit whichever order had closed the gap. Optimistic
+ * rendering removes the reason to tap twice; this window catches the reflex tap
+ * that comes anyway, and it is deliberately just longer than the move
+ * animation, so nothing is ever tappable while it is still travelling.
+ */
+const ACTION_LOCK_MS = FLIP_DURATION_MS + 90;
 
 export default function OrderManagerPage() {
-  const { updateOrderStatus, updateOrder } = useOrderStore();
   const { staffUser, isLoading: isAuthLoading, logout } = useStaffAuth();
 
-  // Branch selection gate. Sourced from useOperableBranches, not from
-  // `staffUser.branches` — a company-wide role is assigned no branches by
-  // design, so reading the assignment directly gave admins, the call centre and
-  // the warehouse an empty picker they could not get past.
+  // ── Branch gate ───────────────────────────────────────────────────────────
+  // Sourced from useOperableBranches, not `staffUser.branches` — a company-wide
+  // role is assigned no branches by design, so reading the assignment directly
+  // gave admins, the call centre and the warehouse an empty picker.
   const { branches: operableBranches, isLoading: isBranchListLoading } = useOperableBranches();
-  const assignedIds: string[] = operableBranches.map(b => b.id);
+  const assignedIds = useMemo(() => operableBranches.map((b) => b.id), [operableBranches]);
 
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(() =>
-    typeof window !== 'undefined' ? localStorage.getItem('cedibites-om-branchId') : null
+    typeof window !== 'undefined' ? localStorage.getItem(BRANCH_KEY) : null,
   );
   const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
-  // Auto-select if exactly 1 branch; use explicit selection otherwise
   const autoSelectedBranchId = assignedIds.length === 1 ? assignedIds[0] : null;
   const effectiveBranchId = selectedBranchId ?? autoSelectedBranchId;
 
   const { branches } = useBranch();
   const branchInfo = useMemo(
-    () => effectiveBranchId ? branches.find(b => b.id === effectiveBranchId) ?? null : null,
-    [effectiveBranchId, branches]
+    () => (effectiveBranchId ? branches.find((b) => b.id === effectiveBranchId) ?? null : null),
+    [effectiveBranchId, branches],
   );
   const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
 
-  const { orders } = useOrderChannel(effectiveBranchId);
-  const sounds = useKitchenSounds();
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  // ── Board ─────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    sounds.setEnabled(soundEnabled);
-  }, [soundEnabled, sounds]);
+  const { orders, isLoading, connection, pendingIds, stageEnteredAt, moveOrder, removeOrder, refresh } =
+    useOrderBoard(effectiveBranchId);
 
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 10000);
-    return () => clearInterval(id);
-  }, []);
+  // The old board held the whole selected order in state and re-synced it from
+  // the list on every poll — an extra render a second, and a panel that could
+  // show a stale copy of the ticket beside a fresh one on the board. Holding
+  // only the id and looking it up keeps the panel exactly as fresh as the board
+  // for free, and an id whose order has left simply resolves to null, so there
+  // is nothing to clean up when a ticket is completed out from under the panel.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedOrder = useMemo(
+    () => (selectedId ? orders.find((o) => o.id === selectedId) ?? null : null),
+    [selectedId, orders],
+  );
 
-  // Sync selected order with live store
-  useEffect(() => {
-    if (!selectedOrder) return;
-    const updated = orders.find(o => o.id === selectedOrder.id);
-    setSelectedOrder(updated ?? null);
-  }, [orders, selectedOrder]);
-
-  // Group active orders by status
-  const ordersByStatus = useMemo(() => {
-    const grouped: Record<ActiveStatus, Order[]> = {
-      received: [], accepted: [], preparing: [], ready: [], cancel_requested: [],
+  const columns = useMemo(() => {
+    const grouped: Record<BoardStage, Order[]> = {
+      cancel_requested: [],
+      received: [],
+      accepted: [],
+      preparing: [],
+      ready: [],
     };
-    orders.forEach(order => {
-      if (ACTIVE_STATUSES.has(order.status)) {
-        grouped[order.status as ActiveStatus].push(order);
-      }
-    });
-    (Object.keys(grouped) as ActiveStatus[]).forEach(k => {
-      grouped[k].sort((a, b) => a.placedAt - b.placedAt);
-    });
+    // `orders` arrives oldest-first from the hook, so each column is already in
+    // the order the tickets were placed. Nothing here re-sorts.
+    for (const order of orders) {
+      const stage = order.status as BoardStage;
+      if (grouped[stage]) grouped[stage].push(order);
+    }
     return grouped;
   }, [orders]);
 
-  // Cancel-requested first, then oldest-first; deduplicate by id
-  const allActiveOrders = useMemo(() => {
-    const seen = new Set<string>();
-    return [
-      ...ordersByStatus.cancel_requested,
-      ...ordersByStatus.received,
-      ...ordersByStatus.accepted,
-      ...ordersByStatus.preparing,
-      ...ordersByStatus.ready,
-    ].filter(o => seen.has(o.id) ? false : (seen.add(o.id), true));
-  }, [ordersByStatus]);
+  const stageSinceFor = useCallback(
+    (order: Order) => stageEnteredAt[order.id] ?? order.placedAt,
+    [stageEnteredAt],
+  );
 
-  const receivedCount = ordersByStatus.received.length;
-  const acceptedCount = ordersByStatus.accepted.length;
-  const cookingCount = ordersByStatus.preparing.length;
-  const readyCount = ordersByStatus.ready.length;
-  const cancelReqCount = ordersByStatus.cancel_requested.length;
-  const totalActive = allActiveOrders.length;
+  // ── Alerts ────────────────────────────────────────────────────────────────
 
-  // Play sound only when a genuinely new order arrives (not on mount or branch switch)
-  const prevReceivedCountRef = useRef<number | null>(null);
-  useEffect(() => {
-    prevReceivedCountRef.current = null;
-  }, [effectiveBranchId]);
-  useEffect(() => {
-    if (prevReceivedCountRef.current !== null && receivedCount > prevReceivedCountRef.current) {
-      sounds.playNewOrder();
-    }
-    prevReceivedCountRef.current = receivedCount;
-  }, [receivedCount, sounds]);
-
-  // ── Actions ────────────────────────────────────────────────────────────────
-
-  const handleStatusUpdate = useCallback(async (
-    orderId: string,
-    status: OrderStatus,
-    timestamps?: Partial<Pick<Order, 'acceptedAt' | 'startedAt' | 'readyAt' | 'completedAt'>>,
-  ) => {
-    try {
-      await updateOrderStatus(orderId, status, timestamps);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to update order status';
-      toast.error(message);
-    }
-  }, [updateOrderStatus]);
-
-  const acceptOrder = useCallback((orderId: string) => {
-    handleStatusUpdate(orderId, 'accepted', { acceptedAt: Date.now() });
-  }, [handleStatusUpdate]);
-
-  const startCooking = useCallback((orderId: string) => {
-    handleStatusUpdate(orderId, 'preparing', { startedAt: Date.now() });
-  }, [handleStatusUpdate]);
-
-  const markReady = useCallback((orderId: string) => {
-    handleStatusUpdate(orderId, 'ready', { readyAt: Date.now() });
-  }, [handleStatusUpdate]);
-
-  const completeOrder = useCallback((orderId: string) => {
-    handleStatusUpdate(orderId, 'completed', { completedAt: Date.now() });
-  }, [handleStatusUpdate]);
-
-  const approveCancel = useCallback(async (orderId: string) => {
-    try {
-      await apiClient.post(`/admin/orders/${orderId}/approve-cancel`);
-      toast.success('Cancellation approved');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to approve cancellation';
-      toast.error(message);
-    }
+  // Read once, at mount, the same way the branch choice is. Sound defaults on:
+  // a kitchen screen that comes up silent after a reload is the failure mode
+  // this whole layer exists to prevent.
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(SOUND_KEY) !== '0';
+  });
+  const toggleSound = useCallback(() => {
+    setSoundEnabled((v) => {
+      localStorage.setItem(SOUND_KEY, v ? '0' : '1');
+      return !v;
+    });
   }, []);
 
-  const rejectCancel = useCallback(async (order: Order) => {
-    try {
-      await apiClient.post(`/admin/orders/${order.id}/reject-cancel`);
-      toast.success('Cancel request rejected');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to reject cancellation';
-      toast.error(message);
-    }
+  const waitingIds = useMemo(() => columns.received.map((o) => o.id), [columns.received]);
+  const placedAtMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const order of orders) map[order.id] = order.placedAt;
+    return map;
+  }, [orders]);
+
+  const alerts = useOrderAlerts({
+    waitingIds,
+    placedAt: placedAtMap,
+    enabled: soundEnabled,
+    resetKey: effectiveBranchId,
+  });
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+
+  const [isLocked, setIsLocked] = useState(false);
+  const lockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const lockBoard = useCallback(() => {
+    setIsLocked(true);
+    if (lockTimer.current) clearTimeout(lockTimer.current);
+    lockTimer.current = setTimeout(() => setIsLocked(false), ACTION_LOCK_MS);
   }, []);
 
-  const handleAction = useCallback((order: Order) => {
-    if (order.status === 'received') acceptOrder(order.id);
-    else if (order.status === 'accepted') startCooking(order.id);
-    else if (order.status === 'preparing') markReady(order.id);
-    else if (order.status === 'ready') completeOrder(order.id);
-  }, [acceptOrder, startCooking, markReady, completeOrder]);
+  useEffect(
+    () => () => {
+      if (lockTimer.current) clearTimeout(lockTimer.current);
+    },
+    [],
+  );
 
-  // Block render until auth resolves
+  const advance = useCallback(
+    async (order: Order) => {
+      const next = STAGE[order.status as BoardStage]?.next;
+      if (!next) return;
+      lockBoard();
+      const ok = await moveOrder(order.id, next);
+      if (!ok) toast.error(`Could not move ${order.orderNumber}. It has been put back.`);
+      else if (next === 'completed') setSelectedId((id) => (id === order.id ? null : id));
+    },
+    [moveOrder, lockBoard],
+  );
+
+  const approveCancel = useCallback(
+    async (order: Order) => {
+      lockBoard();
+      // Held off the board straight away, then confirmed. If the call fails the
+      // hook's sweeper puts it back within a few seconds.
+      removeOrder(order.id);
+      setSelectedId((id) => (id === order.id ? null : id));
+      try {
+        await apiClient.post(`/admin/orders/${order.id}/approve-cancel`);
+        toast.success(`${order.orderNumber} cancelled`);
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : 'Could not cancel that order');
+        refresh();
+      }
+    },
+    [removeOrder, refresh, lockBoard],
+  );
+
+  const rejectCancel = useCallback(
+    async (order: Order) => {
+      lockBoard();
+      try {
+        await apiClient.post(`/admin/orders/${order.id}/reject-cancel`);
+        toast.success(`${order.orderNumber} kept`);
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : 'Could not keep that order');
+      } finally {
+        refresh();
+      }
+    },
+    [refresh, lockBoard],
+  );
+
+  const select = useCallback((order: Order) => setSelectedId(order.id), []);
+
+  // ── Move animation ────────────────────────────────────────────────────────
+  // Keyed on the whole board's shape, so a ticket changing column replays and a
+  // poll that changes nothing does not.
+  const layoutKey = orders.map((o) => `${o.id}:${o.status}`).join('|');
+  const registerTicket = useFlipLayout(layoutKey);
+
+  // ── Gates ─────────────────────────────────────────────────────────────────
+
   if (isAuthLoading) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-neutral-light">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="flex min-h-dvh items-center justify-center bg-neutral-light">
+        <span className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }
 
-  // Show picker once auth is loaded, if staff has ≠1 branch and hasn't picked yet
-  // Hold the picker back until the list is real, or a company-wide operator
-  // sees an empty one for the moment before the branches API answers.
-  const needsBranchSelection = !isBranchListLoading && !effectiveBranchId && assignedIds.length !== 1;
-  const selectableBranches = operableBranches;
+  // Hold the picker back until the list is real, or a company-wide operator sees
+  // an empty one for the moment before the branches API answers.
+  const needsBranchSelection =
+    !isBranchListLoading && !effectiveBranchId && assignedIds.length !== 1;
 
   if (needsBranchSelection) {
     return (
       <BranchSelectPage
-        branches={selectableBranches}
-        onSelect={id => { localStorage.setItem('cedibites-om-branchId', id); setSelectedBranchId(id); }}
+        branches={operableBranches}
+        onSelect={(id) => {
+          localStorage.setItem(BRANCH_KEY, id);
+          setSelectedBranchId(id);
+        }}
         subtitle="Choose which branch to manage orders for"
       />
     );
   }
 
-  // Guard: branch is closed or inactive — admin/tech_admin bypass, extended access bypass
-  if (!isAdmin && branchInfo && (!branchInfo.isActive || (!branchInfo.isOpen && !branchInfo.staffAccessAllowed))) {
+  const isBranchShut =
+    !isAdmin &&
+    branchInfo &&
+    (!branchInfo.isActive || (!branchInfo.isOpen && !branchInfo.staffAccessAllowed));
+
+  if (isBranchShut) {
     const isInactive = !branchInfo.isActive;
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-neutral-light p-6">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-lg p-8 flex flex-col items-center gap-5 text-center">
-          <div className="w-16 h-16 rounded-full bg-error/10 flex items-center justify-center">
-            <WarningCircleIcon weight="fill" size={36} className="text-error" />
-          </div>
+      <div className="flex min-h-dvh items-center justify-center bg-neutral-light p-6">
+        <div className="flex w-full max-w-md flex-col items-center gap-5 rounded-2xl border border-[#f0e8d8] bg-neutral-card p-8 text-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#f9ecec]">
+            <WarningCircleIcon weight="fill" size={36} className="text-[#c05252]" />
+          </span>
           <div>
-            <h2 className="text-xl font-bold text-text-dark">
-              {isInactive ? 'Branch Inactive' : 'Branch Closed'}
+            <h2 className="font-brand text-xl font-bold text-text-dark">
+              {isInactive ? 'Branch inactive' : 'Branch closed'}
             </h2>
-            <p className="text-sm text-neutral-gray mt-2">
+            <p className="mt-2 font-body text-sm text-neutral-gray">
               {isInactive
-                ? `${branchInfo.name} is currently inactive. Contact an administrator to reactivate it.`
-                : `${branchInfo.name} is currently closed. Order management is unavailable outside operating hours.`}
+                ? `${branchInfo.name} is inactive. An administrator has to reactivate it.`
+                : `${branchInfo.name} is closed. Order management is unavailable outside operating hours.`}
             </p>
           </div>
-          {selectableBranches.length > 1 && (
+          {operableBranches.length > 1 && (
             <button
+              type="button"
               onClick={() => setIsBranchSwitcherOpen(true)}
-              className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold px-6 py-3 rounded-2xl transition-all active:scale-[0.98]"
+              className="flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 font-body text-sm font-semibold text-white transition-transform active:scale-[0.98]"
             >
-              <StorefrontIcon weight="fill" size={18} />
-              Switch Branch
+              <StorefrontIcon weight="fill" size={16} />
+              Switch branch
             </button>
           )}
           <button
+            type="button"
             onClick={() => setIsSignOutOpen(true)}
-            className="flex items-center gap-2 text-sm font-semibold text-neutral-gray hover:text-error transition-colors"
+            className="flex items-center gap-2 font-body text-sm font-semibold text-neutral-gray transition-colors hover:text-[#c05252]"
           >
             <SignOutIcon weight="bold" size={16} />
-            Sign Out
+            Sign out
           </button>
         </div>
-        {selectableBranches.length > 1 && (
-          <BranchSwitcherDialog
-            isOpen={isBranchSwitcherOpen}
-            branches={selectableBranches}
-            currentBranchId={effectiveBranchId ?? undefined}
-            onSelect={id => { localStorage.setItem('cedibites-om-branchId', id); setSelectedBranchId(id); setIsBranchSwitcherOpen(false); }}
-            onClose={() => setIsBranchSwitcherOpen(false)}
-          />
-        )}
-        <SignOutDialog isOpen={isSignOutOpen} onCancel={() => setIsSignOutOpen(false)} onConfirm={logout} />
+        <BranchSwitcherDialog
+          isOpen={isBranchSwitcherOpen}
+          branches={operableBranches}
+          currentBranchId={effectiveBranchId ?? undefined}
+          onSelect={(id) => {
+            localStorage.setItem(BRANCH_KEY, id);
+            setSelectedBranchId(id);
+            setIsBranchSwitcherOpen(false);
+          }}
+          onClose={() => setIsBranchSwitcherOpen(false)}
+        />
+        <SignOutDialog
+          isOpen={isSignOutOpen}
+          onCancel={() => setIsSignOutOpen(false)}
+          onConfirm={logout}
+        />
       </div>
     );
   }
 
-  return (
-    <div className="min-h-dvh flex flex-col bg-white">
+  // ── Board ─────────────────────────────────────────────────────────────────
 
-      {/* ── Header ────────────────────────────────────────────────────────── */}
-      <header className="shrink-0 px-4 py-3 bg-neutral-card/50 border-b border-brown-light/20 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Image src="/cblogo.webp" alt="CediBites" width={28} height={28} />
-          <div>
-            <h1 className="text-lg font-bold text-text-dark font-body leading-tight">
-              Order Manager
-              {cancelReqCount > 0 && (
-                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] font-bold">
-                  {cancelReqCount}
-                </span>
-              )}
-            </h1>
-            <p className="text-xs text-neutral-gray font-body">
-              {totalActive} active{receivedCount > 0 && ` · ${receivedCount} new`}
-            </p>
-          </div>
+  const newCount = columns.received.length;
+  const cancelCount = columns.cancel_requested.length;
+  const activeCount = orders.length;
+  const branchName = operableBranches.find((b) => b.id === effectiveBranchId)?.name;
+
+  /**
+   * The wrapper carries the ref the move animation measures, so it has to be
+   * the element that is actually laid out — never nested inside another
+   * positioned box, or the FLIP delta is measured against the wrong parent.
+   */
+  const renderTicket = (order: Order, className?: string) => (
+    <div key={order.id} ref={registerTicket(order.id)} className={className}>
+      <OrderTicket
+        order={order}
+        stage={order.status as BoardStage}
+        stageSince={stageSinceFor(order)}
+        isSelected={selectedId === order.id}
+        isBusy={pendingIds.has(order.id)}
+        isLocked={isLocked}
+        isAdmin={isAdmin}
+        onSelect={select}
+        onAdvance={advance}
+        onApproveCancel={approveCancel}
+        onRejectCancel={rejectCancel}
+      />
+    </div>
+  );
+
+  return (
+    <div className="flex h-dvh flex-col overflow-hidden bg-neutral-light">
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <header className="flex shrink-0 items-center gap-3 border-b border-[#f0e8d8] bg-neutral-card px-3 py-2.5">
+        <Image src="/cblogo.webp" alt="" width={28} height={28} className="shrink-0" />
+
+        <div className="min-w-0">
+          <h1 className="font-brand text-base font-bold leading-tight text-text-dark">
+            Order Manager
+          </h1>
+          <p className="truncate font-body text-xs text-neutral-gray">
+            {branchName ? `${branchName} · ` : ''}
+            {activeCount} live{newCount > 0 ? ` · ${newCount} waiting` : ''}
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          {/* Connection. Silence here is the dangerous state, so it is always shown. */}
+          <span
+            title={
+              connection === 'live'
+                ? 'Live — orders arrive instantly'
+                : connection === 'connecting'
+                  ? 'Connecting…'
+                  : 'Offline — falling back to a 4-second refresh'
+            }
+            className={`
+              hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-body text-[11px] font-semibold sm:flex
+              ${connection === 'live'
+                ? 'bg-[#eaf3ec] text-[#2f6b45]'
+                : connection === 'connecting'
+                  ? 'bg-neutral-light text-neutral-gray'
+                  : 'bg-[#f9ecec] text-[#8a3333]'}
+            `}
+          >
+            {connection === 'offline' ? (
+              <CloudSlashIcon weight="fill" className="h-3.5 w-3.5" />
+            ) : (
+              <span
+                className={`h-2 w-2 rounded-full ${connection === 'live' ? 'bg-[#4a9469]' : 'animate-pulse bg-neutral-gray'}`}
+              />
+            )}
+            {connection === 'live' ? 'Live' : connection === 'connecting' ? 'Connecting' : 'Offline'}
+          </span>
+
           {assignedIds.length !== 1 && (
             <button
+              type="button"
               onClick={() => setIsBranchSwitcherOpen(true)}
-              className="flex items-center gap-1.5 px-3 h-10 rounded-xl bg-neutral-light border border-brown-light/20 text-neutral-gray hover:text-primary hover:border-primary/30 active:scale-95 transition-all text-xs font-medium"
-              title="Switch Branch"
+              title="Switch branch"
+              className="flex h-11 items-center gap-1.5 rounded-xl border border-[#e3ddd0] bg-neutral-light px-3 font-body text-xs font-semibold text-text-dark transition-colors touch-manipulation hover:border-neutral-gray/50"
             >
-              <StorefrontIcon className="w-4 h-4" />
-              <span className="hidden sm:inline">
-                {selectableBranches.find(b => b.id === effectiveBranchId)?.name ?? 'All Branches'}
-              </span>
+              <StorefrontIcon className="h-4 w-4" />
+              <span className="hidden md:inline">{branchName ?? 'Branch'}</span>
             </button>
           )}
+
+          {/* Switching sound on plays the chime back, so the act of turning it
+              on is also the proof that this screen can be heard. That check
+              needs no separate control, and it is the one staff will actually
+              perform — it happens on the way to the thing they wanted anyway. */}
           <button
-            onClick={() => setSoundEnabled(v => !v)}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center active:scale-95 transition-transform ${soundEnabled ? 'bg-primary/10 text-primary' : 'bg-neutral-light text-neutral-gray'}`}
+            type="button"
+            onClick={() => {
+              const wasOn = soundEnabled;
+              toggleSound();
+              if (!wasOn) alerts.test();
+            }}
+            title={soundEnabled ? 'Sound on — tap to mute' : 'Sound off — tap to turn on'}
+            className={`
+              flex h-11 w-11 items-center justify-center rounded-xl transition-colors touch-manipulation
+              ${soundEnabled ? 'bg-[#fdf3e2] text-[#8a5a12]' : 'bg-neutral-light text-neutral-gray'}
+            `}
           >
-            {soundEnabled ? <SpeakerHighIcon className="w-5 h-5" /> : <SpeakerSlashIcon className="w-5 h-5" />}
+            {soundEnabled ? (
+              <SpeakerHighIcon weight="fill" className="h-5 w-5" />
+            ) : (
+              <SpeakerSlashIcon className="h-5 w-5" />
+            )}
           </button>
+
           <button
+            type="button"
             onClick={() => setIsSignOutOpen(true)}
             title="Sign out"
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-neutral-gray hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all"
+            className="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-gray transition-colors touch-manipulation hover:bg-[#f9ecec] hover:text-[#c05252]"
           >
-            <SignOutIcon className="w-5 h-5" />
+            <SignOutIcon className="h-5 w-5" />
           </button>
         </div>
       </header>
 
-      {/* ── Status legend ─────────────────────────────────────────────────── */}
-      <div className="shrink-0 px-4 py-2 bg-neutral-card border-b border-brown-light/15 flex items-center gap-5 text-xs font-medium text-neutral-gray font-body overflow-x-auto">
-        {cancelReqCount > 0 && (
-          <span className="flex items-center gap-1.5 shrink-0 text-orange-600 font-semibold">
-            <span className="w-3 h-3 rounded-sm bg-orange-500 inline-block animate-pulse" />
-            Cancel Req. ({cancelReqCount})
-          </span>
-        )}
-        <span className="flex items-center gap-1.5 shrink-0">
-          <span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" />
-          New ({receivedCount})
-        </span>
-        <span className="flex items-center gap-1.5 shrink-0">
-          <span className="w-3 h-3 rounded-sm bg-teal-500 inline-block" />
-          Accepted ({acceptedCount})
-        </span>
-        <span className="flex items-center gap-1.5 shrink-0">
-          <span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" />
-          Cooking ({cookingCount})
-        </span>
-        <span className="flex items-center gap-1.5 shrink-0">
-          <span className="w-3 h-3 rounded-sm bg-green-600 inline-block" />
-          Ready ({readyCount})
-        </span>
-      </div>
+      {/* ── Alert bar ───────────────────────────────────────────────────── */}
+      {/* Audio being silently blocked is the failure the kitchen cannot see, so
+          it outranks the escalation banner and is not dismissible. */}
+      {soundEnabled && alerts.isBlocked ? (
+        <button
+          type="button"
+          onClick={alerts.test}
+          className="flex shrink-0 items-center justify-center gap-2 bg-[#8a3333] px-4 py-2.5 font-body text-sm font-bold text-white touch-manipulation"
+        >
+          <BellSlashIcon weight="fill" className="h-4 w-4" />
+          This screen cannot make a sound — tap here to switch it on
+        </button>
+      ) : alerts.tier !== 'calm' && newCount > 0 ? (
+        <button
+          type="button"
+          onClick={alerts.snooze}
+          className={`
+            flex shrink-0 items-center justify-center gap-2 px-4 py-2.5 font-body text-sm font-bold touch-manipulation
+            ${alerts.tier === 'urgent' ? 'bg-[#c05252] text-white' : 'bg-[#fdf3e2] text-[#8a5a12]'}
+          `}
+        >
+          <BellRingingIcon weight="fill" className="h-4 w-4" />
+          {newCount === 1 ? '1 order has' : `${newCount} orders have`} been waiting{' '}
+          {Math.floor(alerts.oldestWaitS / 60) > 0
+            ? `${Math.floor(alerts.oldestWaitS / 60)}m`
+            : `${alerts.oldestWaitS}s`}
+          {alerts.isSnoozed ? ' · snoozed' : ' · tap to snooze'}
+        </button>
+      ) : null}
 
-      {/* ── Content ───────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      {/* ── Cancel requests ─────────────────────────────────────────────── */}
+      {/* A band rather than a fifth column: rare, urgent, and it should not cost
+          a quarter of the board's width on the nights there are none. */}
+      {cancelCount > 0 && (
+        <section className="shrink-0 border-b border-[#f0e8d8] bg-[#f9ecec]/50 px-3 py-2.5">
+          <h2 className="mb-2 flex items-center gap-2 font-brand text-xs font-bold uppercase tracking-wide text-[#8a3333]">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#c05252]" />
+            Cancel requests ({cancelCount})
+          </h2>
+          <div className="flex gap-2.5 overflow-x-auto pb-1">
+            {columns.cancel_requested.map((order) => renderTicket(order, 'w-72 shrink-0'))}
+          </div>
+        </section>
+      )}
 
-        {/* Orders grid */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {allActiveOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-neutral-gray">
-              <ListIcon className="w-14 h-14 mb-3 opacity-20" />
-              <p className="text-base font-medium text-text-dark font-body">No active orders</p>
-              <p className="text-sm text-neutral-gray font-body">Waiting for new orders...</p>
-            </div>
+      {/* ── Columns ─────────────────────────────────────────────────────── */}
+      <main className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="flex min-h-0 flex-1 gap-2.5 overflow-x-auto p-2.5">
+          {isLoading && orders.length === 0 ? (
+            STAGE_ORDER.map((stage) => (
+              <StageColumn key={stage} stage={stage} count={0} isEmpty emptyLabel="Loading…">
+                {null}
+              </StageColumn>
+            ))
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {allActiveOrders.map(order => (
-                <OrderCard
-                  key={order.id}
-                  order={order}
-                  isSelected={selectedOrder?.id === order.id}
-                  isAdmin={isAdmin}
-                  onSelect={() => setSelectedOrder(order)}
-                  onAction={() => handleAction(order)}
-                  onApproveCancel={() => approveCancel(order.id)}
-                  onRejectCancel={() => rejectCancel(order)}
-                />
-              ))}
-            </div>
+            STAGE_ORDER.map((stage) => (
+              <StageColumn
+                key={stage}
+                stage={stage}
+                count={columns[stage].length}
+                isEmpty={columns[stage].length === 0}
+                emptyLabel={
+                  stage === 'received' ? 'Nothing waiting' : `Nothing ${STAGE[stage].label.toLowerCase()}`
+                }
+              >
+                {/* Not `.map(renderTicket)` — map would pass the index straight
+                    into the second argument. */}
+                {columns[stage].map((order) => renderTicket(order))}
+              </StageColumn>
+            ))
           )}
         </div>
 
-        {/* Desktop detail panel */}
+        {/* Detail rail */}
         {selectedOrder && (
-          <div className="hidden lg:block w-96 border-l border-brown-light/20 bg-neutral-card overflow-y-auto">
-            <OrderDetailPanel
+          <aside className="hidden w-96 shrink-0 border-l border-[#f0e8d8] lg:block">
+            <OrderDetailSheet
               order={selectedOrder}
+              stage={selectedOrder.status as BoardStage}
+              stageSince={stageSinceFor(selectedOrder)}
               isAdmin={isAdmin}
-              onAction={() => handleAction(selectedOrder)}
-              onApproveCancel={() => { approveCancel(selectedOrder.id); setSelectedOrder(null); }}
-              onRejectCancel={() => { rejectCancel(selectedOrder); setSelectedOrder(null); }}
-              onClose={() => setSelectedOrder(null)}
+              isBusy={pendingIds.has(selectedOrder.id)}
+              onAdvance={advance}
+              onApproveCancel={approveCancel}
+              onRejectCancel={rejectCancel}
+              onClose={() => setSelectedId(null)}
             />
-          </div>
+          </aside>
         )}
-      </div>
+      </main>
 
-      {/* Mobile bottom sheet */}
+      {/* Detail sheet, small screens */}
       {selectedOrder && (
-        <div className="lg:hidden fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedOrder(null)} />
-          <div className="absolute bottom-0 left-0 right-0 bg-neutral-card rounded-t-3xl max-h-[80vh] overflow-y-auto shadow-2xl">
-            <OrderDetailPanel
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="absolute inset-0 bg-brown/40"
+            onClick={() => setSelectedId(null)}
+            aria-hidden
+          />
+          <div className="absolute inset-x-0 bottom-0 max-h-[85dvh] overflow-hidden rounded-t-2xl shadow-[0_-8px_32px_rgba(29,26,22,0.18)]">
+            <OrderDetailSheet
               order={selectedOrder}
+              stage={selectedOrder.status as BoardStage}
+              stageSince={stageSinceFor(selectedOrder)}
               isAdmin={isAdmin}
-              onAction={() => handleAction(selectedOrder)}
-              onApproveCancel={() => { approveCancel(selectedOrder.id); setSelectedOrder(null); }}
-              onRejectCancel={() => { rejectCancel(selectedOrder); setSelectedOrder(null); }}
-              onClose={() => setSelectedOrder(null)}
+              isBusy={pendingIds.has(selectedOrder.id)}
+              onAdvance={advance}
+              onApproveCancel={approveCancel}
+              onRejectCancel={rejectCancel}
+              onClose={() => setSelectedId(null)}
             />
           </div>
         </div>
@@ -442,9 +543,14 @@ export default function OrderManagerPage() {
 
       <BranchSwitcherDialog
         isOpen={isBranchSwitcherOpen}
-        branches={selectableBranches}
-        currentBranchId={effectiveBranchId}
-        onSelect={id => { localStorage.setItem('cedibites-om-branchId', id); setSelectedBranchId(id); setSelectedOrder(null); }}
+        branches={operableBranches}
+        currentBranchId={effectiveBranchId ?? undefined}
+        onSelect={(id) => {
+          localStorage.setItem(BRANCH_KEY, id);
+          setSelectedBranchId(id);
+          setSelectedId(null);
+          setIsBranchSwitcherOpen(false);
+        }}
         onClose={() => setIsBranchSwitcherOpen(false)}
       />
 
@@ -453,314 +559,6 @@ export default function OrderManagerPage() {
         onCancel={() => setIsSignOutOpen(false)}
         onConfirm={() => logout()}
       />
-    </div>
-  );
-}
-
-// ─── Order Card ───────────────────────────────────────────────────────────────
-
-interface OrderCardProps {
-  order: Order;
-  isSelected: boolean;
-  isAdmin: boolean;
-  onSelect: () => void;
-  onAction: () => void;
-  onApproveCancel: () => void;
-  onRejectCancel: () => void;
-}
-
-function OrderCard({ order, isSelected, isAdmin, onSelect, onAction, onApproveCancel, onRejectCancel }: OrderCardProps) {
-  const statusCfg = STATUS_CONFIG[order.status];
-  const displayLabel = getDisplayLabel(order.status);
-  const stripe = STATUS_STRIPE[order.status] ?? 'border-l-gray-300';
-  const isCancelReq = order.status === 'cancel_requested';
-
-  const actionConfig: { label: string; icon: React.ElementType; color: string } | null =
-    isCancelReq ? null
-      : order.status === 'received'
-        ? { label: 'Accept Order', icon: CheckIcon, color: 'bg-teal-600 hover:bg-teal-700 text-white' }
-        : order.status === 'accepted'
-          ? { label: 'Start Cooking', icon: CheckIcon, color: 'bg-brown hover:bg-brown-light text-text-light' }
-          : order.status === 'preparing'
-            ? { label: 'Mark Ready', icon: CheckIcon, color: 'bg-secondary hover:bg-secondary-hover text-white' }
-            : order.status === 'ready'
-              ? { label: 'Complete', icon: CheckCircleIcon, color: 'bg-primary hover:bg-primary-hover text-white' }
-              : null;
-
-  return (
-    <div
-      onClick={onSelect}
-      className={`
-        rounded-2xl overflow-hidden cursor-pointer bg-white
-        transition-all duration-150
-        
-        ${isSelected ? 'ring-2 ring-primary shadow-md' : 'shadow-sm active:scale-[0.98]'}
-      `}
-    >
-      <div className="p-4 flex flex-col h-full">
-
-        {/* Cancel requested banner */}
-        {isCancelReq && (
-          <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1.5 rounded-lg bg-orange-100 border border-orange-300">
-            <WarningCircleIcon className="w-3.5 h-3.5 text-orange-600 shrink-0" weight="fill" />
-            <span className="text-orange-700 text-[11px] font-semibold font-body truncate">
-              {order.cancelRequestReason ?? 'Cancellation requested'}
-            </span>
-          </div>
-        )}
-
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <span className="text-xl font-bold text-text-dark font-body">{order.orderNumber}</span>
-            {order.contact.name && (
-              <p className="text-text-dark text-sm font-medium font-body mt-0.5">{order.contact.name}</p>
-            )}
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-bold font-body ${statusCfg.bg} ${statusCfg.dot.replace('bg-', 'text-')}`}>
-              {displayLabel}
-            </span>
-            <span className="text-xs font-body text-neutral-gray">
-              {ORDER_TYPE_LABELS[order.fulfillmentType].label}
-            </span>
-          </div>
-        </div>
-
-        {/* Items preview */}
-        <div className="mb-3">
-          {order.items.slice(0, 3).map(item => (
-            <div key={item.id} className="flex items-center gap-2 text-sm text-text-dark py-0.5 font-body">
-              <span className="w-5 h-5 rounded bg-neutral-gray/5 border border-neutral-gray/25 text-text-gray text-xs font-bold flex items-center justify-center">
-                {item.quantity}
-              </span>
-              <span className="truncate">{getOrderItemLineLabel(item)}</span>
-            </div>
-          ))}
-          {order.items.length > 3 && (
-            <p className="text-xs text-neutral-gray mt-1 font-body">+{order.items.length - 3} more</p>
-          )}
-        </div>
-
-        {/* Notes */}
-        {order.contact.notes && !isCancelReq && (
-          <div className="flex items-center gap-1.5 text-text-gray text-xs mb-3 font-body">
-            <WarningCircleIcon className="w-4 h-4 shrink-0" />
-            <span className="truncate">{order.contact.notes}</span>
-          </div>
-        )}
-
-        {/* Time ago + action */}
-        <div className="mt-auto flex items-center gap-2">
-          <span className="text-xs text-neutral-gray font-body flex items-center gap-1">
-            <ClockIcon className="w-3 h-3" />
-            {formatTimeAgo(order.placedAt)}
-          </span>
-
-          {isCancelReq ? (
-            isAdmin ? (
-              <div className="flex-1 flex gap-1.5">
-                <button
-                  onClick={(e) => { e.stopPropagation(); onRejectCancel(); }}
-                  className="flex-1 h-10 rounded-xl font-semibold text-xs flex items-center justify-center gap-1 active:scale-[0.95] transition-all font-body bg-neutral-light hover:bg-neutral-gray/10 text-neutral-gray border border-neutral-gray/20"
-                >
-                  <XIcon className="w-3.5 h-3.5" weight="bold" />
-                  Reject
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onApproveCancel(); }}
-                  className="flex-1 h-10 rounded-xl font-semibold text-xs flex items-center justify-center gap-1 active:scale-[0.95] transition-all font-body bg-error hover:bg-error/80 text-white"
-                >
-                  <ProhibitIcon className="w-3.5 h-3.5" weight="bold" />
-                  Approve
-                </button>
-              </div>
-            ) : (
-              <span className="flex-1 text-xs text-orange-600 font-medium font-body text-center italic">
-                Awaiting admin approval
-              </span>
-            )
-          ) : actionConfig ? (
-            <button
-              onClick={(e) => { e.stopPropagation(); onAction(); }}
-              className={`flex-1 h-10 rounded-xl font-semibold text-sm flex items-center justify-center gap-1.5 active:scale-[0.95] transition-all font-body ${actionConfig.color}`}
-            >
-              <actionConfig.icon className="w-4 h-4" weight="bold" />
-              {actionConfig.label}
-            </button>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Order Detail Panel ───────────────────────────────────────────────────────
-
-interface OrderDetailPanelProps {
-  order: Order;
-  isAdmin: boolean;
-  onAction: () => void;
-  onApproveCancel: () => void;
-  onRejectCancel: () => void;
-  onClose: () => void;
-}
-
-function OrderDetailPanel({ order, isAdmin, onAction, onApproveCancel, onRejectCancel, onClose }: OrderDetailPanelProps) {
-  const statusCfg = STATUS_CONFIG[order.status];
-  const displayLabel = getDisplayLabel(order.status);
-  const TypeIcon = ORDER_TYPE_LABELS[order.fulfillmentType].icon;
-  const isCancelReq = order.status === 'cancel_requested';
-
-  const actionConfig: { label: string; icon: React.ElementType; color: string } | null =
-    isCancelReq ? null
-      : order.status === 'received'
-        ? { label: 'Accept Order', icon: CheckIcon, color: 'bg-teal-600 hover:bg-teal-700 text-white' }
-        : order.status === 'accepted'
-          ? { label: 'Start Cooking', icon: CheckIcon, color: 'bg-brown hover:bg-brown-light text-text-light' }
-          : order.status === 'preparing'
-            ? { label: 'Mark Ready', icon: CheckIcon, color: 'bg-secondary hover:bg-secondary-hover text-white' }
-            : order.status === 'ready'
-              ? { label: 'Complete', icon: CheckCircleIcon, color: 'bg-primary hover:bg-primary-hover text-white' }
-              : null;
-
-  return (
-    <div className="flex flex-col h-full">
-
-      {/* Header */}
-      <div className="shrink-0 px-4 py-4 border-b border-brown-light/20">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-2xl font-bold text-text-dark font-body">#{order.orderNumber}</span>
-          <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-body ${statusCfg.bg} ${statusCfg.dot.replace('bg-', 'text-')}`}>
-              {displayLabel}
-            </span>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-lg bg-neutral-light flex items-center justify-center text-neutral-gray active:scale-95 transition-transform"
-            >
-              <XIcon size={16} />
-            </button>
-          </div>
-        </div>
-        <div className="flex items-center gap-4 text-sm text-neutral-gray font-body flex-wrap">
-          {order.contact.name && <span className="text-text-dark font-medium">{order.contact.name}</span>}
-          <span className="flex items-center gap-1">
-            <TypeIcon className="w-4 h-4" />
-            {ORDER_TYPE_LABELS[order.fulfillmentType].label}
-          </span>
-          <span className="flex items-center gap-1">
-            <ClockIcon className="w-4 h-4" />
-            {formatTimeAgo(order.placedAt)}
-          </span>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-
-        {isCancelReq && (
-          <div className="mb-4 p-3 rounded-xl bg-orange-50 border border-orange-300">
-            <p className="text-orange-700 text-xs font-semibold font-body mb-1">Cancellation Reason</p>
-            <p className="text-orange-900 text-sm font-body">{order.cancelRequestReason ?? 'No reason provided'}</p>
-          </div>
-        )}
-
-        <h3 className="text-xs font-semibold text-neutral-gray mb-3 uppercase tracking-wide font-body">Items</h3>
-        <div className="space-y-2">
-          {order.items.map(item => (
-            <div key={item.id} className="flex items-start gap-3 p-3 rounded-xl bg-neutral-light">
-              <span className="w-8 h-8 rounded-lg bg-primary/15 text-primary font-bold flex items-center justify-center shrink-0 text-sm font-body">
-                {item.quantity}
-              </span>
-              <div>
-                <p className="text-text-dark font-medium font-body">{getOrderItemLineLabel(item)}</p>
-                {item.notes && <p className="text-sm text-warning mt-0.5 font-body">{item.notes}</p>}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {order.contact.notes && (
-          <div className="mt-4">
-            <h3 className="text-xs font-semibold text-neutral-gray mb-2 uppercase tracking-wide font-body">Notes</h3>
-            <div className="p-3 rounded-xl bg-warning/8 border border-warning/20">
-              <p className="text-warning text-sm font-body">{order.contact.notes}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Timestamps */}
-        <div className="mt-4 space-y-2 text-sm border-t border-brown-light/15 pt-4 font-body">
-          <div className="flex justify-between text-neutral-gray">
-            <span>Received</span>
-            <span className="font-medium text-text-dark">
-              {new Date(order.placedAt).toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          </div>
-          {order.startedAt && (
-            <div className="flex justify-between text-neutral-gray">
-              <span>Started Cooking</span>
-              <span className="font-medium text-text-dark">
-                {new Date(order.startedAt).toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-          )}
-          {order.readyAt && (
-            <div className="flex justify-between text-neutral-gray">
-              <span>Ready</span>
-              <span className="font-medium text-text-dark">
-                {new Date(order.readyAt).toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-          )}
-          {isCancelReq && order.cancelRequestedAt && (
-            <div className="flex justify-between text-orange-600">
-              <span>Cancel Requested</span>
-              <span className="font-medium">
-                {new Date(order.cancelRequestedAt).toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Action footer */}
-      <div className="shrink-0 p-4 border-t border-brown-light/20">
-        {isCancelReq ? (
-          isAdmin ? (
-            <div className="flex gap-2">
-              <button
-                onClick={onRejectCancel}
-                className="flex-1 h-14 rounded-2xl font-semibold text-base flex items-center justify-center gap-2 active:scale-[0.95] transition-all font-body bg-neutral-light hover:bg-neutral-gray/10 text-text-dark border border-brown-light/20"
-              >
-                <XIcon className="w-5 h-5" weight="bold" />
-                Reject
-              </button>
-              <button
-                onClick={onApproveCancel}
-                className="flex-1 h-14 rounded-2xl font-semibold text-base flex items-center justify-center gap-2 active:scale-[0.95] transition-all font-body bg-error hover:bg-error/80 text-white"
-              >
-                <ProhibitIcon className="w-5 h-5" weight="bold" />
-                Approve Cancel
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center gap-2 h-14 rounded-2xl bg-orange-50 border border-orange-200">
-              <WarningCircleIcon className="w-5 h-5 text-orange-500" weight="fill" />
-              <span className="text-orange-700 text-sm font-semibold font-body">Awaiting admin approval</span>
-            </div>
-          )
-        ) : actionConfig ? (
-          <button
-            onClick={onAction}
-            className={`w-full h-14 rounded-2xl font-semibold text-lg flex items-center justify-center gap-2 active:scale-[0.95] transition-all font-body ${actionConfig.color}`}
-          >
-            <actionConfig.icon className="w-6 h-6" weight="bold" />
-            {actionConfig.label}
-          </button>
-        ) : null}
-      </div>
     </div>
   );
 }

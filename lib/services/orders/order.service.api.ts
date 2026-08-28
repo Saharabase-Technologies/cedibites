@@ -33,9 +33,13 @@ export class ApiOrderService implements OrderService {
         if (pathname.startsWith('/kitchen')) {
           endpoint = '/kitchen/orders';
         }
-        // Order Manager uses employee-scoped endpoint (multi-branch aware on API)
+        // The Order Manager owns its own data through `useOrderBoard`, which
+        // asks only for live statuses and paces itself against the websocket.
+        // The store is mounted in the root layout, so without this its 8-second
+        // background poll ran on that screen too — a second, unfiltered fetch of
+        // the 200 most recent orders that nothing on the page ever read.
         else if (pathname.startsWith('/order-manager')) {
-          endpoint = '/employee/orders';
+          return [];
         }
         // Only the surfaces below need the order store. Inventory portal,
         // login screens, and customer routes must NOT trigger /employee/orders.
