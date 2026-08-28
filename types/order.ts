@@ -38,6 +38,11 @@ export interface OrderItem {
     sizeLabel?: string;         // display label: "Large", "350ml"
     variantKey?: string;        // lookup key: "plain", "large", "fried-rice"
     notes?: string;             // per-item kitchen notes
+    /**
+     * False when the line needs no cooking, so the kitchen can skip it on a
+     * mixed ticket. Defaults to true when the backend says nothing.
+     */
+    requiresPreparation?: boolean;
     category?: string;          // menu category for grouping
 }
 

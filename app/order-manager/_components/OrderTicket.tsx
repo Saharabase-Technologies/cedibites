@@ -171,21 +171,38 @@ function OrderTicketBase({
 
         {/* Items — the reason the screen exists */}
         <ul className="flex flex-col gap-1">
-          {visibleItems.map((item) => (
-            <li key={item.id} className="flex gap-2 font-body text-sm leading-snug">
-              <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded bg-neutral-light font-bold text-[11px] tabular-nums text-text-dark">
-                {item.quantity}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="text-text-dark">{getOrderItemLineLabel(item)}</span>
-                {item.notes && (
-                  <span className="mt-0.5 block text-[11px] font-medium text-[#8a4b2c]">
-                    {item.notes}
+          {visibleItems.map((item) => {
+            // A drink on an otherwise hot ticket. The line stays — it is part of
+            // the order and has to be handed over — but it is dimmed so the
+            // kitchen's eye goes to what actually needs a pan.
+            const noPrep = item.requiresPreparation === false;
+            return (
+              <li key={item.id} className="flex gap-2 font-body text-sm leading-snug">
+                <span
+                  className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded font-bold text-[11px] tabular-nums ${
+                    noPrep ? 'bg-neutral-light/60 text-neutral-gray' : 'bg-neutral-light text-text-dark'
+                  }`}
+                >
+                  {item.quantity}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={noPrep ? 'text-neutral-gray' : 'text-text-dark'}>
+                    {getOrderItemLineLabel(item)}
                   </span>
-                )}
-              </span>
-            </li>
-          ))}
+                  {noPrep && (
+                    <span className="ml-1.5 rounded bg-neutral-light px-1 py-0.5 align-[1px] text-[10px] font-semibold text-neutral-gray">
+                      no prep
+                    </span>
+                  )}
+                  {item.notes && (
+                    <span className="mt-0.5 block text-[11px] font-medium text-[#8a4b2c]">
+                      {item.notes}
+                    </span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
           {hiddenCount > 0 && (
             <li className="pl-7 font-body text-xs text-neutral-gray">+{hiddenCount} more</li>
           )}
@@ -291,7 +308,8 @@ function sameItems(a: Order['items'], b: Order['items']): boolean {
       x.quantity !== y.quantity ||
       x.name !== y.name ||
       x.sizeLabel !== y.sizeLabel ||
-      x.notes !== y.notes
+      x.notes !== y.notes ||
+      x.requiresPreparation !== y.requiresPreparation
     ) {
       return false;
     }

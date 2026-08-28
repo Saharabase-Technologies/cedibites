@@ -308,6 +308,8 @@ export interface OrderItem {
   id: number;
   order_id: number;
   menu_item_id: number;
+  /** False when this line needs no cooking — a bottled drink. */
+  requires_preparation?: boolean;
   /** Point-in-time menu fields from order_items.menu_item_snapshot */
   menu_item_snapshot?: { id?: number; name?: string; description?: string | null } | null;
   menu_item: MenuItem;
