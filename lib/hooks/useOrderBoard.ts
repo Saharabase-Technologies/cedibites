@@ -106,8 +106,13 @@ export interface OrderBoard {
   connection: ConnectionState;
   /** Ids with a write in flight — the card shows as busy and refuses taps. */
   pendingIds: Set<string>;
-  /** When each order entered its current stage, epoch ms. */
+  /**
+   * When each order entered its current stage, epoch ms — the best answer
+   * available, resolved in `stageSinceFor` below.
+   */
   stageEnteredAt: Record<string, number>;
+  /** The stage clock for one order. Always prefer this over reading a field. */
+  stageSinceFor: (order: Order) => number;
   /** Optimistically move an order. Resolves false if the write was rejected. */
   moveOrder: (orderId: string, to: OrderStatus) => Promise<boolean>;
   /** Drop an order off the board without a status write (cancel approval). */
@@ -403,6 +408,33 @@ export function useOrderBoard(branchId: string | null): OrderBoard {
     void fetchOrders();
   }, [fetchOrders]);
 
+  /**
+   * How long this order has been in the stage it is showing.
+   *
+   * Three sources, in this order, and the order matters:
+   *
+   *  1. **While a move of ours is in flight**, the local timestamp. The server
+   *     still describes the stage the ticket just left, so trusting it here
+   *     would show the new stage carrying the old stage's clock — briefly
+   *     reintroducing the exact bug this fixes.
+   *  2. **Otherwise the server's `stageChangedAt`**, from order_status_history.
+   *     It is the same on every screen and survives a reload, which the local
+   *     map cannot: that only ever knew about moves made in this browser, so a
+   *     refresh — or a ticket bumped on the kitchen tablet — left every stage
+   *     reading as the order's total age.
+   *  3. **Failing both, when it was placed.** Correct for a new order, and for
+   *     anything else it errs towards looking older rather than younger, which
+   *     is the safe direction for something driving an alarm.
+   */
+  const stageSinceFor = useCallback(
+    (order: Order): number => {
+      const local = active.stageEnteredAt[order.id];
+      if (active.pending[order.id] && local) return local;
+      return order.stageChangedAt ?? local ?? order.placedAt;
+    },
+    [active],
+  );
+
   const pendingIds = useMemo(() => new Set(Object.keys(active.pending)), [active.pending]);
 
   return {
@@ -411,6 +443,7 @@ export function useOrderBoard(branchId: string | null): OrderBoard {
     connection,
     pendingIds,
     stageEnteredAt: active.stageEnteredAt,
+    stageSinceFor,
     moveOrder,
     removeOrder,
     refresh,

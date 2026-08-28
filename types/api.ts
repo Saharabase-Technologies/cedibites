@@ -364,6 +364,8 @@ export interface Order {
   order_type: OrderType;
   order_source?: string;
   status: OrderStatus;
+  /** ISO time the order entered its CURRENT status, from order_status_history. */
+  stage_changed_at?: string | null;
   items: OrderItem[];
   payment?: Payment;
   payments?: Payment[];

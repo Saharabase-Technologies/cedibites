@@ -108,6 +108,9 @@ export function OrderDetailSheet({
           <span className="font-body text-xs tabular-nums text-neutral-gray">
             <Age since={stageSince} /> in {tone.label.toLowerCase()}
           </span>
+          <span className="font-body text-xs tabular-nums text-neutral-gray">
+            · <Age since={order.placedAt} /> since placed
+          </span>
         </div>
       </header>
 

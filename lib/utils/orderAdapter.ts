@@ -108,6 +108,9 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
       },
     },
     placedAt,
+    stageChangedAt: apiOrder.stage_changed_at
+      ? new Date(apiOrder.stage_changed_at).getTime()
+      : undefined,
     cancelRequestedBy: apiOrder.cancel_requested_by_user?.name
       ?? (apiOrder.cancel_requested_by ? `Staff #${apiOrder.cancel_requested_by}` : undefined),
     cancelRequestReason: apiOrder.cancel_request_reason ?? undefined,

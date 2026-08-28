@@ -81,7 +81,7 @@ export default function OrderManagerPage() {
 
   // ── Board ─────────────────────────────────────────────────────────────────
 
-  const { orders, isLoading, connection, pendingIds, stageEnteredAt, moveOrder, removeOrder, refresh } =
+  const { orders, isLoading, connection, pendingIds, stageSinceFor, moveOrder, removeOrder, refresh } =
     useOrderBoard(effectiveBranchId);
 
   // The old board held the whole selected order in state and re-synced it from
@@ -113,10 +113,6 @@ export default function OrderManagerPage() {
     return grouped;
   }, [orders]);
 
-  const stageSinceFor = useCallback(
-    (order: Order) => stageEnteredAt[order.id] ?? order.placedAt,
-    [stageEnteredAt],
-  );
 
   // ── Alerts ────────────────────────────────────────────────────────────────
 
@@ -153,11 +149,11 @@ export default function OrderManagerPage() {
   const effectiveSoundEnabled = canSilence ? soundEnabled : true;
 
   /**
-   * Every live order, with the clock that its stage is judged against.
+   * Every live order, with the clock its stage is judged against.
    *
-   * `stageEnteredAt` only knows about moves this device made, so anything it
-   * has not seen falls back to `placedAt`. That errs towards raising the alarm
-   * early rather than late, which is the right way round for a safeguard.
+   * `stageSinceFor` resolves that from the server's status history, so the
+   * alarm is judged on time in the current stage rather than the order's total
+   * age — a ticket does not arrive in Cooking already fifteen minutes late.
    */
   const alertOrders = useMemo(
     () =>
@@ -165,10 +161,10 @@ export default function OrderManagerPage() {
         id: order.id,
         label: order.orderNumber,
         stage: order.status,
-        since: stageEnteredAt[order.id] ?? order.placedAt,
+        since: stageSinceFor(order),
         awaitingAccept: order.status === 'received',
       })),
-    [orders, stageEnteredAt],
+    [orders, stageSinceFor],
   );
 
   const alerts = useOrderAlerts({

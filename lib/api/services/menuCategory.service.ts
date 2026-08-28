@@ -7,6 +7,8 @@ export interface MenuCategory {
   slug: string;
   display_order: number;
   is_active: boolean;
+  /** False when nothing in this category needs cooking (drinks, packaged items). */
+  requires_preparation?: boolean;
   items_count?: number;
   created_at: string;
   updated_at: string;
@@ -18,6 +20,7 @@ export interface CreateMenuCategoryData {
   slug: string;
   display_order?: number;
   is_active?: boolean;
+  requires_preparation?: boolean;
 }
 
 export interface UpdateMenuCategoryData extends Partial<CreateMenuCategoryData> {}

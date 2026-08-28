@@ -36,19 +36,55 @@ const ITEM_PREVIEW_LIMIT = 5;
 // ─── Age ─────────────────────────────────────────────────────────────────────
 
 /**
- * Isolated so the clock's once-a-second tick re-renders this span and nothing
- * else. The ticket around it is memoised and stays put.
+ * Two clocks, because they answer different questions.
+ *
+ * Isolated so the shared clock's once-a-second tick re-renders this span and
+ * nothing else — the ticket around it is memoised and stays put.
+ *
+ * The large one is time in the current stage — how long this has been cooking —
+ * and it is what the SLA and the alarm are judged on. The small one is the
+ * order's total age, which is what the customer is experiencing.
+ *
+ * They used to be the same number, and that was wrong: a ticket accepted twelve
+ * minutes ago and then moved to cooking still read "cooking for 12 minutes"
+ * because nothing reset the clock on a stage change.
+ *
+ * The total is only shown once the order has actually moved. On a new ticket
+ * the two are identical, and printing the same figure twice is noise.
  */
-function TicketAge({ since, stage }: { since: number; stage: BoardStage }) {
+function TicketAge({
+  since,
+  placedAt,
+  stage,
+}: {
+  since: number;
+  placedAt: number;
+  stage: BoardStage;
+}) {
   const now = useBoardClock();
   // Before hydration the shared clock reports 0; render the ticket's own
   // baseline rather than a nonsense age.
   const elapsedS = now === 0 ? 0 : Math.max(0, (now - since) / 1000);
+  const totalS = now === 0 ? 0 : Math.max(0, (now - placedAt) / 1000);
   const urgency = urgencyFor(stage, elapsedS);
 
+  // A couple of seconds of slack: the stage clock and the placed time are
+  // written by different statements and are never byte-identical.
+  const hasMoved = totalS - elapsedS > 2;
+
   return (
-    <span className={`font-body tabular-nums text-sm ${URGENCY_TEXT[urgency]}`}>
-      {formatElapsed(elapsedS)}
+    <span className="flex flex-col items-end leading-tight">
+      <span className={`font-body tabular-nums text-sm ${URGENCY_TEXT[urgency]}`}>
+        {formatElapsed(elapsedS)}
+      </span>
+      {hasMoved && (
+        <span
+          className="font-body tabular-nums text-[10px] text-neutral-gray"
+          title="Total time since the order was placed"
+        >
+          {formatElapsed(totalS)} total
+        </span>
+      )}
     </span>
   );
 }
@@ -153,7 +189,7 @@ function OrderTicketBase({
           </div>
 
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <TicketAge since={stageSince} stage={stage} />
+            <TicketAge since={stageSince} placedAt={order.placedAt} stage={stage} />
             <span className="flex items-center gap-1 font-body text-[11px] text-neutral-gray">
               <FulfilmentIcon className="h-3.5 w-3.5" />
               {fulfilment.label}

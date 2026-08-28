@@ -119,6 +119,21 @@ export default function AdminMenuConfigurePage() {
         });
     }
 
+    /**
+     * Whether anything in this category has to be cooked.
+     *
+     * Off means an order made up entirely of these items never reaches the
+     * kitchen board — at the till it completes on the spot, ordered online it
+     * goes straight to Ready for someone to hand over. A mixed order still
+     * goes to the kitchen in full; the drink is just dimmed on the ticket.
+     */
+    async function togglePrep(cat: MenuCategory) {
+        await updateMutation.mutateAsync({
+            id: cat.id,
+            data: { requires_preparation: cat.requires_preparation === false },
+        });
+    }
+
     async function moveCategory(cat: MenuCategory, dir: -1 | 1) {
         const idx = sorted.findIndex(c => c.id === cat.id);
         const swapIdx = idx + dir;
@@ -189,11 +204,12 @@ export default function AdminMenuConfigurePage() {
                     {/* Category table */}
                     <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden">
                         {/* Table header */}
-                        <div className="grid grid-cols-[40px_1fr_80px_80px_100px] gap-3 px-5 py-3 border-b border-[#f0e8d8] text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">
+                        <div className="grid grid-cols-[40px_1fr_70px_70px_110px_100px] gap-3 px-5 py-3 border-b border-[#f0e8d8] text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">
                             <span>Order</span>
                             <span>Name</span>
                             <span className="text-center">Items</span>
                             <span className="text-center">Active</span>
+                            <span className="text-center">Needs cooking</span>
                             <span className="text-right">Actions</span>
                         </div>
 
@@ -206,7 +222,7 @@ export default function AdminMenuConfigurePage() {
                         {sorted.map((cat, i) => (
                             <div
                                 key={cat.id}
-                                className={`grid grid-cols-[40px_1fr_80px_80px_100px] gap-3 px-5 py-3.5 items-center ${
+                                className={`grid grid-cols-[40px_1fr_70px_70px_110px_100px] gap-3 px-5 py-3.5 items-center ${
                                     i < sorted.length - 1 ? 'border-b border-[#f0e8d8]' : ''
                                 }`}
                             >
@@ -266,6 +282,26 @@ export default function AdminMenuConfigurePage() {
                                     </button>
                                 </div>
 
+                                {/* Needs-cooking toggle */}
+                                <div className="flex justify-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => togglePrep(cat)}
+                                        className="cursor-pointer"
+                                        title={
+                                            cat.requires_preparation === false
+                                                ? 'Nothing here is cooked — these orders skip the kitchen board'
+                                                : 'Items here are cooked and go to the kitchen board'
+                                        }
+                                    >
+                                        {cat.requires_preparation === false ? (
+                                            <ToggleLeftIcon size={24} weight="fill" className="text-neutral-gray/30" />
+                                        ) : (
+                                            <ToggleRightIcon size={24} weight="fill" className="text-secondary" />
+                                        )}
+                                    </button>
+                                </div>
+
                                 {/* Actions */}
                                 <div className="flex items-center justify-end gap-1">
                                     <button type="button" onClick={() => startEdit(cat)}
@@ -284,7 +320,7 @@ export default function AdminMenuConfigurePage() {
 
                         {/* Add row */}
                         {adding && (
-                            <div className="grid grid-cols-[40px_1fr_80px_80px_100px] gap-3 px-5 py-3.5 items-center border-t border-[#f0e8d8] bg-primary/5">
+                            <div className="grid grid-cols-[40px_1fr_70px_70px_110px_100px] gap-3 px-5 py-3.5 items-center border-t border-[#f0e8d8] bg-primary/5">
                                 <span />
                                 <div className="flex items-center gap-2">
                                     <input
@@ -305,6 +341,10 @@ export default function AdminMenuConfigurePage() {
                                         <XIcon size={14} weight="bold" />
                                     </button>
                                 </div>
+                                {/* Four spacers: items, active, needs-cooking, actions.
+                                    A new category starts as cooked and active; both
+                                    are toggled on the row once it exists. */}
+                                <span />
                                 <span />
                                 <span />
                                 <span />
@@ -314,7 +354,7 @@ export default function AdminMenuConfigurePage() {
 
                     {/* Data safety note */}
                     <p className="text-neutral-gray/60 text-xs font-body mt-4 leading-relaxed">
-                        Renaming a category only changes its label, and items stay attached to it. You can delete a category once it holds no items.
+                        Renaming a category only changes its label, and items stay attached to it. You can delete a category once it holds no items. Turn off “Needs cooking” for things like bottled drinks: an order made up entirely of those never reaches the kitchen board — at the till it completes straight away, and online it goes to Ready to be handed over.
                         Historical order data is never affected by menu changes.
                     </p>
                 </>

@@ -119,6 +119,12 @@ export interface Order {
 
     // Timestamps (all Unix ms)
     placedAt: number;
+    /**
+     * When the order entered its current status, epoch ms. Server-authoritative
+     * (order_status_history), so it survives a reload and agrees across screens.
+     * Undefined when the API did not send it; callers fall back to `placedAt`.
+     */
+    stageChangedAt?: number;
     acceptedAt?: number;            // kitchen accepted
     startedAt?: number;             // kitchen started preparing
     readyAt?: number;               // kitchen marked ready
