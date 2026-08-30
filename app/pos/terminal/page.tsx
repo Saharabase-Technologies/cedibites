@@ -71,6 +71,8 @@ import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 import PendingPaymentsDrawer from './PendingPaymentsDrawer';
+import { useOnlineOrderArrivals } from '../hooks/useOnlineOrderArrivals';
+import { isRemoteSource } from '@/lib/constants/order.constants';
 import { usePosCheckoutSessions } from '@/lib/api/hooks/useCheckoutSession';
 
 interface ItemOption {
@@ -256,6 +258,15 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     session?.branchId ? { branch_id: Number(session.branchId), status: 'pending,payment_initiated' } : undefined
   );
   const pendingCount = pendingSessionsData?.data?.length ?? 0;
+
+  // Orders the till did not take and nobody has accepted. Silent and without a
+  // socket of its own — the shell's arrival banner owns the announcement, and a
+  // second copy of either would double every chime. Skipped when embedded in
+  // the portal, which hides the Orders link this badge sits on.
+  const { awaitingCount: remoteWaiting } = useOnlineOrderArrivals(
+    embedded ? null : session?.branchId ?? null,
+    { sound: false, subscribe: false },
+  );
 
   // Redirect if no session (but not if we just need branch selection)
   useEffect(() => {
@@ -483,7 +494,14 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   // Today's stats
   const todayStats = useMemo(() => {
     const completed = todayOrders.filter(o => o.paymentStatus === 'completed');
-    const activeCount = todayOrders.filter(o => o.status === 'received' || o.status === 'preparing').length;
+    // Unclaimed orders from another channel are counted by `remoteWaiting`
+    // instead, and the badge adds the two. Excluded here so they are not
+    // counted twice — which they would be for a company-wide operator, whose
+    // `todayOrders` is not narrowed to one person.
+    const activeCount = todayOrders.filter(o =>
+      (o.status === 'received' || o.status === 'preparing')
+      && !(isRemoteSource(o.source) && !o.staffId)
+    ).length;
     return {
       orderCount: completed.length,
       revenue: completed.reduce((sum, o) => sum + o.total, 0),
@@ -780,12 +798,18 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
             <Link
               href="/pos/orders"
               className="relative w-10 h-10 rounded-xl bg-neutral-gray/10 flex items-center justify-center text-neutral-gray hover:text-primary hover:bg-primary/10 transition-colors"
-              title="Today's Orders"
+              title={remoteWaiting > 0 ? `Today's Orders — ${remoteWaiting} waiting from online` : "Today's Orders"}
             >
               <ClipboardTextIcon className="w-5 h-5" />
-              {todayStats.activeCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-0.5 rounded-full bg-primary text-brown text-[10px] font-bold flex items-center justify-center">
-                  {todayStats.activeCount}
+              {/* Own live orders plus anything that arrived from elsewhere and
+                  is still unclaimed. The colour is the difference that matters:
+                  an online order nobody has accepted is the only one of these
+                  with no person already attached to it. */}
+              {todayStats.activeCount + remoteWaiting > 0 && (
+                <span className={`absolute -top-1 -right-1 min-w-4 h-4 px-0.5 rounded-full text-[10px] font-bold flex items-center justify-center ${
+                  remoteWaiting > 0 ? 'bg-error text-white' : 'bg-primary text-brown'
+                }`}>
+                  {todayStats.activeCount + remoteWaiting}
                 </span>
               )}
             </Link>

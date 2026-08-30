@@ -82,6 +82,17 @@ export const orderService = {
   },
 
   /**
+   * Move an order's status as an employee.
+   *
+   * The same endpoint the Order Manager board writes through, and the reason
+   * accepting from the till attributes the order to the cashier: the API
+   * stamps `assigned_employee_id` from the caller when the order has none.
+   */
+  updateEmployeeOrderStatus: (id: number, status: string): Promise<{ data: Order }> => {
+    return apiClient.patch(`/employee/orders/${id}/status`, { status });
+  },
+
+  /**
    * Append an internal note to an order (admin only).
    */
   addInternalNote: (id: number, note: string): Promise<{ data: Order }> => {

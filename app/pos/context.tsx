@@ -267,7 +267,7 @@ export function POSProvider({ children }: POSProviderProps) {
   }, []);
 
   /**
-   * Today's till orders at this branch.
+   * Today's orders at this branch that belong to this person.
    *
    * Scoped to the person for a cashier, because that is their own take and what
    * they reconcile at the end of a shift. Not scoped for anyone company-wide:
@@ -275,13 +275,19 @@ export function POSProvider({ children }: POSProviderProps) {
    * themselves, which is nearly always none — three paid orders would be on the
    * counter and the screen would read zero, because Rosina rang them up and the
    * admin did not.
+   *
+   * Ownership, not channel. This used to also require `source === 'pos'`, which
+   * meant a call-centre agent's own orders never counted towards their figures
+   * and an online order a cashier accepted credited nobody. An order belongs to
+   * whoever is named on it: the person who rang it up, took the call, or
+   * accepted it. See OrderManagementService::updateOrderStatus, which stamps
+   * that name on accept.
    */
   const todayOrders = useMemo(() => {
     if (!session) return [];
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     return allOrders.filter(o =>
-      o.source === 'pos' &&
       o.branch.id === session.branchId &&
       o.placedAt >= startOfDay.getTime() &&
       (isCompanyWide || o.staffId === session.staffId)

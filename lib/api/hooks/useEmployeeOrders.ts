@@ -33,6 +33,16 @@ export const useEmployeePendingOrders = (perPage?: number) => {
   return { orders, meta, links, isLoading, error, refetch };
 };
 
+/**
+ * `undefined` params means "not ready to ask yet", not "ask for everything".
+ *
+ * Both hooks below used to fire regardless, so a screen that had not resolved
+ * its branch or its staff member yet sent an unfiltered `/employee/orders` and
+ * got back every order the caller is allowed to see — the whole branch, or for
+ * a company-wide role every branch — which then rendered for one frame as if it
+ * were the filtered answer. Every caller in the codebase passes an object when
+ * it has one, so gating on presence costs nothing and removes the wrong answer.
+ */
 export const useEmployeeOrders = (params?: EmployeeOrdersParams) => {
   const {
     data: response,
@@ -43,7 +53,10 @@ export const useEmployeeOrders = (params?: EmployeeOrdersParams) => {
   } = useQuery({
     queryKey: ['employee-orders', params],
     queryFn: () => orderService.getEmployeeOrders(params),
-    enabled: typeof window !== 'undefined' && !!localStorage.getItem('cedibites_staff_token'),
+    enabled:
+      typeof window !== 'undefined'
+      && !!localStorage.getItem('cedibites_staff_token')
+      && params !== undefined,
     refetchInterval: 15_000,
     placeholderData: keepPreviousData,
   });
@@ -79,7 +92,10 @@ export const useEmployeeOrdersPeriodSummary = (params?: EmployeeOrdersParams) =>
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['employee-orders-summary', summaryParams],
     queryFn: () => orderService.getEmployeeOrdersPeriodSummary(summaryParams),
-    enabled: typeof window !== 'undefined' && !!localStorage.getItem('cedibites_staff_token'),
+    enabled:
+      typeof window !== 'undefined'
+      && !!localStorage.getItem('cedibites_staff_token')
+      && summaryParams !== undefined,
     staleTime: 30 * 1000,
     refetchInterval: 30_000,
     placeholderData: keepPreviousData,

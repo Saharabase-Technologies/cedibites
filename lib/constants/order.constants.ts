@@ -69,6 +69,28 @@ export const SOURCE_LABEL: Record<OrderSource, string> = Object.fromEntries(
     Object.entries(SOURCE_CONFIG).map(([k, v]) => [k, v.label])
 ) as Record<OrderSource, string>;
 
+/**
+ * Every channel an order can arrive through that is not somebody standing at a
+ * till, and the two that are.
+ *
+ * `instagram` and `facebook` predate `social_media` and are still valid values
+ * on historical rows — the check constraint keeps all three — so a query that
+ * lists only the current set silently drops orders that did happen. They are
+ * not in `OrderSource` because nothing writes them any more, which is why these
+ * are plain strings: they exist to be sent to the API, not rendered.
+ */
+export const REMOTE_ORDER_SOURCES: readonly string[] = [
+    'online', 'phone', 'whatsapp', 'social_media', 'instagram', 'facebook',
+];
+
+/** Orders rung up at the counter, by a person, on this POS. */
+export const TILL_ORDER_SOURCES: readonly string[] = ['pos', 'manual_entry'];
+
+/** True for anything that arrived without a cashier keying it in. */
+export function isRemoteSource(source: string | null | undefined): boolean {
+    return !!source && !TILL_ORDER_SOURCES.includes(source);
+}
+
 // ─── Payment labels ─────────────────────────────────────────────────────────
 
 export const PAYMENT_LABELS: Record<PaymentMethod, { short: string; full: string }> = {

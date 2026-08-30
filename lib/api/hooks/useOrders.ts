@@ -152,6 +152,27 @@ export const useCancelOrder = () => {
   };
 };
 
+export const useUpdateEmployeeOrderStatus = () => {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) =>
+      orderService.updateEmployeeOrderStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['order'] });
+      queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['employee-orders-summary'] });
+    },
+  });
+
+  return {
+    updateStatus: mutation.mutateAsync,
+    isLoading: mutation.isPending,
+    error: mutation.error,
+  };
+};
+
 export const useRequestCancel = () => {
   const queryClient = useQueryClient();
 
