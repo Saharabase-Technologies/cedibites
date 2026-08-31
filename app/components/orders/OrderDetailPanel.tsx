@@ -2,13 +2,14 @@
 
 import type { ReactNode } from 'react';
 import {
+  CheckIcon,
   MapPinIcon,
   PhoneIcon,
   XIcon,
 } from '@phosphor-icons/react';
 
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
-import type { AdminOrder, OrderSource } from '@/lib/api/adapters/order.adapter';
+import type { AdminOrder } from '@/lib/api/adapters/order.adapter';
 
 /**
  * One order, in full.
@@ -29,31 +30,22 @@ import type { AdminOrder, OrderSource } from '@/lib/api/adapters/order.adapter';
 // ─── Who placed it ───────────────────────────────────────────────────────────
 
 /**
- * How this order came to exist, in words.
+ * Who placed this order.
  *
  * "Source" alone answers the wrong half of the question for a call-centre
  * order: `Phone` says the channel but not the person, and on those orders there
  * *is* a person — an agent typed it in and is answerable for what it says.
  *
- * The distinction that matters is placed-by versus handled-by. An order from
- * the website was placed by the customer and may later be accepted by a
+ * The one distinction worth drawing is placed-by versus handled-by. An order
+ * from the website was placed by the customer and may later be accepted by a
  * cashier, so naming that cashier here would be a lie about who chose the food.
- * Only channels a member of staff keys in get a name.
+ * Everything else names whoever is on the order.
  */
-export function placedByLine(order: AdminOrder): string | null {
-  const staffEntered: OrderSource[] = ['Phone', 'WhatsApp', 'Instagram', 'Facebook'];
-
+export function placedByLine(order: AdminOrder): string {
   if (order.source === 'Online') return 'Placed by the customer';
-  if (order.source === 'POS') {
-    return order.assignedEmployee ? `Rung up by ${order.assignedEmployee}` : 'Rung up at the till';
-  }
-  if (order.source === 'Past Order') {
-    return order.assignedEmployee ? `Recorded by ${order.assignedEmployee}` : 'Recorded after the fact';
-  }
-  if (staffEntered.includes(order.source)) {
-    return order.assignedEmployee ? `Taken by ${order.assignedEmployee}` : 'Taken by the call centre';
-  }
-  return null;
+  if (order.assignedEmployee) return `Placed by ${order.assignedEmployee}`;
+  if (order.source === 'POS') return 'Placed at the till';
+  return 'Placed by the call centre';
 }
 
 // ─── Pieces ──────────────────────────────────────────────────────────────────
@@ -179,9 +171,7 @@ export default function OrderDetailPanel({
               <p className="text-text-dark text-base font-semibold font-body">{order.source}</p>
               {/* The channel says how; this says who. On a call-centre order
                   there is a person answerable for what was typed in. */}
-              {placedBy && (
-                <p className="text-neutral-gray text-xs font-body mt-1 leading-snug">{placedBy}</p>
-              )}
+              <p className="text-neutral-gray text-sm font-body mt-1 leading-snug">{placedBy}</p>
             </Card>
           </div>
 
@@ -216,9 +206,6 @@ export default function OrderDetailPanel({
               <Card className="p-4">
                 <p className="text-text-dark text-base font-semibold font-body">
                   {order.assignedEmployee}
-                </p>
-                <p className="text-neutral-gray text-xs font-body mt-0.5">
-                  Answerable for this order and credited with its revenue
                 </p>
               </Card>
             </div>
@@ -311,12 +298,17 @@ export default function OrderDetailPanel({
                   return (
                     <div key={i} className="flex items-start gap-3">
                       <div className="flex flex-col items-center self-stretch">
+                        {/* Every row here is a stage the order has already been
+                            through, so every one is ticked. The last is filled
+                            rather than outlined: that is where it stands now. */}
                         <div
-                          className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${
-                            isLast ? 'bg-primary' : 'bg-[#d9cdb5]'
+                          className={`w-5 h-5 rounded-full mt-0.5 shrink-0 flex items-center justify-center ${
+                            isLast ? 'bg-primary text-white' : 'bg-primary/15 text-primary'
                           }`}
-                        />
-                        {!isLast && <div className="w-0.5 flex-1 min-h-6 bg-[#f0e8d8]" />}
+                        >
+                          <CheckIcon size={11} weight="bold" />
+                        </div>
+                        {!isLast && <div className="w-0.5 flex-1 min-h-5 bg-primary/20" />}
                       </div>
                       <div className="pb-4 min-w-0">
                         <p className="text-text-dark text-sm font-semibold font-body capitalize">
