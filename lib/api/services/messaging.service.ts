@@ -25,6 +25,19 @@ export interface SendMessagePayload {
     quick_replies?: string[];
     sms_fallback_after_minutes?: number | null;
     expires_at?: string | null;
+
+    /**
+     * A stable name for a release, so the same announcement cannot go out
+     * twice. Rejected as a duplicate by the API rather than silently accepted.
+     */
+    release_key?: string | null;
+
+    /** Slides. Only a release may carry them; the API refuses them elsewhere. */
+    steps?: Array<{
+        title?: string | null;
+        body: string;
+        image_path?: string | null;
+    }>;
 }
 
 /**

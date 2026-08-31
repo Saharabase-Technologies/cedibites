@@ -15,6 +15,7 @@ import { messagingAdminService } from '@/lib/api/services/messaging.service';
 import { useBranches } from '@/lib/api/hooks/useBranches';
 import type { StaffAudience, StaffMessageKind } from '@/types/messaging';
 import { PersonPicker } from './PersonPicker';
+import { SlideEditor, emptySlide, type Slide } from './SlideEditor';
 
 // Riders and kitchen staff are here as well as the obvious desk roles — the
 // people hardest to reach by any other means are exactly the ones this is for.
@@ -31,6 +32,7 @@ const ROLES = [
 const KINDS: { value: StaffMessageKind; label: string; hint: string }[] = [
     { value: 'notice', label: 'Notice', hint: 'Sits in the bell. Never interrupts.' },
     { value: 'caution', label: 'Caution', hint: 'Takes over the screen once the till is idle.' },
+    { value: 'release', label: "What's new", hint: 'A walkthrough of changes. Keeps asking until each person has been through it.' },
     { value: 'direct', label: 'Direct', hint: 'A conversation with named people.' },
 ];
 
@@ -57,6 +59,8 @@ export function ComposeDialog({
     const [allowCustomReply, setAllowCustomReply] = useState(true);
     const [quickReplies, setQuickReplies] = useState('Got it, Understood');
     const [smsAfter, setSmsAfter] = useState('');
+    const [releaseKey, setReleaseKey] = useState('');
+    const [slides, setSlides] = useState<Slide[]>([emptySlide([])]);
     const [imagePath, setImagePath] = useState<string | null>(null);
     const [imageUrl, setImageUrl] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
@@ -93,12 +97,20 @@ export function ComposeDialog({
     // caution must be acknowledged or it cannot be cleared from the recipient's
     // screen, and a notice sits in the bell where there is nothing to
     // acknowledge with. Only a direct message leaves it open.
+    // A release is the same case as a caution: it cannot leave somebody's
+    // screen until they have been through it, so acknowledgement is the
+    // mechanism, not a preference.
     const effectiveRequiresAck =
-        kind === 'caution' ? true : kind === 'notice' ? false : requiresAck;
+        kind === 'caution' || kind === 'release' ? true : kind === 'notice' ? false : requiresAck;
+
+    const isRelease = kind === 'release';
+    const filledSlides = slides.filter((slide) => slide.body.trim());
 
     function reset() {
         setSubject('');
         setBody('');
+        setReleaseKey('');
+        setSlides([emptySlide([])]);
         setUserIds([]);
         setPersonQuery('');
         setImagePath(null);
@@ -114,8 +126,20 @@ export function ComposeDialog({
             const response = await messagingAdminService.send({
                 kind,
                 subject: subject.trim() || null,
-                body: body.trim(),
-                image_path: imagePath,
+                // A release still carries a body: it is what the bell shows and
+                // what an older client falls back to rendering.
+                body: isRelease ? (body.trim() || filledSlides[0]?.body.trim() || '') : body.trim(),
+                image_path: isRelease ? null : imagePath,
+                ...(isRelease
+                    ? {
+                        release_key: releaseKey.trim() || null,
+                        steps: filledSlides.map((slide) => ({
+                            title: slide.title.trim() || null,
+                            body: slide.body.trim(),
+                            image_path: slide.imagePath,
+                        })),
+                    }
+                    : {}),
                 audience,
                 requires_acknowledgement: effectiveRequiresAck,
                 allow_custom_reply: allowCustomReply,
@@ -164,6 +188,45 @@ export function ComposeDialog({
                     />
                 </FormField>
 
+                {isRelease ? (
+                    <>
+                        <FormField
+                            label="Release name"
+                            hint="A stable name for this release, so it can never be sent twice. e.g. orders-and-till-2026-08"
+                        >
+                            <TextInput
+                                value={releaseKey}
+                                onChange={(event) => setReleaseKey(event.target.value)}
+                                placeholder="orders-and-till-2026-08"
+                            />
+                        </FormField>
+
+                        <FormField
+                            label="Slides"
+                            required
+                            hint="One change per slide. **bold**, *italic*, `code`, [link](https://…), and - or 1. for lists."
+                        >
+                            <SlideEditor
+                                slides={slides}
+                                onChange={setSlides}
+                                uploading={uploading}
+                                onUpload={async (file: File) => {
+                                    setUploading(true);
+                                    setError(null);
+                                    try {
+                                        const response = await messagingAdminService.uploadImage(file);
+                                        return { path: response.data.path, url: response.data.url };
+                                    } catch {
+                                        setError('That image could not be uploaded.');
+                                        return null;
+                                    } finally {
+                                        setUploading(false);
+                                    }
+                                }}
+                            />
+                        </FormField>
+                    </>
+                ) : (
                 <FormField
                     label="Message"
                     required
@@ -176,7 +239,9 @@ export function ComposeDialog({
                         placeholder="What do you want them to know?"
                     />
                 </FormField>
+                )}
 
+                {!isRelease && (
                 <FormField label="Image" hint="Optional. JPG, PNG or WebP, up to 5MB.">
                     {imageUrl ? (
                         <div className="relative inline-block">
@@ -230,6 +295,7 @@ export function ComposeDialog({
                         </label>
                     )}
                 </FormField>
+                )}
 
                 <FormField label="Who gets it" required>
                     <div className="rounded-xl border border-[#e3ddd0] bg-neutral-light/60 divide-y divide-[#f0e8d8] overflow-hidden">

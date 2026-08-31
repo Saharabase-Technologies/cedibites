@@ -28,6 +28,7 @@ import { StaffAuthProvider, useStaffAuth, type StaffRole } from '@/app/component
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import { InterruptionGateProvider } from '@/app/components/providers/InterruptionGate';
 import { CautionInterstitial } from '@/app/components/messaging/CautionInterstitial';
+import { ReleaseWalkthrough } from '@/app/components/messaging/ReleaseWalkthrough';
 import { StaffMessageBell } from '@/app/components/messaging/StaffMessageBell';
 import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
 
@@ -421,6 +422,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
             <InterruptionGateProvider>
                 <StaffLayoutShell>{children}</StaffLayoutShell>
                 <CautionInterstitial />
+                <ReleaseWalkthrough />
             </InterruptionGateProvider>
         </StaffAuthProvider>
     );

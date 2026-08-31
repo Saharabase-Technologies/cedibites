@@ -4,7 +4,7 @@
  */
 
 /** What a message is, which decides how hard it is allowed to push. */
-export type StaffMessageKind = 'notice' | 'caution' | 'direct' | 'staff_query';
+export type StaffMessageKind = 'notice' | 'caution' | 'release' | 'direct' | 'staff_query';
 
 /** Who a rule messages when it fires. Composable. */
 export type StaffMessageTargetType =
@@ -45,7 +45,7 @@ export interface InboxMessage {
     message_id: number;
     kind: StaffMessageKind;
     kind_label: string;
-    /** True only for a caution — the one kind allowed to take over the screen. */
+    /** True for the kinds allowed to take over the screen: cautions and releases. */
     interrupts: boolean;
     subject: string | null;
     body: string;
@@ -71,7 +71,23 @@ export interface InboxMessage {
     reply_body: string | null;
     replied_at: string | null;
 
+    /**
+     * Slides, for a release. `null` on every other kind, so "not a walkthrough"
+     * is distinguishable from "a walkthrough with nothing in it".
+     */
+    steps: ReleaseStep[] | null;
+
     thread?: ThreadReply[];
+}
+
+/** One slide of a release walkthrough. */
+export interface ReleaseStep {
+    id: number;
+    position: number;
+    title: string | null;
+    /** Markdown subset — see lib/utils/messageMarkdown.tsx. */
+    body: string;
+    image_url: string | null;
 }
 
 export interface ThreadReply {

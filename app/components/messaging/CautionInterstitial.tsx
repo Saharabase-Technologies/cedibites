@@ -34,7 +34,12 @@ export function CautionInterstitial() {
     const { summary, acknowledge, reply, isAcknowledging, isReplying } = useStaffInbox(userId);
     const { isIdle } = useInterruptionGate();
 
-    const pending = summary.pending[0] ?? null;
+    // The pending set now carries every kind that takes over the screen, so
+    // this has to say which it wants. A caution and a release are both
+    // interruptions but they are not interchangeable: one is about the person's
+    // own work and the other is news, and rendering a release in this chrome
+    // would put a warning icon above "What's new".
+    const pending = summary.pending.find((message) => message.kind === 'caution') ?? null;
 
     if (!staffAuth?.staffUser || !pending || !isIdle) return null;
 
@@ -45,7 +50,7 @@ export function CautionInterstitial() {
         <CautionCard
             key={pending.id}
             pending={pending}
-            remaining={summary.pending.length - 1}
+            remaining={summary.pending.filter((m) => m.kind === 'caution').length - 1}
             busy={isAcknowledging || isReplying}
             onConfirm={async ({ quickReply, body }) => {
                 // Reply first, acknowledge second. Acknowledging removes it from
