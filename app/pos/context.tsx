@@ -16,6 +16,7 @@ import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { roleNeedsBranch } from '@/types/staff';
 import { useOperableBranches } from '@/lib/hooks/useOperableBranches';
+import { useOrderStream } from '@/lib/hooks/useOrderStream';
 import { getShiftService } from '@/lib/services/shifts/shift.service';
 import { checkoutSessionService } from '@/lib/api/services/checkout-session.service';
 import { normalizeGhanaPhone } from '@/app/lib/phone';
@@ -159,6 +160,7 @@ export function POSProvider({ children }: POSProviderProps) {
     addLocalOrder,
     createOrder,
     updateOrderStatus: storeUpdateStatus,
+    refresh: refreshOrders,
   } = useOrderStore();
 
   // Build session from live auth context (always fresh from API)
@@ -265,6 +267,22 @@ export function POSProvider({ children }: POSProviderProps) {
     localStorage.setItem(POS_BRANCH_KEY, branchId);
     setSession(prev => prev ? { ...prev, branchId } : null);
   }, []);
+
+  /**
+   * Keep the till's own figures live.
+   *
+   * The order store polls, and until now that poll was the only thing that
+   * moved these numbers — so an order taken on the other till, or accepted on
+   * the board, sat invisible here for up to eight seconds and the Orders badge
+   * lagged behind the kitchen. Reverb is the branch's own feed; a frame on it
+   * means something this screen is showing has changed.
+   */
+  useOrderStream(
+    session?.branchId ?? null,
+    useCallback(() => {
+      void refreshOrders();
+    }, [refreshOrders]),
+  );
 
   /**
    * Today's orders at this branch that belong to this person.

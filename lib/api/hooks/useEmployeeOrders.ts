@@ -43,7 +43,15 @@ export const useEmployeePendingOrders = (perPage?: number) => {
  * were the filtered answer. Every caller in the codebase passes an object when
  * it has one, so gating on presence costs nothing and removes the wrong answer.
  */
-export const useEmployeeOrders = (params?: EmployeeOrdersParams) => {
+/**
+ * @param refetchMs How often to re-ask when nothing has told us to. This is a
+ *                  safety net, not the live path — a caller holding a Reverb
+ *                  subscription should slow it right down while the socket is
+ *                  healthy and speed it up when it is not, so the screen keeps
+ *                  moving through an outage without hammering the API through
+ *                  a normal shift.
+ */
+export const useEmployeeOrders = (params?: EmployeeOrdersParams, refetchMs = 15_000) => {
   const {
     data: response,
     isLoading,
@@ -57,7 +65,7 @@ export const useEmployeeOrders = (params?: EmployeeOrdersParams) => {
       typeof window !== 'undefined'
       && !!localStorage.getItem('cedibites_staff_token')
       && params !== undefined,
-    refetchInterval: 15_000,
+    refetchInterval: refetchMs,
     placeholderData: keepPreviousData,
   });
 

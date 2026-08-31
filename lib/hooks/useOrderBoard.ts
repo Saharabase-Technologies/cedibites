@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import apiClient from '@/lib/api/client';
-import { getEcho } from '@/lib/echo';
+import { useOrderStream, type ConnectionState, type OrderStreamEvent } from '@/lib/hooks/useOrderStream';
 import { apiOrderToUnifiedOrder } from '@/lib/utils/orderAdapter';
 import type { Order as ApiOrder } from '@/types/api';
 import type { Order, OrderStatus } from '@/types/order';
@@ -61,7 +61,7 @@ const POLL_DEGRADED_MS = 4_000;
  */
 const OPTIMISTIC_TTL_MS = 12_000;
 
-export type ConnectionState = 'live' | 'connecting' | 'offline';
+export type { ConnectionState } from '@/lib/hooks/useOrderStream';
 
 interface PendingWrite {
   status: OrderStatus;
@@ -122,7 +122,6 @@ export interface OrderBoard {
 
 export function useOrderBoard(branchId: string | null): OrderBoard {
   const [state, setState] = useState<BoardState>(EMPTY_STATE);
-  const [connection, setConnection] = useState<ConnectionState>('connecting');
 
   // Anything stamped with another branch is not this board's data.
   const active = state.branch === branchId ? state : EMPTY_STATE;
@@ -182,6 +181,33 @@ export function useOrderBoard(branchId: string | null): OrderBoard {
     void fetchOrders();
   }, [branchId, fetchOrders]);
 
+  // ── Reverb ────────────────────────────────────────────────────────────────
+  // The socket itself lives in `useOrderStream`, shared with the till. This
+  // hook's own job is only what to do with a frame once it arrives.
+
+  const connection = useOrderStream(
+    branchId,
+    useCallback(
+      (event: OrderStreamEvent) => {
+        if (!branchId) return;
+        const order = apiOrderToUnifiedOrder(event.order);
+        updateBranch(branchId, (prev) => {
+          const orders = prev.orders.filter((o) => o.id !== order.id);
+          if (BOARD_STATUS_SET.has(order.status)) orders.push(order);
+
+          // A frame from the server is the authority. If it agrees with what we
+          // optimistically drew, the write is confirmed and the overlay can go.
+          const p = prev.pending[order.id];
+          if (!p || p.status !== order.status) return { ...prev, orders };
+          const pending = { ...prev.pending };
+          delete pending[order.id];
+          return { ...prev, orders, pending };
+        });
+      },
+      [branchId, updateBranch],
+    ),
+  );
+
   // ── Adaptive polling ──────────────────────────────────────────────────────
   // `connection` is a dependency rather than a ref: when the socket's health
   // changes the timer is simply rebuilt at the new cadence.
@@ -209,95 +235,6 @@ export function useOrderBoard(branchId: string | null): OrderBoard {
       window.removeEventListener('online', onWake);
     };
   }, [branchId, connection, fetchOrders]);
-
-  // ── Reverb ────────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!branchId) return;
-
-    const channelName = `orders.branch.${branchId}`;
-    let bound = false;
-    let unbindState: (() => void) | null = null;
-
-    const applyEvent = (event: { type: string; order: ApiOrder }) => {
-      const order = apiOrderToUnifiedOrder(event.order);
-      updateBranch(branchId, (prev) => {
-        const orders = prev.orders.filter((o) => o.id !== order.id);
-        if (BOARD_STATUS_SET.has(order.status)) orders.push(order);
-
-        // A frame from the server is the authority. If it agrees with what we
-        // optimistically drew, the write is confirmed and the overlay can go.
-        const p = prev.pending[order.id];
-        if (!p || p.status !== order.status) return { ...prev, orders };
-        const pending = { ...prev.pending };
-        delete pending[order.id];
-        return { ...prev, orders, pending };
-      });
-    };
-
-    const subscribe = (): boolean => {
-      const echo = getEcho();
-      if (!echo) return false;
-
-      echo.private(channelName).listen('.order.updated', applyEvent);
-      bound = true;
-
-      // Track the socket so the poll can slow down when it is healthy and speed
-      // up when it is not — and so the header can say which it is.
-      try {
-        const conn = (
-          echo as unknown as {
-            connector?: {
-              pusher?: {
-                connection?: {
-                  state?: string;
-                  bind: (e: string, cb: (p: { current: string }) => void) => void;
-                  unbind: (e: string, cb: (p: { current: string }) => void) => void;
-                };
-              };
-            };
-          }
-        ).connector?.pusher?.connection;
-
-        if (!conn) {
-          setConnection('offline');
-          return true;
-        }
-
-        const map = (s: string): ConnectionState =>
-          s === 'connected' ? 'live' : s === 'connecting' || s === 'initialized' ? 'connecting' : 'offline';
-
-        setConnection(map(conn.state ?? 'connecting'));
-        const onState = (payload: { current: string }) => setConnection(map(payload.current));
-        conn.bind('state_change', onState);
-        unbindState = () => conn.unbind('state_change', onState);
-      } catch {
-        setConnection('offline');
-      }
-
-      return true;
-    };
-
-    let onLogin: (() => void) | null = null;
-
-    if (!subscribe()) {
-      // No staff token yet, so there is no socket to subscribe to. Recording
-      // that is what puts the poll onto its faster cadence, which is the only
-      // thing carrying the board until login lands. Runs once, not per render.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setConnection('offline');
-      onLogin = () => {
-        if (subscribe() && onLogin) window.removeEventListener('staff-login', onLogin);
-      };
-      window.addEventListener('staff-login', onLogin);
-    }
-
-    return () => {
-      if (onLogin) window.removeEventListener('staff-login', onLogin);
-      unbindState?.();
-      if (bound) getEcho()?.leave(channelName);
-    };
-  }, [branchId, updateBranch]);
 
   // ── Expiry sweeper ────────────────────────────────────────────────────────
   // Optimistic entries and local dismissals both have to age out, or a write

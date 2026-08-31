@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { getEcho } from '@/lib/echo';
+import { useOrderStream, type ConnectionState } from '@/lib/hooks/useOrderStream';
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
 import { ARRIVAL, useAlertTone } from '@/lib/hooks/useAlertTone';
@@ -33,6 +33,11 @@ import type { Order } from '@/types/order';
 
 /** Live statuses that mean nobody has taken the order on yet. */
 const AWAITING_STATUSES = ['received'];
+
+/** Safety-net poll while the socket is up. Reverb is doing the real work. */
+const POLL_HEALTHY_MS = 20_000;
+/** Safety-net poll while the socket is down. This is now the only live path. */
+const POLL_DEGRADED_MS = 4_000;
 
 /** Dismissals are a today thing — tomorrow's till starts clean. */
 function dismissKey(): string {
@@ -71,6 +76,8 @@ export interface OnlineArrivals {
   isBlocked: boolean;
   /** Sound the arrival bell on demand — the shift-start sound check. */
   test: () => void;
+  /** Health of the Reverb socket carrying arrivals. */
+  connection: ConnectionState;
 }
 
 export interface OnlineArrivalOptions {
@@ -92,6 +99,19 @@ export function useOnlineOrderArrivals(
   const queryClient = useQueryClient();
   const { play, unlock, isBlocked } = useAlertTone(sound);
 
+  // ── Reverb ────────────────────────────────────────────────────────────────
+  // The socket is the live path; the poll below is only what carries the till
+  // when the socket is down. Declared before the query so its cadence can
+  // follow the socket's health.
+
+  const connection = useOrderStream(
+    subscribe ? branchId ?? null : null,
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['employee-orders-summary'] });
+    }, [queryClient]),
+  );
+
   const { orders: raw } = useEmployeeOrders(
     branchId
       ? {
@@ -101,6 +121,7 @@ export function useOnlineOrderArrivals(
           per_page: 25,
         }
       : undefined,
+    connection === 'live' ? POLL_HEALTHY_MS : POLL_DEGRADED_MS,
   );
 
   const awaiting = useMemo(
@@ -180,34 +201,13 @@ export function useOnlineOrderArrivals(
     if (arrived.length > 0 && sound) play(ARRIVAL);
   }, [awaitingIdsKey, sound, play]);
 
-  // ── Reverb ────────────────────────────────────────────────────────────────
-  // Purely a nudge to refetch. The 15s poll behind `useEmployeeOrders` is the
-  // floor; this is what makes the till feel immediate.
-
-  useEffect(() => {
-    if (!branchId || !subscribe) return;
-
-    const echo = getEcho();
-    if (!echo) return;
-
-    const channel = echo.private(`orders.branch.${branchId}`);
-    const handler = () => {
-      queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
-    };
-
-    channel.listen('.order.updated', handler);
-
-    return () => {
-      channel.stopListening('.order.updated', handler);
-    };
-  }, [branchId, subscribe, queryClient]);
-
   const test = useCallback(() => {
     unlock();
     play(ARRIVAL, true);
   }, [play, unlock]);
 
   return {
+    connection,
     arrivals,
     awaitingCount: awaiting.length,
     dismiss,
