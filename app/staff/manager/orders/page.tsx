@@ -8,16 +8,12 @@ import type { EmployeeOrdersParams } from '@/lib/api/services/order.service';
 import type { AdminOrder } from '@/lib/api/adapters/order.adapter';
 import { mapApiOrderToAdminOrder } from '@/lib/api/adapters/order.adapter';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import {
     MagnifyingGlassIcon,
-    XIcon,
     CaretLeftIcon,
     CaretRightIcon,
     FunnelIcon,
     ArrowUpRightIcon,
-    PhoneIcon,
-    MapPinIcon,
     ClockIcon,
     XCircleIcon,
     SpinnerIcon,
@@ -25,6 +21,7 @@ import {
     DownloadSimpleIcon,
 } from '@phosphor-icons/react';
 import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
+import OrderDetailPanel from '@/app/components/orders/OrderDetailPanel';
 import { useRequestCancel } from '@/lib/api/hooks/useOrders';
 import { toast } from '@/lib/utils/toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -124,14 +121,15 @@ function FilterGroup<T>({
 
 // ─── Order detail panel ───────────────────────────────────────────────────────
 
-function OrderDetailPanel({ order, onClose }: { order: AdminOrder; onClose: () => void }) {
+// The panel body is shared with the admin view; a manager's powers stop at
+// asking for a cancellation, which is the part that belongs here.
+function ManagerOrderDetail({ order, onClose }: { order: AdminOrder; onClose: () => void }) {
     const [showConfirm, setShowConfirm] = useState<null | 'cancel'>(null);
     const [showStatusPicker, setShowStatusPicker] = useState(false);
     const [updatingStatus, setUpdatingStatus] = useState(false);
     const { requestCancel } = useRequestCancel();
     const queryClient = useQueryClient();
 
-    const subtotal = order.items.reduce((s, i) => s + i.qty * i.price, 0);
     const isTerminal = ['completed', 'delivered', 'cancelled'].includes(order.status);
 
     async function overrideStatus(newStatus: string): Promise<void> {
@@ -147,164 +145,59 @@ function OrderDetailPanel({ order, onClose }: { order: AdminOrder; onClose: () =
 
     return (
         <>
-            <div className="fixed inset-0 z-30 bg-black/20 backdrop-blur-sm md:hidden" onClick={onClose} />
-            <aside className="fixed right-0 top-0 h-full z-40 w-full max-w-md bg-neutral-card border-l border-[#f0e8d8] flex flex-col shadow-2xl overflow-hidden">
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0e8d8]">
-                    <div>
-                        <p className="text-text-dark text-sm font-bold font-body">#{order.id}</p>
-                        <p className="text-neutral-gray text-xs font-body">{order.placedAtFull}</p>
+        <OrderDetailPanel
+            order={order}
+            onClose={onClose}
+            statusSlot={<StatusBadge status={order.status} />}
+            actions={
+                <div className="flex flex-col gap-2.5">
+                <p className="text-[11px] font-bold font-body text-neutral-gray uppercase tracking-wider">Actions</p>
+                {showStatusPicker && (
+                    <div className="bg-neutral-light rounded-xl p-3 flex flex-col gap-2">
+                        <p className="text-[11px] font-bold font-body text-neutral-gray uppercase tracking-wider">Update Status</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                            {(['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'completed'] as string[]).filter(s => s !== order.status).map(s => (
+                                <button key={s} type="button" disabled={updatingStatus} onClick={() => overrideStatus(s)}
+                                    className="flex items-center gap-1.5 px-2.5 py-2 bg-neutral-card border border-[#f0e8d8] rounded-lg text-text-dark text-sm font-semibold font-body hover:border-primary/40 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                                    <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_STYLES[s]?.dot ?? 'bg-neutral-gray'}`} />{STATUS_STYLES[s]?.label ?? s}
+                                </button>
+                            ))}
+                        </div>
+                        <button type="button" onClick={() => setShowStatusPicker(false)} className="text-sm text-neutral-gray font-body hover:text-text-dark transition-colors text-left cursor-pointer">Cancel</button>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <StatusBadge status={order.status} />
-                        <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-neutral-light transition-colors cursor-pointer">
-                            <XIcon size={16} className="text-neutral-gray" />
+                )}
+                {order.status === 'cancel_requested' && (
+                    <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl space-y-2">
+                        <p className="text-sm font-bold text-orange-700 font-body">Cancel Requested</p>
+                        {order.cancelRequestedBy && <p className="text-sm text-orange-600 font-body">By: {order.cancelRequestedBy}</p>}
+                        {order.cancelRequestReason && <p className="text-sm text-text-dark font-body">&ldquo;{order.cancelRequestReason}&rdquo;</p>}
+                        <p className="text-sm text-neutral-gray font-body italic">Waiting for admin approval</p>
+                    </div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                    {order.status === 'cancel_requested' ? (
+                        <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-neutral-gray text-sm font-semibold font-body opacity-40 cursor-not-allowed">
+                            <ClockIcon size={13} weight="bold" />Update Status
+                        </div>
+                    ) : (
+                        <button type="button" onClick={() => setShowStatusPicker(v => !v)}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-sm font-semibold font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer">
+                            <ClockIcon size={13} weight="bold" className="text-primary" />Update Status
                         </button>
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
-                    {/* Customer */}
-                    <div>
-                        <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Customer</p>
-                        <div className="bg-neutral-light rounded-xl p-3 flex flex-col gap-1.5">
-                            <p className="text-text-dark text-sm font-semibold font-body">{order.customer}</p>
-                            <a href={`tel:${order.phone}`} className="text-primary text-xs font-body flex items-center gap-1.5 hover:underline">
-                                <PhoneIcon size={12} weight="fill" />{order.phone}
-                            </a>
-                            {order.email && <p className="text-neutral-gray text-xs font-body">{order.email}</p>}
-                            {order.address && order.address !== '—' && (
-                                <div className="flex items-start gap-1.5 mt-0.5">
-                                    <MapPinIcon size={12} weight="fill" className="text-neutral-gray mt-0.5 shrink-0" />
-                                    <p className="text-neutral-gray text-xs font-body">{order.address}</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Source + Staff */}
-                    <div className="flex gap-3">
-                        <div className="flex-1 bg-neutral-light rounded-xl p-3">
-                            <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1">Source</p>
-                            <p className="text-text-dark text-xs font-semibold font-body">{order.source}</p>
-                        </div>
-                        {order.assignedEmployee && (
-                            <div className="flex-1 bg-neutral-light rounded-xl p-3">
-                                <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1">Staff</p>
-                                <p className="text-text-dark text-xs font-semibold font-body">{order.assignedEmployee}</p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Items */}
-                    <div>
-                        <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Items</p>
-                        <div className="bg-neutral-light rounded-xl overflow-hidden">
-                            {order.items.map((item, i) => (
-                                <div key={i} className={`flex justify-between px-3 py-2.5 ${i < order.items.length - 1 ? 'border-b border-[#f0e8d8]' : ''}`}>
-                                    <span className="text-text-dark text-xs font-body">{item.qty}× {getOrderItemLineLabel({ name: item.name, sizeLabel: item.sizeLabel })}</span>
-                                    <span className="text-text-dark text-xs font-bold font-body">{formatGHS(item.qty * item.price)}</span>
-                                </div>
-                            ))}
-                            <div className="flex justify-between px-3 py-2.5 border-t border-[#f0e8d8] bg-neutral-card">
-                                <span className="text-text-dark text-xs font-bold font-body">Total</span>
-                                <span className="text-primary text-sm font-bold font-body">{formatGHS(subtotal)}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Payment */}
-                    <div>
-                        <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Payment</p>
-                        <div className="bg-neutral-light rounded-xl p-3 flex flex-col gap-1.5">
-                            <div className="flex justify-between"><span className="text-neutral-gray text-xs font-body">Method</span><span className="text-text-dark text-xs font-semibold font-body">{order.payment}</span></div>
-                            <div className="flex justify-between"><span className="text-neutral-gray text-xs font-body">Status</span>
-                                <span className={`text-xs font-semibold font-body capitalize ${order.paymentStatus === 'paid' ? 'text-secondary' : order.paymentStatus === 'failed' ? 'text-error' : order.paymentStatus === 'pending' ? 'text-warning' : order.paymentStatus === 'refunded' ? 'text-blue-600' : 'text-neutral-gray'}`}>
-                                    {order.paymentStatus === 'no_charge' ? 'No Charge' : order.paymentStatus}
-                                </span>
-                            </div>
-                            {order.deliveryFee > 0 && (
-                                <>
-                                    <div className="flex justify-between"><span className="text-neutral-gray text-xs font-body">Goods Total</span><span className="text-text-dark text-xs font-semibold font-body">{formatGHS(order.amount - order.deliveryFee)}</span></div>
-                                    <div className="flex justify-between"><span className="text-neutral-gray text-xs font-body">Delivery Fee</span><span className="text-text-dark text-xs font-semibold font-body">{formatGHS(order.deliveryFee)}</span></div>
-                                </>
-                            )}
-                            <div className="flex justify-between"><span className="text-neutral-gray text-xs font-body">Order Total</span><span className="text-text-dark text-xs font-semibold font-body">{formatGHS(order.amount)}</span></div>
-                            <div className="flex justify-between"><span className="text-neutral-gray text-xs font-body">Amount Paid</span><span className="text-primary text-xs font-bold font-body">{formatGHS(order.amountPaid)}</span></div>
-                            {order.hubtelRef && (
-                                <div className="flex justify-between"><span className="text-neutral-gray text-xs font-body">Hubtel Ref</span><span className="text-text-dark text-[10px] font-body font-mono">{order.hubtelRef}</span></div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Timeline */}
-                    <div>
-                        <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Timeline</p>
-                        <div className="flex flex-col gap-0">
-                            {order.timeline.map((ev, i) => (
-                                <div key={i} className="flex items-start gap-3">
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
-                                        {i < order.timeline.length - 1 && <div className="w-0.5 h-6 bg-[#f0e8d8]" />}
-                                    </div>
-                                    <div className="pb-3">
-                                        <p className="text-text-dark text-xs font-semibold font-body">{ev.status}</p>
-                                        <p className="text-neutral-gray text-[10px] font-body">{ev.at} · {ev.by}{ev.byName ? ` (${ev.byName})` : ''}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Actions */}
-                <div className="border-t border-[#f0e8d8] p-4 flex flex-col gap-2.5">
-                    <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Actions</p>
-                    {showStatusPicker && (
-                        <div className="bg-neutral-light rounded-xl p-3 flex flex-col gap-2">
-                            <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Update Status</p>
-                            <div className="grid grid-cols-2 gap-1.5">
-                                {(['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'completed'] as string[]).filter(s => s !== order.status).map(s => (
-                                    <button key={s} type="button" disabled={updatingStatus} onClick={() => overrideStatus(s)}
-                                        className="flex items-center gap-1.5 px-2.5 py-2 bg-neutral-card border border-[#f0e8d8] rounded-lg text-text-dark text-xs font-medium font-body hover:border-primary/40 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-                                        <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_STYLES[s]?.dot ?? 'bg-neutral-gray'}`} />{STATUS_STYLES[s]?.label ?? s}
-                                    </button>
-                                ))}
-                            </div>
-                            <button type="button" onClick={() => setShowStatusPicker(false)} className="text-xs text-neutral-gray font-body hover:text-text-dark transition-colors text-left cursor-pointer">Cancel</button>
+                    )}
+                    {!isTerminal && order.status !== 'cancel_requested' ? (
+                        <button type="button" onClick={() => setShowConfirm('cancel')} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-error/10 rounded-xl text-error text-sm font-semibold font-body hover:bg-error/20 transition-colors cursor-pointer">
+                            <XCircleIcon size={13} weight="bold" />Request Cancel
+                        </button>
+                    ) : (
+                        <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-neutral-gray text-sm font-semibold font-body opacity-40 cursor-not-allowed">
+                            <XCircleIcon size={13} weight="bold" />Request Cancel
                         </div>
                     )}
-                    {order.status === 'cancel_requested' && (
-                        <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl space-y-2">
-                            <p className="text-xs font-bold text-orange-700 font-body">Cancel Requested</p>
-                            {order.cancelRequestedBy && <p className="text-xs text-orange-600 font-body">By: {order.cancelRequestedBy}</p>}
-                            {order.cancelRequestReason && <p className="text-xs text-text-dark font-body">&ldquo;{order.cancelRequestReason}&rdquo;</p>}
-                            <p className="text-xs text-neutral-gray font-body italic">Waiting for admin approval</p>
-                        </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-2">
-                        {order.status === 'cancel_requested' ? (
-                            <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-neutral-gray text-xs font-medium font-body opacity-40 cursor-not-allowed">
-                                <ClockIcon size={13} weight="bold" />Update Status
-                            </div>
-                        ) : (
-                            <button type="button" onClick={() => setShowStatusPicker(v => !v)}
-                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer">
-                                <ClockIcon size={13} weight="bold" className="text-primary" />Update Status
-                            </button>
-                        )}
-                        {!isTerminal && order.status !== 'cancel_requested' ? (
-                            <button type="button" onClick={() => setShowConfirm('cancel')} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-error/10 rounded-xl text-error text-xs font-medium font-body hover:bg-error/20 transition-colors cursor-pointer">
-                                <XCircleIcon size={13} weight="bold" />Request Cancel
-                            </button>
-                        ) : (
-                            <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-neutral-gray text-xs font-medium font-body opacity-40 cursor-not-allowed">
-                                <XCircleIcon size={13} weight="bold" />Request Cancel
-                            </div>
-                        )}
-                    </div>
                 </div>
-            </aside>
+                </div>
+            }
+        />
             {showConfirm === 'cancel' && (
                 <CancelOrderModal orderNumber={order.id} theme="light" context="staff" onCancel={() => setShowConfirm(null)}
                     onConfirm={async (reason) => { await requestCancel({ id: order.dbId, reason }); queryClient.invalidateQueries({ queryKey: ['employee-orders'] }); toast.success('Cancellation requested'); }} />
@@ -503,7 +396,7 @@ export default function ManagerOrdersPage() {
                 </div>
             )}
 
-            {selectedOrder && <OrderDetailPanel order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
+            {selectedOrder && <ManagerOrderDetail order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
         </div>
     );
 }

@@ -393,6 +393,13 @@ export default function POSOrdersPage() {
         // person who taps it. Offered only while nobody has claimed it.
         const claimable = o.status === 'received' && !o.staffName;
         const printed = (o.receiptPrintCount ?? 0) > 0;
+
+        // No receipt for an order nobody has taken on. Printing one implies the
+        // kitchen has it and the customer can be told a time, and for an order
+        // still sitting in Received neither is true — the slip would be a
+        // promise the branch has not made. A till sale is exempt: it was rung
+        // up here, so accepting it is not a separate act.
+        const canPrint = !isRemoteSource(o.source) || o.status !== 'received';
         return (
           <div className="flex items-center justify-end gap-1.5">
             {claimable && (
@@ -413,6 +420,7 @@ export default function POSOrdersPage() {
                 receipt is the most common thing done from this screen. An order
                 whose slip has never been printed wears the emphasis, because
                 that is a customer still waiting for one. */}
+            {canPrint && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); printOrder(o); }}
@@ -432,6 +440,7 @@ export default function POSOrdersPage() {
               <PrinterIcon size={14} weight={printed ? 'regular' : 'bold'} />
               {printed ? 'Reprint' : 'Print'}
             </button>
+            )}
 
             {canCancel(o) && (
               <RowActionsMenu

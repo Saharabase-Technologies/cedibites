@@ -10,16 +10,10 @@ import type { AdminOrder } from '@/lib/api/adapters/order.adapter';
 import { mapApiOrderToAdminOrder } from '@/lib/api/adapters/order.adapter';
 import {
     MagnifyingGlassIcon,
-    XIcon,
     CaretLeftIcon,
     CaretRightIcon,
     FunnelIcon,
     ArrowUpRightIcon,
-    PhoneIcon,
-    MapPinIcon,
-    ClockIcon,
-    WarningCircleIcon,
-    CheckCircleIcon,
     ArrowCounterClockwiseIcon,
     NotePencilIcon,
     ArrowsClockwiseIcon,
@@ -27,10 +21,10 @@ import {
     XCircleIcon,
 } from '@phosphor-icons/react';
 import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
+import OrderDetailPanel from '@/app/components/orders/OrderDetailPanel';
 import { useCancelOrder } from '@/lib/api/hooks/useOrders';
 import { toast } from '@/lib/utils/toast';
 import { useQueryClient } from '@tanstack/react-query';
-import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import apiClient from '@/lib/api/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -52,16 +46,6 @@ const STATUS_STYLES: Record<string, { dot: string; label: string; pulse?: boolea
     completed:        { dot: 'bg-secondary',    label: 'Completed' },
     cancelled:        { dot: 'bg-error',        label: 'Cancelled' },
     cancel_requested: { dot: 'bg-orange-500',   label: 'Cancel Requested', pulse: true },
-};
-
-const SOURCE_COLORS: Record<OrderSource, string> = {
-    WhatsApp: 'text-[#128C7E]',
-    Instagram: 'text-pink-600',
-    Facebook: 'text-blue-600',
-    Phone: 'text-neutral-gray',
-    Online: 'text-primary',
-    POS: 'text-secondary',
-    'Past Order': 'text-neutral-gray',
 };
 
 const ALL_STATUSES: OrderStatus[] = ['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'completed', 'cancel_requested', 'cancelled'];
@@ -121,14 +105,6 @@ function StatusBadge({ status }: { status: string }) {
     );
 }
 
-function SourceBadge({ source }: { source: OrderSource }) {
-    return (
-        <span className={`text-sm font-semibold font-body ${SOURCE_COLORS[source]}`}>
-            {source}
-        </span>
-    );
-}
-
 // ─── Confirmation modal ───────────────────────────────────────────────────────
 
 function ConfirmModal({
@@ -173,9 +149,12 @@ function ConfirmModal({
     );
 }
 
-// ─── Order detail panel ───────────────────────────────────────────────────────
+// ─── Order detail, with an admin's powers ─────────────────────────────────────
+// The panel body is shared with the manager's view; what an admin may do to an
+// order — refund it, force a status, approve someone else's cancel request —
+// is the part that belongs here.
 
-function OrderDetailPanel({
+function AdminOrderDetail({
     order,
     onClose,
 }: {
@@ -191,7 +170,6 @@ function OrderDetailPanel({
     const { cancelOrder } = useCancelOrder();
     const queryClient = useQueryClient();
 
-    const subtotal = order.items.reduce((s, i) => s + i.qty * i.price, 0);
     const isTerminal = ['completed', 'delivered', 'cancelled'].includes(order.status);
     const overrideTargets = ADMIN_OVERRIDE_TARGETS[order.status] ?? [];
 
@@ -230,304 +208,160 @@ function OrderDetailPanel({
 
     return (
         <>
-            {/* Overlay */}
-            <div className="fixed inset-0 z-30 bg-black/20 backdrop-blur-sm md:hidden" onClick={onClose} />
+        <OrderDetailPanel
+            order={order}
+            onClose={onClose}
+            statusSlot={<StatusBadge status={order.status} />}
+            actions={
+                <div className="flex flex-col gap-2.5">
+                <p className="text-[11px] font-bold font-body text-neutral-gray uppercase tracking-wider">Admin Actions</p>
 
-            <aside className="fixed right-0 top-0 h-full z-40 w-full max-w-md bg-neutral-card border-l border-[#f0e8d8] flex flex-col shadow-2xl overflow-hidden">
-
-                {/* Panel header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0e8d8]">
-                    <div>
-                        <p className="text-text-dark text-sm font-bold font-body">#{order.id}</p>
-                        <p className="text-neutral-gray text-xs font-body">{order.placedAtFull}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <StatusBadge status={order.status} />
-                        <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-neutral-light transition-colors cursor-pointer">
-                            <XIcon size={16} className="text-neutral-gray" />
+                {/* Status picker */}
+                {showStatusPicker && overrideTargets.length > 0 && (
+                    <div className="bg-neutral-light rounded-xl p-3 flex flex-col gap-2">
+                        <p className="text-[11px] font-bold font-body text-neutral-gray uppercase tracking-wider">Set Status</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                            {overrideTargets.map(s => (
+                                <button
+                                    key={s}
+                                    type="button"
+                                    disabled={updatingStatus}
+                                    onClick={() => overrideStatus(s)}
+                                    className="flex items-center gap-1.5 px-2.5 py-2 bg-neutral-card border border-[#f0e8d8] rounded-lg text-text-dark text-sm font-semibold font-body hover:border-primary/40 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_STYLES[s]?.dot ?? 'bg-neutral-gray'}`} />
+                                    {STATUS_STYLES[s]?.label ?? s}
+                                </button>
+                            ))}
+                        </div>
+                        <button type="button" onClick={() => setShowStatusPicker(false)} className="text-sm text-neutral-gray font-body hover:text-text-dark transition-colors text-left cursor-pointer">
+                            Cancel
                         </button>
                     </div>
-                </div>
+                )}
 
-                <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
-
-                    {/* Customer */}
-                    <div>
-                        <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Customer</p>
-                        <div className="bg-neutral-light rounded-xl p-3 flex flex-col gap-1.5">
-                            <p className="text-text-dark text-sm font-semibold font-body">{order.customer}</p>
-                            <a href={`tel:${order.phone}`} className="text-primary text-xs font-body flex items-center gap-1.5 hover:underline">
-                                <PhoneIcon size={12} weight="fill" />
-                                {order.phone}
-                            </a>
-                            {order.email && <p className="text-neutral-gray text-xs font-body">{order.email}</p>}
-                            <div className="flex items-start gap-1.5 mt-0.5">
-                                <MapPinIcon size={12} weight="fill" className="text-neutral-gray mt-0.5 shrink-0" />
-                                <p className="text-neutral-gray text-xs font-body">{order.address}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Branch + Source */}
-                    <div className="flex gap-3">
-                        <div className="flex-1 bg-neutral-light rounded-xl p-3">
-                            <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1">Branch</p>
-                            <p className="text-text-dark text-sm font-semibold font-body">{order.branch}</p>
-                        </div>
-                        <div className="flex-1 bg-neutral-light rounded-xl p-3">
-                            <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1">Source</p>
-                            <SourceBadge source={order.source} />
-                        </div>
-                    </div>
-
-                    {/* Assigned Employee */}
-                    {order.assignedEmployee && (
-                        <div>
-                            <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Assigned Staff</p>
-                            <div className="bg-neutral-light rounded-xl p-3">
-                                <p className="text-text-dark text-sm font-semibold font-body">{order.assignedEmployee}</p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Items */}
-                    <div>
-                        <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Items</p>
-                        <div className="bg-neutral-light rounded-xl overflow-hidden">
-                            {order.items.map((item, i) => (
-                                <div key={i} className={`flex justify-between px-3 py-2.5 ${i < order.items.length - 1 ? 'border-b border-[#f0e8d8]' : ''}`}>
-                                    <span className="text-text-dark text-xs font-body">{item.qty}× {getOrderItemLineLabel({ name: item.name, sizeLabel: item.sizeLabel })}</span>
-                                    <span className="text-text-dark text-xs font-bold font-body">₵{item.qty * item.price}</span>
-                                </div>
-                            ))}
-                            <div className="flex justify-between px-3 py-2.5 border-t border-[#f0e8d8] bg-neutral-card">
-                                <span className="text-text-dark text-xs font-bold font-body">Total</span>
-                                <span className="text-primary text-sm font-bold font-body">{formatGHS(subtotal)}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Payment */}
-                    <div>
-                        <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Payment</p>
-                        <div className="bg-neutral-light rounded-xl p-3 flex flex-col gap-1.5">
-                            <div className="flex justify-between">
-                                <span className="text-neutral-gray text-xs font-body">Method</span>
-                                <span className="text-text-dark text-xs font-semibold font-body">{order.payment}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-neutral-gray text-xs font-body">Status</span>
-                                <span className={`text-xs font-semibold font-body capitalize ${
-                                    order.paymentStatus === 'paid' ? 'text-secondary' : 
-                                    order.paymentStatus === 'failed' ? 'text-error' : 
-                                    order.paymentStatus === 'pending' ? 'text-warning' : 
-                                    order.paymentStatus === 'refunded' ? 'text-blue-600' :
-                                    'text-neutral-gray'
-                                }`}>
-                                    {order.paymentStatus === 'no_charge' ? 'No Charge' : order.paymentStatus}
-                                </span>
-                            </div>
-                            {order.deliveryFee > 0 && (
-                                <>
-                                    <div className="flex justify-between">
-                                        <span className="text-neutral-gray text-xs font-body">Goods Total</span>
-                                        <span className="text-text-dark text-xs font-semibold font-body">{formatGHS(order.amount - order.deliveryFee)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-neutral-gray text-xs font-body">Delivery Fee</span>
-                                        <span className="text-text-dark text-xs font-semibold font-body">{formatGHS(order.deliveryFee)}</span>
-                                    </div>
-                                </>
-                            )}
-                            <div className="flex justify-between">
-                                <span className="text-neutral-gray text-xs font-body">Order Total</span>
-                                <span className="text-text-dark text-xs font-semibold font-body">{formatGHS(order.amount)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-neutral-gray text-xs font-body">Amount Paid</span>
-                                <span className="text-primary text-xs font-bold font-body">{formatGHS(order.amountPaid)}</span>
-                            </div>
-                            {order.hubtelRef && (
-                                <div className="flex justify-between">
-                                    <span className="text-neutral-gray text-xs font-body">Hubtel Ref</span>
-                                    <span className="text-text-dark text-[10px] font-body font-mono">{order.hubtelRef}</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Timeline */}
-                    <div>
-                        <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Timeline</p>
-                        <div className="flex flex-col gap-0">
-                            {order.timeline.map((ev, i) => (
-                                <div key={i} className="flex items-start gap-3">
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
-                                        {i < order.timeline.length - 1 && <div className="w-0.5 h-6 bg-[#f0e8d8]" />}
-                                    </div>
-                                    <div className="pb-3">
-                                        <p className="text-text-dark text-xs font-semibold font-body">{ev.status}</p>
-                                        <p className="text-neutral-gray text-[10px] font-body">
-                                            {ev.at} · {ev.by}{ev.byName ? ` (${ev.byName})` : ''}
-                                        </p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Add note */}
-                    {showNote && (
-                        <div>
-                            <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Internal Note</p>
-
-                            {order.internalNotes && order.internalNotes.length > 0 && (
-                                <div className="flex flex-col gap-2 mb-3">
-                                    {order.internalNotes.map((n) => (
-                                        <div key={n.id} className="bg-neutral-light border border-[#f0e8d8] rounded-xl px-3 py-2.5">
-                                            <p className="text-text-dark text-xs font-body whitespace-pre-wrap">{n.note}</p>
-                                            <p className="text-neutral-gray text-[10px] font-body mt-1">
-                                                {n.byName ?? 'Staff'} · {new Date(n.at).toLocaleString('en-GH', { timeZone: 'Africa/Accra' })}
-                                            </p>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            <textarea
-                                value={noteText}
-                                onChange={e => setNoteText(e.target.value)}
-                                rows={3}
-                                disabled={savingNote}
-                                className="w-full bg-neutral-light border border-[#f0e8d8] rounded-xl px-3 py-2.5 text-text-dark text-sm font-body resize-none focus:outline-none focus:border-primary/40 disabled:opacity-50"
-                                placeholder="Staff-only note..."
-                            />
+                {/* Cancel request banner */}
+                {order.status === 'cancel_requested' && (
+                    <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl space-y-2">
+                        <p className="text-sm font-bold text-orange-700 font-body">Cancel Requested</p>
+                        {order.cancelRequestedBy && (
+                            <p className="text-sm text-orange-600 font-body">By: {order.cancelRequestedBy}</p>
+                        )}
+                        {order.cancelRequestReason && (
+                            <p className="text-sm text-text-dark font-body">&ldquo;{order.cancelRequestReason}&rdquo;</p>
+                        )}
+                        {order.cancelRequestedAt && (
+                            <p className="text-sm text-neutral-gray font-body">
+                                {new Date(order.cancelRequestedAt).toLocaleString('en-GH', { timeZone: 'Africa/Accra' })}
+                            </p>
+                        )}
+                        <div className="flex gap-2 pt-1">
                             <button
                                 type="button"
-                                onClick={saveNote}
-                                disabled={savingNote || !noteText.trim()}
-                                className="mt-2 px-4 py-2 bg-primary rounded-xl text-white text-xs font-medium font-body cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                onClick={async () => {
+                                    try {
+                                        await apiClient.post(`/admin/orders/${order.dbId}/approve-cancel`);
+                                        queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+                                        toast.success('Cancellation approved');
+                                        onClose();
+                                    } catch { toast.error('Failed to approve cancellation'); }
+                                }}
+                                className="flex-1 px-3 py-2 rounded-xl bg-error text-white text-sm font-semibold font-body hover:bg-error/90 transition-colors cursor-pointer"
                             >
-                                {savingNote ? 'Saving…' : 'Save note'}
+                                Approve Cancel
                             </button>
-                        </div>
-                    )}
-                </div>
-
-                {/* Admin action buttons */}
-                <div className="border-t border-[#f0e8d8] p-4 flex flex-col gap-2.5">
-                    <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Admin Actions</p>
-
-                    {/* Status picker */}
-                    {showStatusPicker && overrideTargets.length > 0 && (
-                        <div className="bg-neutral-light rounded-xl p-3 flex flex-col gap-2">
-                            <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">Set Status</p>
-                            <div className="grid grid-cols-2 gap-1.5">
-                                {overrideTargets.map(s => (
-                                    <button
-                                        key={s}
-                                        type="button"
-                                        disabled={updatingStatus}
-                                        onClick={() => overrideStatus(s)}
-                                        className="flex items-center gap-1.5 px-2.5 py-2 bg-neutral-card border border-[#f0e8d8] rounded-lg text-text-dark text-xs font-medium font-body hover:border-primary/40 hover:bg-primary/5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                                    >
-                                        <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_STYLES[s]?.dot ?? 'bg-neutral-gray'}`} />
-                                        {STATUS_STYLES[s]?.label ?? s}
-                                    </button>
-                                ))}
-                            </div>
-                            <button type="button" onClick={() => setShowStatusPicker(false)} className="text-xs text-neutral-gray font-body hover:text-text-dark transition-colors text-left cursor-pointer">
-                                Cancel
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Cancel request banner */}
-                    {order.status === 'cancel_requested' && (
-                        <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl space-y-2">
-                            <p className="text-xs font-bold text-orange-700 font-body">Cancel Requested</p>
-                            {order.cancelRequestedBy && (
-                                <p className="text-xs text-orange-600 font-body">By: {order.cancelRequestedBy}</p>
-                            )}
-                            {order.cancelRequestReason && (
-                                <p className="text-xs text-text-dark font-body">&ldquo;{order.cancelRequestReason}&rdquo;</p>
-                            )}
-                            {order.cancelRequestedAt && (
-                                <p className="text-xs text-neutral-gray font-body">
-                                    {new Date(order.cancelRequestedAt).toLocaleString('en-GH', { timeZone: 'Africa/Accra' })}
-                                </p>
-                            )}
-                            <div className="flex gap-2 pt-1">
-                                <button
-                                    type="button"
-                                    onClick={async () => {
-                                        try {
-                                            await apiClient.post(`/admin/orders/${order.dbId}/approve-cancel`);
-                                            queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
-                                            toast.success('Cancellation approved');
-                                            onClose();
-                                        } catch { toast.error('Failed to approve cancellation'); }
-                                    }}
-                                    className="flex-1 px-3 py-2 rounded-xl bg-error text-white text-xs font-medium font-body hover:bg-error/90 transition-colors cursor-pointer"
-                                >
-                                    Approve Cancel
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={async () => {
-                                        try {
-                                            await apiClient.post(`/admin/orders/${order.dbId}/reject-cancel`);
-                                            queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
-                                            toast.success('Cancel request rejected');
-                                            onClose();
-                                        } catch { toast.error('Failed to reject cancellation'); }
-                                    }}
-                                    className="flex-1 px-3 py-2 rounded-xl bg-neutral-light text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer"
-                                >
-                                    Reject & Keep Order
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-2">
-                        {overrideTargets.length > 0 && (
                             <button
                                 type="button"
-                                onClick={() => setShowStatusPicker(v => !v)}
-                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer"
+                                onClick={async () => {
+                                    try {
+                                        await apiClient.post(`/admin/orders/${order.dbId}/reject-cancel`);
+                                        queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+                                        toast.success('Cancel request rejected');
+                                        onClose();
+                                    } catch { toast.error('Failed to reject cancellation'); }
+                                }}
+                                className="flex-1 px-3 py-2 rounded-xl bg-neutral-light text-text-dark text-sm font-semibold font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer"
                             >
-                                <ArrowsClockwiseIcon size={13} weight="bold" className="text-primary" />
-                                Override Status
+                                Reject & Keep Order
                             </button>
-                        )}
-                        {!isTerminal ? (
-                            <button type="button" onClick={() => setShowConfirm('cancel')} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-error/10 rounded-xl text-error text-xs font-medium font-body hover:bg-error/20 transition-colors cursor-pointer">
-                                <XCircleIcon size={13} weight="bold" />
-                                Cancel Order
-                            </button>
-                        ) : (
-                            <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-neutral-gray text-xs font-medium font-body opacity-40 cursor-not-allowed">
-                                <XCircleIcon size={13} weight="bold" />
-                                Cancel Order
-                            </div>
-                        )}
+                        </div>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                    {overrideTargets.length > 0 && (
                         <button
                             type="button"
-                            disabled
-                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body opacity-40 cursor-not-allowed"
+                            onClick={() => setShowStatusPicker(v => !v)}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-sm font-semibold font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer"
                         >
-                            <ArrowCounterClockwiseIcon size={13} weight="bold" className="text-secondary" />
-                            Issue Refund
+                            <ArrowsClockwiseIcon size={13} weight="bold" className="text-primary" />
+                            Override Status
                         </button>
-                        <button type="button" onClick={() => setShowNote(!showNote)} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-xs font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer">
-                            <NotePencilIcon size={13} weight="bold" className="text-primary" />
-                            Add Note
+                    )}
+                    {!isTerminal ? (
+                        <button type="button" onClick={() => setShowConfirm('cancel')} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-error/10 rounded-xl text-error text-sm font-semibold font-body hover:bg-error/20 transition-colors cursor-pointer">
+                            <XCircleIcon size={13} weight="bold" />
+                            Cancel Order
                         </button>
-                    </div>
+                    ) : (
+                        <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-neutral-gray text-sm font-semibold font-body opacity-40 cursor-not-allowed">
+                            <XCircleIcon size={13} weight="bold" />
+                            Cancel Order
+                        </div>
+                    )}
+                    <button
+                        type="button"
+                        disabled
+                        className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-sm font-semibold font-body opacity-40 cursor-not-allowed"
+                    >
+                        <ArrowCounterClockwiseIcon size={13} weight="bold" className="text-secondary" />
+                        Issue Refund
+                    </button>
+                    <button type="button" onClick={() => setShowNote(!showNote)} className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-neutral-light rounded-xl text-text-dark text-sm font-semibold font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer">
+                        <NotePencilIcon size={13} weight="bold" className="text-primary" />
+                        Add Note
+                    </button>
                 </div>
-            </aside>
+                </div>
+            }
+        >
+        {showNote && (
+            <div>
+                <p className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-2">Internal Note</p>
+
+                {order.internalNotes && order.internalNotes.length > 0 && (
+                    <div className="flex flex-col gap-2 mb-3">
+                        {order.internalNotes.map((n) => (
+                            <div key={n.id} className="bg-neutral-light border border-[#f0e8d8] rounded-xl px-3 py-2.5">
+                                <p className="text-text-dark text-xs font-body whitespace-pre-wrap">{n.note}</p>
+                                <p className="text-neutral-gray text-[10px] font-body mt-1">
+                                    {n.byName ?? 'Staff'} · {new Date(n.at).toLocaleString('en-GH', { timeZone: 'Africa/Accra' })}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <textarea
+                    value={noteText}
+                    onChange={e => setNoteText(e.target.value)}
+                    rows={3}
+                    disabled={savingNote}
+                    className="w-full bg-neutral-light border border-[#f0e8d8] rounded-xl px-3 py-2.5 text-text-dark text-sm font-body resize-none focus:outline-none focus:border-primary/40 disabled:opacity-50"
+                    placeholder="Staff-only note..."
+                />
+                <button
+                    type="button"
+                    onClick={saveNote}
+                    disabled={savingNote || !noteText.trim()}
+                    className="mt-2 px-4 py-2 bg-primary rounded-xl text-white text-xs font-medium font-body cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                    {savingNote ? 'Saving…' : 'Save note'}
+                </button>
+            </div>
+        )}
+        </OrderDetailPanel>
 
             {/* Confirm modals */}
             {showConfirm === 'cancel' && (
@@ -890,7 +724,7 @@ export default function AdminOrdersPage() {
 
             {/* Order detail panel */}
             {selectedOrder && (
-                <OrderDetailPanel order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+                <AdminOrderDetail order={selectedOrder} onClose={() => setSelectedOrder(null)} />
             )}
         </div>
     );
