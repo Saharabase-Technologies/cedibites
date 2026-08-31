@@ -45,6 +45,19 @@ export const stockGateService = {
         return outer?.data?.sellable ?? {};
     },
 
+    /**
+     * The same map, from the public route, for someone ordering on the website.
+     *
+     * `/pos/stock-gate` above is gated on `permission:create_orders`, so a guest
+     * calling it gets a 403 — which is why the customer menu had no gate at all
+     * and people could buy dishes the branch had run out of.
+     */
+    publicSellableMap: async (branchId: number): Promise<Record<number, boolean>> => {
+        const body = await apiClient.get(`/branches/${branchId}/stock-gate`);
+        const outer = body as { data?: { sellable?: Record<number, boolean> } };
+        return outer?.data?.sellable ?? {};
+    },
+
     check: async (
         branchId: number,
         items: { menu_item_option_id: number; quantity: number }[],

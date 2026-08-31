@@ -152,6 +152,23 @@ export const useCancelOrder = () => {
   };
 };
 
+export const useMarkReceiptPrinted = () => {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: (id: number) => orderService.markReceiptPrinted(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+    },
+  });
+
+  return {
+    markPrinted: mutation.mutateAsync,
+    isLoading: mutation.isPending,
+    error: mutation.error,
+  };
+};
+
 export const useUpdateEmployeeOrderStatus = () => {
   const queryClient = useQueryClient();
 

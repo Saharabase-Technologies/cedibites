@@ -130,6 +130,14 @@ export interface Order {
     readyAt?: number;               // kitchen marked ready
     completedAt?: number;           // order completed/delivered
     recordedAt?: number;            // manual entry: when the order actually happened
+    /**
+     * When a receipt was first produced for this order, epoch ms. Undefined
+     * means none ever has been — which is the difference between offering
+     * "Print receipt" and "Reprint receipt".
+     */
+    receiptPrintedAt?: number;
+    /** How many times a receipt has been produced, first print included. */
+    receiptPrintCount?: number;
     estimatedMinutes?: number;
 
     // Tracking

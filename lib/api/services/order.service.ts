@@ -93,6 +93,17 @@ export const orderService = {
   },
 
   /**
+   * Record that a receipt was produced for this order.
+   *
+   * Not a status change — printing says nothing about where the order is in the
+   * kitchen. It exists so any till can tell a receipt already handed over from
+   * one that has never been printed.
+   */
+  markReceiptPrinted: (id: number): Promise<{ data: Order }> => {
+    return apiClient.post(`/employee/orders/${id}/receipt-printed`);
+  },
+
+  /**
    * Append an internal note to an order (admin only).
    */
   addInternalNote: (id: number, note: string): Promise<{ data: Order }> => {

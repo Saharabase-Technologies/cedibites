@@ -54,6 +54,16 @@ export type DataTableProps<T> = {
    * null for rows with nothing to show and they render without a caret.
    */
   expandedContent?: (row: T) => ReactNode;
+  /**
+   * Make the whole row open its detail panel, not just the caret.
+   *
+   * On a touch screen the caret is a 24px target in a 48px row, which is a
+   * fiddly thing to hit with a thumb while holding a card machine. Off by
+   * default because most tables here pair expansion with `onRowClick` doing
+   * something else entirely; where both are set, `onRowClick` wins and this is
+   * ignored.
+   */
+  expandOnRowClick?: boolean;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -71,6 +81,7 @@ export function DataTable<T>({
   isLoading,
   showIndex,
   expandedContent,
+  expandOnRowClick,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | undefined>(defaultSortKey);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultSortDir);
@@ -197,11 +208,17 @@ export function DataTable<T>({
               return (
                 <Fragment key={key}>
                   <tr
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    onClick={
+                      onRowClick
+                        ? () => onRowClick(row)
+                        : expandOnRowClick && detail
+                          ? () => toggleExpanded(key)
+                          : undefined
+                    }
                     className={`
                       border-b border-[#f0e8d8] transition-colors
                       ${isExpanded ? 'bg-primary/5' : ''}
-                      ${onRowClick ? 'cursor-pointer hover:bg-primary/5' : 'hover:bg-primary/5'}
+                      ${onRowClick || (expandOnRowClick && detail) ? 'cursor-pointer hover:bg-primary/5' : 'hover:bg-primary/5'}
                       ${needsAttention?.(row) ? 'bg-primary/6 shadow-[inset_3px_0_0_0_var(--color-primary)]' : ''}
                     `}
                   >

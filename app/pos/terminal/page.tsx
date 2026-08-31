@@ -72,6 +72,7 @@ import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 import PendingPaymentsDrawer from './PendingPaymentsDrawer';
 import { useOnlineOrderArrivals } from '../hooks/useOnlineOrderArrivals';
+import { useMarkReceiptPrinted } from '@/lib/api/hooks/useOrders';
 import { isRemoteSource } from '@/lib/constants/order.constants';
 import { usePosCheckoutSessions } from '@/lib/api/hooks/useCheckoutSession';
 
@@ -2070,6 +2071,21 @@ interface OrderSuccessModalProps {
 }
 
 function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
+  const { markPrinted } = useMarkReceiptPrinted();
+
+  /**
+   * The slip handed over at the counter counts as the order's first print.
+   *
+   * Without recording it, the orders list would go on offering "Print receipt"
+   * for a sale whose receipt is already in the customer's hand — and the till
+   * would have no way to tell that from an online order nobody has printed at
+   * all, which is the distinction the button exists to draw.
+   */
+  const printAndRecord = () => {
+    printReceipt(order, branch);
+    void markPrinted(Number(order.id)).catch(() => {});
+  };
+
   // Auto close after 5 seconds
   useEffect(() => {
     const timer = setTimeout(onClose, 5000);
@@ -2118,7 +2134,7 @@ function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
 
           <div className="flex gap-2">
             <button
-              onClick={() => printReceipt(order, branch)}
+              onClick={printAndRecord}
               className="
                 flex-1 h-12 rounded-xl font-medium
                 bg-neutral-gray/10 text-text-dark

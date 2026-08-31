@@ -31,7 +31,12 @@ import {
 } from '@/app/inventory/_components';
 
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
-import { useRequestCancel, useCancelOrder, useUpdateEmployeeOrderStatus } from '@/lib/api/hooks/useOrders';
+import {
+  useRequestCancel,
+  useCancelOrder,
+  useUpdateEmployeeOrderStatus,
+  useMarkReceiptPrinted,
+} from '@/lib/api/hooks/useOrders';
 import { useOrderStream, type ConnectionState } from '@/lib/hooks/useOrderStream';
 import type { EmployeeOrdersParams } from '@/lib/api/services/order.service';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
@@ -103,6 +108,7 @@ export default function POSOrdersPage() {
   const { requestCancel } = useRequestCancel();
   const { cancelOrder } = useCancelOrder();
   const { updateStatus } = useUpdateEmployeeOrderStatus();
+  const { markPrinted } = useMarkReceiptPrinted();
 
   useEffect(() => {
     if (isSessionLoaded && !isSessionValid) router.replace('/pos');
@@ -246,7 +252,22 @@ export default function POSOrdersPage() {
     }
   };
 
-  const reprint = (order: Order) =>
+  /**
+   * Put a receipt in the customer's hand, and remember that we did.
+   *
+   * The first one is an original; everything after it is a reprint, and the
+   * slip says so. That distinction is a fact about the order rather than about
+   * this device — an order placed online has never been printed anywhere, and
+   * the till has to be able to tell that from one whose slip is already in
+   * somebody's pocket.
+   *
+   * Printing happens first and the record follows. If the write fails the
+   * customer still has their receipt, which is the part that matters; the worst
+   * case is that the button keeps offering to print it again.
+   */
+  const printOrder = (order: Order) => {
+    const alreadyPrinted = (order.receiptPrintCount ?? 0) > 0;
+
     printReceipt(
       {
         ...order,
@@ -257,8 +278,13 @@ export default function POSOrdersPage() {
           ?? (isRemoteSource(order.source) ? SOURCE_LABEL[order.source] : session?.staffName),
       },
       branchInfo?.name ?? 'CediBites',
-      { kind: 'reprint' },
+      { kind: alreadyPrinted ? 'reprint' : 'original' },
     );
+
+    void markPrinted(Number(order.id)).catch(() => {
+      toast.error('Printed, but could not record it. It may still show as unprinted.');
+    });
+  };
 
   const canCancel = (o: Order) =>
     o.source !== 'manual_entry'
@@ -284,7 +310,7 @@ export default function POSOrdersPage() {
       key: 'channel',
       header: 'Channel',
       sortValue: (o) => SOURCE_LABEL[o.source] ?? o.source,
-      hideBelow: 'sm',
+      hideBelow: 'lg',
       cell: (o) => (
         <div className="min-w-0">
           <p className="text-text-dark text-sm font-medium">{SOURCE_LABEL[o.source] ?? o.source}</p>
@@ -295,7 +321,7 @@ export default function POSOrdersPage() {
     {
       key: 'items',
       header: 'Items',
-      hideBelow: 'lg',
+      hideBelow: 'md',
       cell: (o) => {
         const summary = o.items.map(formatOrderLineItemSummary).join(', ');
         return (
@@ -308,7 +334,7 @@ export default function POSOrdersPage() {
     {
       key: 'customer',
       header: 'Customer',
-      hideBelow: 'md',
+      hideBelow: 'sm',
       sortValue: (o) => o.contact.name ?? '',
       cell: (o) => (
         <div className="min-w-0">
@@ -346,11 +372,12 @@ export default function POSOrdersPage() {
       key: 'actions',
       header: '',
       align: 'right',
-      width: 'w-40',
+      width: 'w-64',
       cell: (o) => {
         // Accepting is what attributes the order — and its revenue — to the
         // person who taps it. Offered only while nobody has claimed it.
         const claimable = o.status === 'received' && !o.staffName;
+        const printed = (o.receiptPrintCount ?? 0) > 0;
         return (
           <div className="flex items-center justify-end gap-1.5">
             {claimable && (
@@ -358,7 +385,7 @@ export default function POSOrdersPage() {
                 type="button"
                 onClick={(e) => { e.stopPropagation(); void acceptOrder(o); }}
                 disabled={acceptingId === o.id}
-                className="flex items-center gap-1.5 px-3 h-9 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 h-9 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-60 transition-colors cursor-pointer whitespace-nowrap"
               >
                 {acceptingId === o.id
                   ? <SpinnerIcon size={14} className="animate-spin" />
@@ -366,19 +393,41 @@ export default function POSOrdersPage() {
                 Accept
               </button>
             )}
-            <RowActionsMenu
-              actions={[
-                { label: 'Reprint receipt', icon: <PrinterIcon size={14} />, onClick: () => reprint(o) },
-                ...(canCancel(o)
-                  ? [{
-                      label: isAdmin ? 'Cancel order' : 'Request cancel',
-                      icon: <ProhibitIcon size={14} />,
-                      onClick: () => setCancelTarget(o),
-                      destructive: true,
-                    }]
-                  : []),
-              ]}
-            />
+
+            {/* Out in the open rather than behind the kebab: handing over a
+                receipt is the most common thing done from this screen. An order
+                whose slip has never been printed wears the emphasis, because
+                that is a customer still waiting for one. */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); printOrder(o); }}
+              className={`
+                flex items-center gap-1.5 px-3 h-9 rounded-xl text-sm font-semibold
+                transition-colors cursor-pointer whitespace-nowrap border
+                ${printed
+                  ? 'bg-neutral-card border-[#e3ddd0] text-neutral-gray hover:text-text-dark hover:border-neutral-gray/50'
+                  : 'bg-primary/10 border-primary/40 text-primary hover:bg-primary/15'}
+              `}
+              title={
+                printed
+                  ? `Printed ${o.receiptPrintCount} time${o.receiptPrintCount === 1 ? '' : 's'}`
+                  : 'No receipt has been printed for this order yet'
+              }
+            >
+              <PrinterIcon size={14} weight={printed ? 'regular' : 'bold'} />
+              {printed ? 'Reprint' : 'Print'}
+            </button>
+
+            {canCancel(o) && (
+              <RowActionsMenu
+                actions={[{
+                  label: isAdmin ? 'Cancel order' : 'Request cancel',
+                  icon: <ProhibitIcon size={14} />,
+                  onClick: () => setCancelTarget(o),
+                  destructive: true,
+                }]}
+              />
+            )}
           </div>
         );
       },
@@ -416,14 +465,26 @@ export default function POSOrdersPage() {
               <StorefrontIcon size={20} className="text-primary" />
             </div>
             <div className="min-w-0">
-              <p className="text-text-dark font-semibold text-[15px] truncate">
-                {branchInfo?.name ?? 'Branch'}
+              <h1 className="text-text-dark font-bold font-brand text-lg leading-tight truncate">
+                Today&apos;s orders
+              </h1>
+              <p className="text-neutral-gray text-xs truncate">
+                {branchInfo?.name ?? 'Branch'} · {session.staffName}
               </p>
-              <p className="text-neutral-gray text-xs truncate">{session.staffName}</p>
             </div>
           </div>
 
-          <ConnectionPill connection={connection} />
+          {/* The day's figures, collapsed into the bar. As three cards they ate
+              the top of the screen and pushed the list — the thing anybody
+              actually came here for — below the fold. */}
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="flex items-stretch rounded-xl border border-[#f0e8d8] bg-neutral-light overflow-hidden divide-x divide-[#f0e8d8]">
+              <Figure label="Orders" value={String(figures.count)} />
+              <Figure label="Revenue" value={formatGHS(figures.revenue)} accent />
+              <Figure label="Cash" value={formatGHS(figures.cash)} />
+            </div>
+            <ConnectionPill connection={connection} />
+          </div>
         </div>
 
         {/* Tabs live in the header rather than over the list: they decide what
@@ -463,19 +524,6 @@ export default function POSOrdersPage() {
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-5 py-5 mx-auto w-full max-w-368">
-          <div className="mb-5">
-            <h1 className="text-2xl font-bold font-brand text-text-dark">Today&apos;s orders</h1>
-            <p className="text-neutral-gray text-sm mt-1">{CHANNEL_BLURB[channel]}</p>
-          </div>
-
-          {/* The figures are always this person's own, whichever tab is
-              showing — hence the notes under them. */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-            <StatTile label="Orders" value={String(figures.count)} note="Assigned to you today" />
-            <StatTile label="Revenue" value={formatGHS(figures.revenue)} note="Everything credited to you" accent />
-            <StatTile label="Cash" value={formatGHS(figures.cash)} note="What should be in the drawer" />
-          </div>
-
           <DataTable
             data={visibleOrders}
             columns={columns}
@@ -486,6 +534,8 @@ export default function POSOrdersPage() {
             // needs a person. Same gold edge the inventory tables use.
             needsAttention={(o) => o.status === 'received' && !o.staffName}
             expandedContent={(o) => <OrderDetail order={o} />}
+            // A 24px caret is a poor target for a thumb on a till screen.
+            expandOnRowClick
             emptyState={
               <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
                 <ReceiptIcon size={40} className="text-neutral-gray/40 mb-3" />
@@ -565,22 +615,19 @@ function ConnectionPill({ connection }: { connection: ConnectionState }) {
   );
 }
 
-function StatTile({
-  label,
-  value,
-  note,
-  accent,
-}: {
-  label: string;
-  value: string;
-  note: string;
-  accent?: boolean;
-}) {
+/**
+ * One of the day's figures, sized for the header bar.
+ *
+ * All three are this person's own whichever tab is showing — hence the title
+ * attribute, which is where the explanation went when the cards became a strip.
+ */
+function Figure({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-5 py-4">
-      <p className="text-neutral-gray text-[11px] font-bold uppercase tracking-wider">{label}</p>
-      <p className={`text-2xl font-bold mt-1.5 ${accent ? 'text-primary' : 'text-text-dark'}`}>{value}</p>
-      <p className="text-neutral-gray/80 text-xs mt-1">{note}</p>
+    <div className="px-4 py-1.5 text-center" title={`${label} — assigned to you today`}>
+      <p className="text-neutral-gray text-[10px] font-bold uppercase tracking-wider">{label}</p>
+      <p className={`text-base font-bold leading-tight ${accent ? 'text-primary' : 'text-text-dark'}`}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -593,9 +640,7 @@ function OrderDetail({ order }: { order: Order }) {
         <ul className="space-y-1.5">
           {order.items.map((item) => (
             <li key={item.id} className="flex items-baseline justify-between gap-4 text-sm">
-              <span className="text-text-dark">
-                <span className="font-semibold">{item.quantity}×</span> {formatOrderLineItemSummary(item)}
-              </span>
+              <span className="text-text-dark">{formatOrderLineItemSummary(item)}</span>
               <span className="text-neutral-gray whitespace-nowrap">
                 {formatGHS(item.unitPrice * item.quantity)}
               </span>
