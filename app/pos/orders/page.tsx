@@ -76,9 +76,17 @@ const CHANNEL_BLURB: Record<Channel, string> = {
   all: 'Every order taken at this branch today',
 };
 
-/** Safety-net poll while the socket is up. Reverb is doing the real work. */
-const POLL_HEALTHY_MS = 20_000;
-/** Safety-net poll while the socket is down. This is then the only live path. */
+/**
+ * Heartbeat while the socket is up.
+ *
+ * Deliberately long. Reverb tells this screen the moment anything changes, so a
+ * timer running underneath it is redundant work on a device that sits open all
+ * day — this exists only to heal a state where the socket believes it is
+ * connected but frames have stopped arriving. If you find yourself shortening
+ * it, the socket is what needs fixing.
+ */
+const POLL_HEALTHY_MS = 300_000;
+/** Poll while the socket is down. This is then the only live path. */
 const POLL_DEGRADED_MS = 4_000;
 
 function formatOrderTime(placedAt: number): string {
@@ -223,10 +231,17 @@ export default function POSOrdersPage() {
    */
   const figures = useMemo(() => {
     const counted = myOrders.filter((o) => o.status !== 'cancelled' && o.paymentMethod !== 'no_charge');
+    const sumWhere = (match: (o: Order) => boolean) =>
+      counted.filter(match).reduce((s, o) => s + o.total, 0);
+
     return {
       count: counted.length,
       revenue: counted.reduce((s, o) => s + o.total, 0),
-      cash: counted.filter((o) => o.paymentMethod === 'cash').reduce((s, o) => s + o.total, 0),
+      cash: sumWhere((o) => o.paymentMethod === 'cash'),
+      // Everything that arrived through the gateway rather than the drawer.
+      // Split out for the same reason cash is: at close of day the two are
+      // counted against different things.
+      momo: sumWhere((o) => o.paymentMethod === 'mobile_money' || o.paymentMethod === 'manual_momo'),
     };
   }, [myOrders]);
 
@@ -301,7 +316,7 @@ export default function POSOrdersPage() {
       sortValue: (o) => o.placedAt,
       cell: (o) => (
         <div className="min-w-0">
-          <p className="font-mono font-bold text-text-dark text-[15px] leading-tight">#{o.orderNumber}</p>
+          <p className="font-bold text-text-dark text-[15px] leading-tight tabular-nums">#{o.orderNumber}</p>
           <p className="text-neutral-gray text-xs mt-0.5">{formatOrderTime(o.placedAt)}</p>
         </div>
       ),
@@ -365,7 +380,7 @@ export default function POSOrdersPage() {
       align: 'right',
       sortValue: (o) => o.total,
       cell: (o) => (
-        <span className="font-bold text-text-dark text-[15px] whitespace-nowrap">{formatGHS(o.total)}</span>
+        <span className="font-bold text-text-dark text-[15px] whitespace-nowrap tabular-nums">{formatGHS(o.total)}</span>
       ),
     },
     {
@@ -482,6 +497,7 @@ export default function POSOrdersPage() {
               <Figure label="Orders" value={String(figures.count)} />
               <Figure label="Revenue" value={formatGHS(figures.revenue)} accent />
               <Figure label="Cash" value={formatGHS(figures.cash)} />
+              <Figure label="MoMo" value={formatGHS(figures.momo)} />
             </div>
             <ConnectionPill connection={connection} />
           </div>

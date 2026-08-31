@@ -180,7 +180,7 @@ function ArrivalCard({
       </div>
 
       <p className="mt-1.5 text-sm text-text-dark">
-        <span className="font-mono font-bold">#{order.orderNumber}</span>
+        <span className="font-bold tabular-nums">#{order.orderNumber}</span>
         <span className="text-neutral-gray"> · </span>
         <span className="font-semibold text-primary">{formatGHS(order.total)}</span>
         <span className="text-neutral-gray"> · {FULFILLMENT_LABELS[order.fulfillmentType]}</span>

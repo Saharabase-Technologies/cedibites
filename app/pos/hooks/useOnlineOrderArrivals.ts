@@ -34,9 +34,12 @@ import type { Order } from '@/types/order';
 /** Live statuses that mean nobody has taken the order on yet. */
 const AWAITING_STATUSES = ['received'];
 
-/** Safety-net poll while the socket is up. Reverb is doing the real work. */
-const POLL_HEALTHY_MS = 20_000;
-/** Safety-net poll while the socket is down. This is now the only live path. */
+/**
+ * Heartbeat while the socket is up. Long on purpose — Reverb announces
+ * arrivals, and a timer under it is redundant work on a till left open all day.
+ */
+const POLL_HEALTHY_MS = 300_000;
+/** Poll while the socket is down. This is then the only live path. */
 const POLL_DEGRADED_MS = 4_000;
 
 /** Dismissals are a today thing — tomorrow's till starts clean. */
