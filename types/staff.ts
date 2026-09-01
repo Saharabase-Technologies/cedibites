@@ -157,6 +157,28 @@ export function roleAllowsManyBranches(role: StaffRole): boolean {
     return ROLE_RULES[role].branch === 'one_or_more';
 }
 
+/**
+ * Whether this person oversees a floor rather than working one position on it.
+ *
+ * Deliberately not `roleNeedsBranch`. A manager is assigned to a branch and
+ * still answers for every order in it, and a call-centre agent holds no branch
+ * and still owns only their own calls — so branch assignment is the wrong
+ * question. The question is whether "my orders" is the useful default or an
+ * empty screen: an admin who opens the till has rung up nothing, so a list
+ * scoped to them reads as though the branch had no orders at all, when three
+ * are sitting on the counter under somebody else's name.
+ *
+ * Authorisation is not decided here. The server already scopes what each role
+ * may see (OrderManagementService::getBranchOrders); this only picks which
+ * slice of that a screen opens on.
+ */
+export function roleOverseesOthers(role: StaffRole): boolean {
+    return role === 'tech_admin'
+        || role === 'admin'
+        || role === 'branch_partner'
+        || role === 'manager';
+}
+
 export function branchRuleLabel(role: StaffRole): string {
     switch (ROLE_RULES[role].branch) {
         case 'none':        return 'Company-wide, no branch';
