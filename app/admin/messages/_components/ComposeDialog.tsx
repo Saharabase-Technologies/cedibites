@@ -106,6 +106,15 @@ export function ComposeDialog({
     const isRelease = kind === 'release';
     const filledSlides = slides.filter((slide) => slide.body.trim());
 
+    /**
+     * Whether there is anything to send.
+     *
+     * A release has no Message box — its words live on the slides — so asking
+     * for `body` here left Send greyed out however much had been typed, with
+     * nothing on screen to say why.
+     */
+    const hasWords = isRelease ? filledSlides.length > 0 : Boolean(body.trim());
+
     function reset() {
         setSubject('');
         setBody('');
@@ -448,9 +457,21 @@ export function ComposeDialog({
                     </p>
                 )}
 
+                {/* A greyed-out Send with nothing saying why is a dead end —
+                    the reason is always one of two things, so name it. */}
+                {!sending && (!hasWords || !hasSelection) && (
+                    <p className="font-body text-sm text-neutral-gray">
+                        {!hasWords
+                            ? isRelease
+                                ? 'Write at least one slide before sending.'
+                                : 'Write the message before sending.'
+                            : 'Choose who gets this before sending.'}
+                    </p>
+                )}
+
                 <PrimaryButton
                     onClick={send}
-                    disabled={sending || !body.trim() || !hasSelection}
+                    disabled={sending || !hasWords || !hasSelection}
                     className="flex items-center justify-center gap-2"
                 >
                     <PaperPlaneTiltIcon size={16} weight="fill" />
