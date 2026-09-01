@@ -14,7 +14,9 @@ import {
     CircleNotchIcon,
     ChatCircleTextIcon,
 } from '@phosphor-icons/react';
-import { useSystemHealth, useActiveSessions } from '@/lib/api/hooks/usePlatform';
+import { useSystemHealth } from '@/lib/api/hooks/usePlatform';
+import { SessionsPanel } from './components/SessionsPanel';
+import { PasscodeDialog } from './components/PasscodeDialog';
 import { platformService, type SmsHealth } from '@/lib/api/services/platform.service';
 import { toast } from '@/lib/utils/toast';
 
@@ -139,62 +141,10 @@ function SmsAlertBanner({ sms }: { sms: SmsHealth }) {
     );
 }
 
-// ─── Passcode Dialog ──────────────────────────────────────────────────────────
-
-function PasscodeDialog({ open, title, onConfirm, onCancel, loading }: {
-    open: boolean;
-    title: string;
-    onConfirm: (passcode: string) => void;
-    onCancel: () => void;
-    loading: boolean;
-}) {
-    const [code, setCode] = useState('');
-
-    if (!open) return null;
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-                <h3 className="text-base font-bold font-body text-text-dark mb-1">{title}</h3>
-                <p className="text-xs font-body text-neutral-gray mb-4">Enter your 6-digit passcode to confirm.</p>
-                <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={code}
-                    onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="000000"
-                    className="w-full px-4 py-3 rounded-xl border border-[#f0e8d8] text-center text-lg font-mono tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4"
-                    autoFocus
-                />
-                <div className="flex gap-3">
-                    <button
-                        type="button"
-                        onClick={onCancel}
-                        disabled={loading}
-                        className="flex-1 px-4 py-2.5 rounded-xl border border-[#f0e8d8] text-sm font-medium font-body text-neutral-gray hover:bg-neutral-light transition-colors cursor-pointer"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => { onConfirm(code); setCode(''); }}
-                        disabled={loading || code.length !== 6}
-                        className="flex-1 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold font-body hover:bg-primary-dark transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                        {loading ? <CircleNotchIcon size={16} className="animate-spin mx-auto" /> : 'Confirm'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PlatformHealthPage() {
     const { health, isLoading, refetch } = useSystemHealth();
-    const { sessions } = useActiveSessions();
     const [passcodeAction, setPasscodeAction] = useState<'cache' | 'maintenance' | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
 
@@ -343,44 +293,7 @@ export default function PlatformHealthPage() {
                 <Row label="Server Uptime" value={health.uptime} />
             </div>
 
-            {/* Active sessions */}
-            {sessions.length > 0 && (
-                <div className="bg-white rounded-2xl border border-[#f0e8d8] p-5">
-                    <h3 className="text-sm font-semibold font-body text-text-dark mb-3">
-                        Active Sessions <span className="text-neutral-gray font-normal">({sessions.length})</span>
-                    </h3>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-xs font-body">
-                            <thead>
-                                <tr className="text-left text-neutral-gray border-b border-[#f0e8d8]">
-                                    <th className="pb-2 pr-4">Name</th>
-                                    <th className="pb-2 pr-4">Phone</th>
-                                    <th className="pb-2 pr-4">Type</th>
-                                    <th className="pb-2 pr-4">Started</th>
-                                    <th className="pb-2">Last Active</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[#f0e8d8]">
-                                {sessions.map(s => (
-                                    <tr key={`${s.user_id}-${s.session_started}`} className="text-text-dark">
-                                        <td className="py-2 pr-4 font-medium">{s.name}</td>
-                                        <td className="py-2 pr-4">{s.phone}</td>
-                                        <td className="py-2 pr-4">
-                                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                                s.token_type === 'staff' ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'
-                                            }`}>
-                                                {s.token_type}
-                                            </span>
-                                        </td>
-                                        <td className="py-2 pr-4">{new Date(s.session_started).toLocaleString()}</td>
-                                        <td className="py-2">{new Date(s.last_active).toLocaleString()}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
+            <SessionsPanel />
 
             {/* Quick actions */}
             <div className="flex gap-3">
@@ -406,6 +319,14 @@ export default function PlatformHealthPage() {
             <PasscodeDialog
                 open={passcodeAction !== null}
                 title={passcodeAction === 'cache' ? 'Clear All Caches' : 'Toggle Maintenance Mode'}
+                description={
+                    passcodeAction === 'cache'
+                        // Said plainly because the button reads like a fix for
+                        // anything and is not one: it empties the API's own
+                        // caches and reaches nothing on a customer's device.
+                        ? 'Empties the API server caches — settings, menu discovery lists and saved error explanations. It does not clear anything on a customer\'s phone or browser, and will not fix a stale screen. Avoid running it while a deploy is in flight.'
+                        : 'Takes the API in or out of maintenance mode for everybody.'
+                }
                 onConfirm={handlePasscodeConfirm}
                 onCancel={() => setPasscodeAction(null)}
                 loading={actionLoading}
