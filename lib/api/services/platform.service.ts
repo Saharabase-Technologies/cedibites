@@ -138,6 +138,9 @@ export interface PlatformAdmin {
 /** How live a session is, from the last request it made. */
 export type SessionStatus = 'online' | 'idle' | 'away';
 
+/** Coarse on purpose: enough to tell somebody's screens apart, no more. */
+export type SessionDevice = 'mobile' | 'tablet' | 'desktop' | 'unknown';
+
 export interface ActiveSession {
   /** The token row — one per device, and what a single sign-out targets. */
   token_id: number;
@@ -145,7 +148,15 @@ export interface ActiveSession {
   name: string;
   phone: string;
   employee_no: string | null;
+  role: string | null;
+  /**
+   * Null — not empty — for company-wide roles. An admin belongs to the company
+   * rather than a branch, so there is nothing to print against their name.
+   */
+  branches: string[] | null;
   token_type: 'staff' | 'customer';
+  device: SessionDevice;
+  browser: string | null;
   status: SessionStatus;
   idle_seconds: number;
   last_active: string;
@@ -279,6 +290,16 @@ export const platformService = {
   /** End every device this person is signed in on, at once. */
   revokeUserSessions: (userId: number, passcode: string): Promise<{ message: string }> =>
     apiClient.delete(`/platform/sessions/user/${userId}`, { data: { passcode } }),
+
+  /**
+   * End a set of devices at once.
+   *
+   * Sends the token ids on screen rather than a category name, so a till that
+   * came online between the page rendering and the button being pressed is not
+   * swept up with the ones the reader actually looked at.
+   */
+  revokeSessions: (tokenIds: number[], passcode: string): Promise<{ message: string }> =>
+    apiClient.post('/platform/sessions/revoke', { token_ids: tokenIds, passcode }),
 
   // Admin management
   getAdmins: (): Promise<{ data: PlatformAdmin[] }> =>
