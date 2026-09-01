@@ -22,6 +22,8 @@ import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import { useOrderBoard } from '@/lib/hooks/useOrderBoard';
 import { useOrderAlerts } from '@/lib/hooks/useOrderAlerts';
 import { toast } from '@/lib/utils/toast';
+import { printReceipt } from '@/lib/utils/printReceipt';
+import { useMarkReceiptPrinted } from '@/lib/api/hooks/useOrders';
 import apiClient from '@/lib/api/client';
 import type { Order } from '@/types/order';
 
@@ -239,6 +241,50 @@ export default function OrderManagerPage() {
 
   const select = useCallback((order: Order) => setSelectedId(order.id), []);
 
+  // ── Receipts ──────────────────────────────────────────────────────────────
+
+  /**
+   * Orders whose receipt this session has printed.
+   *
+   * The board is polled, so `receiptPrintCount` lags the tap by up to a poll —
+   * long enough for someone to read the still-tinted button as "that did not
+   * work" and print a second original. This closes the gap; the server's count
+   * takes over once it catches up.
+   */
+  const [printedIds, setPrintedIds] = useState<Set<string>>(new Set());
+  const { markPrinted } = useMarkReceiptPrinted();
+
+  /**
+   * The receipt is printed here, and this is the original.
+   *
+   * The POS confirmation modal used to carry a Print button and that press was
+   * the original. It no longer does: a sale rung up at the till appears on this
+   * board like any other order, and the slip is printed from the ticket. That
+   * leaves exactly one place an original can come from, which is what lets
+   * /pos/orders offer nothing but reprints — a slip it did not print is a slip
+   * the customer has not been given, and the board can be trusted to say so.
+   *
+   * Printing happens first and the record follows. If the write fails the
+   * customer still has their receipt; the worst case is that the count is short.
+   */
+  const printOrder = useCallback(
+    (order: Order) => {
+      const branch = operableBranches.find((b) => b.id === effectiveBranchId);
+      printReceipt(
+        order,
+        { name: branch?.name ?? 'CediBites', address: branch?.address },
+        // Every press after the first is a copy, and the slip has to say so —
+        // an unmarked second original is what a duplicate looks like at cash-up.
+        { kind: (order.receiptPrintCount ?? 0) > 0 || printedIds.has(order.id) ? 'reprint' : 'original' },
+      );
+      setPrintedIds((prev) => new Set(prev).add(order.id));
+      void markPrinted(Number(order.id)).catch(() => {
+        toast.error('Printed, but could not record it. It may still show as unprinted.');
+      });
+    },
+    [operableBranches, effectiveBranchId, printedIds, markPrinted],
+  );
+
   // ── Move animation ────────────────────────────────────────────────────────
   // Keyed on the whole board's shape, so a ticket changing column replays and a
   // poll that changes nothing does not.
@@ -357,8 +403,10 @@ export default function OrderManagerPage() {
         isBusy={pendingIds.has(order.id)}
         isLocked={isLocked}
         isAdmin={isAdmin}
+        isPrinted={(order.receiptPrintCount ?? 0) > 0 || printedIds.has(order.id)}
         onSelect={select}
         onAdvance={advance}
+        onPrint={printOrder}
         onApproveCancel={approveCancel}
         onRejectCancel={rejectCancel}
       />
