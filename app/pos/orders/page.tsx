@@ -52,17 +52,37 @@ import { printReceipt } from '@/lib/utils/printReceipt';
 import { formatOrderLineItemSummary } from '@/lib/utils/orderItemDisplay';
 import { toast } from '@/lib/utils/toast';
 import type { Order } from '@/types/order';
+import { roleOverseesOthers, type StaffRole } from '@/types/staff';
 
 /**
  * Which slice of the branch's day this screen is showing.
  *
- * `mine` is what this page has always been and remains the default: the orders
- * this person is answerable for. `remote` and `all` are additions — an order
- * placed on the website is assigned to no cashier at all, so it could never
- * appear on a list scoped to one, which is why online orders were invisible
- * here and their receipts unprintable.
+ * `mine` is the orders this person is answerable for, and is what a till
+ * operator opens on. `remote` and `all` are additions — an order placed on the
+ * website is assigned to no cashier at all, so it could never appear on a list
+ * scoped to one, which is why online orders were invisible here and their
+ * receipts unprintable.
+ *
+ * Which one a person lands on depends on whether they work a position or
+ * oversee the floor; see `defaultChannelFor`.
  */
 type Channel = 'mine' | 'remote' | 'all';
+
+/**
+ * The tab this person should open on.
+ *
+ * A supervisor rings up almost nothing, so `mine` shows them an empty screen
+ * while three paid orders sit on the counter under somebody else's name — which
+ * reads as "the POS is not showing orders" rather than "you have taken none".
+ * The POS context already made exactly this correction for the till's own
+ * figures; this is the same correction on the list those figures describe.
+ *
+ * The tab is still theirs to change, and `all` was always reachable. This
+ * changes where they start, not what they may see — the server decides that.
+ */
+function defaultChannelFor(role: StaffRole | undefined): Channel {
+  return role && roleOverseesOthers(role) ? 'all' : 'mine';
+}
 
 const CHANNEL_LABEL: Record<Channel, string> = {
   mine: 'Mine',
@@ -129,7 +149,7 @@ export default function POSOrdersPage() {
 
   // ── Channel ───────────────────────────────────────────────────────────────
 
-  const [channel, setChannel] = useState<Channel>('mine');
+  const [channel, setChannel] = useState<Channel | null>(null);
 
   useEffect(() => {
     // Read after mount rather than through `useSearchParams`, which would force
@@ -139,6 +159,11 @@ export default function POSOrdersPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (requested === 'remote' || requested === 'all') setChannel(requested);
   }, []);
+
+  // `null` until somebody has chosen, so the role's default can apply as soon
+  // as auth resolves without overwriting a deep link or a tab the operator has
+  // already pressed.
+  const effectiveChannel: Channel = channel ?? defaultChannelFor(staffUser?.role);
 
   // ── Live ──────────────────────────────────────────────────────────────────
   // Reverb is the path that matters. Every frame for this branch invalidates
@@ -182,13 +207,14 @@ export default function POSOrdersPage() {
 
   const listParams: EmployeeOrdersParams | undefined = useMemo(() => {
     if (!baseParams) return undefined;
-    if (channel === 'mine') return myParams;
-    if (channel === 'remote') return { ...baseParams, order_source: [...REMOTE_ORDER_SOURCES] };
+    if (effectiveChannel === 'mine') return myParams;
+    if (effectiveChannel === 'remote') return { ...baseParams, order_source: [...REMOTE_ORDER_SOURCES] };
     // `all` sends no source and no staff filter. It is not a widening of
     // permissions: the API scopes every result to the branches this employee is
-    // assigned to before any filter here is applied.
+    // assigned to before any filter here is applied — and for a company-wide
+    // role, to every branch. See OrderManagementService::getBranchOrders.
     return baseParams;
-  }, [baseParams, myParams, channel]);
+  }, [baseParams, myParams, effectiveChannel]);
 
   const { orders: rawOrders, isLoading } = useEmployeeOrders(listParams, pollMs);
   // On the `mine` tab these params are identical, so React Query serves both
@@ -516,7 +542,7 @@ export default function POSOrdersPage() {
             this screen is, so they belong beside its identity. */}
         <div className="px-5 pb-3 flex flex-wrap items-center gap-3">
           <SegmentedTabs
-            value={channel}
+            value={effectiveChannel}
             onChange={setChannel}
             options={(['mine', 'remote', 'all'] as const).map((key) => ({
               value: key,
@@ -570,7 +596,7 @@ export default function POSOrdersPage() {
                 <p className="text-neutral-gray text-sm max-w-sm">
                   {query
                     ? 'Try a different order number, name or dish.'
-                    : `${CHANNEL_BLURB[channel]} will appear here.`}
+                    : `${CHANNEL_BLURB[effectiveChannel]} will appear here.`}
                 </p>
               </div>
             }
