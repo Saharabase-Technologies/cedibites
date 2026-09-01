@@ -19,6 +19,8 @@ import {
     UserIcon,
     WarningCircleIcon,
 } from '@phosphor-icons/react';
+import { PageHeader, SegmentedTabs, FilterBar } from '@/app/inventory/_components';
+import { TONE, type StatusTone } from '@/app/inventory/_components/status-tokens';
 import { useErrorFeed, useFailedJobs } from '@/lib/api/hooks/usePlatform';
 import { platformService, type FailedJob, type SmartError } from '@/lib/api/services/platform.service';
 import { toast } from '@/lib/utils/toast';
@@ -28,11 +30,11 @@ import { PasscodeDialog } from '../components/PasscodeDialog';
 
 type Severity = SmartError['severity'];
 
-const SEVERITY: Record<Severity, { label: string; rail: string; chip: string; icon: React.ElementType; rank: number }> = {
-    critical: { label: 'Critical', rail: 'bg-error', chip: 'bg-error/10 text-error', icon: FireIcon, rank: 0 },
-    error: { label: 'Error', rail: 'bg-error/60', chip: 'bg-error/10 text-error', icon: WarningCircleIcon, rank: 1 },
-    warning: { label: 'Warning', rail: 'bg-warning', chip: 'bg-warning/10 text-warning', icon: WarningCircleIcon, rank: 2 },
-    info: { label: 'Info', rail: 'bg-info', chip: 'bg-info/10 text-info', icon: InfoIcon, rank: 3 },
+const SEVERITY: Record<Severity, { label: string; icon: React.ElementType; rank: number } & StatusTone> = {
+    critical: { label: 'Critical', icon: FireIcon, rank: 0, ...TONE.problem },
+    error: { label: 'Error', icon: WarningCircleIcon, rank: 1, ...TONE.problem },
+    warning: { label: 'Warning', icon: WarningCircleIcon, rank: 2, ...TONE.waiting },
+    info: { label: 'Info', icon: InfoIcon, rank: 3, ...TONE.decided },
 };
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -66,8 +68,19 @@ function relativeTime(iso: string): string {
 
 function Chip({ label }: { label: string }) {
     return (
-        <span className="inline-flex px-2 py-0.5 rounded-full bg-neutral-light text-[10px] font-body text-neutral-gray">
+        <span className="inline-flex px-2.5 py-1 rounded-full bg-neutral-light text-[11px] font-body text-neutral-gray">
             {label}
+        </span>
+    );
+}
+
+function SeverityBadge({ severity }: { severity: Severity }) {
+    const tone = SEVERITY[severity] ?? SEVERITY.info;
+
+    return (
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold font-body ${tone.bg} ${tone.text}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${tone.dot}`} aria-hidden />
+            {tone.label}
         </span>
     );
 }
@@ -88,8 +101,7 @@ function Verdict({ critical, errors, warnings, info, acknowledged }: {
     info: number;
     acknowledged: number;
 }) {
-    const needsAttention = critical + errors;
-    const allClear = needsAttention === 0 && warnings === 0;
+    const allClear = critical + errors === 0 && warnings === 0;
 
     const headline = critical > 0
         ? `${critical} critical ${critical === 1 ? 'fault' : 'faults'} to deal with`
@@ -99,47 +111,37 @@ function Verdict({ critical, errors, warnings, info, acknowledged }: {
                 ? `${warnings} ${warnings === 1 ? 'warning' : 'warnings'}, nothing broken`
                 : 'Nothing needs attention';
 
+    const tone = allClear ? TONE.done : critical > 0 || errors > 0 ? TONE.problem : TONE.waiting;
+
     return (
-        <div className={`rounded-2xl border p-5 ${
-            critical > 0
-                ? 'bg-error/5 border-error/20'
-                : errors > 0
-                    ? 'bg-error/3 border-error/15'
-                    : warnings > 0
-                        ? 'bg-warning/5 border-warning/20'
-                        : 'bg-success/5 border-success/20'
-        }`}>
+        <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl p-5 mb-5">
             <div className="flex items-start gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                    allClear ? 'bg-success/10 text-success' : critical > 0 || errors > 0 ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'
-                }`}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tone.bg}`}>
                     {allClear
-                        ? <ShieldCheckIcon size={18} weight="fill" />
-                        : <WarningCircleIcon size={18} weight="fill" />}
+                        ? <ShieldCheckIcon size={20} weight="fill" className={tone.text} />
+                        : <WarningCircleIcon size={20} weight="fill" className={tone.text} />}
                 </div>
 
                 <div className="min-w-0 flex-1">
                     <p className="text-base font-bold font-body text-text-dark">{headline}</p>
-                    <p className="text-xs font-body text-neutral-gray mt-0.5">
-                        {allClear
-                            ? 'Across sign-ins, payments, the queue and the application log, last 24 hours.'
-                            : 'From sign-ins, payments, the queue and the application log, last 24 hours.'}
+                    <p className="text-sm font-body text-neutral-gray mt-0.5">
+                        From sign-ins, payments, the queue and the application log, last 24 hours.
                     </p>
 
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-[11px] font-body">
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3 text-[12px] font-body">
                         {([
-                            ['critical', critical, 'text-error'],
-                            ['errors', errors, 'text-error/70'],
-                            ['warnings', warnings, 'text-warning'],
-                            ['info', info, 'text-info'],
-                        ] as const).map(([label, value, colour]) => (
+                            ['critical', critical],
+                            ['errors', errors],
+                            ['warnings', warnings],
+                            ['info', info],
+                        ] as const).map(([label, value]) => (
                             <span key={label} className="text-neutral-gray">
-                                <span className={`font-bold ${colour}`}>{value}</span> {label}
+                                <span className="font-bold text-text-dark tabular-nums">{value}</span> {label}
                             </span>
                         ))}
                         {acknowledged > 0 && (
                             <span className="text-neutral-gray/70">
-                                <span className="font-bold">{acknowledged}</span> acknowledged
+                                <span className="font-bold tabular-nums">{acknowledged}</span> acknowledged
                             </span>
                         )}
                     </div>
@@ -162,137 +164,131 @@ function ErrorCard({ error, onAcknowledge, onReopen, busy }: {
     const CatIcon = CATEGORY_ICONS[error.category] ?? BugIcon;
 
     return (
-        <div className={`relative bg-white rounded-2xl border border-[#f0e8d8] overflow-hidden transition-opacity ${
+        <div className={`bg-neutral-card border border-[#f0e8d8] rounded-2xl p-4 transition-opacity ${
             error.acknowledged ? 'opacity-60' : ''
         }`}>
-            {/* Severity rail — readable at a glance down a long list, which a
-                badge in the corner is not. */}
-            <span className={`absolute left-0 top-0 bottom-0 w-1 ${sev.rail}`} />
+            <div className="flex items-start gap-3">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${sev.bg}`}>
+                    <SevIcon size={17} weight="fill" className={sev.text} />
+                </div>
 
-            <div className="p-4 pl-5">
-                <div className="flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${sev.chip}`}>
-                        <SevIcon size={16} weight="fill" />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <h4 className="text-sm font-semibold font-body text-text-dark">{error.title}</h4>
-                                    {error.count && error.count > 1 && (
-                                        <span className="inline-flex px-2 py-0.5 rounded-full bg-neutral-light text-[10px] font-bold font-body text-neutral-gray">
-                                            ×{error.count}
-                                        </span>
-                                    )}
-                                </div>
-                                <p className="text-xs font-body text-neutral-gray mt-1">
-                                    {error.cause ?? error.description}
-                                </p>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-sm font-semibold font-body text-text-dark">{error.title}</h3>
+                                <SeverityBadge severity={error.severity} />
+                                {error.count && error.count > 1 && (
+                                    <span className="inline-flex px-2 py-0.5 rounded-full bg-neutral-light text-[11px] font-bold font-body text-neutral-gray tabular-nums">
+                                        ×{error.count}
+                                    </span>
+                                )}
                             </div>
-
-                            {/* Acknowledging is the ordinary action here, so it
-                                sits where the thumb lands and asks for nothing. */}
-                            {error.acknowledged ? (
-                                <button
-                                    type="button"
-                                    onClick={() => onReopen(error)}
-                                    disabled={busy}
-                                    className="shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold font-body text-neutral-gray hover:text-text-dark hover:bg-neutral-light transition-colors disabled:opacity-50 cursor-pointer"
-                                >
-                                    Reopen
-                                </button>
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={() => onAcknowledge(error)}
-                                    disabled={busy}
-                                    className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#f0e8d8] text-[10px] font-bold font-body text-neutral-gray hover:border-success/40 hover:text-success hover:bg-success/5 transition-colors disabled:opacity-50 cursor-pointer"
-                                    title="Hide this until it happens again"
-                                >
-                                    <CheckIcon size={11} />
-                                    Acknowledge
-                                </button>
-                            )}
+                            <p className="text-sm font-body text-neutral-gray mt-1">
+                                {error.cause ?? error.description}
+                            </p>
                         </div>
 
-                        {/* The point of the whole card: what to actually do. */}
-                        {error.fix && !error.acknowledged && (
-                            <div className="mt-2.5 rounded-xl bg-success/5 border border-success/20 px-3 py-2">
-                                <p className="text-[10px] font-bold font-body text-success uppercase tracking-wide mb-0.5">
-                                    What to do
-                                </p>
-                                <p className="text-xs font-body text-text-dark">{error.fix}</p>
-                            </div>
+                        {/* Acknowledging is the ordinary action here, so it sits
+                            where the thumb lands and asks for nothing. */}
+                        {error.acknowledged ? (
+                            <button
+                                type="button"
+                                onClick={() => onReopen(error)}
+                                disabled={busy}
+                                className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-semibold font-body text-neutral-gray hover:text-text-dark hover:bg-neutral-light transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                                Reopen
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => onAcknowledge(error)}
+                                disabled={busy}
+                                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#e3ddd0] text-[11px] font-semibold font-body text-neutral-gray hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50 cursor-pointer"
+                                title="Hide this until it happens again"
+                            >
+                                <CheckIcon size={12} />
+                                Acknowledge
+                            </button>
                         )}
+                    </div>
 
-                        {/* Who this was, for sign-in failures. */}
-                        {(error.name || error.employee_no || error.role || error.account_status) && (
-                            <div className="flex flex-wrap gap-1.5 mt-2.5">
-                                {error.name && <Chip label={error.name} />}
-                                {error.employee_no && <Chip label={error.employee_no} />}
-                                {error.role && <Chip label={error.role} />}
-                                {error.account_status && <Chip label={`account ${error.account_status}`} />}
-                                {error.ips && error.ips.length > 0 && <Chip label={`IP ${error.ips.join(', ')}`} />}
-                            </div>
-                        )}
+                    {/* The point of the whole card: what to actually do. */}
+                    {error.fix && !error.acknowledged && (
+                        <div className="mt-3 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2.5">
+                            <p className="text-[10px] font-bold font-body text-emerald-700 uppercase tracking-wide mb-0.5">
+                                What to do
+                            </p>
+                            <p className="text-sm font-body text-text-dark">{error.fix}</p>
+                        </div>
+                    )}
 
-                        {/* Per-account breakdown on the daily summary. */}
-                        {error.accounts && error.accounts.length > 0 && (
-                            <div className="mt-2.5 rounded-xl border border-[#f0e8d8] divide-y divide-[#f0e8d8]">
-                                {error.accounts.slice(0, 8).map(a => (
-                                    <div key={a.identifier} className="px-3 py-2 flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <p className="text-xs font-medium font-body text-text-dark truncate">
-                                                {a.name ?? a.identifier}
-                                                {a.employee_no && (
-                                                    <span className="text-neutral-gray font-normal"> · {a.employee_no}</span>
-                                                )}
-                                            </p>
-                                            <p className="text-[10px] font-body text-neutral-gray">
-                                                {REASON_LABELS[a.reason ?? ''] ?? 'reason not recorded'}
-                                                {a.ips.length > 0 && ` · ${a.ips.join(', ')}`}
-                                            </p>
-                                        </div>
-                                        <span className="shrink-0 inline-flex px-2 py-0.5 rounded-full bg-neutral-light text-[10px] font-bold font-body text-neutral-gray">
-                                            ×{a.attempts}
-                                        </span>
+                    {/* Who this was, for sign-in failures. */}
+                    {(error.name || error.employee_no || error.role || error.account_status) && (
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                            {error.name && <Chip label={error.name} />}
+                            {error.employee_no && <Chip label={error.employee_no} />}
+                            {error.role && <Chip label={error.role} />}
+                            {error.account_status && <Chip label={`account ${error.account_status}`} />}
+                            {error.ips && error.ips.length > 0 && <Chip label={`IP ${error.ips.join(', ')}`} />}
+                        </div>
+                    )}
+
+                    {/* Per-account breakdown on the daily summary. */}
+                    {error.accounts && error.accounts.length > 0 && (
+                        <div className="mt-3 rounded-xl border border-[#f0e8d8] divide-y divide-[#f0e8d8] overflow-hidden">
+                            {error.accounts.slice(0, 8).map(a => (
+                                <div key={a.identifier} className="px-3 py-2.5 flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-[12px] font-medium font-body text-text-dark truncate">
+                                            {a.name ?? a.identifier}
+                                            {a.employee_no && (
+                                                <span className="text-neutral-gray font-normal"> · {a.employee_no}</span>
+                                            )}
+                                        </p>
+                                        <p className="text-[11px] font-body text-neutral-gray">
+                                            {REASON_LABELS[a.reason ?? ''] ?? 'reason not recorded'}
+                                            {a.ips.length > 0 && ` · ${a.ips.join(', ')}`}
+                                        </p>
                                     </div>
-                                ))}
-                            </div>
-                        )}
-
-                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2.5 text-[10px] font-body text-neutral-gray/70">
-                            <span className="inline-flex items-center gap-1">
-                                <CatIcon size={10} />
-                                {error.category}
-                            </span>
-                            <span>{relativeTime(error.timestamp)}</span>
-                            {error.phone && <span>Phone: {error.phone}</span>}
-                            {error.order_number && <span>Order: {error.order_number}</span>}
-                            {error.explanation_source === 'ai' && <span title="Explained by AI">AI-explained</span>}
-                            {error.acknowledged && error.acknowledged_by && (
-                                <span className="inline-flex items-center gap-1 text-success">
-                                    <CheckCircleIcon size={10} weight="fill" />
-                                    Acknowledged by {error.acknowledged_by}
-                                </span>
-                            )}
+                                    <span className="shrink-0 inline-flex px-2 py-0.5 rounded-full bg-neutral-light text-[11px] font-bold font-body text-neutral-gray tabular-nums">
+                                        ×{a.attempts}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
+                    )}
 
-                        {/* Raw text last and de-emphasised — it is for the
-                            developer you forward this to, not for the manager
-                            reading it. */}
-                        {error.raw && (
-                            <details className="mt-2">
-                                <summary className="text-[10px] font-body text-neutral-gray/70 cursor-pointer">
-                                    Technical detail
-                                </summary>
-                                <pre className="mt-1 text-[10px] font-mono text-neutral-gray whitespace-pre-wrap break-all bg-neutral-light rounded-lg p-2 overflow-x-auto">
-                                    {error.raw}
-                                </pre>
-                            </details>
+                    <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-3 text-[11px] font-body text-neutral-gray/70">
+                        <span className="inline-flex items-center gap-1">
+                            <CatIcon size={11} />
+                            {error.category}
+                        </span>
+                        <span>{relativeTime(error.timestamp)}</span>
+                        {error.phone && <span>Phone: {error.phone}</span>}
+                        {error.order_number && <span>Order: {error.order_number}</span>}
+                        {error.explanation_source === 'ai' && <span title="Explained by AI">AI-explained</span>}
+                        {error.acknowledged && error.acknowledged_by && (
+                            <span className="inline-flex items-center gap-1 text-emerald-700">
+                                <CheckCircleIcon size={11} weight="fill" />
+                                Acknowledged by {error.acknowledged_by}
+                            </span>
                         )}
                     </div>
+
+                    {/* Raw text last and de-emphasised — it is for the developer
+                        you forward this to, not for the manager reading it. */}
+                    {error.raw && (
+                        <details className="mt-2">
+                            <summary className="text-[11px] font-body text-neutral-gray/70 cursor-pointer">
+                                Technical detail
+                            </summary>
+                            <pre className="mt-1.5 text-[11px] font-mono text-neutral-gray whitespace-pre-wrap break-all bg-neutral-light rounded-lg p-2.5 overflow-x-auto">
+                                {error.raw}
+                            </pre>
+                        </details>
+                    )}
                 </div>
             </div>
         </div>
@@ -307,32 +303,32 @@ function FailedJobRow({ job, onRetry, onClear }: {
     onClear: (job: FailedJob) => void;
 }) {
     return (
-        <div className="flex items-start justify-between gap-3 px-4 py-3">
+        <div className="flex items-start justify-between gap-3 px-4 py-3.5">
             <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold font-body text-text-dark truncate">{job.job}</p>
-                <p className="text-[11px] font-body text-neutral-gray line-clamp-2 mt-0.5">{job.error}</p>
-                <p className="text-[10px] font-body text-neutral-gray/60 mt-0.5">
+                <p className="text-sm font-semibold font-body text-text-dark truncate">{job.job}</p>
+                <p className="text-[12px] font-body text-neutral-gray line-clamp-2 mt-0.5">{job.error}</p>
+                <p className="text-[11px] font-body text-neutral-gray/60 mt-0.5">
                     {job.queue} queue · {relativeTime(job.failed_at)}
                 </p>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
                 <button
                     type="button"
                     onClick={() => onRetry(job.uuid)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary text-[10px] font-bold font-body hover:bg-primary/20 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-semibold font-body hover:bg-primary/20 transition-colors cursor-pointer"
                     title="Put this job back on the queue"
                 >
-                    <ArrowClockwiseIcon size={11} />
+                    <ArrowClockwiseIcon size={12} />
                     Retry
                 </button>
                 <button
                     type="button"
                     onClick={() => onClear(job)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold font-body text-neutral-gray hover:text-error hover:bg-error/5 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold font-body text-neutral-gray hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
                     title="Drop it from the queue for good"
                 >
-                    <TrashIcon size={11} />
+                    <TrashIcon size={12} />
                     Clear
                 </button>
             </div>
@@ -455,31 +451,17 @@ export default function PlatformErrorsPage() {
         );
     }
 
-    const TABS: { key: Tab; label: string; count: number }[] = [
-        { key: 'open', label: 'Needs attention', count: summary?.total ?? 0 },
-        { key: 'acknowledged', label: 'Acknowledged', count: summary?.acknowledged ?? 0 },
-        { key: 'jobs', label: 'Failed jobs', count: jobTotal },
-    ];
-
     return (
-        <div className="p-6 max-w-5xl mx-auto space-y-5">
-            {/* Header */}
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <h1 className="text-xl font-bold font-body text-text-dark">Error Feed</h1>
-                    <p className="text-xs font-body text-neutral-gray mt-0.5">
-                        What has gone wrong across the platform, and what to do about it
-                    </p>
-                </div>
-                <button
-                    type="button"
-                    onClick={() => { refetch(); refetchJobs(); }}
-                    className="p-2 rounded-xl hover:bg-neutral-light transition-colors text-neutral-gray cursor-pointer shrink-0"
-                    title="Refresh"
-                >
-                    <ArrowsClockwiseIcon size={16} className={isFetching ? 'animate-spin' : ''} />
-                </button>
-            </div>
+        <div className="p-6 max-w-5xl mx-auto">
+            <PageHeader
+                title="Error Feed"
+                subtitle="What has gone wrong across the platform, and what to do about it"
+                secondaryAction={{
+                    label: isFetching ? 'Refreshing…' : 'Refresh',
+                    onClick: () => { refetch(); refetchJobs(); },
+                    icon: <ArrowsClockwiseIcon size={16} className={isFetching ? 'animate-spin' : ''} />,
+                }}
+            />
 
             {summary && (
                 <Verdict
@@ -491,36 +473,23 @@ export default function PlatformErrorsPage() {
                 />
             )}
 
-            {/* Tabs */}
-            <div className="flex items-center gap-1 border-b border-[#f0e8d8]">
-                {TABS.map(t => (
-                    <button
-                        key={t.key}
-                        type="button"
-                        onClick={() => setTab(t.key)}
-                        className={`px-3 py-2.5 text-xs font-semibold font-body border-b-2 -mb-px transition-colors cursor-pointer ${
-                            tab === t.key
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-neutral-gray hover:text-text-dark'
-                        }`}
-                    >
-                        {t.label}
-                        {t.count > 0 && (
-                            <span className={`ml-1.5 inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                tab === t.key ? 'bg-primary/10 text-primary' : 'bg-neutral-light text-neutral-gray'
-                            }`}>
-                                {t.count}
-                            </span>
-                        )}
-                    </button>
-                ))}
+            <div className="mb-5">
+                <SegmentedTabs<Tab>
+                    value={tab}
+                    onChange={setTab}
+                    options={[
+                        { value: 'open', label: `Needs attention (${summary?.total ?? 0})` },
+                        { value: 'acknowledged', label: `Acknowledged (${summary?.acknowledged ?? 0})` },
+                        { value: 'jobs', label: `Failed jobs (${jobTotal})` },
+                    ]}
+                />
             </div>
 
             {tab === 'jobs' ? (
                 /* ── Failed jobs ── */
-                <div className="space-y-3">
+                <div className="space-y-4">
                     <div className="flex items-start justify-between gap-4">
-                        <p className="text-xs font-body text-neutral-gray">
+                        <p className="text-sm font-body text-neutral-gray">
                             Work the queue could not finish. <strong className="text-text-dark">Retry</strong> puts a
                             job back on the queue; <strong className="text-text-dark">Clear</strong> deletes it, and a
                             cleared job can never be retried.
@@ -532,24 +501,24 @@ export default function PlatformErrorsPage() {
                             <button
                                 type="button"
                                 onClick={() => setGated({ kind: 'flush', count: jobTotal })}
-                                className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-error/30 text-error text-[10px] font-bold font-body hover:bg-error/5 transition-colors cursor-pointer"
+                                className="shrink-0 flex items-center gap-2 bg-neutral-card border border-rose-300 text-rose-700 px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:bg-rose-50 transition-colors min-h-11 cursor-pointer"
                             >
-                                <TrashIcon size={11} />
+                                <TrashIcon size={16} />
                                 Clear all {jobTotal}
                             </button>
                         )}
                     </div>
 
                     {jobs.length === 0 ? (
-                        <div className="bg-white rounded-2xl border border-[#f0e8d8] py-12 text-center">
-                            <CheckCircleIcon size={28} className="text-success mx-auto mb-2" weight="fill" />
+                        <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl py-14 text-center">
+                            <CheckCircleIcon size={30} className="text-emerald-600 mx-auto mb-2" weight="fill" />
                             <p className="text-sm font-semibold font-body text-text-dark">The failed queue is empty</p>
-                            <p className="text-xs font-body text-neutral-gray mt-0.5">
+                            <p className="text-sm font-body text-neutral-gray mt-0.5">
                                 Every queued job has run through.
                             </p>
                         </div>
                     ) : (
-                        <div className="bg-white rounded-2xl border border-[#f0e8d8] divide-y divide-[#f0e8d8] overflow-hidden">
+                        <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl divide-y divide-[#f0e8d8] overflow-hidden">
                             {jobs.map(job => (
                                 <FailedJobRow
                                     key={job.uuid}
@@ -563,50 +532,41 @@ export default function PlatformErrorsPage() {
                 </div>
             ) : (
                 /* ── Error list ── */
-                <div className="space-y-3">
-                    {/* Filters. Severity and category are separate questions and
-                        used to share one row of pills, where picking one
-                        silently cleared the other. */}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">
+                <>
+                    {/* Severity and area are separate questions, and used to
+                        share one strip of pills where picking either silently
+                        cleared the other. */}
+                    <FilterBar>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] font-bold font-body text-neutral-gray uppercase tracking-wider">
                                 Severity
                             </span>
-                            {(['all', 'critical', 'error', 'warning', 'info'] as const).map(s => (
-                                <button
-                                    key={s}
-                                    type="button"
-                                    onClick={() => setSeverity(s)}
-                                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold font-body transition-colors cursor-pointer ${
-                                        severity === s
-                                            ? 'bg-primary text-white'
-                                            : 'bg-neutral-light text-neutral-gray hover:bg-primary/10'
-                                    }`}
-                                >
-                                    {s === 'all' ? 'All' : SEVERITY[s].label}
-                                </button>
-                            ))}
+                            <SegmentedTabs<Severity | 'all'>
+                                value={severity}
+                                onChange={setSeverity}
+                                options={[
+                                    { value: 'all', label: 'All' },
+                                    { value: 'critical', label: 'Critical' },
+                                    { value: 'error', label: 'Error' },
+                                    { value: 'warning', label: 'Warning' },
+                                    { value: 'info', label: 'Info' },
+                                ]}
+                            />
                         </div>
 
                         {categories.length > 0 && (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[11px] font-bold font-body text-neutral-gray uppercase tracking-wider">
                                     Area
                                 </span>
-                                {['all', ...categories].map(c => (
-                                    <button
-                                        key={c}
-                                        type="button"
-                                        onClick={() => setCategory(c)}
-                                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold font-body transition-colors cursor-pointer ${
-                                            category === c
-                                                ? 'bg-primary text-white'
-                                                : 'bg-neutral-light text-neutral-gray hover:bg-primary/10'
-                                        }`}
-                                    >
-                                        {c === 'all' ? 'All' : c}
-                                    </button>
-                                ))}
+                                <SegmentedTabs<string>
+                                    value={category}
+                                    onChange={setCategory}
+                                    options={[
+                                        { value: 'all', label: 'All' },
+                                        ...categories.map(c => ({ value: c, label: c })),
+                                    ]}
+                                />
                             </div>
                         )}
 
@@ -615,60 +575,62 @@ export default function PlatformErrorsPage() {
                                 type="button"
                                 onClick={acknowledgeAll}
                                 disabled={ackBusy}
-                                className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-[#f0e8d8] text-[10px] font-bold font-body text-neutral-gray hover:border-success/40 hover:text-success hover:bg-success/5 transition-colors disabled:opacity-50 cursor-pointer"
+                                className="ml-auto flex items-center gap-2 bg-neutral-card border border-[#e3ddd0] text-text-dark px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:border-emerald-300 hover:text-emerald-700 transition-colors min-h-11 disabled:opacity-50 cursor-pointer"
                             >
-                                <CheckIcon size={11} />
+                                <CheckIcon size={16} />
                                 Acknowledge these {visible.length}
                             </button>
                         )}
-                    </div>
+                    </FilterBar>
 
-                    {visible.length === 0 ? (
-                        <div className="bg-white rounded-2xl border border-[#f0e8d8] py-12 text-center">
-                            {tab === 'acknowledged' ? (
-                                <>
-                                    <p className="text-sm font-semibold font-body text-text-dark">
-                                        Nothing acknowledged
-                                    </p>
-                                    <p className="text-xs font-body text-neutral-gray mt-0.5">
-                                        Items you acknowledge appear here, and return to the feed if they happen again.
-                                    </p>
-                                </>
-                            ) : severity !== 'all' || category !== 'all' ? (
-                                <>
-                                    <p className="text-sm font-semibold font-body text-text-dark">
-                                        Nothing matches that filter
-                                    </p>
-                                    <button
-                                        type="button"
-                                        onClick={() => { setSeverity('all'); setCategory('all'); }}
-                                        className="text-xs font-body text-primary mt-1 cursor-pointer hover:underline"
-                                    >
-                                        Show everything
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    <ShieldCheckIcon size={28} className="text-success mx-auto mb-2" weight="fill" />
-                                    <p className="text-sm font-semibold font-body text-text-dark">All clear</p>
-                                    <p className="text-xs font-body text-neutral-gray mt-0.5">
-                                        Nothing has gone wrong in the last 24 hours.
-                                    </p>
-                                </>
-                            )}
-                        </div>
-                    ) : (
-                        visible.map(err => (
-                            <ErrorCard
-                                key={err.id}
-                                error={err}
-                                onAcknowledge={acknowledge}
-                                onReopen={reopen}
-                                busy={ackBusy}
-                            />
-                        ))
-                    )}
-                </div>
+                    <div className="space-y-3">
+                        {visible.length === 0 ? (
+                            <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl py-14 text-center">
+                                {tab === 'acknowledged' ? (
+                                    <>
+                                        <p className="text-sm font-semibold font-body text-text-dark">
+                                            Nothing acknowledged
+                                        </p>
+                                        <p className="text-sm font-body text-neutral-gray mt-0.5">
+                                            Items you acknowledge appear here, and return to the feed if they happen again.
+                                        </p>
+                                    </>
+                                ) : severity !== 'all' || category !== 'all' ? (
+                                    <>
+                                        <p className="text-sm font-semibold font-body text-text-dark">
+                                            Nothing matches that filter
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setSeverity('all'); setCategory('all'); }}
+                                            className="text-sm font-body text-primary mt-1 cursor-pointer hover:underline"
+                                        >
+                                            Show everything
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <ShieldCheckIcon size={30} className="text-emerald-600 mx-auto mb-2" weight="fill" />
+                                        <p className="text-sm font-semibold font-body text-text-dark">All clear</p>
+                                        <p className="text-sm font-body text-neutral-gray mt-0.5">
+                                            Nothing has gone wrong in the last 24 hours.
+                                        </p>
+                                    </>
+                                )}
+                            </div>
+                        ) : (
+                            visible.map(err => (
+                                <ErrorCard
+                                    key={err.id}
+                                    error={err}
+                                    onAcknowledge={acknowledge}
+                                    onReopen={reopen}
+                                    busy={ackBusy}
+                                />
+                            ))
+                        )}
+                    </div>
+                </>
             )}
 
             <PasscodeDialog
