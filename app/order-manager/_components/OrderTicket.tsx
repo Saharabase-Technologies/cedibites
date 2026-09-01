@@ -7,6 +7,7 @@ import {
   ForkKnifeIcon,
   NoteIcon,
   PackageIcon,
+  PrinterIcon,
   ProhibitIcon,
   StorefrontIcon,
   WarningCircleIcon,
@@ -126,8 +127,18 @@ export interface OrderTicketProps {
   /** The board is inside the post-action lock window. Actions are inert. */
   isLocked: boolean;
   isAdmin: boolean;
+  /**
+   * Whether this order's receipt already exists on paper.
+   *
+   * Not read off `order.receiptPrintCount` directly, because the board is
+   * polled: between the tap and the next poll landing the count is still zero,
+   * and the button would sit there inviting a second original. The page ORs the
+   * server's count with what this session has printed.
+   */
+  isPrinted: boolean;
   onSelect: (order: Order) => void;
   onAdvance: (order: Order) => void;
+  onPrint: (order: Order) => void;
   onApproveCancel: (order: Order) => void;
   onRejectCancel: (order: Order) => void;
 }
@@ -140,8 +151,10 @@ function OrderTicketBase({
   isBusy,
   isLocked,
   isAdmin,
+  isPrinted,
   onSelect,
   onAdvance,
+  onPrint,
   onApproveCancel,
   onRejectCancel,
 }: OrderTicketProps) {
@@ -287,28 +300,56 @@ function OrderTicketBase({
             </p>
           )
         ) : tone.actionLabel ? (
-          <button
-            type="button"
-            disabled={actionsDisabled}
-            onClick={(e) => {
-              e.stopPropagation();
-              onAdvance(order);
-            }}
-            className={`
-              flex h-14 w-full items-center justify-center gap-2 rounded-lg
-              font-body text-base font-bold touch-manipulation
-              transition-transform duration-100 active:scale-[0.97]
-              disabled:opacity-50
-              ${tone.action}
-            `}
-          >
-            {isBusy ? (
-              <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-            ) : (
-              <CheckIcon weight="bold" className="h-5 w-5" />
-            )}
-            {tone.actionLabel}
-          </button>
+          <div className="flex gap-2">
+            {/* The receipt is printed here and nowhere else. This is the first
+                and only original — the POS confirmation no longer offers a
+                print, and /pos/orders will only ever reissue a copy of what
+                this button produced. Untinted once it has been printed, so a
+                glance down the column shows which slips are still owed. */}
+            <button
+              type="button"
+              disabled={actionsDisabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrint(order);
+              }}
+              aria-label={isPrinted ? 'Print another receipt' : 'Print receipt'}
+              title={isPrinted ? 'Receipt printed — print another copy' : 'Print the receipt'}
+              className={`
+                flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border
+                touch-manipulation transition-transform duration-100 active:scale-[0.97]
+                disabled:opacity-50
+                ${isPrinted
+                  ? 'border-[#e3ddd0] bg-neutral-light text-neutral-gray'
+                  : 'border-primary/40 bg-primary/10 text-[#8a5a12]'}
+              `}
+            >
+              <PrinterIcon weight={isPrinted ? 'regular' : 'fill'} className="h-6 w-6" />
+            </button>
+
+            <button
+              type="button"
+              disabled={actionsDisabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAdvance(order);
+              }}
+              className={`
+                flex h-14 flex-1 items-center justify-center gap-2 rounded-lg
+                font-body text-base font-bold touch-manipulation
+                transition-transform duration-100 active:scale-[0.97]
+                disabled:opacity-50
+                ${tone.action}
+              `}
+            >
+              {isBusy ? (
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              ) : (
+                <CheckIcon weight="bold" className="h-5 w-5" />
+              )}
+              {tone.actionLabel}
+            </button>
+          </div>
         ) : null}
 
         {/* Item count, quiet footer */}
@@ -370,6 +411,7 @@ export const OrderTicket = memo(OrderTicketBase, (a, b) => {
     a.isBusy === b.isBusy &&
     a.isLocked === b.isLocked &&
     a.isAdmin === b.isAdmin &&
+    a.isPrinted === b.isPrinted &&
     sameItems(x.items, y.items)
   );
 });

@@ -23,7 +23,6 @@ import {
   SpinnerIcon,
   ShoppingBagIcon,
   ClipboardTextIcon,
-  PrinterIcon,
   TagIcon,
   HourglassIcon,
   WarningCircleIcon,
@@ -63,7 +62,6 @@ import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import { useStockGate } from '@/lib/api/hooks/useStockGate';
 import type { StockShortfall } from '@/lib/api/services/stockGate.service';
-import { printReceipt } from '@/lib/utils/printReceipt';
 import { getPromoService, type Promo } from '@/lib/services/promos/promo.service';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
@@ -72,7 +70,6 @@ import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 import PendingPaymentsDrawer from './PendingPaymentsDrawer';
 import { useOnlineOrderArrivals } from '../hooks/useOnlineOrderArrivals';
-import { useMarkReceiptPrinted } from '@/lib/api/hooks/useOrders';
 import { isRemoteSource } from '@/lib/constants/order.constants';
 import { usePosCheckoutSessions } from '@/lib/api/hooks/useCheckoutSession';
 
@@ -1416,7 +1413,6 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
       {completedOrder && (
         <OrderSuccessModal
           order={completedOrder}
-          branch={{ name: branchInfo?.name ?? 'CediBites', address: branchInfo?.address, phone: branchInfo?.phone }}
           onClose={() => {
             setCompletedOrder(null);
             // Now, not at payment time. Clearing the branch mid-transaction
@@ -2066,26 +2062,10 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
 
 interface OrderSuccessModalProps {
   order: Order;
-  branch: { name: string; address?: string; phone?: string };
   onClose: () => void;
 }
 
-function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
-  const { markPrinted } = useMarkReceiptPrinted();
-
-  /**
-   * The slip handed over at the counter counts as the order's first print.
-   *
-   * Without recording it, the orders list would go on offering "Print receipt"
-   * for a sale whose receipt is already in the customer's hand — and the till
-   * would have no way to tell that from an online order nobody has printed at
-   * all, which is the distinction the button exists to draw.
-   */
-  const printAndRecord = () => {
-    printReceipt(order, branch);
-    void markPrinted(Number(order.id)).catch(() => {});
-  };
-
+function OrderSuccessModal({ order, onClose }: OrderSuccessModalProps) {
   // Auto close after 5 seconds
   useEffect(() => {
     const timer = setTimeout(onClose, 5000);
@@ -2132,32 +2112,22 @@ function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={printAndRecord}
-              className="
-                flex-1 h-12 rounded-xl font-medium
-                bg-neutral-gray/10 text-text-dark
-                hover:bg-neutral-gray/20 active:scale-[0.98]
-                transition-all duration-150
-                flex items-center justify-center gap-2
-              "
-            >
-              <PrinterIcon className="w-4 h-4" />
-              Print
-            </button>
-            <button
-              onClick={onClose}
-              className="
-                flex-1 h-12 rounded-xl font-medium
-                bg-primary text-brown
-                hover:bg-primary-hover active:scale-[0.98]
-                transition-all duration-150
-              "
-            >
-              New Order
-            </button>
-          </div>
+          {/* No print here. The receipt is printed once, from the Order
+              Manager, and that press is the original — see the note on the
+              reprint button in app/pos/orders/page.tsx. Printing at the till
+              too would put two "originals" on the same order and leave the
+              board unable to tell a slip that exists from one that does not. */}
+          <button
+            onClick={onClose}
+            className="
+              w-full h-12 rounded-xl font-medium
+              bg-primary text-brown
+              hover:bg-primary-hover active:scale-[0.98]
+              transition-all duration-150
+            "
+          >
+            New Order
+          </button>
         </div>
 
         {/* Auto close indicator */}

@@ -294,21 +294,22 @@ export default function POSOrdersPage() {
   };
 
   /**
-   * Put a receipt in the customer's hand, and remember that we did.
+   * Put another copy of a receipt in the customer's hand.
    *
-   * The first one is an original; everything after it is a reprint, and the
-   * slip says so. That distinction is a fact about the order rather than about
-   * this device — an order placed online has never been printed anywhere, and
-   * the till has to be able to tell that from one whose slip is already in
-   * somebody's pocket.
+   * This screen only ever reprints. The original is printed once, from the
+   * Order Manager, because that is the point at which the branch has actually
+   * taken the order on; the till is the fallback for a slip that was lost,
+   * smudged or never handed over. So the kind is hard-coded rather than
+   * derived — there is no path through this button that produces an original,
+   * even the one below that prints a receipt which has never existed on paper.
+   * That case is a completed order nobody printed at the pass, and calling its
+   * slip an original would be a lie about when the customer was handed it.
    *
    * Printing happens first and the record follows. If the write fails the
    * customer still has their receipt, which is the part that matters; the worst
-   * case is that the button keeps offering to print it again.
+   * case is that the reprint count runs low.
    */
-  const printOrder = (order: Order) => {
-    const alreadyPrinted = (order.receiptPrintCount ?? 0) > 0;
-
+  const reprintOrder = (order: Order) => {
     printReceipt(
       {
         ...order,
@@ -319,11 +320,11 @@ export default function POSOrdersPage() {
           ?? (isRemoteSource(order.source) ? SOURCE_LABEL[order.source] : session?.staffName),
       },
       branchInfo?.name ?? 'CediBites',
-      { kind: alreadyPrinted ? 'reprint' : 'original' },
+      { kind: 'reprint' },
     );
 
     void markPrinted(Number(order.id)).catch(() => {
-      toast.error('Printed, but could not record it. It may still show as unprinted.');
+      toast.error('Reprinted, but could not record it. The print count may be short.');
     });
   };
 
@@ -418,14 +419,19 @@ export default function POSOrdersPage() {
         // Accepting is what attributes the order — and its revenue — to the
         // person who taps it. Offered only while nobody has claimed it.
         const claimable = o.status === 'received' && !o.staffName;
-        const printed = (o.receiptPrintCount ?? 0) > 0;
 
-        // No receipt for an order nobody has taken on. Printing one implies the
-        // kitchen has it and the customer can be told a time, and for an order
-        // still sitting in Received neither is true — the slip would be a
-        // promise the branch has not made. A till sale is exempt: it was rung
-        // up here, so accepting it is not a separate act.
-        const canPrint = !isRemoteSource(o.source) || o.status !== 'received';
+        const printCount = o.receiptPrintCount ?? 0;
+
+        // Reprints only: while an order is still live its receipt belongs to
+        // the Order Manager, and offering "Print" here would hand out a second
+        // first-receipt and leave the board with nothing left to do.
+        //
+        // The exception is an order that has already been completed. It has
+        // dropped off the board — the Order Manager only carries work up to
+        // Ready — so if it left the pass unprinted this screen is the only
+        // place left that can produce the slip at all. Without this the receipt
+        // would simply be unobtainable, which is worse than a late one.
+        const canReprint = printCount > 0 || o.status === 'completed';
         return (
           <div className="flex items-center justify-end gap-1.5">
             {claimable && (
@@ -442,29 +448,28 @@ export default function POSOrdersPage() {
               </button>
             )}
 
-            {/* Out in the open rather than behind the kebab: handing over a
-                receipt is the most common thing done from this screen. An order
-                whose slip has never been printed wears the emphasis, because
-                that is a customer still waiting for one. */}
-            {canPrint && (
+            {/* Out in the open rather than behind the kebab: reissuing a lost
+                receipt is the most common thing done from this screen. Quiet
+                styling on purpose — a reprint is a recovery, not the step
+                anybody is waiting on. */}
+            {canReprint && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); printOrder(o); }}
-              className={`
+              onClick={(e) => { e.stopPropagation(); reprintOrder(o); }}
+              className="
                 flex items-center gap-1.5 px-3 h-9 rounded-xl text-sm font-semibold
                 transition-colors cursor-pointer whitespace-nowrap border
-                ${printed
-                  ? 'bg-neutral-card border-[#e3ddd0] text-neutral-gray hover:text-text-dark hover:border-neutral-gray/50'
-                  : 'bg-primary/10 border-primary/40 text-primary hover:bg-primary/15'}
-              `}
+                bg-neutral-card border-[#e3ddd0] text-neutral-gray
+                hover:text-text-dark hover:border-neutral-gray/50
+              "
               title={
-                printed
-                  ? `Printed ${o.receiptPrintCount} time${o.receiptPrintCount === 1 ? '' : 's'}`
-                  : 'No receipt has been printed for this order yet'
+                printCount > 0
+                  ? `Printed ${printCount} time${printCount === 1 ? '' : 's'} — printing another copy`
+                  : 'Never printed at the pass — printing it here'
               }
             >
-              <PrinterIcon size={14} weight={printed ? 'regular' : 'bold'} />
-              {printed ? 'Reprint' : 'Print'}
+              <PrinterIcon size={14} />
+              Reprint
             </button>
             )}
 
