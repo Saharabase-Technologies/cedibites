@@ -88,10 +88,30 @@ export default function OrderManagerPage() {
   const { orders, isLoading, connection, pendingIds, stageSinceFor, moveOrder, removeOrder, refresh } =
     useOrderBoard(effectiveBranchId);
 
-  // A board carrying tickets is a board somebody is working. A caution or a
-  // walkthrough that takes the screen mid-service hides the very columns it is
-  // describing, so both wait for a quiet moment — the same rule the till plays
-  // by, with live tickets standing in for a part-built cart.
+  // Nothing may take this screen over while it is carrying tickets, and nothing
+  // may take it over before it is a board at all.
+  //
+  // The first half is the same rule the till plays by, with live tickets
+  // standing in for a part-built cart: a caution or a walkthrough that lands
+  // mid-service hides the very columns it is describing.
+  //
+  // The second half is the gates below. This shell mounts its interstitials as
+  // siblings of the page, which is what put a walkthrough over /staff/login
+  // until the components learned to refuse auth routes. The equivalent here is
+  // not a route but a state: the auth spinner and the branch picker are both
+  // screens where nobody has said yet which branch they are standing in, and a
+  // modal over either is the same mistake. The kitchen avoids this by mounting
+  // its copies inside KitchenGate; this page has no such wrapper, so it says so
+  // itself.
+  //
+  // The closed-branch notice is deliberately NOT included. Somebody looking at
+  // it has been identified, has chosen where they are, and has nothing else to
+  // do, which makes it one of the better moments to read a walkthrough rather
+  // than a worse one.
+  const boardIsReady =
+    !isAuthLoading && !isBranchListLoading && Boolean(effectiveBranchId);
+
+  useHoldsInterruption('order-manager:not-ready', !boardIsReady);
   useHoldsInterruption('order-manager:live-board', orders.length > 0);
 
   // The old board held the whole selected order in state and re-synced it from
