@@ -14,6 +14,7 @@ import {
 } from '@phosphor-icons/react';
 
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { useHoldsInterruption } from '@/app/components/providers/InterruptionGate';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useOperableBranches } from '@/lib/hooks/useOperableBranches';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
@@ -86,6 +87,12 @@ export default function OrderManagerPage() {
 
   const { orders, isLoading, connection, pendingIds, stageSinceFor, moveOrder, removeOrder, refresh } =
     useOrderBoard(effectiveBranchId);
+
+  // A board carrying tickets is a board somebody is working. A caution or a
+  // walkthrough that takes the screen mid-service hides the very columns it is
+  // describing, so both wait for a quiet moment — the same rule the till plays
+  // by, with live tickets standing in for a part-built cart.
+  useHoldsInterruption('order-manager:live-board', orders.length > 0);
 
   // The old board held the whole selected order in state and re-synced it from
   // the list on every poll — an extra render a second, and a panel that could
