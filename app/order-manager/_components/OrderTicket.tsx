@@ -8,10 +8,7 @@ import {
   NoteIcon,
   PackageIcon,
   PrinterIcon,
-  ProhibitIcon,
   StorefrontIcon,
-  WarningCircleIcon,
-  XIcon,
 } from '@phosphor-icons/react';
 import type { Order, FulfillmentType } from '@/types/order';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
@@ -126,7 +123,6 @@ export interface OrderTicketProps {
   isBusy: boolean;
   /** The board is inside the post-action lock window. Actions are inert. */
   isLocked: boolean;
-  isAdmin: boolean;
   /**
    * Whether this order's receipt already exists on paper.
    *
@@ -139,8 +135,6 @@ export interface OrderTicketProps {
   onSelect: (order: Order) => void;
   onAdvance: (order: Order) => void;
   onPrint: (order: Order) => void;
-  onApproveCancel: (order: Order) => void;
-  onRejectCancel: (order: Order) => void;
 }
 
 function OrderTicketBase({
@@ -150,19 +144,14 @@ function OrderTicketBase({
   isSelected,
   isBusy,
   isLocked,
-  isAdmin,
   isPrinted,
   onSelect,
   onAdvance,
   onPrint,
-  onApproveCancel,
-  onRejectCancel,
 }: OrderTicketProps) {
   const tone = STAGE[stage];
   const fulfilment = FULFILMENT[order.fulfillmentType] ?? FULFILMENT.takeaway;
   const FulfilmentIcon = fulfilment.icon;
-  const isCancelReq = stage === 'cancel_requested';
-
   const visibleItems = order.items.slice(0, ITEM_PREVIEW_LIMIT);
   const hiddenCount = order.items.length - visibleItems.length;
   const itemCount = order.items.reduce((n, item) => n + item.quantity, 0);
@@ -209,14 +198,6 @@ function OrderTicketBase({
             </span>
           </div>
         </header>
-
-        {/* Cancel reason */}
-        {isCancelReq && (
-          <p className={`rounded-lg px-2.5 py-1.5 font-body text-xs ${tone.bg} ${tone.text}`}>
-            <WarningCircleIcon weight="fill" className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
-            {order.cancelRequestReason ?? 'Cancellation requested'}
-          </p>
-        )}
 
         {/* Items — the reason the screen exists */}
         <ul className="flex flex-col gap-1">
@@ -266,66 +247,38 @@ function OrderTicketBase({
         )}
 
         {/* Action */}
-        {isCancelReq ? (
-          isAdmin ? (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={actionsDisabled}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRejectCancel(order);
-                }}
-                className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#e3ddd0] bg-neutral-light font-body text-sm font-semibold text-text-dark transition-transform touch-manipulation active:scale-[0.97] disabled:opacity-50"
-              >
-                <XIcon weight="bold" className="h-4 w-4" />
-                Keep
-              </button>
-              <button
-                type="button"
-                disabled={actionsDisabled}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onApproveCancel(order);
-                }}
-                className={`flex h-12 flex-1 items-center justify-center gap-1.5 rounded-lg font-body text-sm font-semibold transition-transform touch-manipulation active:scale-[0.97] disabled:opacity-50 ${tone.action}`}
-              >
-                <ProhibitIcon weight="bold" className="h-4 w-4" />
-                Cancel it
-              </button>
-            </div>
-          ) : (
-            <p className={`rounded-lg py-2.5 text-center font-body text-xs font-semibold ${tone.bg} ${tone.text}`}>
-              Waiting for a manager
-            </p>
-          )
-        ) : tone.actionLabel ? (
+        {tone.actionLabel ? (
           <div className="flex gap-2">
             {/* The receipt is printed here and nowhere else. This is the first
                 and only original — the POS confirmation no longer offers a
                 print, and /pos/orders will only ever reissue a copy of what
-                this button produced. Untinted once it has been printed, so a
-                glance down the column shows which slips are still owed. */}
-            <button
-              type="button"
-              disabled={actionsDisabled}
-              onClick={(e) => {
-                e.stopPropagation();
-                onPrint(order);
-              }}
-              aria-label={isPrinted ? 'Print another receipt' : 'Print receipt'}
-              title={isPrinted ? 'Receipt printed — print another copy' : 'Print the receipt'}
-              className={`
-                flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border
-                touch-manipulation transition-transform duration-100 active:scale-[0.97]
-                disabled:opacity-50
-                ${isPrinted
-                  ? 'border-[#e3ddd0] bg-neutral-light text-neutral-gray'
-                  : 'border-primary/40 bg-primary/10 text-[#8a5a12]'}
-              `}
-            >
-              <PrinterIcon weight={isPrinted ? 'regular' : 'fill'} className="h-6 w-6" />
-            </button>
+                this button produced.
+
+                It disappears the moment the slip exists rather than going
+                quiet, so the button's presence is the answer to "does this
+                order still owe a receipt": a column with no printers in it is
+                a column with nothing left to print. A second copy is a reprint
+                by definition, and reprints live at /pos/orders. */}
+            {!isPrinted && (
+              <button
+                type="button"
+                disabled={actionsDisabled}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPrint(order);
+                }}
+                aria-label="Print receipt"
+                title="Print the receipt"
+                className="
+                  flex h-14 w-14 shrink-0 items-center justify-center rounded-lg
+                  border border-primary/40 bg-primary/10 text-[#8a5a12]
+                  touch-manipulation transition-transform duration-100
+                  active:scale-[0.97] disabled:opacity-50
+                "
+              >
+                <PrinterIcon weight="fill" className="h-6 w-6" />
+              </button>
+            )}
 
             <button
               type="button"
@@ -410,7 +363,6 @@ export const OrderTicket = memo(OrderTicketBase, (a, b) => {
     a.isSelected === b.isSelected &&
     a.isBusy === b.isBusy &&
     a.isLocked === b.isLocked &&
-    a.isAdmin === b.isAdmin &&
     a.isPrinted === b.isPrinted &&
     sameItems(x.items, y.items)
   );
