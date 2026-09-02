@@ -28,6 +28,7 @@ import apiClient from '@/lib/api/client';
 import type { Order } from '@/types/order';
 
 import { OrderTicket } from './_components/OrderTicket';
+import { CancelRequestRow } from './_components/CancelRequestRow';
 import { StageColumn } from './_components/StageColumn';
 import { OrderDetailSheet } from './_components/OrderDetailSheet';
 import { useFlipLayout, FLIP_DURATION_MS } from './_components/useFlipLayout';
@@ -402,13 +403,10 @@ export default function OrderManagerPage() {
         isSelected={selectedId === order.id}
         isBusy={pendingIds.has(order.id)}
         isLocked={isLocked}
-        isAdmin={isAdmin}
         isPrinted={(order.receiptPrintCount ?? 0) > 0 || printedIds.has(order.id)}
         onSelect={select}
         onAdvance={advance}
         onPrint={printOrder}
-        onApproveCancel={approveCancel}
-        onRejectCancel={rejectCancel}
       />
     </div>
   );
@@ -569,13 +567,29 @@ export default function OrderManagerPage() {
       {/* A band rather than a fifth column: rare, urgent, and it should not cost
           a quarter of the board's width on the nights there are none. */}
       {cancelCount > 0 && (
-        <section className="shrink-0 border-b border-[#f0e8d8] bg-[#f9ecec]/50 px-3 py-2.5">
+        <section className="max-h-[30vh] shrink-0 overflow-y-auto border-b border-[#f0e8d8] bg-[#f9ecec]/50 px-3 py-2.5">
           <h2 className="mb-2 flex items-center gap-2 font-brand text-xs font-bold uppercase tracking-wide text-[#8a3333]">
             <span className="h-2.5 w-2.5 rounded-full bg-[#c05252]" />
             Cancel requests ({cancelCount})
           </h2>
-          <div className="flex gap-2.5 overflow-x-auto pb-1">
-            {columns.cancel_requested.map((order) => renderTicket(order, 'w-72 shrink-0'))}
+          {/* Stacked bars, not a row of cards. A pile-up of requests is capped
+              at a third of the screen and scrolls inside itself, so the board
+              below it can never be pushed off the bottom. */}
+          <div className="flex flex-col gap-2">
+            {columns.cancel_requested.map((order) => (
+              <CancelRequestRow
+                key={order.id}
+                order={order}
+                since={stageSinceFor(order)}
+                isSelected={selectedId === order.id}
+                isBusy={pendingIds.has(order.id)}
+                isLocked={isLocked}
+                isAdmin={isAdmin}
+                onSelect={select}
+                onApproveCancel={approveCancel}
+                onRejectCancel={rejectCancel}
+              />
+            ))}
           </div>
         </section>
       )}
