@@ -145,6 +145,17 @@ body::-webkit-scrollbar-thumb:hover {
     from { opacity: 0; transform: translateX(-24px); }
     to   { opacity: 1; transform: translateX(0); }
   }
+  /* Paging a walkthrough. Short travel and a short duration: this is one
+     panel replacing another inside a card that is not moving, so the motion
+     only has to say which way the deck went. */
+  @keyframes cb-walkthrough-next {
+    from { opacity: 0; transform: translateX(16px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes cb-walkthrough-prev {
+    from { opacity: 0; transform: translateX(-16px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
   @keyframes cb-shake {
     0%, 100% { transform: translateX(0); }
     20%      { transform: translateX(-6px); }
@@ -163,6 +174,8 @@ body::-webkit-scrollbar-thumb:hover {
   .animate-scale-in      { animation: cb-scale-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-slide-in-right{ animation: cb-slide-in-right 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-slide-in-left { animation: cb-slide-in-left 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .walkthrough-enter-next{ animation: cb-walkthrough-next 180ms ease-out both; }
+  .walkthrough-enter-prev{ animation: cb-walkthrough-prev 180ms ease-out both; }
   .animate-shake         { animation: cb-shake 0.4s ease both; }
   .animate-float         { animation: cb-float 6s ease-in-out infinite; }
 
@@ -179,7 +192,9 @@ body::-webkit-scrollbar-thumb:hover {
     .animate-slide-in-right,
     .animate-slide-in-left,
     .animate-shake,
-    .animate-float {
+    .animate-float,
+    .walkthrough-enter-next,
+    .walkthrough-enter-prev {
       animation: none !important;
     }
   }

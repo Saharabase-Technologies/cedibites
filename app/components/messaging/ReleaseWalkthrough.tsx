@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
-import { ArrowLeftIcon, ArrowRightIcon, SparkleIcon } from '@phosphor-icons/react';
+import { ArrowLeftIcon, ArrowRightIcon } from '@phosphor-icons/react';
 
 import { useStaffAuthOptional } from '@/app/components/providers/StaffAuthProvider';
 import { useInterruptionGate } from '@/app/components/providers/InterruptionGate';
@@ -60,6 +60,18 @@ export function ReleaseWalkthrough() {
     );
 }
 
+/**
+ * The card.
+ *
+ * Shaped after the way a browser announces its own update: the screenshot is the
+ * thing, given the top of the card at full width, with the heading and the words
+ * underneath it. Staff are being told about a screen they are about to stand in
+ * front of, so showing them that screen is worth more than any amount of prose.
+ *
+ * Deliberately absent, because each is a house rule: no icon tile above the
+ * heading, no "WHAT'S NEW" kicker over the top of it, no card nested inside the
+ * card, and no border and drop shadow on the same edge.
+ */
 function WalkthroughCard({
     release,
     busy,
@@ -71,6 +83,17 @@ function WalkthroughCard({
 }) {
     const [index, setIndex] = useState(0);
 
+    // Which way the next slide should travel in from. Paging back and paging
+    // forward moving the same direction reads as a redraw rather than a move.
+    const [direction, setDirection] = useState<1 | -1>(1);
+
+    // Slides whose image did not load, by position. A screenshot can be missing
+    // for reasons this screen cannot fix — the file never reached this
+    // environment, the URL points at another host — and the one thing it must
+    // not do is leave a broken frame sitting under the heading. On failure the
+    // layout closes over it and the slide reads as a text slide.
+    const [brokenImages, setBrokenImages] = useState<Record<number, true>>({});
+
     // A release always has slides — the API refuses one without. The fallback
     // exists so a payload from an older backend renders its body rather than an
     // empty card somebody still has to acknowledge.
@@ -80,88 +103,112 @@ function WalkthroughCard({
 
     const step = steps[index];
     const isLast = index === steps.length - 1;
+    const isFirst = index === 0;
+
+    const go = useCallback(
+        (by: 1 | -1) => {
+            setDirection(by);
+            setIndex((current) => Math.min(steps.length - 1, Math.max(0, current + by)));
+        },
+        [steps.length],
+    );
+
+    // Arrow keys page the deck. A till and a kitchen tablet both have a keyboard
+    // more often than not, and reaching for the mouse to read six slides is the
+    // sort of small friction that gets a walkthrough clicked through unread.
+    useEffect(() => {
+        const onKey = (event: KeyboardEvent) => {
+            if (busy) return;
+            if (event.key === 'ArrowRight' && !isLast) go(1);
+            if (event.key === 'ArrowLeft' && !isFirst) go(-1);
+        };
+
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [busy, isFirst, isLast, go]);
+
+    const showImage = Boolean(step.image_url) && !brokenImages[index];
 
     return (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-brand-darker/70 backdrop-blur-sm p-4">
-            <div className="w-full max-w-xl max-h-[88vh] flex flex-col rounded-2xl bg-neutral-card shadow-2xl overflow-hidden">
-
-                {/* ── What this is ──────────────────────────────────────── */}
-                <header className="flex items-center gap-3 px-6 pt-5 pb-4 shrink-0">
-                    <span className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
-                        <SparkleIcon size={18} weight="fill" className="text-primary" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                        <p className="font-body text-[11px] font-bold uppercase tracking-[0.14em] text-neutral-gray">
-                            What&apos;s new
-                        </p>
-                        <p className="font-body text-sm text-text-dark font-semibold truncate">
-                            {release.subject ?? 'Changes to the platform'}
-                        </p>
-                    </div>
-                    <span className="shrink-0 font-body text-xs text-neutral-gray tabular-nums">
-                        {index + 1} of {steps.length}
-                    </span>
-                </header>
-
-                <div className="h-px bg-[#f0e8d8] shrink-0" />
-
-                {/* ── The slide ─────────────────────────────────────────── */}
-                <div className="overflow-y-auto flex-1 min-h-0 px-6 py-6">
-                    {step.title && (
-                        <h2 className="font-brand text-2xl font-bold text-text-dark leading-tight mb-3 text-balance">
-                            {step.title}
-                        </h2>
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-brand-darker/75 p-4 sm:p-6">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={release.subject ?? 'Changes to the platform'}
+                className="w-full max-w-3xl max-h-[92vh] flex flex-col rounded-[28px] bg-neutral-card shadow-[0_24px_60px_-12px_rgba(18,15,13,0.45)] overflow-hidden"
+            >
+                {/* Keyed on the index so every slide replays its entrance, and so
+                    the scroll position returns to the top of a long slide rather
+                    than carrying the last one's offset into it. */}
+                <div
+                    key={index}
+                    className={`flex-1 min-h-0 overflow-y-auto ${
+                        direction === 1 ? 'walkthrough-enter-next' : 'walkthrough-enter-prev'
+                    }`}
+                >
+                    {showImage && (
+                        <div className="relative w-full aspect-[16/10] max-h-[46vh] bg-neutral-light">
+                            <Image
+                                src={step.image_url as string}
+                                alt=""
+                                fill
+                                unoptimized
+                                sizes="(max-width: 768px) 100vw, 768px"
+                                // object-contain, not cover: this is a screenshot
+                                // of a screen somebody has to recognise, and a
+                                // crop that eats the toolbar being described
+                                // defeats the point of showing it.
+                                className="object-contain"
+                                onError={() => setBrokenImages((current) => ({ ...current, [index]: true }))}
+                            />
+                        </div>
                     )}
 
-                    <div className="font-body text-[15px] text-text-dark leading-relaxed">
-                        {renderMessageBody(step.body)}
-                    </div>
+                    <div className={`px-7 sm:px-10 pb-8 ${showImage ? 'pt-7' : 'pt-10'}`}>
+                        {step.title && (
+                            <h2 className="font-brand text-[27px] sm:text-[32px] text-text-dark leading-[1.15] text-balance">
+                                {step.title}
+                            </h2>
+                        )}
 
-                    {step.image_url && (
-                        <Image
-                            src={step.image_url}
-                            alt=""
-                            width={900}
-                            height={600}
-                            unoptimized
-                            className="mt-4 w-full h-auto rounded-xl border border-[#e3ddd0]"
-                        />
-                    )}
+                        <div className="mt-3 font-body text-[15px] sm:text-base text-text-gray leading-relaxed max-w-[58ch]">
+                            {renderMessageBody(step.body)}
+                        </div>
+                    </div>
                 </div>
 
-                {/* ── Getting through it ────────────────────────────────── */}
-                <footer className="shrink-0 border-t border-[#f0e8d8] bg-neutral-light px-6 py-4 flex items-center gap-3">
+                <footer className="shrink-0 bg-neutral-light px-5 sm:px-7 py-4 flex items-center gap-3">
                     <button
                         type="button"
-                        onClick={() => setIndex((i) => Math.max(0, i - 1))}
-                        disabled={index === 0 || busy}
-                        className="flex items-center gap-1.5 px-3 h-11 rounded-xl font-body text-sm font-medium text-neutral-gray hover:text-text-dark disabled:opacity-0 disabled:pointer-events-none transition-colors cursor-pointer"
+                        onClick={() => go(-1)}
+                        disabled={isFirst || busy}
+                        className="flex items-center gap-1.5 px-3 min-h-11 rounded-xl font-body text-sm font-medium text-neutral-gray hover:text-text-dark disabled:opacity-0 disabled:pointer-events-none transition-colors duration-150 cursor-pointer"
                     >
                         <ArrowLeftIcon size={15} />
                         Back
                     </button>
 
-                    {/* Dots, so the length of the thing is visible from the
-                        first slide. Nobody pages willingly through something
-                        whose end they cannot see. */}
-                    <div className="flex-1 flex items-center justify-center gap-1.5">
+                    <div className="flex-1 flex items-center justify-center gap-2">
                         {steps.map((s, i) => (
                             <span
                                 key={s.id || i}
                                 aria-hidden
-                                className={`h-1.5 rounded-full transition-all ${
-                                    i === index ? 'w-5 bg-primary' : 'w-1.5 bg-neutral-gray/30'
+                                className={`h-1.5 rounded-full transition-all duration-200 ease-out ${
+                                    i === index ? 'w-6 bg-primary' : 'w-1.5 bg-neutral-gray/30'
                                 }`}
                             />
                         ))}
+                        <span className="ml-2 font-body text-xs text-neutral-gray tabular-nums">
+                            {index + 1} of {steps.length}
+                        </span>
                     </div>
 
                     {!isLast ? (
                         <button
                             type="button"
-                            onClick={() => setIndex((i) => Math.min(steps.length - 1, i + 1))}
+                            onClick={() => go(1)}
                             disabled={busy}
-                            className="flex items-center gap-1.5 px-5 h-11 rounded-xl bg-primary text-white font-body text-sm font-semibold hover:bg-primary/90 disabled:opacity-60 transition-colors cursor-pointer"
+                            className="flex items-center gap-1.5 px-5 min-h-11 rounded-xl bg-primary text-white font-body text-sm font-semibold hover:bg-primary-hover disabled:opacity-60 transition-colors duration-150 cursor-pointer"
                         >
                             Next
                             <ArrowRightIcon size={15} weight="bold" />
@@ -172,7 +219,7 @@ function WalkthroughCard({
                                 type="button"
                                 onClick={() => void onFinish(true)}
                                 disabled={busy}
-                                className="px-4 h-11 rounded-xl border border-[#e3ddd0] bg-neutral-card font-body text-sm font-medium text-neutral-gray hover:text-text-dark hover:border-neutral-gray/50 disabled:opacity-60 transition-colors cursor-pointer"
+                                className="px-4 min-h-11 rounded-xl bg-neutral-card font-body text-sm font-medium text-neutral-gray hover:text-text-dark disabled:opacity-60 transition-colors duration-150 cursor-pointer"
                             >
                                 I have questions
                             </button>
@@ -180,9 +227,9 @@ function WalkthroughCard({
                                 type="button"
                                 onClick={() => void onFinish(false)}
                                 disabled={busy}
-                                className="px-5 h-11 rounded-xl bg-primary text-white font-body text-sm font-semibold hover:bg-primary/90 disabled:opacity-60 transition-colors cursor-pointer"
+                                className="px-5 min-h-11 rounded-xl bg-primary text-white font-body text-sm font-semibold hover:bg-primary-hover disabled:opacity-60 transition-colors duration-150 cursor-pointer"
                             >
-                                {busy ? 'Saving…' : 'Got it'}
+                                {busy ? 'Saving' : 'Got it'}
                             </button>
                         </div>
                     )}

@@ -1,9 +1,12 @@
 'use client';
 
 import { ReactNode, useEffect } from 'react';
-import { KitchenProvider } from './context';
+import { KitchenProvider, useKitchen } from './context';
 import { KitchenBranchProvider, useSwitchKitchenBranch } from './branch-context';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { InterruptionGateProvider, useHoldsInterruption } from '@/app/components/providers/InterruptionGate';
+import { CautionInterstitial } from '@/app/components/messaging/CautionInterstitial';
+import { ReleaseWalkthrough } from '@/app/components/messaging/ReleaseWalkthrough';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 import { useOperableBranches } from '@/lib/hooks/useOperableBranches';
@@ -94,18 +97,50 @@ function KitchenGate({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+// ── Interruption claim ───────────────────────────────────────────────────────
+
+/**
+ * Holds the interruption gate shut while there are tickets on the board.
+ *
+ * The kitchen display is the one screen in the product that is read from across
+ * a room rather than worked at, so a modal over it does not merely inconvenience
+ * one person — it hides every open ticket from everybody on the line. It waits
+ * for a board with nothing on it, which is exactly when somebody is free to read
+ * six slides.
+ *
+ * Renders nothing. Mounted inside KitchenProvider, because the orders it reads
+ * live there.
+ */
+function KitchenInterruptionClaim() {
+  const { orders } = useKitchen();
+
+  useHoldsInterruption('kitchen-board-busy', orders.length > 0);
+
+  return null;
+}
+
 export default function KitchenLayout({ children }: { children: ReactNode }) {
   return (
     <StaffAuthProvider>
-      <KitchenBranchProvider>
-        <KitchenGate>
-          <KitchenProvider>
-            <div className="min-h-dvh bg-neutral-light text-text-dark overflow-hidden select-none">
-              {children}
-            </div>
-          </KitchenProvider>
-        </KitchenGate>
-      </KitchenBranchProvider>
+      {/* The kitchen is its own shell and renders inside neither the staff
+          layout nor the POS, so it carries its own gate and its own copies of
+          the two interstitials. They sit past the branch gate on purpose:
+          nothing should take over a screen that is still asking which branch it
+          is showing. */}
+      <InterruptionGateProvider>
+        <KitchenBranchProvider>
+          <KitchenGate>
+            <KitchenProvider>
+              <KitchenInterruptionClaim />
+              <div className="min-h-dvh bg-neutral-light text-text-dark overflow-hidden select-none">
+                {children}
+              </div>
+              <CautionInterstitial />
+              <ReleaseWalkthrough />
+            </KitchenProvider>
+          </KitchenGate>
+        </KitchenBranchProvider>
+      </InterruptionGateProvider>
     </StaffAuthProvider>
   );
 }
