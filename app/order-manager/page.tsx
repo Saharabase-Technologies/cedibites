@@ -28,7 +28,7 @@ import apiClient from '@/lib/api/client';
 import type { Order } from '@/types/order';
 
 import { OrderTicket } from './_components/OrderTicket';
-import { CancelRequestRow } from './_components/CancelRequestRow';
+import { CancelRequestCard } from './_components/CancelRequestCard';
 import { StageColumn } from './_components/StageColumn';
 import { OrderDetailSheet } from './_components/OrderDetailSheet';
 import { useFlipLayout, FLIP_DURATION_MS } from './_components/useFlipLayout';
@@ -567,17 +567,19 @@ export default function OrderManagerPage() {
       {/* A band rather than a fifth column: rare, urgent, and it should not cost
           a quarter of the board's width on the nights there are none. */}
       {cancelCount > 0 && (
-        <section className="max-h-[30vh] shrink-0 overflow-y-auto border-b border-[#f0e8d8] bg-[#f9ecec]/50 px-3 py-2.5">
+        <section className="shrink-0 border-b border-[#f0e8d8] bg-[#f9ecec]/50 px-3 py-2.5">
           <h2 className="mb-2 flex items-center gap-2 font-brand text-xs font-bold uppercase tracking-wide text-[#8a3333]">
             <span className="h-2.5 w-2.5 rounded-full bg-[#c05252]" />
             Cancel requests ({cancelCount})
           </h2>
-          {/* Stacked bars, not a row of cards. A pile-up of requests is capped
-              at a third of the screen and scrolls inside itself, so the board
-              below it can never be pushed off the bottom. */}
-          <div className="flex flex-col gap-2">
+          {/* A line, not a stack. Narrow cards laid side by side mean five
+              requests cost the same height as one — the band grows sideways and
+              scrolls, so the board below it keeps its space no matter how many
+              arrive. Stacking full-width bars cured the height of one request
+              and none of the others. */}
+          <div className="flex gap-2 overflow-x-auto pb-0.5">
             {columns.cancel_requested.map((order) => (
-              <CancelRequestRow
+              <CancelRequestCard
                 key={order.id}
                 order={order}
                 since={stageSinceFor(order)}
