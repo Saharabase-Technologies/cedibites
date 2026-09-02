@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { WarningCircleIcon } from '@phosphor-icons/react';
 import { useStaffAuthOptional } from '@/app/components/providers/StaffAuthProvider';
 import { useInterruptionGate } from '@/app/components/providers/InterruptionGate';
+import { useInterstitialsAllowed } from './useInterstitialsAllowed';
 import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
 import { renderMessageBody } from '@/lib/utils/messageMarkdown';
 import { ReplyPanel } from './ReplyPanel';
@@ -33,6 +34,7 @@ export function CautionInterstitial() {
     const userId = staffAuth?.staffUser?.user_id ?? null;
     const { summary, acknowledge, reply, isAcknowledging, isReplying } = useStaffInbox(userId);
     const { isIdle } = useInterruptionGate();
+    const allowedHere = useInterstitialsAllowed();
 
     // The pending set now carries every kind that takes over the screen, so
     // this has to say which it wants. A caution and a release are both
@@ -41,7 +43,7 @@ export function CautionInterstitial() {
     // would put a warning icon above "What's new".
     const pending = summary.pending.find((message) => message.kind === 'caution') ?? null;
 
-    if (!staffAuth?.staffUser || !pending || !isIdle) return null;
+    if (!allowedHere || !staffAuth?.staffUser || !pending || !isIdle) return null;
 
     return (
         // Keyed by the message, so moving to the next caution resets the draft by
