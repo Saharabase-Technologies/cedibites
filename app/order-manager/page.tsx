@@ -7,10 +7,12 @@ import {
   BellSlashIcon,
   CloudSlashIcon,
   SignOutIcon,
+  ProhibitIcon,
   SpeakerHighIcon,
   SpeakerSlashIcon,
   StorefrontIcon,
   WarningCircleIcon,
+  XIcon,
 } from '@phosphor-icons/react';
 
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
@@ -30,6 +32,7 @@ import type { Order } from '@/types/order';
 
 import { OrderTicket } from './_components/OrderTicket';
 import { CancelRequestCard } from './_components/CancelRequestCard';
+import { CancelRequestTicker } from './_components/CancelRequestTicker';
 import { StageColumn } from './_components/StageColumn';
 import { OrderDetailSheet } from './_components/OrderDetailSheet';
 import { useFlipLayout, FLIP_DURATION_MS } from './_components/useFlipLayout';
@@ -143,6 +146,49 @@ export default function OrderManagerPage() {
     return grouped;
   }, [orders]);
 
+  // ── Cancel requests ───────────────────────────────────────────────────────
+
+  /**
+   * Three resting states, held as two lists of order ids rather than two
+   * booleans.
+   *
+   * A cancel request is settled by an admin, and admins are hardly ever in
+   * front of this screen, so requests sit for hours — 21 of them, in the case
+   * that prompted this. The old band of cards sat there with them, costing the
+   * board about 150px of height that the kitchen and the cashier paid for a
+   * decision neither of them can make.
+   *
+   *   panel   the cards, with Keep and Cancel it
+   *   ticker  one line of order numbers
+   *   hidden  nothing on the board, count on the header icon
+   *
+   * Both lists hold the ids their state was chosen for, which is what makes the
+   * states behave without a single effect. Hiding the ticker hides the requests
+   * you have seen, not the feature: an id that was not in the list when you
+   * tapped brings the strip back on its own. Order ids are unique and never
+   * reused, so a list left over from an earlier hour, or from another branch,
+   * can never match a request that arrives later.
+   *
+   * A boolean would need an effect to reset it, and a setState inside an effect
+   * is a lint error here for good reason. It is a second render on every poll
+   * that changes nothing.
+   */
+  const [dismissedCancelIds, setDismissedCancelIds] = useState<string[]>([]);
+  const [panelCancelIds, setPanelCancelIds] = useState<string[]>([]);
+
+  const cancelIds = useMemo(
+    () => columns.cancel_requested.map((o) => o.id),
+    [columns.cancel_requested],
+  );
+
+  // Open for as long as one of the requests it was opened for is still there.
+  // Settle them all and it closes itself, so the next request to arrive opens
+  // as a ticker rather than in the state the last one was left in.
+  const isCancelPanelOpen = cancelIds.some((id) => panelCancelIds.includes(id));
+
+  // Hidden only while every request on the board is one that was hidden.
+  const isCancelTickerHidden =
+    cancelIds.length > 0 && cancelIds.every((id) => dismissedCancelIds.includes(id));
 
   // ── Alerts ────────────────────────────────────────────────────────────────
 
@@ -456,6 +502,34 @@ export default function OrderManagerPage() {
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          {/* Cancel requests, once they are off the board.
+              This is the whole reason the strip below is allowed to be hidden:
+              the count never leaves the screen, so a request cannot be closed
+              away and forgotten. It appears only when there is something to
+              count, and it leads the cluster because it is the only control
+              here that is about an order rather than about the screen. */}
+          {cancelCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setPanelCancelIds(isCancelPanelOpen ? [] : cancelIds)}
+              title={
+                isCancelPanelOpen
+                  ? 'Hide the cancel requests'
+                  : `${cancelCount} cancel ${cancelCount === 1 ? 'request' : 'requests'} waiting`
+              }
+              className={`
+                flex h-11 items-center gap-1.5 rounded-xl px-2.5 font-body text-sm font-bold tabular-nums
+                transition-colors touch-manipulation
+                ${isCancelPanelOpen
+                  ? 'bg-[#c05252] text-white'
+                  : 'bg-[#f9ecec] text-[#c05252] hover:bg-[#f4dede]'}
+              `}
+            >
+              <ProhibitIcon weight="fill" className="h-5 w-5" />
+              {cancelCount}
+            </button>
+          )}
+
           {/* Connection. Silence here is the dangerous state, so it is always shown. */}
           <span
             title={
@@ -590,14 +664,40 @@ export default function OrderManagerPage() {
         </button>
       ) : null}
 
-      {/* ── Cancel requests ─────────────────────────────────────────────── */}
+      {/* ── Cancel requests, the ticker ─────────────────────────────────── */}
+      {/* The resting state. One line of order numbers, so the kitchen can see
+          which orders are in effect cancelled without the board paying for a
+          decision only an admin can make. */}
+      {cancelCount > 0 && !isCancelPanelOpen && !isCancelTickerHidden && (
+        <CancelRequestTicker
+          orders={columns.cancel_requested}
+          selectedId={selectedId}
+          onExpand={() => setPanelCancelIds(cancelIds)}
+          onSelect={select}
+          onDismiss={() => setDismissedCancelIds(cancelIds)}
+        />
+      )}
+
+      {/* ── Cancel requests, the cards ──────────────────────────────────── */}
       {/* A band rather than a fifth column: rare, urgent, and it should not cost
-          a quarter of the board's width on the nights there are none. */}
-      {cancelCount > 0 && (
-        <section className="shrink-0 border-b border-[#f0e8d8] bg-[#f9ecec]/50 px-3 py-2.5">
+          a quarter of the board's width on the nights there are none. It now
+          opens on request instead of standing open, because standing open is
+          what cost the board 150px for hours at a time. */}
+      {cancelCount > 0 && isCancelPanelOpen && (
+        <section className="shrink-0 border-b border-[#f0e8d8] bg-[#f9ecec]/50 py-2.5 pl-3 pr-1.5">
           <h2 className="mb-2 flex items-center gap-2 font-brand text-xs font-bold uppercase tracking-wide text-[#8a3333]">
             <span className="h-2.5 w-2.5 rounded-full bg-[#c05252]" />
             Cancel requests ({cancelCount})
+            {/* Negative margin so a 44px touch target does not cost the panel
+                44px of height. The board is what that height comes out of. */}
+            <button
+              type="button"
+              onClick={() => setPanelCancelIds([])}
+              title="Back to the strip"
+              className="-my-2 ml-auto flex h-11 w-11 items-center justify-center rounded-lg text-[#8a3333] transition-colors touch-manipulation hover:bg-[#f4dede]"
+            >
+              <XIcon weight="bold" className="h-4 w-4" />
+            </button>
           </h2>
           {/* A line, not a stack. Narrow cards laid side by side mean five
               requests cost the same height as one — the band grows sideways and
