@@ -359,16 +359,17 @@ export default function OrderManagerPage() {
       printReceipt(
         order,
         { name: branch?.name ?? 'CediBites', address: branch?.address },
-        // Every press after the first is a copy, and the slip has to say so —
-        // an unmarked second original is what a duplicate looks like at cash-up.
-        { kind: (order.receiptPrintCount ?? 0) > 0 || printedIds.has(order.id) ? 'reprint' : 'original' },
+        // Two slips, one job, one press. The button is gone the moment this
+        // lands, so this screen can only ever produce the original; a second
+        // copy of it is a reprint and belongs to /pos/orders.
+        { kind: 'original', copies: 2 },
       );
       setPrintedIds((prev) => new Set(prev).add(order.id));
       void markPrinted(Number(order.id)).catch(() => {
         toast.error('Printed, but could not record it. It may still show as unprinted.');
       });
     },
-    [operableBranches, effectiveBranchId, printedIds, markPrinted],
+    [operableBranches, effectiveBranchId, markPrinted],
   );
 
   // ── Move animation ────────────────────────────────────────────────────────

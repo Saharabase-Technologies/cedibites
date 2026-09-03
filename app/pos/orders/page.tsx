@@ -293,6 +293,9 @@ export default function POSOrdersPage() {
     }
   };
 
+  /** Highest reprint number this session has put on each order's slip. */
+  const [lastReprintNo, setLastReprintNo] = useState<Record<string, number>>({});
+
   /**
    * Put another copy of a receipt in the customer's hand.
    *
@@ -305,11 +308,27 @@ export default function POSOrdersPage() {
    * That case is a completed order nobody printed at the pass, and calling its
    * slip an original would be a lie about when the customer was handed it.
    *
+   * Each one is numbered on the slip. Two identical receipts for one order is
+   * how a dispute starts and how a refund gets paid twice, so the paper says
+   * which run it came off: Reprint 1, Reprint 2, and so on.
+   *
    * Printing happens first and the record follows. If the write fails the
    * customer still has their receipt, which is the part that matters; the worst
    * case is that the reprint count runs low.
    */
   const reprintOrder = (order: Order) => {
+    // The server's count is the source of truth, but it lags the tap by a
+    // refetch — so a double-tap would put "Reprint 1" on two different slips.
+    // Taking whichever is higher, the server's answer or one past what this
+    // session last used, keeps the sequence climbing either way.
+    //
+    // A count of zero still reads as Reprint 1: that is the completed order
+    // nobody printed at the pass, and it is a reprint by the same reasoning as
+    // the kind above.
+    const fromServer = Math.max(1, order.receiptPrintCount ?? 0);
+    const reprintNumber = Math.max(fromServer, (lastReprintNo[order.id] ?? 0) + 1);
+    setLastReprintNo((prev) => ({ ...prev, [order.id]: reprintNumber }));
+
     printReceipt(
       {
         ...order,
@@ -320,7 +339,7 @@ export default function POSOrdersPage() {
           ?? (isRemoteSource(order.source) ? SOURCE_LABEL[order.source] : session?.staffName),
       },
       branchInfo?.name ?? 'CediBites',
-      { kind: 'reprint' },
+      { kind: 'reprint', reprintNumber },
     );
 
     void markPrinted(Number(order.id)).catch(() => {
