@@ -329,7 +329,7 @@ export default function POSOrdersPage() {
     const reprintNumber = Math.max(fromServer, (lastReprintNo[order.id] ?? 0) + 1);
     setLastReprintNo((prev) => ({ ...prev, [order.id]: reprintNumber }));
 
-    printReceipt(
+    void printReceipt(
       {
         ...order,
         // Falling back to whoever is signed in here is wrong for an order this

@@ -356,7 +356,7 @@ export default function OrderManagerPage() {
   const printOrder = useCallback(
     (order: Order) => {
       const branch = operableBranches.find((b) => b.id === effectiveBranchId);
-      printReceipt(
+      void printReceipt(
         order,
         { name: branch?.name ?? 'CediBites', address: branch?.address },
         // Two slips, one job, one press. The button is gone the moment this

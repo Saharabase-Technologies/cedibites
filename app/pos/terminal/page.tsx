@@ -2108,7 +2108,7 @@ function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
   const printAndRecord = () => {
     // The original for this sale, and the only one it will ever get from here.
     // Two slips in one job, the same as the board prints.
-    printReceipt(order, branch, { kind: 'original', copies: 2 });
+    void printReceipt(order, branch, { kind: 'original', copies: 2 });
     void markPrinted(Number(order.id)).catch(() => {});
   };
 

@@ -284,6 +284,7 @@ export function mapApiOrderToOrder(api: any): import('@/types/order').Order {
         : api.assigned_employee?.name,
     receiptPrintedAt: api.receipt_printed_at ? new Date(api.receipt_printed_at).getTime() : undefined,
     receiptPrintCount: Number(api.receipt_print_count ?? 0),
+    receiptVerificationCode: api.receipt_verification_code ?? undefined,
     items: (api.items ?? []).map((item: any) => {
       const snap = item.menu_item_option_snapshot ?? item.option_snapshot;
       const live = item.option ?? item.menu_item_option;

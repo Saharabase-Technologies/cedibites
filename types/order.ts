@@ -138,6 +138,11 @@ export interface Order {
     receiptPrintedAt?: number;
     /** How many times a receipt has been produced, first print included. */
     receiptPrintCount?: number;
+    /**
+     * The random code behind the QR printed on the slip. Resolves at
+     * /receipt/<code>, which is public — see ReceiptVerificationController.
+     */
+    receiptVerificationCode?: string;
     estimatedMinutes?: number;
 
     // Tracking
