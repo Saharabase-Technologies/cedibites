@@ -108,7 +108,7 @@ export default async function ReceiptVerifyPage({
                 order" would turn this page into a way to test guesses. */}
             <p className="mt-2 text-sm leading-relaxed text-neutral-gray">
               No receipt on our records carries this code. Check the QR was
-              scanned fully, or call us on 0592123054 and read out the order
+              scanned fully, or call us on 0508049030 and read out the order
               number printed on the slip.
             </p>
           </div>
@@ -211,7 +211,7 @@ export default async function ReceiptVerifyPage({
 
         <p className="px-2 pt-1 text-center text-xs leading-relaxed text-neutral-gray">
           Everything above is what our records hold. If the printed slip says
-          something different, call 0592123054.
+          something different, call 0508049030.
         </p>
       </div>
     </main>
