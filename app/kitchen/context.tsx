@@ -93,15 +93,21 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
    * Both now run the same identity-based hook against the same thresholds, so
    * they agree by construction.
    */
+  // Cancel requests are left out, the same as on the Order Manager. Only an
+  // admin can settle one, so a request that sits for hours would take the
+  // banner over as the worst offender and sound the escalation at a kitchen
+  // that has no way to answer it. The two boards have to agree here as well.
   const alertOrders = useMemo(
     () =>
-      kitchenOrders.map(order => ({
-        id: order.id,
-        label: order.orderNumber,
-        stage: order.status,
-        since: order.placedAt,
-        awaitingAccept: order.status === 'received',
-      })),
+      kitchenOrders
+        .filter(order => order.status !== 'cancel_requested')
+        .map(order => ({
+          id: order.id,
+          label: order.orderNumber,
+          stage: order.status,
+          since: order.placedAt,
+          awaitingAccept: order.status === 'received',
+        })),
     [kitchenOrders],
   );
 

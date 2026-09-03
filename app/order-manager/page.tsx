@@ -225,21 +225,33 @@ export default function OrderManagerPage() {
   const effectiveSoundEnabled = canSilence ? soundEnabled : true;
 
   /**
-   * Every live order, with the clock its stage is judged against.
+   * Every order this screen's staff can actually act on, with the clock its
+   * stage is judged against.
    *
    * `stageSinceFor` resolves that from the server's status history, so the
    * alarm is judged on time in the current stage rather than the order's total
    * age — a ticket does not arrive in Cooking already fifteen minutes late.
+   *
+   * Cancel requests are left out. Settling one is an admin's decision, and the
+   * banner exists to name work the people standing at this board are expected
+   * to do something about. Including them was actively harmful: a request sits
+   * for hours because the admin is elsewhere, so it wins "worst offender" over
+   * every real late ticket and the banner spends the whole shift naming the one
+   * order nobody here can move. It is counted in "orders late" for the same
+   * reason and with the same effect. The strip and the counted icon in the
+   * header already keep the request visible, and they do it without a siren.
    */
   const alertOrders = useMemo(
     () =>
-      orders.map((order) => ({
-        id: order.id,
-        label: order.orderNumber,
-        stage: order.status,
-        since: stageSinceFor(order),
-        awaitingAccept: order.status === 'received',
-      })),
+      orders
+        .filter((order) => order.status !== 'cancel_requested')
+        .map((order) => ({
+          id: order.id,
+          label: order.orderNumber,
+          stage: order.status,
+          since: stageSinceFor(order),
+          awaitingAccept: order.status === 'received',
+        })),
     [orders, stageSinceFor],
   );
 
