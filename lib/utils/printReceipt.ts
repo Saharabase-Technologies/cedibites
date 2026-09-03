@@ -284,9 +284,25 @@ function slipHTML(
  */
 const RECEIPT_CSS = `  * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 12px;
-    font-weight: bold;
+    /* Tahoma and Verdana were drawn by Matthew Carter for low-resolution
+       rendering: tall x-height, open counters, generous sidebearings. A 203dpi
+       thermal head with no antialiasing is that exact problem, and Courier is
+       the opposite of the answer to it, being thin, narrow-apertured and small
+       on the body. Tahoma leads because it is the narrower of the two and the
+       roll is only 80mm wide.
+
+       Losing monospace costs nothing here. Both faces set their digits on a
+       fixed width, so the price and amount columns still line up, which was the
+       only job Courier was actually doing. */
+    font-family: Tahoma, Verdana, 'DejaVu Sans', sans-serif;
+    font-size: 13px;
+    /* Regular, not bold. The whole slip used to be bold, which on a thermal
+       head bleeds strokes together and fills in the counters of a, e and o —
+       so it read worse, not better. It also flattened every level of
+       hierarchy: when everything is at maximum weight, nothing can stand out.
+       Bold is now spent deliberately, on about five things. */
+    font-weight: 400;
+    line-height: 1.4;
     width: 302px;
     padding: 8px;
     color: #000;
@@ -296,41 +312,68 @@ const RECEIPT_CSS = `  * { margin: 0; padding: 0; box-sizing: border-box; }
   }
   .center { text-align: center; }
   .right  { text-align: right; }
-  .brand  { font-size: 18px; font-weight: bold; letter-spacing: 1px; line-height: 1.3; }
-  .branch-info { font-size: 11px; margin-bottom: 2px; }
+  .brand  { font-size: 19px; font-weight: bold; letter-spacing: 1.5px; line-height: 1.25; }
+  .branch-info { font-size: 11.5px; margin-bottom: 1px; }
   .divider { border-top: 2px dashed #000; margin: 6px 0; }
   .thin-divider { border-top: 1px solid #000; margin: 4px 0; }
-  .meta-table { width: 100%; font-size: 11px; border-collapse: collapse; margin-bottom: 2px; }
-  .meta-table td { padding: 1px 0; vertical-align: top; }
-  .meta-table .label { white-space: nowrap; padding-right: 4px; }
+  .meta-table { width: 100%; font-size: 11.5px; border-collapse: collapse; margin-bottom: 2px; }
+  .meta-table td { padding: 1.5px 0; vertical-align: top; }
+  /* The label is the quiet half of the pair. Greying it is not available on a
+     one-colour printer, so the separation has to come from weight. */
+  .meta-table .label { white-space: nowrap; padding-right: 6px; font-weight: 400; }
+  .meta-table td:last-child { font-weight: 700; text-align: right; }
   .items-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .items-table th { text-align: left; border-bottom: 1px solid #000; border-top: 1px solid #000; padding: 3px 2px; font-size: 11px; }
+  .items-table th { text-align: left; border-bottom: 1px solid #000; border-top: 1px solid #000; padding: 4px 2px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; }
   .items-table th.qty, .items-table th.price, .items-table th.amount { text-align: right; }
   .items-table td { padding: 3px 2px; vertical-align: top; }
-  .item-name { font-size: 12px; font-weight: 900; word-break: break-word; }
-  .qty, .price, .amount { text-align: right; white-space: nowrap; }
-  .totals-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 2px; }
+  /* The dish is what the customer scans for, so it is the one thing in the
+     table carrying weight. 700, not 900: past bold, a thermal head stops adding
+     blackness and starts adding blur. */
+  .item-name { font-size: 13px; font-weight: 700; word-break: break-word; }
+  .qty, .price, .amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .totals-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 3px; }
   .totals-table td { padding: 2px 2px; }
-  .totals-table .amount { text-align: right; white-space: nowrap; }
-  .totals-table .bold td { font-weight: bold; font-size: 12px; }
-  .grand-total td { font-weight: bold; font-size: 13px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 3px 2px; }
-  .customer-table { width: 100%; font-size: 11px; border-collapse: collapse; margin-top: 2px; }
+  .totals-table .amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .totals-table .bold td { font-weight: 700; font-size: 12.5px; }
+  /* The only filled area on the slip, and it is here because this is the number
+     the customer is looking for and the one a dispute is about.
+     Everything else groups with whitespace and rules instead. Filling a panel
+     means burning every dot inside it: slow, patchy on a cheap roll, and the
+     first thing to smear as the paper ages. It is affordable once, on one band,
+     at a size where reversed type still holds together — small reversed text
+     closes up as the ink bleeds into the letterforms. */
+  .grand-total td {
+    font-weight: 700;
+    font-size: 15px;
+    background: #000;
+    color: #fff;
+    padding: 6px 6px;
+    letter-spacing: 0.5px;
+    /* Repeated on the element, not inherited from body. Browsers drop
+       backgrounds when printing unless the painted element says otherwise, and
+       a TOTAL band that silently prints as white-on-white is worse than never
+       having filled it. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .customer-table { width: 100%; font-size: 11.5px; border-collapse: collapse; margin-top: 2px; }
   .customer-table td { padding: 2px 0; vertical-align: top; }
   .customer-table .label { white-space: nowrap; padding-right: 6px; }
+  .customer-table td:last-child { font-weight: 700; }
   .note { font-size: 11px; padding-top: 3px; }
-  .thank-you { font-size: 12px; font-weight: bold; text-align: center; margin: 6px 0 4px; }
-  .order-code-num { font-size: 28px; font-weight: bold; text-align: center; letter-spacing: 4px; margin: 4px 0 0; }
-  .order-code-label { font-size: 10px; text-align: center; letter-spacing: 2px; margin-bottom: 4px; }
+  .thank-you { font-size: 12px; font-weight: 700; text-align: center; margin: 8px 0 5px; }
+  .order-code-num { font-size: 30px; font-weight: 700; text-align: center; letter-spacing: 3px; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
+  .order-code-label { font-size: 9.5px; text-align: center; letter-spacing: 2px; margin-bottom: 4px; }
   .past-order-banner { text-align: center; font-size: 12px; font-weight: bold; padding: 4px 0; margin: 4px 0; border: 2px solid #000; letter-spacing: 1px; }
   /* image-rendering matters more than it looks. The logo and the QR are already
      1-bit; letting the browser smooth them while scaling reintroduces the greys
      a thermal head cannot print, and a smoothed QR stops scanning. */
   .logo { display: block; width: 120px; height: auto; margin: 0 auto 3px; image-rendering: pixelated; }
-  .kind { text-align: center; font-size: 13px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; margin: 3px 0 5px; }
+  .kind { text-align: center; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin: 3px 0 6px; }
   .qr { display: block; width: 128px; height: 128px; margin: 6px auto 2px; image-rendering: pixelated; }
   .qr-label { text-align: center; font-size: 10px; margin-bottom: 4px; }
-  .footer-line { text-align: center; font-size: 11px; line-height: 1.35; }
-  .software-line { text-align: center; font-size: 10px; margin-top: 5px; }
+  .footer-line { text-align: center; font-size: 11.5px; line-height: 1.4; }
+  .software-line { text-align: center; font-size: 10px; margin-top: 6px; letter-spacing: 0.3px; }
   @media print {
     @page { size: 80mm auto; margin: 3mm; }
     body { width: 100%; }
