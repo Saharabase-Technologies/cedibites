@@ -23,6 +23,7 @@ import {
   SpinnerIcon,
   ShoppingBagIcon,
   ClipboardTextIcon,
+  PrinterIcon,
   TagIcon,
   HourglassIcon,
   WarningCircleIcon,
@@ -62,6 +63,7 @@ import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import { useStockGate } from '@/lib/api/hooks/useStockGate';
 import type { StockShortfall } from '@/lib/api/services/stockGate.service';
+import { printReceipt } from '@/lib/utils/printReceipt';
 import { getPromoService, type Promo } from '@/lib/services/promos/promo.service';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
@@ -70,6 +72,7 @@ import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 import PendingPaymentsDrawer from './PendingPaymentsDrawer';
 import { useOnlineOrderArrivals } from '../hooks/useOnlineOrderArrivals';
+import { useMarkReceiptPrinted } from '@/lib/api/hooks/useOrders';
 import { isRemoteSource } from '@/lib/constants/order.constants';
 import { usePosCheckoutSessions } from '@/lib/api/hooks/useCheckoutSession';
 
@@ -1413,6 +1416,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
       {completedOrder && (
         <OrderSuccessModal
           order={completedOrder}
+          branch={{ name: branchInfo?.name ?? 'CediBites', address: branchInfo?.address, phone: branchInfo?.phone }}
           onClose={() => {
             setCompletedOrder(null);
             // Now, not at payment time. Clearing the branch mid-transaction
@@ -2062,15 +2066,59 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
 
 interface OrderSuccessModalProps {
   order: Order;
+  branch: { name: string; address?: string; phone?: string };
   onClose: () => void;
 }
 
-function OrderSuccessModal({ order, onClose }: OrderSuccessModalProps) {
-  // Auto close after 5 seconds
+/**
+ * How long the modal waits before clearing itself for the next customer.
+ * Only ever runs when the receipt is somebody else's job.
+ */
+const SUCCESS_AUTO_CLOSE_MS = 5000;
+
+function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
+  const { markPrinted } = useMarkReceiptPrinted();
+
+  /**
+   * A sale with nothing to cook never reaches the Order Manager, so the receipt
+   * has to come off this modal.
+   *
+   * `PreparationRouter` on the API decides this before the row is even written:
+   * if every line is no-prep and it was rung up at a till, the order is created
+   * `completed` rather than `received`, because the drink is handed over as
+   * part of the same transaction. The board only carries work up to Ready, so a
+   * bottle of water never appears on it and there is no printer button anywhere
+   * else in the building. Somebody buying water was being sent away with no
+   * receipt at all.
+   *
+   * Reading the status rather than re-deriving "is everything no-prep?" here is
+   * deliberate. The status *is* the routing decision, already made, and it
+   * answers the question that actually matters: will this order ever show up
+   * somewhere a person could print it? Recomputing the rule in the frontend
+   * would be a second copy of it, free to drift. It also survives the paths
+   * that build the order by hand — the checkout-session branch below maps items
+   * without `requires_preparation`, so an item-by-item test would quietly
+   * decide every line needs cooking.
+   *
+   * One line that needs a pan keeps the whole order on the board, receipt and
+   * all. A burger with a Coke is still a burger.
+   */
+  const printsHere = order.status === 'completed';
+
+  const printAndRecord = () => {
+    // The first and only slip for this sale, so it prints as an original.
+    printReceipt(order, branch);
+    void markPrinted(Number(order.id)).catch(() => {});
+  };
+
+  // Auto close after 5 seconds — but never while a receipt is still owed from
+  // this screen. A timer must not be the thing that decides whether somebody
+  // gets their receipt, and this modal is the only place this one exists.
   useEffect(() => {
-    const timer = setTimeout(onClose, 5000);
+    if (printsHere) return;
+    const timer = setTimeout(onClose, SUCCESS_AUTO_CLOSE_MS);
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, [onClose, printsHere]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -2112,31 +2160,63 @@ function OrderSuccessModal({ order, onClose }: OrderSuccessModalProps) {
             </div>
           </div>
 
-          {/* No print here. The receipt is printed once, from the Order
-              Manager, and that press is the original — see the note on the
-              reprint button in app/pos/orders/page.tsx. Printing at the till
-              too would put two "originals" on the same order and leave the
-              board unable to tell a slip that exists from one that does not. */}
-          <button
-            onClick={onClose}
-            className="
-              w-full h-12 rounded-xl font-medium
-              bg-primary text-brown
-              hover:bg-primary-hover active:scale-[0.98]
-              transition-all duration-150
-            "
-          >
-            New Order
-          </button>
+          {/* Print only when this screen is the only place the receipt can
+              come from. Anything with a line to cook is on the Order Manager,
+              and printing here as well would put two originals on one order and
+              leave the board unable to tell a slip that exists from one that
+              does not. */}
+          {printsHere ? (
+            <div className="flex gap-2">
+              <button
+                onClick={printAndRecord}
+                className="
+                  flex-1 h-12 rounded-xl font-medium
+                  bg-primary text-brown
+                  hover:bg-primary-hover active:scale-[0.98]
+                  transition-all duration-150
+                  flex items-center justify-center gap-2
+                "
+              >
+                <PrinterIcon className="w-4 h-4" weight="fill" />
+                Print receipt
+              </button>
+              <button
+                onClick={onClose}
+                className="
+                  flex-1 h-12 rounded-xl font-medium
+                  bg-neutral-gray/10 text-text-dark
+                  hover:bg-neutral-gray/20 active:scale-[0.98]
+                  transition-all duration-150
+                "
+              >
+                New Order
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onClose}
+              className="
+                w-full h-12 rounded-xl font-medium
+                bg-primary text-brown
+                hover:bg-primary-hover active:scale-[0.98]
+                transition-all duration-150
+              "
+            >
+              New Order
+            </button>
+          )}
         </div>
 
-        {/* Auto close indicator */}
-        <div className="h-1 bg-neutral-gray/20">
-          <div
-            className="h-full bg-primary animate-shrink"
-            style={{ animationDuration: '5s' }}
-          />
-        </div>
+        {/* Auto close indicator. Hidden when nothing is counting down, so the
+            bar never drains against a modal that is going to stay put. */}
+        {!printsHere && (
+          <div className="h-1 bg-neutral-gray/20">
+            <div
+              className="h-full bg-primary animate-shrink"
+              style={{ animationDuration: `${SUCCESS_AUTO_CLOSE_MS}ms` }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
