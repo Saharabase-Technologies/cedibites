@@ -438,6 +438,12 @@ export function POSProvider({ children }: POSProviderProps) {
       id: apiOrder ? String(apiOrder.id) : csSession.session_token,
       orderNumber: apiOrder?.order_number ?? csSession.session_token,
       status: apiOrder ? (apiOrder.status as Order['status']) : 'received',
+      // Carried through so the confirmation modal can print a QR. This object
+      // is built by hand rather than run through an adapter, so every field the
+      // receipt needs has to be listed here explicitly or it is simply absent.
+      receiptVerificationCode:
+        (apiOrder as { receipt_verification_code?: string } | undefined)
+          ?.receipt_verification_code ?? undefined,
       source: isManualEntry ? 'manual_entry' : orderSource,
       fulfillmentType: orderType,
       paymentMethod: method,

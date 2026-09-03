@@ -361,6 +361,8 @@ export interface Order {
   branch?: Branch;
   assigned_employee_id?: number | null;
   assigned_employee?: { id: number; name?: string | null; phone?: string | null } | null;
+  /** Random code behind the QR on the printed slip. Resolves at /receipt/<code>. */
+  receipt_verification_code?: string | null;
   order_type: OrderType;
   order_source?: string;
   status: OrderStatus;

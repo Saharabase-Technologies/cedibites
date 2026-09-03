@@ -1452,6 +1452,10 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
                 orderCode: String(o.order_number ?? ''),
                 orderNumber: String(o.order_number ?? ''),
                 status: (o.status as string) ?? 'received',
+                // Same reason as the other hand-built order in this flow: no
+                // adapter runs over this shape, so the receipt's QR code has to
+                // be carried across by name.
+                receiptVerificationCode: (o.receipt_verification_code as string) ?? undefined,
                 source: (o.order_source as string) ?? 'pos',
                 fulfillmentType: (o.order_type as string) ?? 'dine_in',
                 paymentMethod: (o.payment_method as string) ?? cs.payment_method ?? 'cash',

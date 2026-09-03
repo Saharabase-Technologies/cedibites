@@ -117,5 +117,11 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
     cancelRequestedAt: apiOrder.cancel_requested_at ? new Date(apiOrder.cancel_requested_at).getTime() : undefined,
     staffId: apiOrder.assigned_employee_id ? String(apiOrder.assigned_employee_id) : undefined,
     staffName: apiOrder.assigned_employee?.name ?? apiOrder.staff_name ?? undefined,
+    // Without this the QR silently disappears from every slip printed off the
+    // board. There are two adapters producing a unified Order and they have to
+    // agree: this one feeds useOrderBoard, the one in lib/api/adapters feeds
+    // /pos/orders. Adding the field to only one of them is exactly how a
+    // reprint came out with a QR and the original did not.
+    receiptVerificationCode: apiOrder.receipt_verification_code ?? undefined,
   };
 }
