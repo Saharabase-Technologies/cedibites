@@ -399,8 +399,21 @@ const RECEIPT_CSS = `  * { margin: 0; padding: 0; box-sizing: border-box; }
        thing readable everywhere else. */
     body { width: 100%; max-width: 74mm; margin: 0 auto; }
   }
+  /* Each slip stands off the roll at both ends.
+     The foot is the bigger of the two and is not decoration: without it the
+     last printed line sits inside the mechanism, so the cut lands mid-receipt
+     and the customer is handed a slip with its footer shaved off. It also
+     gives a clean strip to tear against where the cutter is not used at all.
+     The head is smaller, just enough that a fresh copy does not begin on the
+     same line the previous one ended. */
+  .slip { padding-top: 4mm; padding-bottom: 12mm; }
+
   /* One cut between copies, none after the last. A page-break-after on every
-     slip would feed a blank one off the end of the roll. */
+     slip would feed a blank one off the end of the roll.
+     The padding above is what actually guarantees the gap: a page break is
+     only honoured if the driver is paginating, and on a continuous roll it may
+     do nothing at all, which is exactly how two copies came to be printed nose
+     to tail. */
   .slip + .slip { page-break-before: always; }
 `;
 
