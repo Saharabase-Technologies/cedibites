@@ -60,6 +60,7 @@ export interface SegmentsResponse {
     segments: CampaignSegmentOption[];
     /** When on, sends go to a fixed staff list and no customer is messaged. */
     seed_mode: boolean;
+    /** The most people one campaign may reach. 0 means there is no limit, which is the default. */
     recipient_cap: number;
     /**
      * GHS per billed text, from the server.
@@ -250,6 +251,18 @@ export interface Campaign {
 
     created_by?: string | null;
     approved_by?: string | null;
+
+    /**
+     * The last time somebody read this on an actual handset.
+     *
+     * Apart from every count above, because a test is not a send: it moves no
+     * counter, records no cost and leaves the campaign a draft. What it answers
+     * is the question asked after a campaign goes out wrong. Did anybody look
+     * at it first.
+     */
+    last_tested_at: string | null;
+    last_tested_phone: string | null;
+    last_tested_by?: string | null;
 
     started_at: string | null;
     completed_at: string | null;

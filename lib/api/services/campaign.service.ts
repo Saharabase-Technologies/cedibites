@@ -111,7 +111,25 @@ export const campaignService = {
         return unwrap<CampaignDeliveryReport>(response);
     },
 
-    /** The only call in this file that spends money. */
+    /**
+     * One copy of this campaign, to one number, now.
+     *
+     * The thing you do before you press send. It texts the campaign's message
+     * character for character, which is the only way to find out what it
+     * actually looks like on a handset: whether the short link survived the
+     * paste, whether a curly quote off Word has quietly turned 160 characters
+     * into 70, whether the line breaks land where they were written.
+     *
+     * It ignores test mode, because a test that arrives on somebody else's
+     * phone proves nothing about yours. It leaves every counter on the campaign
+     * alone, so a tested campaign is still a campaign that has not been sent.
+     */
+    testCampaign: async (id: number, phone: string): Promise<Campaign> => {
+        const response = await apiClient.post(`/admin/campaigns/${id}/test`, { phone });
+        return unwrap<Campaign>(response);
+    },
+
+    /** The only call in this file that spends money on more than one person. */
     sendCampaign: async (id: number): Promise<Campaign> => {
         const response = await apiClient.post(`/admin/campaigns/${id}/send`);
         return unwrap<Campaign>(response);

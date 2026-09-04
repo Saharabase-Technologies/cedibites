@@ -12,11 +12,14 @@ import {
     WarningCircleIcon,
     CursorClickIcon,
     TrashIcon,
+    FlaskIcon,
+    CheckCircleIcon,
 } from '@phosphor-icons/react';
 import { useCampaign, useCampaignMutations } from '@/lib/api/hooks/useCampaigns';
 import { GHS } from '@/lib/sms/cost';
 import { CampaignStatusBadge } from '../_components/CampaignStatusBadge';
 import { SendConfirmDialog } from '../_components/SendConfirmDialog';
+import { SendTestDialog } from '../_components/SendTestDialog';
 import { DeliveryBreakdown } from '../_components/DeliveryBreakdown';
 
 /**
@@ -33,6 +36,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     const { cancel, remove } = useCampaignMutations();
 
     const [confirming, setConfirming] = useState(false);
+    const [testing, setTesting] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
 
     if (isLoading) {
@@ -114,6 +118,18 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                                 <PencilSimpleIcon size={15} />
                                 Edit
                             </Link>
+                            {/*
+                                Between Edit and Send because that is the order
+                                of the job. A campaign nobody has read on a phone
+                                is a campaign nobody has read.
+                            */}
+                            <button
+                                onClick={() => setTesting(true)}
+                                className="flex items-center gap-2 rounded-xl border border-[#f0e8d8] bg-neutral-card px-4 py-2.5 text-sm font-medium font-body text-neutral-gray hover:text-text-dark transition-colors min-h-11 cursor-pointer"
+                            >
+                                <FlaskIcon size={15} weight="fill" />
+                                Test
+                            </button>
                             <button
                                 onClick={() => setConfirming(true)}
                                 className="flex items-center gap-2 rounded-xl bg-primary text-white px-5 py-2.5 text-sm font-semibold font-body hover:bg-primary/90 transition-colors min-h-11 cursor-pointer shadow-sm"
@@ -139,6 +155,25 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                         {campaign.segments_per_message} text
                         {campaign.segments_per_message === 1 ? '' : 's'} per person
                     </p>
+
+                    {/*
+                        Whether anybody has actually read this on a handset.
+                        Sits with the message rather than in the figures above,
+                        because it says something about the words and nothing
+                        about the money.
+                    */}
+                    {campaign.last_tested_at ? (
+                        <p className="flex items-center gap-1.5 text-neutral-gray text-xs mt-2 font-body">
+                            <CheckCircleIcon size={13} weight="fill" className="text-emerald-600 shrink-0" />
+                            Tested to {campaign.last_tested_phone} on {testedOn(campaign.last_tested_at)}
+                            {campaign.last_tested_by && ` by ${campaign.last_tested_by}`}
+                        </p>
+                    ) : campaign.is_editable ? (
+                        <p className="flex items-center gap-1.5 text-amber-700 text-xs mt-2 font-body">
+                            <FlaskIcon size={13} weight="fill" className="shrink-0" />
+                            Nobody has read this on a phone yet.
+                        </p>
+                    ) : null}
                 </div>
 
                 {started && (
@@ -249,6 +284,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 )}
             </div>
 
+            {/* Mounted only while open, so the number field starts fresh each time. */}
+            {testing && (
+                <SendTestDialog
+                    campaign={campaign}
+                    onClose={() => setTesting(false)}
+                    onSent={() => { setTesting(false); void refetch(); }}
+                />
+            )}
+
             {confirming && (
                 <SendConfirmDialog
                     campaign={campaign}
@@ -258,6 +302,22 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             )}
         </div>
     );
+}
+
+/**
+ * When the test went out.
+ *
+ * The timestamp is the server's, read straight off the campaign, so this only
+ * has to format it. Nothing here asks the local machine what time it is.
+ */
+function testedOn(iso: string): string {
+    return new Date(iso).toLocaleString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+    });
 }
 
 function Stat({
