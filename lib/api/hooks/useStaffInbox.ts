@@ -86,6 +86,23 @@ export function useStaffInbox(userId?: number | null) {
         onSuccess: invalidate,
     });
 
+    /**
+     * Report that an interstitial just went on screen.
+     *
+     * Deliberately does NOT invalidate. This fires while the modal is rendering,
+     * and refetching the summary underneath it would replace the pending array
+     * the open card is reading from. Nothing on screen depends on the response,
+     * so the write is allowed to be silent.
+     *
+     * Failure is swallowed for the same reason. Losing a telemetry row is a
+     * smaller problem than a walkthrough that will not appear because the
+     * server could not be reached to be told about it.
+     */
+    const markShown = useMutation({
+        mutationFn: (recipientId: number) => inboxService.markShown(recipientId),
+        onError: () => {},
+    });
+
     const reply = useMutation({
         mutationFn: ({
             recipientId,
@@ -109,6 +126,7 @@ export function useStaffInbox(userId?: number | null) {
         open: open.mutateAsync,
         acknowledge: acknowledge.mutateAsync,
         isAcknowledging: acknowledge.isPending,
+        markShown: markShown.mutate,
         reply: reply.mutateAsync,
         isReplying: reply.isPending,
         raise: raise.mutateAsync,

@@ -13,7 +13,7 @@ import {
 } from '@/app/inventory/_components';
 import { messagingAdminService } from '@/lib/api/services/messaging.service';
 import { useBranches } from '@/lib/api/hooks/useBranches';
-import type { StaffAudience, StaffMessageKind } from '@/types/messaging';
+import type { StaffAudience, StaffMessageKind, StaffMessageTrigger } from '@/types/messaging';
 import { PersonPicker } from './PersonPicker';
 import { SlideEditor, emptySlide, type Slide } from './SlideEditor';
 
@@ -27,6 +27,15 @@ const ROLES = [
     { value: 'call_center', label: 'Call centre' },
     { value: 'warehouse_manager', label: 'Warehouse' },
     { value: 'purchasing_clerk', label: 'Purchasing' },
+];
+
+// When it is allowed to appear. Separate from `visible_from`, and both can be
+// set: the timestamp is a floor the server enforces, the trigger is the event
+// the client waits for once that floor has passed.
+const TRIGGERS: { value: StaffMessageTrigger; label: string; hint: string }[] = [
+    { value: 'immediate', label: 'Right away', hint: 'At the first moment they are not mid-task.' },
+    { value: 'next_sign_in', label: 'On next sign-in', hint: 'Waits for the app to be opened again. Nobody is interrupted mid-shift.' },
+    { value: 'window_active', label: 'When they come back', hint: 'Waits for somebody to return to the screen. A screen nobody leaves never triggers it.' },
 ];
 
 const KINDS: { value: StaffMessageKind; label: string; hint: string }[] = [
@@ -59,6 +68,8 @@ export function ComposeDialog({
     const [allowCustomReply, setAllowCustomReply] = useState(true);
     const [quickReplies, setQuickReplies] = useState('Got it, Understood');
     const [smsAfter, setSmsAfter] = useState('');
+    const [trigger, setTrigger] = useState<StaffMessageTrigger>('immediate');
+    const [visibleFrom, setVisibleFrom] = useState('');
     const [releaseKey, setReleaseKey] = useState('');
     const [slides, setSlides] = useState<Slide[]>([emptySlide([])]);
     const [imagePath, setImagePath] = useState<string | null>(null);
@@ -124,6 +135,8 @@ export function ComposeDialog({
         setPersonQuery('');
         setImagePath(null);
         setImageUrl(null);
+        setTrigger('immediate');
+        setVisibleFrom('');
         setError(null);
     }
 
@@ -158,6 +171,11 @@ export function ComposeDialog({
                     .filter(Boolean)
                     .slice(0, 5),
                 sms_fallback_after_minutes: smsAfter === '' ? null : Number(smsAfter),
+                display_trigger: trigger,
+                // datetime-local has no zone. Converting through Date reads it
+                // as the operator's own clock, which is what they meant when
+                // they typed 6am, rather than as UTC six hours off.
+                visible_from: visibleFrom ? new Date(visibleFrom).toISOString() : null,
             });
 
             reset();
@@ -439,6 +457,33 @@ export function ComposeDialog({
                         }
                     />
                 </div>
+
+                <FormField
+                    label="When it appears"
+                    hint={TRIGGERS.find((entry) => entry.value === trigger)?.hint}
+                >
+                    <div className="flex flex-wrap gap-2">
+                        {TRIGGERS.map((entry) => (
+                            <Chip
+                                key={entry.value}
+                                label={entry.label}
+                                active={trigger === entry.value}
+                                onClick={() => setTrigger(entry.value)}
+                            />
+                        ))}
+                    </div>
+                </FormField>
+
+                <FormField
+                    label="Not before"
+                    hint="Leave blank to start as soon as it is sent. It still goes out now, it just stays hidden until this time."
+                >
+                    <TextInput
+                        type="datetime-local"
+                        value={visibleFrom}
+                        onChange={(event) => setVisibleFrom(event.target.value)}
+                    />
+                </FormField>
 
                 <FormField label="Text them if unread after" hint="Minutes. Leave blank to never text.">
                     <TextInput

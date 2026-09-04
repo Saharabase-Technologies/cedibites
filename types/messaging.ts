@@ -40,6 +40,16 @@ export interface StaffAudience {
  * The recipient's own copy. Keyed by the RECIPIENT row id, not the message id —
  * every action a staff member takes is against their own copy.
  */
+/**
+ * Which moment is allowed to put a message on screen.
+ *
+ * Enforced by the client, because every case turns on something only the
+ * browser knows. The server has already applied the `visible_from` floor by
+ * keeping anything early out of the pending set, so a message that arrives here
+ * is on time and waiting only on the event.
+ */
+export type StaffMessageTrigger = 'immediate' | 'next_sign_in' | 'window_active';
+
 export interface InboxMessage {
     id: number;
     message_id: number;
@@ -60,6 +70,12 @@ export interface InboxMessage {
     is_automatic: boolean;
     sent_at: string | null;
     expires_at: string | null;
+
+    /** Absent on an older backend, which is why the client falls back to immediate. */
+    display_trigger?: StaffMessageTrigger;
+
+    /** First time this took the person's screen. Null until it has. */
+    shown_at: string | null;
 
     requires_acknowledgement: boolean;
     allow_custom_reply: boolean;
@@ -134,6 +150,8 @@ export interface StaffMessage {
 
 export interface StaffMessageStats {
     total: number;
+    /** Reached a screen. The only honest reach figure for an interrupting kind. */
+    shown: number;
     read: number;
     /** Counted against those required to acknowledge, not against everyone. */
     acknowledged: number;
@@ -146,6 +164,11 @@ export interface StaffMessageReceipt {
     user: { id: number | null; name: string | null; role: string | null };
     branch?: { id: number | null; name: string | null };
     delivered_at: string | null;
+    /** First and last time the message was actually on this person's screen. */
+    shown_at: string | null;
+    last_shown_at: string | null;
+    /** How many times it has taken their screen. High with no ack means dismissed. */
+    shown_count: number;
     read_at: string | null;
     acknowledged_at: string | null;
     quick_reply: string | null;

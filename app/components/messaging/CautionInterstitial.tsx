@@ -1,10 +1,12 @@
 'use client';
 
+import { useEffect } from 'react';
 import Image from 'next/image';
 import { WarningCircleIcon } from '@phosphor-icons/react';
 import { useStaffAuthOptional } from '@/app/components/providers/StaffAuthProvider';
 import { useInterruptionGate } from '@/app/components/providers/InterruptionGate';
 import { useInterstitialsAllowed } from './useInterstitialsAllowed';
+import { useTriggerReady } from './useTriggerReady';
 import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
 import { renderMessageBody } from '@/lib/utils/messageMarkdown';
 import { ReplyPanel } from './ReplyPanel';
@@ -32,7 +34,7 @@ import type { InboxMessage } from '@/types/messaging';
 export function CautionInterstitial() {
     const staffAuth = useStaffAuthOptional();
     const userId = staffAuth?.staffUser?.user_id ?? null;
-    const { summary, acknowledge, reply, isAcknowledging, isReplying } = useStaffInbox(userId);
+    const { summary, acknowledge, reply, markShown, isAcknowledging, isReplying } = useStaffInbox(userId);
     const { isIdle } = useInterruptionGate();
     const allowedHere = useInterstitialsAllowed();
 
@@ -43,7 +45,10 @@ export function CautionInterstitial() {
     // would put a warning icon above "What's new".
     const pending = summary.pending.find((message) => message.kind === 'caution') ?? null;
 
-    if (!allowedHere || !staffAuth?.staffUser || !pending || !isIdle) return null;
+    // Before the early return, unconditionally, because hooks must be.
+    const triggerReady = useTriggerReady(pending);
+
+    if (!allowedHere || !staffAuth?.staffUser || !pending || !isIdle || !triggerReady) return null;
 
     return (
         // Keyed by the message, so moving to the next caution resets the draft by
@@ -52,6 +57,7 @@ export function CautionInterstitial() {
         <CautionCard
             key={pending.id}
             pending={pending}
+            onShown={() => markShown(pending.id)}
             remaining={summary.pending.filter((m) => m.kind === 'caution').length - 1}
             busy={isAcknowledging || isReplying}
             onConfirm={async ({ quickReply, body }) => {
@@ -76,13 +82,24 @@ function CautionCard({
     pending,
     remaining,
     busy,
+    onShown,
     onConfirm,
 }: {
     pending: InboxMessage;
     remaining: number;
     busy: boolean;
+    onShown: () => void;
     onConfirm: (payload: { quickReply: string | null; body: string }) => Promise<void>;
 }) {
+    // Once per mount. The card is keyed on the message, so moving to the next
+    // caution remounts and reports that one separately, which is correct: two
+    // cautions shown are two appearances.
+    useEffect(() => {
+        onShown();
+        // Mount-only on purpose. In the deps this would refire on every poll.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     return (
         <div className="fixed inset-0 z-100 flex items-center justify-center bg-brand-darker/70 backdrop-blur-sm p-4">
             <div className="w-full max-w-lg max-h-[88vh] flex flex-col rounded-2xl bg-neutral-card shadow-2xl overflow-hidden">
