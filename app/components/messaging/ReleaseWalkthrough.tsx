@@ -9,6 +9,7 @@ import { useInterruptionGate } from '@/app/components/providers/InterruptionGate
 import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
 import { renderMessageBody } from '@/lib/utils/messageMarkdown';
 import { useInterstitialsAllowed } from './useInterstitialsAllowed';
+import { useTriggerReady } from './useTriggerReady';
 import type { InboxMessage } from '@/types/messaging';
 
 /**
@@ -32,14 +33,20 @@ import type { InboxMessage } from '@/types/messaging';
 export function ReleaseWalkthrough() {
     const staffAuth = useStaffAuthOptional();
     const userId = staffAuth?.staffUser?.user_id ?? null;
-    const { summary, acknowledge, reply, isAcknowledging, isReplying } = useStaffInbox(userId);
+    const { summary, acknowledge, reply, markShown, isAcknowledging, isReplying } = useStaffInbox(userId);
     const { isIdle } = useInterruptionGate();
     const allowedHere = useInterstitialsAllowed();
 
     const hasCaution = summary.pending.some((message) => message.kind === 'caution');
     const pending = summary.pending.find((message) => message.kind === 'release') ?? null;
 
-    if (!allowedHere || !staffAuth?.staffUser || !pending || !isIdle || hasCaution) return null;
+    // Called before the early return, unconditionally, because hooks must be.
+    // It tolerates a null message and answers false.
+    const triggerReady = useTriggerReady(pending);
+
+    if (!allowedHere || !staffAuth?.staffUser || !pending || !isIdle || !triggerReady || hasCaution) {
+        return null;
+    }
 
     return (
         // Keyed by the message so moving to a second release starts at its cover
@@ -48,6 +55,7 @@ export function ReleaseWalkthrough() {
             key={pending.id}
             release={pending}
             busy={isAcknowledging || isReplying}
+            onShown={() => markShown(pending.id)}
             onFinish={async (askedQuestion) => {
                 // Reply first, acknowledge second. Acknowledging removes it from
                 // the pending set, which unmounts this card — the other order
@@ -79,12 +87,29 @@ const COVER = -1;
 function WalkthroughCard({
     release,
     busy,
+    onShown,
     onFinish,
 }: {
     release: InboxMessage;
     busy: boolean;
+    onShown: () => void;
     onFinish: (askedQuestion: boolean) => Promise<void>;
 }) {
+    // Report the appearance once per mount, on the cover.
+    //
+    // The card is keyed on the message, so it remounts when a different release
+    // takes over and this fires again for that one. Paging between slides does
+    // not remount it, which is right: eight slides are one appearance, not
+    // eight. The gate closing and reopening mid-shift is a second appearance and
+    // is counted as one, which is what makes "shown four times, still not
+    // acknowledged" mean something.
+    useEffect(() => {
+        onShown();
+        // Deliberately mount-only. Adding onShown to the deps would refire on
+        // every parent render, which is every poll of the summary.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     // Opens on the cover, not on the first change. Somebody who is handed a
     // modal mid-shift needs to know what it is and how long it will take before
     // they start reading detail, and a deck whose length is a surprise gets
