@@ -254,12 +254,20 @@ function OrderTicketBase({
                 print, and /pos/orders will only ever reissue a copy of what
                 this button produced.
 
-                It disappears the moment the slip exists rather than going
+                Never in New. A receipt is a promise that the branch has the
+                order and the customer can be told a time, and in New neither is
+                true yet: nobody has looked at the ticket. Handing over a slip
+                for an order that is then rejected, or that sits unseen through
+                a rush, is worse than handing over nothing. Accept is the one
+                thing that ticket is for, and the printer appears the moment it
+                is pressed.
+
+                It disappears again the moment the slip exists rather than going
                 quiet, so the button's presence is the answer to "does this
                 order still owe a receipt": a column with no printers in it is
                 a column with nothing left to print. A second copy is a reprint
                 by definition, and reprints live at /pos/orders. */}
-            {!isPrinted && (
+            {!isPrinted && stage !== 'received' && (
               <button
                 type="button"
                 disabled={actionsDisabled}
