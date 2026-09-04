@@ -9,6 +9,7 @@ import type {
     StaffMessage,
     StaffMessageKind,
     StaffMessageRule,
+    StaffMessageTrigger,
     RuleActivityRow,
 } from '@/types/messaging';
 
@@ -25,6 +26,9 @@ export interface SendMessagePayload {
     quick_replies?: string[];
     sms_fallback_after_minutes?: number | null;
     expires_at?: string | null;
+    /** Nothing appears before this. Null means no delay. */
+    visible_from?: string | null;
+    display_trigger?: StaffMessageTrigger;
 
     /**
      * A stable name for a release, so the same announcement cannot go out
@@ -57,6 +61,16 @@ export const inboxService = {
 
     acknowledge: (recipientId: number): Promise<{ data: InboxMessage }> =>
         apiClient.post(`/messages/inbox/${recipientId}/acknowledge`),
+
+    /**
+     * Tell the server this just went on screen.
+     *
+     * The only thing that can report it. The server knows when it wrote a
+     * receipt; it cannot know whether the till was showing the modal or sitting
+     * in an empty room behind a locked screen.
+     */
+    markShown: (recipientId: number): Promise<void> =>
+        apiClient.post(`/messages/inbox/${recipientId}/shown`),
 
     reply: (
         recipientId: number,

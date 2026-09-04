@@ -10,6 +10,24 @@ import { messagingAdminService } from '@/lib/api/services/messaging.service';
 import type { StaffMessageReceipt } from '@/types/messaging';
 
 /**
+ * A timestamp short enough to sit in a table cell.
+ *
+ * Today's appearances show only the clock, because on the day of a send that is
+ * the whole question and the date is noise on every row. Anything older carries
+ * its date, since "14:20" alone is a lie once a week has passed.
+ */
+function whenShort(iso: string): string {
+    const at = new Date(iso);
+    const today = new Date().toDateString() === at.toDateString();
+
+    return at.toLocaleString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        ...(today ? {} : { day: 'numeric', month: 'short' }),
+    });
+}
+
+/**
  * One message and every receipt.
  *
  * This screen is the actual deterrent. A caution nobody can prove was read
@@ -42,6 +60,31 @@ export default function MessageDetailPage({ params }: { params: Promise<{ id: st
                     </p>
                 </div>
             ),
+        },
+        {
+            key: 'shown',
+            header: 'On screen',
+            sortValue: (r) => (r.shown_at ? 1 : 0),
+            // The honest reach figure for anything that takes the screen. A
+            // walkthrough is never opened from the bell, so its Read column
+            // stays empty until somebody finishes it; this one says whether it
+            // ever reached them at all.
+            cell: (r) =>
+                r.shown_at ? (
+                    <span className="flex flex-col gap-0.5">
+                        <span className="flex items-center gap-1 text-[11px] font-body text-secondary">
+                            <EyeIcon size={13} weight="fill" />
+                            {whenShort(r.shown_at)}
+                        </span>
+                        {r.shown_count > 1 && (
+                            <span className="text-[11px] font-body text-neutral-gray tabular-nums">
+                                {r.shown_count} times
+                            </span>
+                        )}
+                    </span>
+                ) : (
+                    <span className="text-[11px] font-body text-neutral-gray">Never</span>
+                ),
         },
         {
             key: 'read',
@@ -139,6 +182,10 @@ export default function MessageDetailPage({ params }: { params: Promise<{ id: st
                         {stats && (
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
                                 <Tile label="Sent to" value={stats.total} />
+                                {/* Ahead of Read on purpose. For a caution or a
+                                    walkthrough this is the number that answers
+                                    "did it actually reach them". */}
+                                <Tile label="On screen" value={stats.shown} of={stats.total} />
                                 <Tile label="Read" value={stats.read} of={stats.total} />
                                 {/* Only meaningful when it was asked for — otherwise
                                     this reads 0 of 40 forever and looks like a fault. */}
