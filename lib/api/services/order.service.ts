@@ -1,5 +1,6 @@
 import apiClient, { PaginatedResponse } from '../client';
 import { Order, OrderType, PaymentMethod } from '@/types/api';
+import type { ReceiptPrintSource } from '@/types/order';
 
 export interface CreateOrderRequest {
   branch_id: number;
@@ -99,8 +100,11 @@ export const orderService = {
    * kitchen. It exists so any till can tell a receipt already handed over from
    * one that has never been printed.
    */
-  markReceiptPrinted: (id: number): Promise<{ data: Order }> => {
-    return apiClient.post(`/employee/orders/${id}/receipt-printed`);
+  markReceiptPrinted: (id: number, source?: ReceiptPrintSource): Promise<{ data: Order }> => {
+    // `source` says which screen the button was on. The server records it
+    // alongside the print so "how was this available?" can be answered from the
+    // log rather than by reading the frontend and guessing.
+    return apiClient.post(`/employee/orders/${id}/receipt-printed`, source ? { source } : {});
   },
 
   /**

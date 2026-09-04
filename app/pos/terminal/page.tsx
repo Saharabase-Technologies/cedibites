@@ -2113,7 +2113,7 @@ function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
     // The original for this sale, and the only one it will ever get from here.
     // Two slips in one job, the same as the board prints.
     void printReceipt(order, branch, { kind: 'original', copies: 2 });
-    void markPrinted(Number(order.id)).catch(() => {});
+    void markPrinted({ id: Number(order.id), source: 'pos_terminal' }).catch(() => {});
   };
 
   // Auto close after 5 seconds — but never while a receipt is still owed from

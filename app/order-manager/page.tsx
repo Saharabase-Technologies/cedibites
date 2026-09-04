@@ -365,7 +365,7 @@ export default function OrderManagerPage() {
         { kind: 'original', copies: 2 },
       );
       setPrintedIds((prev) => new Set(prev).add(order.id));
-      void markPrinted(Number(order.id)).catch(() => {
+      void markPrinted({ id: Number(order.id), source: 'order_manager' }).catch(() => {
         toast.error('Printed, but could not record it. It may still show as unprinted.');
       });
     },

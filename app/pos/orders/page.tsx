@@ -342,7 +342,7 @@ export default function POSOrdersPage() {
       { kind: 'reprint', reprintNumber },
     );
 
-    void markPrinted(Number(order.id)).catch(() => {
+    void markPrinted({ id: Number(order.id), source: 'pos_orders' }).catch(() => {
       toast.error('Reprinted, but could not record it. The print count may be short.');
     });
   };
