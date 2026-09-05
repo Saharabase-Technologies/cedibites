@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    MapPinIcon, NavigationArrowIcon, StorefrontIcon,
-    MotorcycleIcon, CaretDownIcon, CheckIcon, SpinnerGapIcon,
+    MapPinIcon, NavigationArrowIcon, MotorcycleIcon,
+    CheckIcon, SpinnerGapIcon,
 } from '@phosphor-icons/react';
 import { useLocation } from '../providers/LocationProvider';
-import { useBranch, type BranchWithDistance } from '../providers/BranchProvider';
+import { useBranch, type Branch, type BranchWithDistance } from '../providers/BranchProvider';
 import BlockHeading from './BlockHeading';
 import BranchMap from './BranchMap';
 
@@ -16,8 +16,8 @@ import BranchMap from './BranchMap';
  * The Maps JS API is already on the page for the checkout address field, so
  * this costs a call rather than a new dependency. It is entirely optional: if
  * the script has not loaded, the call fails, or the answer is unhelpful, the
- * card falls back to "Using your location" and nothing else changes. A
- * coordinate pair on screen would be worse than no name at all.
+ * card falls back to a plain line and nothing else changes. A coordinate pair
+ * on screen would be worse than no name at all.
  */
 function useAreaName(coords: { latitude: number; longitude: number } | null) {
     const [area, setArea] = useState<string | null>(null);
@@ -53,120 +53,34 @@ function useAreaName(coords: { latitude: number; longitude: number } | null) {
     return area;
 }
 
-function BranchRow({
-    branch, expanded, onToggle, isCurrent, onChoose,
-}: {
-    branch: BranchWithDistance;
-    expanded: boolean;
-    onToggle: () => void;
-    isCurrent: boolean;
-    onChoose: () => void;
-}) {
+function Fact({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
     return (
-        <div className="card-lift overflow-hidden rounded-2xl bg-surface">
-            <button
-                onClick={onToggle}
-                aria-expanded={expanded}
-                className="flex w-full items-center gap-3 p-4 text-left"
-            >
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-primary-soft">
-                    <StorefrontIcon size={19} weight="fill" className="text-primary-ink" />
-                </span>
-
-                <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                        <span className="font-brand truncate text-xl leading-none tracking-wide text-fg">
-                            {branch.name}
-                        </span>
-                        {isCurrent && (
-                            <span className="shrink-0 rounded-md bg-success-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success-ink">
-                                Ordering here
-                            </span>
-                        )}
-                    </span>
-                    <span className="mt-1 flex items-center gap-2 text-xs">
-                        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-xs ${branch.isOpen ? 'bg-success' : 'bg-danger'}`} />
-                        <span className={`font-bold ${branch.isOpen ? 'text-success-ink' : 'text-danger-ink'}`}>
-                            {branch.isOpen ? 'Open' : 'Closed'}
-                        </span>
-                        {Number.isFinite(branch.distance) && (
-                            <span className="text-fg-muted tabular-nums">{branch.distance.toFixed(1)} km away</span>
-                        )}
-                    </span>
-                </span>
-
-                <CaretDownIcon
-                    size={16}
-                    weight="bold"
-                    className={`shrink-0 text-fg-muted transition-transform duration-150 ease-out ${expanded ? 'rotate-180' : ''}`}
-                />
-            </button>
-
-            {expanded && (
-                <div className="border-t border-hairline px-4 pb-4 pt-3">
-                    <div className="flex flex-wrap gap-x-6 gap-y-3">
-                        {/* Both of these are computed from the distance, so a
-                            branch with no coordinates on file shows neither
-                            rather than "NaN-NaN mins". */}
-                        {Number.isFinite(branch.distance) && (
-                            <>
-                                <div>
-                                    <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-fg-muted">
-                                        <MotorcycleIcon size={12} weight="fill" /> On a bike
-                                    </p>
-                                    <p className="mt-1 text-sm font-bold text-fg tabular-nums">{branch.deliveryTime}</p>
-                                </div>
-                                <div>
-                                    <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-fg-muted">
-                                        <NavigationArrowIcon size={12} weight="fill" /> Distance
-                                    </p>
-                                    <p className="mt-1 text-sm font-bold text-fg tabular-nums">{branch.distance.toFixed(1)} km</p>
-                                </div>
-                            </>
-                        )}
-                        <div className="min-w-0">
-                            <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-fg-muted">
-                                <MapPinIcon size={12} weight="fill" /> Address
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-fg">{branch.address}</p>
-                        </div>
-                    </div>
-
-                    {Number.isFinite(branch.distance) && !branch.isWithinRadius && (
-                        <p className="mt-3 text-xs font-semibold text-warning-ink">
-                            Outside this branch&rsquo;s delivery range. You can still collect.
-                        </p>
-                    )}
-
-                    <button
-                        onClick={onChoose}
-                        disabled={isCurrent}
-                        className="mt-4 inline-flex h-11 items-center gap-2 rounded-lg bg-primary-fill px-4 text-sm font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95 disabled:pointer-events-none disabled:opacity-45"
-                    >
-                        {isCurrent ? <><CheckIcon size={15} weight="bold" /> Ordering from here</> : `Order from ${branch.name}`}
-                    </button>
-                </div>
-            )}
+        <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-fg-muted">
+                {icon} {label}
+            </p>
+            <p className="mt-1 text-sm font-bold text-fg tabular-nums">{value}</p>
         </div>
     );
 }
 
 /**
- * Which kitchen is nearest, and what that means in minutes.
+ * Where our kitchens are, and where you are, on one map.
  *
- * The branch chip in the header says which branch you are ordering from. It
- * does not say how far away it is, whether a nearer one exists, or whether the
- * one you are on will even deliver to where you are standing. This does.
+ * There was a list of every branch under this map. It said in words what the
+ * pins already say, and on a phone it pushed the map off the screen. One card
+ * for the shop you tapped does the job the list was doing without repeating the
+ * map back to you.
  *
- * The distance is a straight line from `calculateDistance`, and the bike time
- * comes from `estimateDeliveryTime`, which is the same pair the branch switcher
- * and the nearest-branch logic already run on. Deliberately not a second
- * estimate: two numbers for one journey, disagreeing, is worse than one.
+ * The distance is a straight line from `calculateDistance` and the bike time
+ * comes from `estimateDeliveryTime`, which is the pair the branch switcher and
+ * the nearest-branch logic already run on. Deliberately not a second estimate:
+ * two numbers for one journey, disagreeing, is worse than one.
  */
 export default function NearbyBranches() {
     const { coordinates, permissionStatus, requestLocation, error } = useLocation();
     const { branches, selectedBranch, setSelectedBranch, getBranchesWithDistance } = useBranch();
-    const [expanded, setExpanded] = useState<string | null>(null);
+    const [activeId, setActiveId] = useState<string | null>(null);
 
     /**
      * Spin only while a request this button started is in flight.
@@ -187,16 +101,18 @@ export default function NearbyBranches() {
         [coordinates, getBranchesWithDistance],
     );
 
-    // The nearest one opens by default. It is the answer most people came for,
-    // and an accordion where everything starts shut asks for a tap to say
-    // anything at all.
-    useEffect(() => {
-        if (ranked.length > 0 && expanded === null) setExpanded(ranked[0].id);
-    }, [ranked, expanded]);
+    const nearest = ranked.find(b => Number.isFinite(b.distance)) ?? null;
 
     // Stable, so the map's marker effect does not tear down and rebuild every
     // pin on each render of this section.
-    const selectFromMap = useCallback((id: string) => setExpanded(id), []);
+    const selectFromMap = useCallback((id: string) => setActiveId(id), []);
+
+    // Open on the kitchen you are already ordering from, or on the nearest one.
+    useEffect(() => {
+        if (activeId !== null) return;
+        if (selectedBranch) setActiveId(selectedBranch.id);
+        else if (nearest) setActiveId(nearest.id);
+    }, [activeId, selectedBranch, nearest]);
 
     // Stop spinning whichever way the browser answered.
     useEffect(() => {
@@ -207,21 +123,22 @@ export default function NearbyBranches() {
 
     const denied = permissionStatus === 'denied';
 
+    // Two lookups rather than one union. `ranked` only exists once we know where
+    // the customer is; `branches` always does. Keeping them apart means the
+    // distance fields are typed where they exist and simply absent where they
+    // do not, instead of a union that needs narrowing at every read.
+    const measured: BranchWithDistance | null = ranked.find(b => b.id === activeId) ?? null;
+    const active: Branch | null = measured ?? branches.find(b => b.id === activeId) ?? null;
+
+    const distance = measured && Number.isFinite(measured.distance) ? measured.distance : null;
+    const withinRange = measured ? measured.isWithinRadius : null;
+    const isCurrent = active !== null && selectedBranch?.id === active.id;
+
     return (
         <section className="page-x">
             <div className="mb-5">
-                <BlockHeading tone="red" size="lg">Where are you?</BlockHeading>
+                <BlockHeading tone="red" size="lg">Where we are</BlockHeading>
             </div>
-
-            {/* ── The map ───────────────────────────────────────────────── */}
-            {/* Renders nothing at all if the Maps script never arrives, rather
-                than leaving a grey rectangle where a map should be. */}
-            <BranchMap
-                coords={coordinates}
-                branches={branches}
-                activeId={expanded}
-                onSelectBranch={selectFromMap}
-            />
 
             {/* ── Where the customer is ─────────────────────────────────── */}
             <div className="card-lift mb-3 flex items-center gap-3 rounded-2xl bg-surface p-4">
@@ -235,11 +152,7 @@ export default function NearbyBranches() {
                             <p className="truncate text-sm font-bold text-fg">
                                 {area ? `You're near ${area}` : "We've got your location"}
                             </p>
-                            <p className="text-xs text-fg-muted">
-                                {ranked.length === 1
-                                    ? 'One kitchen, sorted by how far it is'
-                                    : `${ranked.length} kitchens, nearest first`}
-                            </p>
+                            <p className="text-xs text-fg-muted">Tap a shop on the map to see how far it is.</p>
                         </>
                     ) : (
                         <>
@@ -266,45 +179,83 @@ export default function NearbyBranches() {
                 )}
             </div>
 
-            {/* ── The branches ──────────────────────────────────────────── */}
-            <div className="flex flex-col gap-3">
-                {coordinates
-                    ? ranked.map(branch => (
-                        <BranchRow
-                            key={branch.id}
-                            branch={branch}
-                            expanded={expanded === branch.id}
-                            onToggle={() => setExpanded(expanded === branch.id ? null : branch.id)}
-                            isCurrent={selectedBranch?.id === branch.id}
-                            onChoose={() => setSelectedBranch(branch)}
-                        />
-                    ))
-                    : branches.map(branch => (
-                        // Without a location there is no distance and no bike
-                        // time, so the row shows what is true: the name, whether
-                        // it is cooking, and where it is.
-                        <div key={branch.id} className="card-lift flex items-center gap-3 rounded-2xl bg-surface p-4">
-                            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-primary-soft">
-                                <StorefrontIcon size={19} weight="fill" className="text-primary-ink" />
+            {/* Renders nothing at all if the Maps script never arrives, rather
+                than leaving a grey rectangle where a map should be. */}
+            <BranchMap
+                coords={coordinates}
+                branches={branches}
+                activeId={activeId}
+                nearestId={nearest?.id ?? null}
+                onSelectBranch={selectFromMap}
+            />
+
+            {/* ── The one you tapped ────────────────────────────────────── */}
+            {active && (
+                <div className="card-lift mt-3 rounded-2xl bg-surface p-4">
+                    <div className="flex items-center gap-2">
+                        <h3 className="font-brand truncate text-2xl leading-none tracking-wide text-fg">
+                            {active.name}
+                        </h3>
+                        {isCurrent && (
+                            <span className="shrink-0 rounded-md bg-success-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success-ink">
+                                Ordering here
                             </span>
-                            <div className="min-w-0 flex-1">
-                                <p className="font-brand truncate text-xl leading-none tracking-wide text-fg">{branch.name}</p>
-                                <p className="mt-1 flex items-center gap-2 text-xs">
-                                    <span aria-hidden className={`h-2 w-2 shrink-0 rounded-xs ${branch.isOpen ? 'bg-success' : 'bg-danger'}`} />
-                                    <span className={`font-bold ${branch.isOpen ? 'text-success-ink' : 'text-danger-ink'}`}>
-                                        {branch.isOpen ? 'Open' : 'Closed'}
-                                    </span>
-                                    <span className="truncate text-fg-muted">{branch.address}</span>
-                                </p>
-                            </div>
-                            {selectedBranch?.id === branch.id && (
-                                <span className="shrink-0 rounded-md bg-success-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success-ink">
-                                    Ordering here
-                                </span>
-                            )}
-                        </div>
-                    ))}
-            </div>
+                        )}
+                    </div>
+
+                    <p className="mt-1.5 flex items-center gap-2 text-xs">
+                        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-xs ${active.isOpen ? 'bg-success' : 'bg-danger'}`} />
+                        <span className={`font-bold ${active.isOpen ? 'text-success-ink' : 'text-danger-ink'}`}>
+                            {active.isOpen ? 'Open now' : 'Closed'}
+                        </span>
+                        <span className="truncate text-fg-muted">{active.operatingHours}</span>
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3">
+                        {distance !== null && (
+                            <Fact
+                                icon={<NavigationArrowIcon size={12} weight="fill" />}
+                                label="Distance"
+                                value={`${distance.toFixed(1)} km`}
+                            />
+                        )}
+
+                        {/* A bike time only means something if this shop would
+                            actually ride to you. Outside its delivery radius the
+                            honest answer is that it will not, rather than a
+                            number in the hundreds of minutes. */}
+                        {distance !== null && withinRange && measured && (
+                            <Fact
+                                icon={<MotorcycleIcon size={12} weight="fill" />}
+                                label="On a bike"
+                                value={measured.deliveryTime}
+                            />
+                        )}
+
+                        <Fact
+                            icon={<MapPinIcon size={12} weight="fill" />}
+                            label="Address"
+                            value={active.address}
+                        />
+                    </div>
+
+                    {distance !== null && withinRange === false && (
+                        <p className="mt-3 text-xs font-semibold text-warning-ink">
+                            Too far for delivery from here. You can still collect.
+                        </p>
+                    )}
+
+                    <button
+                        onClick={() => setSelectedBranch(active)}
+                        disabled={isCurrent}
+                        className="mt-4 inline-flex h-11 items-center gap-2 rounded-lg bg-primary-fill px-4 text-sm font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95 disabled:pointer-events-none disabled:opacity-45"
+                    >
+                        {isCurrent
+                            ? <><CheckIcon size={15} weight="bold" /> Ordering from here</>
+                            : `Order from ${active.name}`}
+                    </button>
+                </div>
+            )}
         </section>
     );
 }

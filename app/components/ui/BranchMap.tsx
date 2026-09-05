@@ -3,32 +3,85 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Branch } from '../providers/BranchProvider';
 
+/** XML-safe: a branch called "Fish & Chips" would otherwise break the SVG. */
+function esc(text: string) {
+    return text.replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c] as string
+    ));
+}
+
 /**
- * A pin drawn rather than fetched, so it matches the brand instead of Google's
- * default red teardrop, and so it costs no request.
+ * Phosphor's Storefront, fill weight, lifted out of the package at its native
+ * 256 viewBox. The same glyph the branch chip in the header uses, so a shop on
+ * the map and the shop named in the header are visibly the same thing.
  */
-function pin(fill: string, ring: string, size: number) {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">
-        <path d="M18 46S0 28.6 0 18a18 18 0 1 1 36 0c0 10.6-18 28-18 28z" fill="${fill}"/>
-        <circle cx="18" cy="18" r="7.5" fill="${ring}"/>
+const STOREFRONT = 'M231.69,93.81,217.35,43.6A16.07,16.07,0,0,0,202,32H54A16.07,16.07,0,0,0,38.65,43.6L24.31,93.81A7.94,7.94,0,0,0,24,96v16a40,40,0,0,0,16,32v72a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V144a40,40,0,0,0,16-32V96A7.94,7.94,0,0,0,231.69,93.81ZM88,112a24,24,0,0,1-35.12,21.26,7.88,7.88,0,0,0-1.82-1.06A24,24,0,0,1,40,112v-8H88Zm64,0a24,24,0,0,1-48,0v-8h48Zm64,0a24,24,0,0,1-11.07,20.2,8.08,8.08,0,0,0-1.8,1.05A24,24,0,0,1,168,112v-8h48Z';
+
+/**
+ * The marker is the branch chip from the header, standing on the map, with the
+ * shop's name on a plate above it.
+ *
+ * Drawn here rather than fetched, so it costs no request and matches the chip
+ * exactly. Google's own marker library would need `libraries=marker` and a
+ * mapId; the script on this page loads `places` only, so these ride on the
+ * classic Marker with a data-URI icon.
+ *
+ * The name is baked into the SVG rather than passed as a MarkerLabel, because a
+ * MarkerLabel is bare text with no plate behind it, unreadable the moment it
+ * crosses a road or a coastline.
+ *
+ * An SVG in a data URI cannot load a webfont, so the plate uses a system sans
+ * rather than American Captain. Its width is estimated from the character count
+ * for the same reason: nothing here can measure text.
+ */
+function shopMarker(
+    name: string,
+    { plate, plateText, scale }: { plate: string; plateText: string; scale: number },
+) {
+    const label = name.length > 18 ? `${name.slice(0, 17)}\u2026` : name;
+    const plateW = Math.max(46, Math.round(label.length * 6.6) + 18);
+    const plateH = 21;
+    const gap = 6;
+    const tile = 38;
+    const glyph = 23;
+
+    const W = Math.max(plateW, tile);
+    const H = plateH + gap + tile;
+    const cx = W / 2;
+    const tx = cx - tile / 2;
+    const ty = plateH + gap;
+    const g = glyph / 256;
+    const gi = (tile - glyph) / 2;
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+        <rect x="${cx - plateW / 2}" y="0" width="${plateW}" height="${plateH}" rx="4" fill="${plate}"/>
+        <text x="${cx}" y="${plateH / 2 + 4.2}" text-anchor="middle" fill="${plateText}"
+              font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="700">${esc(label)}</text>
+        <rect x="${tx}" y="${ty}" width="${tile}" height="${tile}" rx="9" fill="#d90002" stroke="#ffffff" stroke-width="2.5"/>
+        <g transform="translate(${tx + gi} ${ty + gi}) scale(${g})" fill="#ffffff"><path d="${STOREFRONT}"/></g>
     </svg>`;
+
     return {
         url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-        scaledSize: { width: size, height: size * (46 / 36) },
-        anchor: { x: size / 2, y: size * (46 / 36) },
+        scaledSize: { width: W * scale, height: H * scale },
+        // The tile stands on its coordinates rather than floating with its
+        // middle over them, so the anchor is the foot of the tile.
+        anchor: { x: cx * scale, y: (ty + tile) * scale },
     };
 }
 
-function dot() {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
-        <circle cx="14" cy="14" r="13" fill="#ffffff"/>
-        <circle cx="14" cy="14" r="9" fill="#1a1a1a"/>
-        <circle cx="14" cy="14" r="3.5" fill="#ffdd0b"/>
+/** The customer is a person, not a blue dot. */
+function personPin() {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
+        <circle cx="17" cy="17" r="16" fill="#ffffff"/>
+        <circle cx="17" cy="17" r="14" fill="#1a1a1a"/>
+        <circle cx="17" cy="13.6" r="4.3" fill="#ffdd0b"/>
+        <path d="M8.6 25.8c0-4.5 3.8-7 8.4-7s8.4 2.5 8.4 7z" fill="#ffdd0b"/>
     </svg>`;
     return {
         url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-        scaledSize: { width: 26, height: 26 },
-        anchor: { x: 13, y: 13 },
+        scaledSize: { width: 32, height: 32 },
+        anchor: { x: 16, y: 16 },
     };
 }
 
@@ -51,17 +104,20 @@ const MAP_STYLE: google.maps.MapTypeStyle[] = [
 ];
 
 export default function BranchMap({
-    coords, branches, activeId, onSelectBranch,
+    coords, branches, activeId, nearestId, onSelectBranch,
 }: {
     coords: { latitude: number; longitude: number } | null;
     branches: Branch[];
     activeId: string | null;
+    /** Gets the ring. Null when we do not know where the customer is. */
+    nearestId: string | null;
     onSelectBranch: (id: string) => void;
 }) {
     const holder = useRef<HTMLDivElement>(null);
     const map = useRef<google.maps.Map | null>(null);
     const markers = useRef<Record<string, google.maps.Marker>>({});
     const meMarker = useRef<google.maps.Marker | null>(null);
+    const range = useRef<google.maps.Circle | null>(null);
 
     const [ready, setReady] = useState(false);
     const [failed, setFailed] = useState(false);
@@ -88,7 +144,7 @@ export default function BranchMap({
             styles: MAP_STYLE,
             disableDefaultUI: true,
             zoomControl: true,
-            gestureHandling: 'cooperative',
+            gestureHandling: 'greedy',
             clickableIcons: false,
         });
     }, [ready]);
@@ -113,7 +169,7 @@ export default function BranchMap({
                 map: map.current,
                 position,
                 title: branch.name,
-                icon: pin('#d90002', '#ffffff', 34) as unknown as google.maps.Icon,
+                icon: shopMarker(branch.name, { plate: '#1a1a1a', plateText: '#ffffff', scale: 1 }) as unknown as google.maps.Icon,
                 zIndex: 1,
             });
             marker.addListener('click', () => onSelectBranch(branch.id));
@@ -128,8 +184,8 @@ export default function BranchMap({
                 map: map.current,
                 position,
                 title: 'You',
-                icon: dot() as unknown as google.maps.Icon,
-                zIndex: 2,
+                icon: personPin() as unknown as google.maps.Icon,
+                zIndex: 4,
             });
             bounds.extend(position);
         }
@@ -146,27 +202,66 @@ export default function BranchMap({
         }
     }, [ready, branches, coords, onSelectBranch]);
 
-    // The open row and the raised pin are the same choice, so they move together.
+    // Selection, and the ring on the nearest one.
     useEffect(() => {
         if (!ready || !map.current) return;
+
+        // Somebody who has asked their phone to stop animating things means it.
+        const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
         for (const [id, marker] of Object.entries(markers.current)) {
             const on = id === activeId;
-            marker.setIcon(pin(on ? '#f40002' : '#d90002', on ? '#ffdd0b' : '#ffffff', on ? 44 : 32) as unknown as google.maps.Icon);
+            // Selected keeps the brand red and its name plate turns red too,
+            // so the shop and its label read as one chosen thing.
+            marker.setIcon(shopMarker(marker.getTitle() ?? '', {
+                plate: on ? '#d90002' : '#1a1a1a',
+                plateText: '#ffffff',
+                scale: on ? 1.18 : 1,
+            }) as unknown as google.maps.Icon);
             marker.setZIndex(on ? 3 : 1);
+
+            // The nearest kitchen rings until you pick something. Once you have
+            // chosen, the map stops waving at you.
+            const ringing = !still && id === nearestId && (activeId === null || activeId === nearestId);
+            marker.setAnimation(ringing ? google.maps.Animation.BOUNCE : null);
         }
+
         const chosen = activeId ? markers.current[activeId] : null;
         const position = chosen?.getPosition();
         if (position) map.current.panTo(position);
-    }, [activeId, ready]);
+
+        /**
+         * The chosen shop's delivery radius, drawn.
+         *
+         * This is the one thing a list of distances could never do: you can see
+         * whether your own pin falls inside the ring. "2.4 km away" leaves you
+         * to work out whether that is close enough; a circle around the shop
+         * with you inside or outside it does not.
+         */
+        range.current?.setMap(null);
+        range.current = null;
+        const branch = branches.find(b => b.id === activeId);
+        if (chosen && position && branch && branch.deliveryRadius > 0) {
+            range.current = new google.maps.Circle({
+                map: map.current,
+                center: position,
+                radius: branch.deliveryRadius * 1000,
+                strokeColor: '#d90002',
+                strokeOpacity: 0.55,
+                strokeWeight: 2,
+                fillColor: '#f40002',
+                fillOpacity: 0.07,
+                clickable: false,
+            });
+        }
+    }, [activeId, nearestId, ready, branches]);
 
     if (failed) return null;
 
     return (
-        <div className="card-lift relative mb-3 overflow-hidden rounded-2xl bg-surface-sunken">
-            <div ref={holder} className="h-64 w-full sm:h-80" />
-            {!ready && (
-                <div className="absolute inset-0 animate-pulse bg-surface-sunken" aria-hidden />
-            )}
+        <div className="card-lift relative overflow-hidden rounded-2xl bg-surface-sunken">
+            <div ref={holder} className="h-72 w-full sm:h-96" />
+            {!ready && <div className="absolute inset-0 animate-pulse bg-surface-sunken" aria-hidden />}
         </div>
     );
 }
