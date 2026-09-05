@@ -48,9 +48,10 @@ export default function Page() {
         <NearbyBranches />
       </div>
 
-      {/* A footer is a website thing. On a phone the tab bar is the way
-          around, so this is desktop only. */}
-      <Footer className='mt-16 hidden md:block' />
+      {/* The footer knows which device it is on. A phone gets a way to reach
+          somebody rather than a site map, because the tab bar is already the
+          way around. See Footer.tsx. */}
+      <Footer className='mt-16' />
     </div>
   )
 }

@@ -14,6 +14,21 @@ import {
 } from '@phosphor-icons/react';
 import { useBranches } from '@/lib/api/hooks/useBranches';
 import apiClient from '@/lib/api/client';
+import { serverNow } from '@/lib/utils/serverClock';
+
+/**
+ * How to reach us, in one place.
+ *
+ * The number printed here used to be +233 24 123 4567, which is a placeholder
+ * somebody left behind. Anyone who tapped it reached nobody. The real numbers
+ * are the ones in the Restaurant structured data on app/(customer)/layout.tsx,
+ * which is what Google reads and shows beside a search result, so the footer had
+ * better agree with them.
+ */
+const PHONE_DISPLAY = '+233 54 816 2282';
+const PHONE_DIAL = '+233548162282';
+const WHATSAPP_NUMBER = '233548162282';
+const EMAIL = 'hello@cedibites.com';
 
 function formatTime12h(time24: string): string {
     const [h, m] = time24.split(':').map(Number);
@@ -35,11 +50,39 @@ const QUICK_LINKS = [
     { label: 'Find a Branch', href: '#' },
 ];
 
+/**
+ * Two footers, because a phone and a desktop are asking different questions.
+ *
+ * On a laptop this is a site map: four columns, every branch, every link, the
+ * shape a restaurant website has had for twenty years. That is still right
+ * there, and it is untouched below.
+ *
+ * On a phone it is not. The tab bar already carries Home, Menu, Orders and
+ * Search, so a column repeating them is a second navigation that agrees with
+ * the first, and every branch is already on the map directly above this. What a
+ * customer on a phone genuinely cannot get anywhere else is a person: nothing
+ * in the whole customer app offers a way to call the shop unless you already
+ * have an order in flight.
+ *
+ * So the phone gets three things in falling order of use. When we are cooking,
+ * two ways to reach somebody, and the line at the bottom that every site has.
+ */
 export default function Footer({ className = '' }: { className?: string }) {
     const { branches } = useBranches();
     const BRANCHES = branches.map((b: any) => ({ id: b.id, name: b.name, address: b.address || '' }));
 
     const [hours, setHours] = useState({ open: '08:00', close: '22:00' });
+
+    /**
+     * The year comes off the server's clock, not this machine's.
+     *
+     * It is set again after the config call because the offset is learned from
+     * response headers, so the first render of a session has nothing to correct
+     * with. A device whose clock is a year out is rarer than one an hour out,
+     * but the copyright line is the one piece of this footer that would be
+     * quietly, visibly wrong for twelve months. See lib/utils/serverClock.ts.
+     */
+    const [year, setYear] = useState(() => serverNow().getFullYear());
 
     useEffect(() => {
         apiClient.get('/checkout-config').then((res: unknown) => {
@@ -50,13 +93,53 @@ export default function Footer({ className = '' }: { className?: string }) {
                     close: d.global_operating_hours_close ?? '22:00',
                 });
             }
-        }).catch(() => { /* keep defaults */ });
+        }).catch(() => { /* keep defaults */ }).finally(() => setYear(serverNow().getFullYear()));
     }, []);
 
-    const hoursDisplay = `${formatTime12h(hours.open)} - ${formatTime12h(hours.close)}`;
+    const hoursDisplay = `${formatTime12h(hours.open)} to ${formatTime12h(hours.close)}`;
 
     return (
         <footer className={`bg-brand-darker border-t border-white/5 mt-8 ${className}`}>
+
+            {/* ── On a phone ─────────────────────────────────────────────── */}
+            <div className="page-x pt-9 pb-7 md:hidden">
+                <h2 className="font-brand text-2xl leading-none tracking-wide text-white">
+                    Talk to us
+                </h2>
+                <p className="mt-2.5 text-sm leading-relaxed text-white/55">
+                    Somebody is at the shop every day, {hoursDisplay}.
+                </p>
+
+                {/* Calling is the loud one. WhatsApp sits beside it at its own
+                    width rather than splitting the row in half, so the two do
+                    not read as the same offer twice. */}
+                <div className="mt-5 flex items-stretch gap-2.5">
+                    <a
+                        href={`tel:${PHONE_DIAL}`}
+                        className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-primary-fill px-4 text-sm font-bold text-white transition-[filter] duration-150 ease-out active:brightness-90"
+                    >
+                        <PhoneIcon weight="fill" size={16} />
+                        Call the shop
+                    </a>
+                    <a
+                        href={`https://wa.me/${WHATSAPP_NUMBER}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl border border-white/15 px-4 text-sm font-bold text-white/85 transition-colors duration-150 ease-out active:bg-white/10"
+                    >
+                        <WhatsappLogoIcon weight="fill" size={17} />
+                        WhatsApp
+                    </a>
+                </div>
+
+                <a
+                    href={`mailto:${EMAIL}`}
+                    className="mt-4 inline-flex items-center gap-1.5 text-xs text-white/40 transition-colors duration-150 ease-out active:text-white/70"
+                >
+                    <EnvelopeIcon weight="fill" size={13} />
+                    {EMAIL}
+                </a>
+            </div>
 
             {/* Main Footer Grid */}
             <div className="w-[95%] hidden md:w-[80%] xl:w-[70%] mx-auto py-12 md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
@@ -122,15 +205,15 @@ export default function Footer({ className = '' }: { className?: string }) {
                         <h4 className="text-white font-semibold">Contact</h4>
                         <ul className="flex flex-col gap-3">
                             <li>
-                                <a href="tel:+233241234567" className="flex items-center gap-2 text-sm text-white/60 hover:text-primary transition-colors">
+                                <a href={`tel:${PHONE_DIAL}`} className="flex items-center gap-2 text-sm text-white/60 hover:text-primary transition-colors">
                                     <PhoneIcon weight="fill" size={14} className="text-primary shrink-0" />
-                                    +233 24 123 4567
+                                    {PHONE_DISPLAY}
                                 </a>
                             </li>
                             <li>
-                                <a href="mailto:hello@cedibites.com" className="flex items-center gap-2 text-sm text-white/60 hover:text-primary transition-colors">
+                                <a href={`mailto:${EMAIL}`} className="flex items-center gap-2 text-sm text-white/60 hover:text-primary transition-colors">
                                     <EnvelopeIcon weight="fill" size={14} className="text-primary shrink-0" />
-                                    hello@cedibites.com
+                                    {EMAIL}
                                 </a>
                             </li>
                         </ul>
@@ -151,13 +234,14 @@ export default function Footer({ className = '' }: { className?: string }) {
                 </div>
             </div>
 
-            {/* Divider */}
-            <div className="w-[95%] md:w-[80%] xl:w-[70%] mx-auto border-t border-white/5" />
+            {/* Divider. The width below md is the page gutter to the pixel, so
+                it lines up with the block above it rather than nearly doing. */}
+            <div className="w-[calc(100%-2.5rem)] md:w-[80%] xl:w-[70%] mx-auto border-t border-white/5" />
 
             {/* Bottom Bar */}
-            <div className="w-[95%] md:w-[80%] xl:w-[70%] py-8 mx-auto md:py-5 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div className="w-[calc(100%-2.5rem)] md:w-[80%] xl:w-[70%] py-6 mx-auto md:py-5 flex flex-col sm:flex-row items-center justify-between gap-2">
                 <p className="text-xs text-white/30">
-                    © {new Date().getFullYear()} CediBites Restaurant. All rights reserved.
+                    © {year} CediBites Restaurant. All rights reserved.
                 </p>
                 <p className="text-xs text-white/20">
                     Built by <span className="text-white/40">Saharabasetech</span>
