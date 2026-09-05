@@ -407,6 +407,14 @@
   --color-info:            var(--cb-info);
 }
 
+/* Light only, enforced at the root as well as in the provider. This is what
+   tells the browser to paint its own furniture — form controls, scrollbars, the
+   spinner in a date input — light, whatever the device is set to. Without it a
+   phone in dark mode renders dark native widgets on a light page. */
+:root {
+  color-scheme: light;
+}
+
 body {
   font-family: var(--cb-font-body);
   /* Manrope and Montserrat both read light at 400, so default body copy to 500.

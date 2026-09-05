@@ -76,10 +76,9 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fafafa' },
-    { media: '(prefers-color-scheme: dark)', color: '#0e0e0e' },
-  ],
+  // One value: the app is light whatever the phone is set to, so offering the
+  // browser a dark chrome colour would put a dark status bar over a light page.
+  themeColor: '#fafafa',
 };
 
 export const metadata: Metadata = {

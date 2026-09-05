@@ -51,6 +51,22 @@ interface BranchContextType {
 
 const BranchContext = createContext<BranchContextType | undefined>(undefined);
 
+/**
+ * Coordinates, as a number or as nothing.
+ *
+ * types/api.ts declares latitude and longitude as `number`, but the API is
+ * Laravel and a decimal column serialises as a string — "5.6912" — or as null
+ * for a branch nobody has placed on the map yet. A string reaches the haversine
+ * and every distance comes back NaN, which the UI then prints as "NaN km away";
+ * `Number(null)` would be worse, quietly pinning that branch to 0,0 in the Gulf
+ * of Guinea. NaN is the honest answer for a branch with no location, and
+ * everything downstream can test for it.
+ */
+function coordinate(value: unknown): number {
+    const n = typeof value === 'string' ? parseFloat(value) : typeof value === 'number' ? value : NaN;
+    return Number.isFinite(n) ? n : NaN;
+}
+
 // Helper to convert API Branch to local Branch format
 function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
     // Extract delivery settings
@@ -76,8 +92,8 @@ function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
         area: apiBranch.area,
         phone: apiBranch.phone,
         coordinates: {
-            latitude: apiBranch.latitude,
-            longitude: apiBranch.longitude,
+            latitude: coordinate(apiBranch.latitude),
+            longitude: coordinate(apiBranch.longitude),
         },
         deliveryRadius,
         deliveryFee,
@@ -139,7 +155,13 @@ export function BranchProvider({ children }: { children: ReactNode }) {
                 deliveryTime: estimateDeliveryTime(distance),
                 isWithinRadius: distance <= branch.deliveryRadius,
             };
-        }).sort((a: any, b: any) => a.distance - b.distance);
+        }).sort((a: any, b: any) => {
+            // A branch with no coordinates has no distance. Sort those last
+            // rather than letting NaN decide the order for everyone.
+            const av = Number.isFinite(a.distance) ? a.distance : Infinity;
+            const bv = Number.isFinite(b.distance) ? b.distance : Infinity;
+            return av - bv;
+        });
     }, [branches]);
 
     const findNearestBranch = useCallback((lat: number, lon: number): Branch | null => {

@@ -95,7 +95,7 @@ export default function StapleGrid() {
     return (
         <section>
             <div className="page-x mb-5 flex items-center justify-between gap-4">
-                <BlockHeading tone="red" size="md">What are you eating?</BlockHeading>
+                <BlockHeading tone="red" size="lg">What are you eating?</BlockHeading>
 
                 {/* Touch scrolls the rail directly, so these would be furniture
                     on a phone. */}

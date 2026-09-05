@@ -3,22 +3,23 @@
 import { ThemeProvider as NextThemeProvider } from 'next-themes';
 
 /**
- * Dark mode moved from the `prefers-color-scheme` media query to a `.dark`
- * class on <html>, because a media query cannot be overridden by a person.
+ * Light only, everywhere, by decision.
  *
- * `defaultTheme="system"` keeps today's behaviour exactly: a visitor whose
- * phone is in dark mode still lands in dark. What changes is that a toggle is
- * now possible, and that a screen can be forced light or dark for a screenshot.
+ * `forcedTheme` is the strict form: it ignores the operating system and any
+ * preference already stored in localStorage, so a phone set to dark still gets
+ * the light interface. Nothing ever writes `.dark` onto <html>, which means
+ * every `dark:` utility in the codebase is inert rather than merely unused.
  *
- * `disableTransitionOnChange` stops the 0.2s background transition on `body`
- * from painting a grey wash across the whole page mid-switch.
+ * The dark token blocks in globals.css stay. They cost nothing while no element
+ * carries `.dark`, and deleting them would make bringing dark back a rebuild
+ * rather than a one-line change here.
  */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return (
         <NextThemeProvider
             attribute="class"
-            defaultTheme="system"
-            enableSystem
+            forcedTheme="light"
+            enableSystem={false}
             disableTransitionOnChange
         >
             {children}

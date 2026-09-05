@@ -6,6 +6,7 @@ import LiveOrderPill from '../components/ui/LiveOrderPill'
 import HomeHero from '../components/ui/HomeHero'
 import PromoBanner from '../components/ui/PromoBanner'
 import StapleGrid from '../components/ui/StapleGrid'
+import NearbyBranches from '../components/ui/NearbyBranches'
 import Footer from '../components/layout/Footer'
 
 // Capitalised so React - and `react-hooks/rules-of-hooks` - can tell this is a
@@ -41,6 +42,10 @@ export default function Page() {
 
       <div className='mt-12'>
         <StapleGrid />
+      </div>
+
+      <div className='mt-14'>
+        <NearbyBranches />
       </div>
 
       {/* A footer is a website thing. On a phone the tab bar is the way
