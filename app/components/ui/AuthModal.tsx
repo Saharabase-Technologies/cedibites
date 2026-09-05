@@ -83,7 +83,7 @@ function StepPhone({ onNext }: { onNext: () => void }) {
     return (
         <div className="flex flex-col gap-6">
             <div className="text-center">
-                <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 rounded-lg bg-primary/15 flex items-center justify-center mx-auto mb-4">
                     <PhoneIcon weight="fill" size={28} className="text-primary" />
                 </div>
                 <h2 className="text-xl font-bold text-text-dark dark:text-text-light">Sign in to CediBites</h2>
@@ -165,7 +165,7 @@ function StepOTP({ onNext, onBack }: { onNext: () => void; onBack: () => void })
     return (
         <div className="flex flex-col gap-6">
             <div className="text-center">
-                <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 rounded-lg bg-primary/15 flex items-center justify-center mx-auto mb-4">
                     <DeviceMobileIcon weight="fill" size={28} className="text-primary" />
                 </div>
                 <h2 className="text-xl font-bold text-text-dark dark:text-text-light">Enter your code</h2>
@@ -234,7 +234,7 @@ function StepName({ onDone }: { onDone: () => void }) {
     return (
         <div className="flex flex-col gap-6">
             <div className="text-center">
-                <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 rounded-lg bg-primary/15 flex items-center justify-center mx-auto mb-4">
                     <UserIcon weight="fill" size={28} className="text-primary" />
                 </div>
                 <h2 className="text-xl font-bold text-text-dark dark:text-text-light">What&apos;s your name?</h2>
@@ -291,10 +291,10 @@ function StepDoneWelcome({ onClose }: { onClose: () => void }) {
     return (
         <div className="flex flex-col items-center gap-5 py-6 text-center">
             <div className="relative">
-                <div className="w-20 h-20 rounded-full bg-secondary/15 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-lg bg-secondary/15 flex items-center justify-center">
                     <CheckCircleIcon weight="fill" size={44} className="text-secondary" />
                 </div>
-                <div className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-primary flex items-center justify-center text-sm">
+                <div className="absolute -top-1 -right-1 w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-sm">
                     👋
                 </div>
             </div>
@@ -304,8 +304,8 @@ function StepDoneWelcome({ onClose }: { onClose: () => void }) {
                 </h2>
                 <p className="text-sm text-neutral-gray mt-1">You're signed in. Faster checkout awaits.</p>
             </div>
-            <div className="w-full bg-neutral-gray/10 rounded-full h-1 overflow-hidden">
-                <div className="h-full bg-primary rounded-full animate-[shrink_2.2s_linear_forwards]" style={{ width: '100%' }} />
+            <div className="w-full bg-neutral-gray/10 rounded-lg h-1 overflow-hidden">
+                <div className="h-full bg-primary rounded-lg animate-[shrink_2.2s_linear_forwards]" style={{ width: '100%' }} />
             </div>
         </div>
     );
@@ -353,7 +353,7 @@ export default function AuthModal() {
                         <span className="text-sm font-bold text-neutral-gray">CediBites</span>
                     </div>
                     <button onClick={handleClose}
-                        className="w-9 h-9 cursor-pointer flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors">
+                        className="w-9 h-9 cursor-pointer flex items-center justify-center rounded-lg hover:bg-neutral-gray/10 transition-colors">
                         <XIcon size={18} weight="bold" className="text-text-dark dark:text-text-light" />
                     </button>
                 </div>

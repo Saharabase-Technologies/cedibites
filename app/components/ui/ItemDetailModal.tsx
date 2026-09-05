@@ -4,11 +4,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { XIcon, PlusIcon, MinusIcon, ShoppingCartIcon } from '@phosphor-icons/react';
 import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryProvider';
-import { useCart } from '@/app/components/providers/CartProvider';
+import { useMenuDiscovery } from '@/app/components/providers/MenuDiscoveryProvider';
+import { useCart, DEFAULT_SIZE_KEY, makeCartItemId } from '@/app/components/providers/CartProvider';
 
 interface ItemDetailModalProps {
     item: SearchableItem | null;
     onClose: () => void;
+    /**
+     * Which option to open on. Search lists one row per option now, so tapping
+     * "Assorted" has to land on Assorted rather than on whichever option the
+     * backend happened to return first.
+     */
+    initialSizeKey?: string;
 }
 
 const formatPrice = (price: number | string | null | undefined) => {
@@ -16,23 +23,30 @@ const formatPrice = (price: number | string | null | undefined) => {
     return `₵${Number.isNaN(n) ? '0.00' : n.toFixed(2)}`;
 };
 
-export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps) {
-    const { addToCart, removeFromCart, getCartItem, updateQuantity } = useCart();
+export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemDetailModalProps) {
+    const { addToCart, removeFromCart, getCartItem, updateQuantity, isLinePending } = useCart();
+    const { isOptionSoldOut } = useMenuDiscovery();
 
-    const sizes: { key: string; label: string; price: number; image?: string }[] = item?.sizes ?? [];
+    // Inferred from SearchableItem rather than re-declared. The local annotation
+    // that used to be here was a narrower copy that had drifted — it omitted the
+    // option `id`, which is the key the stock gate is keyed on.
+    const sizes: NonNullable<SearchableItem['sizes']> = item?.sizes ?? [];
     const hasSizes = sizes.length > 0;
 
     const hasVariants = !!(item?.hasVariants && item?.variants);
     const variantOptions = hasVariants ? Object.keys(item!.variants!) : [];
 
-    const [selectedSize, setSelectedSize] = useState<string>(hasSizes ? sizes[0].key : 'regular');
+    const [selectedSize, setSelectedSize] = useState<string>(hasSizes ? sizes[0].key : DEFAULT_SIZE_KEY);
     const [selectedVariant, setSelectedVariant] = useState<string>(hasVariants ? variantOptions[0] : 'plain');
     const [imgError, setImgError] = useState(false);
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
         if (item) {
-            setSelectedSize(item.sizes?.[0]?.key ?? 'regular');
+            const wanted = initialSizeKey && item.sizes?.some(s => s.key === initialSizeKey)
+                ? initialSizeKey
+                : item.sizes?.[0]?.key ?? DEFAULT_SIZE_KEY;
+            setSelectedSize(wanted);
             const vOpts = item.hasVariants && item.variants ? Object.keys(item.variants) : [];
             setSelectedVariant(vOpts[0] ?? 'plain');
             setImgError(false);
@@ -40,7 +54,7 @@ export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps)
         } else {
             setVisible(false);
         }
-    }, [item]);
+    }, [item, initialSizeKey]);
 
     const handleClose = useCallback(() => {
         setVisible(false);
@@ -73,6 +87,8 @@ export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps)
     const cartItem = getCartItem(item.id, cartItemId);
     const qty = cartItem?.quantity ?? 0;
     const lineTotal = activePrice * qty;
+    const soldOut = isOptionSoldOut(activeSize?.id);
+    const pending = isLinePending(makeCartItemId(item.id, cartItemId));
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={handleClose}>
@@ -99,17 +115,17 @@ export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps)
                     {item.tags && item.tags.length > 0 && (
                         <div className="absolute top-3 left-3 flex gap-2">
                             {item.tags.map(tag => (
-                                <span key={tag.slug} className="flex items-center gap-1 bg-primary text-white text-[11px] font-bold px-2.5 py-1 rounded-full capitalize">
+                                <span key={tag.slug} className="flex items-center gap-1 bg-primary text-white text-[11px] font-bold px-2.5 py-1 rounded-lg capitalize">
                                     {tag.name}
                                 </span>
                             ))}
                         </div>
                     )}
-                    <button onClick={handleClose} className="absolute cursor-pointer top-3 right-3 w-9 h-9 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 transition-colors">
+                    <button onClick={handleClose} className="absolute cursor-pointer top-3 right-3 w-9 h-9 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm hover:bg-black/60 transition-colors">
                         <XIcon size={18} weight="bold" className="text-white" />
                     </button>
                     {item.category && (
-                        <span className="absolute bottom-3 left-3 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white">
+                        <span className="absolute bottom-3 left-3 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-white/15 backdrop-blur-sm text-white">
                             {item.category}
                         </span>
                     )}
@@ -143,7 +159,7 @@ export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps)
                                             <span className={`text-sm font-semibold capitalize ${isSelected ? 'text-primary' : 'text-text-dark dark:text-text-light'}`}>{variant}</span>
                                             <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-neutral-gray'}`}>₵{vPrice}</span>
                                             {vQty > 0 && (
-                                                <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-primary text-white text-[10px] font-bold">
+                                                <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-lg bg-primary text-white text-[10px] font-bold">
                                                     {vQty}
                                                 </span>
                                             )}
@@ -162,17 +178,21 @@ export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps)
                                 {sizes.map((s) => {
                                     const sQty = getCartItem(item.id, s.key)?.quantity ?? 0;
                                     const isSelected = selectedSize === s.key;
+                                    const sizeSoldOut = isOptionSoldOut(s.id);
                                     return (
                                         <button
                                             key={s.key}
                                             onClick={() => setSelectedSize(s.key)}
                                             className={`relative flex flex-col items-center px-5 py-2.5 rounded-2xl border-2 transition-all duration-150 min-w-20
-                                                ${isSelected ? 'border-primary bg-primary/10' : 'border-neutral-gray/20 hover:border-primary/40'}`}
+                                                ${isSelected ? 'border-primary bg-primary/10' : 'border-neutral-gray/20 hover:border-primary/40'}
+                                                ${sizeSoldOut ? 'opacity-55' : ''}`}
                                         >
-                                            <span className={`text-sm font-semibold ${isSelected ? 'text-primary' : 'text-text-dark dark:text-text-light'}`}>{s.label}</span>
-                                            <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-neutral-gray'}`}>₵{s.price}</span>
+                                            <span className={`text-sm font-semibold ${sizeSoldOut ? 'line-through' : ''} ${isSelected ? 'text-primary' : 'text-text-dark dark:text-text-light'}`}>{s.label}</span>
+                                            <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-neutral-gray'}`}>
+                                                {sizeSoldOut ? 'Sold out' : `₵${s.price}`}
+                                            </span>
                                             {sQty > 0 && (
-                                                <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-primary text-white text-[10px] font-bold">
+                                                <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-lg bg-primary text-white text-[10px] font-bold">
                                                     {sQty}
                                                 </span>
                                             )}
@@ -193,18 +213,31 @@ export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps)
                                 {qty > 0 ? formatPrice(lineTotal) : formatPrice(activePrice)}
                             </p>
                         </div>
-                        {qty > 0 ? (
-                            <div className="flex items-center gap-3 bg-primary/10 rounded-2xl px-2 py-1.5">
+                        {soldOut ? (
+                            <div className="flex flex-col items-end gap-1">
+                                <span className="px-5 py-3 rounded-2xl bg-neutral-gray/15 text-neutral-gray font-bold text-sm">
+                                    Sold out
+                                </span>
+                                <span className="text-xs text-neutral-gray">
+                                    {sizes.length > 1 ? 'Try another size' : 'Back soon'}
+                                </span>
+                            </div>
+                        ) : qty > 0 ? (
+                            <div className={`flex items-center gap-3 bg-primary/10 rounded-2xl px-2 py-1.5 transition-opacity ${pending ? 'opacity-60' : ''}`}>
                                 <button
                                     onClick={() => { if (qty <= 1) removeFromCart(cartItem!.cartItemId); else updateQuantity(cartItem!.cartItemId, qty - 1); }}
-                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-primary text-white active:scale-90 transition-transform"
+                                    disabled={pending}
+                                    aria-label={qty <= 1 ? 'Remove from cart' : 'Decrease quantity'}
+                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-primary text-white active:scale-90 transition-transform disabled:cursor-not-allowed"
                                 >
                                     <MinusIcon weight="bold" size={16} />
                                 </button>
-                                <span className="text-lg font-bold text-text-dark dark:text-text-light w-6 text-center tabular-nums">{qty}</span>
+                                <span aria-live="polite" className="text-lg font-bold text-text-dark dark:text-text-light w-6 text-center tabular-nums">{qty}</span>
                                 <button
                                     onClick={() => updateQuantity(cartItem!.cartItemId, qty + 1)}
-                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-primary text-white active:scale-90 transition-transform"
+                                    disabled={pending}
+                                    aria-label="Increase quantity"
+                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-primary text-white active:scale-90 transition-transform disabled:cursor-not-allowed"
                                 >
                                     <PlusIcon weight="bold" size={16} />
                                 </button>
@@ -212,7 +245,8 @@ export default function ItemDetailModal({ item, onClose }: ItemDetailModalProps)
                         ) : (
                             <button
                                 onClick={() => addToCart(item, cartItemId)}
-                                className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold px-6 py-3 rounded-2xl transition-all active:scale-95"
+                                disabled={pending}
+                                className="flex items-center gap-2 bg-primary hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold px-6 py-3 rounded-2xl transition-all active:scale-95"
                             >
                                 <ShoppingCartIcon weight="fill" size={18} />
                                 Add to Cart

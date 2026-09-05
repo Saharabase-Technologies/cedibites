@@ -1,18 +1,17 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
     XIcon, TrashIcon, PlusIcon, MinusIcon, ShoppingBagIcon,
-    ArrowRightIcon, TagIcon, MapPinIcon, CaretRightIcon,
-    WarningCircleIcon, CheckCircleIcon, StorefrontIcon
+    ArrowRightIcon, MapPinIcon, CaretRightIcon,
+    WarningCircleIcon, StorefrontIcon
 } from '@phosphor-icons/react';
-import { useCart, CartItem } from '@/app/components/providers/CartProvider';
+import { useCart, type CartItem } from '@/app/components/providers/CartProvider';
 import { useModal } from '@/app/components/providers/ModalProvider';
-import { useBranch, Branch, BranchWithDistance } from '@/app/components/providers/BranchProvider';
-import { useLocation } from '@/app/components/providers/LocationProvider';
-import { useAuth } from '../providers/AuthProvider';
+import { useBranch } from '@/app/components/providers/BranchProvider';
+import { useBranchSwitch, BranchList, BranchConflictPanel } from './BranchSwitch';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 
 const formatPrice = (p: number | string | null | undefined) => {
@@ -25,20 +24,38 @@ type DrawerView = 'cart' | 'branch-select' | 'branch-conflict';
 export default function CartDrawer() {
     const { isCartOpen, closeCart } = useModal();
     const { displayItems: items, removeFromCart, updateQuantity, totalItems, subtotal,
-        validateCartForBranch, removeUnavailableItems } = useCart();
-    const { selectedBranch, setSelectedBranch, branches, getBranchesWithDistance } = useBranch();
-    const { coordinates } = useLocation();
+        validateCartForBranch, removeUnavailableItems, isLinePending } = useCart();
+    const { selectedBranch } = useBranch();
 
     const [view, setView] = useState<DrawerView>('cart');
-    const [pendingBranch, setPendingBranch] = useState<Branch | null>(null);
-    const [conflictResult, setConflictResult] = useState<{ available: CartItem[]; unavailable: CartItem[] } | null>(null);
+
+    // The list, the conflict panel and the decision about what happens to the
+    // cart are shared with the checkout page's branch sheet.
+    const { conflict, removing, selectBranch, removeAndSwitch, keepCurrentBranch, reset } =
+        useBranchSwitch({ onSettled: () => setView('cart') });
+
+    // Leaving the branch views drops any unresolved conflict with them. Without
+    // this, backing out and coming back re-opened the conflict panel for a branch
+    // the customer had already walked away from.
+    const backToCart = useCallback(() => { reset(); setView('cart'); }, [reset]);
 
     const total = subtotal;
 
+    // Computed once per render. This ran three separate times inline in the JSX
+    // below — once for the banner, once to decide whether checkout is blocked,
+    // and once more to build the message — over every line in the cart.
+    const currentBranchCheck = useMemo(
+        () => (selectedBranch ? validateCartForBranch(selectedBranch.menuItemIds) : null),
+        [selectedBranch, validateCartForBranch],
+    );
+
     // Reset to cart view when drawer closes
     useEffect(() => {
-        if (!isCartOpen) setTimeout(() => setView('cart'), 300);
-    }, [isCartOpen]);
+        if (!isCartOpen) {
+            const t = setTimeout(() => { reset(); setView('cart'); }, 300);
+            return () => clearTimeout(t);
+        }
+    }, [isCartOpen, reset]);
 
     // Close on Escape
     useEffect(() => {
@@ -46,46 +63,6 @@ export default function CartDrawer() {
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
     }, [closeCart]);
-
-    // Branches sorted by distance (or unsorted if no coords)
-    const sortedBranches: BranchWithDistance[] = coordinates
-        ? getBranchesWithDistance(coordinates.latitude, coordinates.longitude)
-        : branches.map(b => ({ ...b, distance: 0, deliveryTime: '–', isWithinRadius: true }));
-
-    const handleBranchSelect = useCallback((branch: Branch) => {
-        if (branch.id === selectedBranch?.id) { setView('cart'); return; }
-
-        if (items.length === 0) {
-            setSelectedBranch(branch);
-            setView('cart');
-            return;
-        }
-
-        const result = validateCartForBranch(branch.menuItemIds);
-        if (result.unavailable.length === 0) {
-            setSelectedBranch(branch);
-            setView('cart');
-        } else {
-            setPendingBranch(branch);
-            setConflictResult(result);
-            setView('branch-conflict');
-        }
-    }, [selectedBranch, items, validateCartForBranch, setSelectedBranch]);
-
-    const handleRemoveUnavailableAndSwitch = useCallback(() => {
-        if (!pendingBranch || !conflictResult) return;
-        removeUnavailableItems(conflictResult.unavailable.map(i => i.cartItemId));
-        setSelectedBranch(pendingBranch);
-        setPendingBranch(null);
-        setConflictResult(null);
-        setView('cart');
-    }, [pendingBranch, conflictResult, removeUnavailableItems, setSelectedBranch]);
-
-    const handleKeepCurrentBranch = useCallback(() => {
-        setPendingBranch(null);
-        setConflictResult(null);
-        setView('cart');
-    }, []);
 
     return (
         <>
@@ -107,22 +84,21 @@ export default function CartDrawer() {
                 <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-neutral-gray/10 shrink-0">
                     <div className="flex items-center gap-3">
                         {view !== 'cart' ? (
-                            <button onClick={() => setView('cart')} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-gray/15 transition-colors">
+                            <button onClick={backToCart} aria-label="Back to cart" className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-gray/15 transition-colors">
                                 <ArrowRightIcon size={16} weight="bold" className="text-text-dark dark:text-text-light rotate-180" />
                             </button>
                         ) : (
                             '')}
                         <h2 className="text-lg font-bold text-text-dark dark:text-text-light">
                             {view === 'cart' && 'Your Order'}
-                            {view === 'branch-select' && 'Change Branch'}
-                            {view === 'branch-conflict' && 'Heads Up!'}
+                            {view === 'branch-select' && (conflict ? 'Items Not Available' : 'Change Branch')}
                         </h2>
                         {view === 'cart' && totalItems > 0 && (
-                            <span className="text-base font-bold text-text-dark  rounded-full dark:text-white">({totalItems})
+                            <span className="text-base font-bold text-text-dark  rounded-lg dark:text-white">({totalItems})
                             </span>
                         )}
                     </div>
-                    <button onClick={closeCart} className="w-9 cursor-pointer h-9 flex items-center justify-center rounded-full hover:bg-neutral-gray/15 transition-colors">
+                    <button onClick={closeCart} className="w-9 cursor-pointer h-9 flex items-center justify-center rounded-lg hover:bg-neutral-gray/15 transition-colors">
                         <XIcon size={20} weight="bold" className="text-text-dark dark:text-text-light" />
                     </button>
                 </div>
@@ -169,36 +145,41 @@ export default function CartDrawer() {
                         )}
 
                         {/* Unavailable items warning */}
-                        {selectedBranch && items.length > 0 && (() => {
-                            const result = validateCartForBranch(selectedBranch.menuItemIds);
-                            if (result.unavailable.length === 0) return null;
-                            return (
-                                <div className="mx-5 mt-3 flex items-start gap-3 bg-warning/5 border border-warning/20 rounded-2xl p-3.5">
-                                    <WarningCircleIcon weight="fill" size={18} className="text-warning shrink-0 mt-0.5" />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold text-text-dark dark:text-text-light">
-                                            {result.unavailable.length} item{result.unavailable.length !== 1 ? 's' : ''} unavailable here
-                                        </p>
-                                        <p className="text-xs text-neutral-gray mt-0.5">
-                                            {result.unavailable.map(ci => getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })).join(', ')}
-                                            {' '}{result.unavailable.length === 1 ? 'is' : 'are'} not on the {selectedBranch.name} menu.
-                                        </p>
+                        {selectedBranch && items.length > 0 && currentBranchCheck && currentBranchCheck.unavailable.length > 0 && (
+                            <div className="mx-5 mt-3 flex items-start gap-3 bg-warning/5 border border-warning/20 rounded-2xl p-3.5">
+                                <WarningCircleIcon weight="fill" size={18} className="text-warning shrink-0 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-text-dark dark:text-text-light">
+                                        {currentBranchCheck.unavailable.length} item{currentBranchCheck.unavailable.length !== 1 ? 's' : ''} unavailable here
+                                    </p>
+                                    <p className="text-xs text-neutral-gray mt-0.5">
+                                        {currentBranchCheck.unavailable.map(ci => getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })).join(', ')}
+                                        {' '}{currentBranchCheck.unavailable.length === 1 ? 'is' : 'are'} not on the {selectedBranch.name} menu.
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-3 mt-2">
+                                        <button
+                                            onClick={() => removeUnavailableItems(currentBranchCheck.unavailable.map(i => i.cartItemId))}
+                                            className="text-xs font-bold text-primary hover:underline cursor-pointer"
+                                        >
+                                            Remove {currentBranchCheck.unavailable.length === 1 ? 'it' : 'them'} and carry on
+                                        </button>
                                         <button
                                             onClick={() => setView('branch-select')}
-                                            className="mt-2 text-xs font-bold text-primary hover:underline"
+                                            className="text-xs font-bold text-neutral-gray hover:text-primary hover:underline cursor-pointer"
                                         >
-                                            Switch branch for full availability →
+                                            Switch branch instead →
                                         </button>
                                     </div>
                                 </div>
-                            );
-                        })()}
+                            </div>
+                        )}
 
                         <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 flex flex-col gap-3">
                             {items.length === 0 ? <EmptyCart /> : (
                                 <>
                                     {items.map(ci => (
                                         <CartItemRow key={ci.cartItemId} cartItem={ci}
+                                            pending={isLinePending(ci.cartItemId)}
                                             onRemove={() => removeFromCart(ci.cartItemId)}
                                             onIncrease={() => updateQuantity(ci.cartItemId, ci.quantity + 1)}
                                             onDecrease={() => {
@@ -216,7 +197,7 @@ export default function CartDrawer() {
 
                         {items.length > 0 && (() => {
                             const branchUnavailable = selectedBranch && (!selectedBranch.isActive || !selectedBranch.isOpen);
-                            const hasUnavailableItems = selectedBranch && validateCartForBranch(selectedBranch.menuItemIds).unavailable.length > 0;
+                            const hasUnavailableItems = (currentBranchCheck?.unavailable.length ?? 0) > 0;
                             const checkoutBlocked = branchUnavailable || hasUnavailableItems;
 
                             return (
@@ -255,113 +236,18 @@ export default function CartDrawer() {
                     </>
                 )}
 
-                {/* ── BRANCH SELECT VIEW ── */}
-                {view === 'branch-select' && (
-                    <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 flex flex-col gap-3">
-                        <p className="text-sm text-neutral-gray">Sorted by distance. Switching checks your cart for availability.</p>
-                        {sortedBranches.map(branch => {
-                            const isCurrent = branch.id === selectedBranch?.id;
-                            const isUnavailable = !branch.isOpen || !branch.isActive;
-                            return (
-                                <button key={branch.id} onClick={() => handleBranchSelect(branch)} disabled={isUnavailable}
-                                    className={`w-full flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all
-                                        ${isCurrent ? 'border-primary bg-primary/8' : 'border-neutral-gray/15 hover:border-primary/30'}
-                                        ${isUnavailable ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5
-                                        ${isCurrent ? 'bg-primary text-white' : 'bg-neutral-gray/15 text-neutral-gray'}`}>
-                                        <StorefrontIcon weight="fill" size={16} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <p className={`text-sm font-bold ${isCurrent ? 'text-primary' : 'text-text-dark dark:text-text-light'}`}>
-                                                {branch.name} Branch
-                                            </p>
-                                            {isCurrent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-white">Current</span>}
-                                            {!branch.isActive && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-error/15 text-error">Inactive</span>}
-                                            {branch.isActive && !branch.isOpen && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-gray/20 text-neutral-gray">Closed</span>}
-                                        </div>
-                                        <p className="text-xs text-neutral-gray mt-0.5 truncate">{branch.address}</p>
-                                        <div className="flex items-center gap-2 mt-1.5 text-xs text-neutral-gray flex-wrap">
-                                            {coordinates && <span>{branch.distance.toFixed(1)} km</span>}
-                                            <span>·</span>
-                                            <span>{branch.deliveryTime}</span>
-                                            <span>·</span>
-                                            <span>₵{branch.deliveryFee} delivery</span>
-                                        </div>
-                                    </div>
-                                    {!isCurrent && !isUnavailable && <CaretRightIcon size={16} className="text-neutral-gray shrink-0 mt-1" />}
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* ── BRANCH CONFLICT VIEW ── */}
-                {view === 'branch-conflict' && conflictResult && pendingBranch && (
-                    <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 flex flex-col gap-5">
-
-                        <div className="flex items-start gap-3 bg-warning/10 border border-warning/25 rounded-2xl p-4">
-                            <WarningCircleIcon weight="fill" size={20} className="text-warning shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-sm font-bold text-text-dark dark:text-text-light">
-                                    Some items aren't at {pendingBranch.name} Branch
-                                </p>
-                                <p className="text-xs text-neutral-gray mt-1">
-                                    {conflictResult.unavailable.length} item{conflictResult.unavailable.length !== 1 ? 's' : ''} won't be available there.
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Unavailable */}
-                        <div className="flex flex-col gap-2">
-                            <p className="text-xs font-semibold text-neutral-gray uppercase tracking-wide">Won't be available</p>
-                            {conflictResult.unavailable.map(ci => (
-                                <div key={ci.cartItemId} className="flex items-center gap-3 bg-error/5 border border-error/15 rounded-xl p-3">
-                                    <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-error/10 shrink-0">
-                                        {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
-                                        <p className="text-xs text-neutral-gray">Qty: {ci.quantity}</p>
-                                    </div>
-                                    <XIcon size={14} weight="bold" className="text-error shrink-0" />
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Available */}
-                        {conflictResult.available.length > 0 && (
-                            <div className="flex flex-col gap-2">
-                                <p className="text-xs font-semibold text-neutral-gray uppercase tracking-wide">Still available</p>
-                                {conflictResult.available.map(ci => (
-                                    <div key={ci.cartItemId} className="flex items-center gap-3 bg-secondary/5 border border-secondary/15 rounded-xl p-3">
-                                        <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-secondary/10 shrink-0">
-                                            {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
-                                            <p className="text-xs text-neutral-gray">Qty: {ci.quantity}</p>
-                                        </div>
-                                        <CheckCircleIcon size={14} weight="fill" className="text-secondary shrink-0" />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* 3 action options */}
-                        <div className="flex flex-col gap-3 pt-2">
-                            <button onClick={handleRemoveUnavailableAndSwitch} className="w-full flex items-center justify-between bg-primary hover:bg-primary-hover text-white font-bold px-5 py-4 rounded-2xl transition-all active:scale-[0.98]">
-                                <span>Remove {conflictResult.unavailable.length} item{conflictResult.unavailable.length !== 1 ? 's' : ''} & Switch</span>
-                                <ArrowRightIcon weight="bold" size={16} />
-                            </button>
-                            <button onClick={handleKeepCurrentBranch} className="w-full border-2 border-neutral-gray/20 text-text-dark dark:text-text-light font-bold px-5 py-3.5 rounded-2xl hover:border-primary/40 hover:text-primary transition-all">
-                                Keep {selectedBranch?.name} Branch
-                            </button>
-                            <button onClick={() => setView('branch-select')} className="w-full text-sm font-semibold text-neutral-gray hover:text-primary transition-colors py-2">
-                                Pick a different branch
-                            </button>
-                        </div>
+                {/* -- BRANCH SELECT / CONFLICT -- */}
+                {view !== 'cart' && (
+                    <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+                        {conflict
+                            ? <BranchConflictPanel
+                                conflict={conflict}
+                                removing={removing}
+                                onRemoveAndSwitch={removeAndSwitch}
+                                onKeepCurrent={backToCart}
+                                onPickAnother={keepCurrentBranch}
+                            />
+                            : <BranchList onSelect={selectBranch} />}
                     </div>
                 )}
             </div>
@@ -369,24 +255,26 @@ export default function CartDrawer() {
     );
 }
 
-function CartItemRow({ cartItem, onRemove, onIncrease, onDecrease }: {
-    cartItem: CartItem; onRemove: () => void; onIncrease: () => void; onDecrease: () => void;
+function CartItemRow({ cartItem, pending, onRemove, onIncrease, onDecrease }: {
+    cartItem: CartItem; pending: boolean; onRemove: () => void; onIncrease: () => void; onDecrease: () => void;
 }) {
     const [imgError, setImgError] = React.useState(false);
     return (
-        <div className="flex items-center gap-3 bg-white/60 dark:bg-white/5 rounded-2xl p-3">
+        <div className={`flex items-center gap-3 bg-white/60 dark:bg-white/5 rounded-2xl p-3 transition-opacity ${pending ? 'opacity-60' : ''}`}>
             <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-primary/10 shrink-0">
                 {cartItem.item.image && !imgError ? <Image src={cartItem.item.image} alt={cartItem.item.name} fill sizes="64px" className="object-cover" onError={() => setImgError(true)} /> : <div className="w-full h-full" />}
             </div>
             <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-text-dark dark:text-text-light leading-tight truncate">{getOrderItemLineLabel({ name: cartItem.item.name, sizeLabel: cartItem.sizeLabel })}</p>
                 <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-2 bg-neutral-gray/10 rounded-full px-1 py-0.5">
-                        <button onClick={onDecrease} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-primary/20 active:scale-90 transition-all">
+                    <div className="flex items-center gap-2 bg-neutral-gray/10 rounded-lg px-1 py-0.5">
+                        <button onClick={onDecrease} disabled={pending} aria-label="Decrease quantity"
+                            className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-primary/20 active:scale-90 transition-all disabled:cursor-not-allowed">
                             <MinusIcon weight="bold" size={10} className="text-text-dark dark:text-text-light" />
                         </button>
-                        <span className="text-xs font-bold text-text-dark dark:text-text-light w-4 text-center tabular-nums">{cartItem.quantity}</span>
-                        <button onClick={onIncrease} className="w-6 h-6 flex items-center justify-center rounded-full bg-primary text-white active:scale-90 transition-all">
+                        <span aria-live="polite" className="text-xs font-bold text-text-dark dark:text-text-light w-4 text-center tabular-nums">{cartItem.quantity}</span>
+                        <button onClick={onIncrease} disabled={pending} aria-label="Increase quantity"
+                            className="w-6 h-6 flex items-center justify-center rounded-lg bg-primary text-white active:scale-90 transition-all disabled:cursor-not-allowed">
                             <PlusIcon weight="bold" size={10} />
                         </button>
                     </div>
@@ -404,7 +292,7 @@ function EmptyCart() {
     const { closeCart } = useModal();
     return (
         <div className="flex flex-col items-center justify-center flex-1 py-16 gap-4 text-center">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+            <div className="w-20 h-20 rounded-lg bg-primary/10 flex items-center justify-center">
                 <ShoppingBagIcon weight="fill" size={36} className="text-primary/40" />
             </div>
             <div>

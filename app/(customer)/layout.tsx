@@ -5,6 +5,11 @@ import { MenuDiscoveryProvider } from '../components/providers/MenuDiscoveryProv
 import { CartProvider } from '../components/providers/CartProvider';
 import LocationRequestModal from '../components/ui/LocationRequestModal';
 import BranchSelectorModal from '../components/ui/BranchSelectorModal';
+import Navbar from '../components/layout/Navbar';
+import BottomNav, { BottomNavSpacer } from '../components/layout/BottomNav';
+import CartDrawer from '../components/ui/CartDrawer';
+import AuthModal from '../components/ui/AuthModal';
+import SearchSheet from '../components/ui/SearchSheet';
 
 export const metadata: Metadata = {
   description: 'Browse and order authentic Ghanaian food from CediBites.',
@@ -68,17 +73,39 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                 type="application/ld+json"
                 dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
             />
+            {/* The rebrand lives on this wrapper, not on :root. Overriding the
+                role tokens inside `.cb-customer` re-tints every customer screen
+                through the existing cascade while POS, kitchen, inventory,
+                admin and partner keep the warm foundation they were built on.
+                Nothing in this tree uses createPortal, so the modals, drawers
+                and sheets below inherit it too. */}
+            <div className="cb-customer min-h-dvh bg-bg text-fg font-body">
             <ModalProvider>
                 <AuthProvider>
                     <MenuDiscoveryProvider>
                         <CartProvider>
+                            {/* The shell is mounted once here, not per page. CartDrawer and
+                                AuthModal used to be rendered inside Navbar, so on any page
+                                that did not itself render a Navbar — checkout, account, order
+                                tracking — openCart() and openAuth() flipped state that had
+                                nothing listening, and the drawer simply never appeared. */}
+                            <Navbar />
+                            <div aria-hidden className="h-(--nav-h) shrink-0" />
+                            {children}
+                            {/* In the flow, so the last row of the menu is not
+                                sitting under the tabs. */}
+                            <BottomNavSpacer />
+                            <BottomNav />
+                            <CartDrawer />
+                            <AuthModal />
+                            <SearchSheet />
                             <LocationRequestModal />
                             <BranchSelectorModal />
-                            {children}
                         </CartProvider>
                     </MenuDiscoveryProvider>
                 </AuthProvider>
             </ModalProvider>
+            </div>
         </>
     );
 }

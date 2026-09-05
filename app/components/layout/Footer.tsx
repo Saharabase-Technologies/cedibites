@@ -35,7 +35,7 @@ const QUICK_LINKS = [
     { label: 'Find a Branch', href: '#' },
 ];
 
-export default function Footer() {
+export default function Footer({ className = '' }: { className?: string }) {
     const { branches } = useBranches();
     const BRANCHES = branches.map((b: any) => ({ id: b.id, name: b.name, address: b.address || '' }));
 
@@ -56,7 +56,7 @@ export default function Footer() {
     const hoursDisplay = `${formatTime12h(hours.open)} - ${formatTime12h(hours.close)}`;
 
     return (
-        <footer className="bg-brand-darker border-t border-white/5 mt-8">
+        <footer className={`bg-brand-darker border-t border-white/5 mt-8 ${className}`}>
 
             {/* Main Footer Grid */}
             <div className="w-[95%] hidden md:w-[80%] xl:w-[70%] mx-auto py-12 md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
@@ -78,7 +78,7 @@ export default function Footer() {
                                 key={s.label}
                                 href={s.href}
                                 aria-label={s.label}
-                                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/5 hover:bg-primary/20 hover:text-primary text-white/50 transition-colors duration-150"
+                                className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-primary/20 hover:text-primary text-white/50 transition-colors duration-150"
                             >
                                 {s.icon}
                             </a>

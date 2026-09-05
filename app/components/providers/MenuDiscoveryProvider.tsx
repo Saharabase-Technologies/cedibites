@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import type { MenuItem as ApiMenuItem, SmartCategory } from '@/types/api';
 import { useMenu } from '@/lib/api/hooks/useMenu';
 import { useSmartCategories } from '@/lib/api/hooks/useSmartCategories';
+import { useStockGate } from '@/lib/api/hooks/useStockGate';
 import { deriveCategories } from '@/lib/api/adapters/menu.adapter';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 
@@ -80,6 +81,10 @@ interface MenuDiscoveryContextType {
     clearRecentSearches: () => void;
     error: Error | null;
     retryFetch: () => void;
+    /** True when the branch has run out of what this specific option needs. */
+    isOptionSoldOut: (optionId?: number | string | null) => boolean;
+    /** True when every option on the item is sold out, so the whole dish is off. */
+    isItemSoldOut: (item: SearchableItem) => boolean;
 }
 
 const MenuDiscoveryContext = createContext<MenuDiscoveryContextType | null>(null);
@@ -102,6 +107,23 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
 
     // Fetch smart categories (computed virtual categories) for the branch
     const { smartCategories } = useSmartCategories(branchIdNum);
+
+    // What this branch can actually make right now. The same map the POS greys
+    // items out with — until this was wired up here it ran on the till and
+    // nowhere else, so the customer site would happily take payment for a dish
+    // the branch had run out of and only fail when the server wrote the order.
+    const { isBlocked } = useStockGate(branchIdNum, { audience: 'customer' });
+
+    const isOptionSoldOut = isBlocked;
+
+    // An item is only off if there is no size left to sell. An option with no
+    // recipe never appears in the map and reads as sellable, so an item with a
+    // single un-costed option is never falsely marked off.
+    const isItemSoldOut = useCallback((item: SearchableItem) => {
+        const sizes = item.sizes ?? [];
+        if (sizes.length === 0) return false;
+        return sizes.every(size => isBlocked(size.id));
+    }, [isBlocked]);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -186,6 +208,12 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
                 // Search in category
                 if (item.category.toLowerCase().includes(query)) return true;
 
+                // Search the option names too. A dish is often filed under a
+                // short item name with the real variations underneath it, so
+                // "jollof" has to reach "Jollof + 7 Drums + Korkoor" even when
+                // the item it hangs off is called something else entirely.
+                if (item.sizes?.some(s => (s.displayName ?? s.label ?? '').toLowerCase().includes(query))) return true;
+
                 return false;
             });
         }
@@ -237,6 +265,8 @@ export function MenuDiscoveryProvider({ children }: MenuDiscoveryProviderProps) 
         clearRecentSearches,
         error: error as Error | null,
         retryFetch: refetch,
+        isOptionSoldOut,
+        isItemSoldOut,
     };
 
     return (

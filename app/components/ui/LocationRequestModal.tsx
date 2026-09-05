@@ -55,13 +55,13 @@ export default function LocationRequestModal() {
                 {/* Close Button */}
                 <button
                     onClick={handleSkip}
-                    className="absolute cursor-pointer top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full hover:bg-neutral-gray/15 transition-colors"
+                    className="absolute cursor-pointer top-4 right-4 w-10 h-10 flex items-center justify-center rounded-lg hover:bg-neutral-gray/15 transition-colors"
                 >
                     <XIcon weight="bold" size={24} className="text-text-dark dark:text-text-light" />
                 </button>
 
                 {/* Icon */}
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-linear-to-br from-primary to-primary-hover flex items-center justify-center">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-lg bg-linear-to-br from-primary to-primary-hover flex items-center justify-center">
                     <MapPinIcon weight="fill" size={40} className="text-white" />
                 </div>
 

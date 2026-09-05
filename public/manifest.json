@@ -4,8 +4,8 @@
   "description": "Order authentic Ghanaian dishes online, delivered fresh to your door across Ghana.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#faf6f0",
-  "theme_color": "#d4912a",
+  "background_color": "#fafafa",
+  "theme_color": "#fafafa",
   "icons": [
     {
       "src": "/icon-192.png",

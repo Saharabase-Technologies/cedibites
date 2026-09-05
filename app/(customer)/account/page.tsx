@@ -19,7 +19,7 @@ import { toast } from '@/lib/utils/toast';
 // ─── Coming Soon badge ────────────────────────────────────────────────────────
 function ComingSoonBadge() {
     return (
-        <span className="text-[9px] font-bold uppercase tracking-wider bg-primary/15 text-primary px-2 py-0.5 rounded-full whitespace-nowrap">
+        <span className="text-[9px] font-bold uppercase tracking-wider bg-primary/15 text-primary px-2 py-0.5 rounded-lg whitespace-nowrap">
             Coming Soon
         </span>
     );
@@ -158,17 +158,17 @@ export default function AccountPage() {
         : '';
 
     return (
-        <div className="min-h-screen bg-neutral-light dark:bg-brand-dark pt-28 pb-12">
+        <div className="min-h-[calc(100svh-var(--nav-h))] bg-neutral-light dark:bg-brand-dark pt-10 pb-12">
             <div className="max-w-lg mx-auto px-4 flex flex-col gap-5">
 
                 {/* ── Profile header ──────────────────────────────────────── */}
                 <div className="flex flex-col items-center text-center gap-3 mb-2">
                     <div className="relative">
-                        <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-white text-2xl font-bold">
+                        <div className="w-20 h-20 rounded-lg bg-primary flex items-center justify-center text-white text-2xl font-bold">
                             {initials}
                         </div>
                         {/* Camera overlay — future: profile photo upload */}
-                        <div className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full bg-neutral-card border-2 border-white dark:border-brand-dark flex items-center justify-center opacity-40 cursor-not-allowed" title="Profile photo coming soon">
+                        <div className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-lg bg-neutral-card border-2 border-white dark:border-brand-dark flex items-center justify-center opacity-40 cursor-not-allowed" title="Profile photo coming soon">
                             <CameraIcon size={12} weight="fill" className="text-neutral-gray" />
                         </div>
                     </div>
@@ -197,7 +197,7 @@ export default function AccountPage() {
                             <div className="flex items-center gap-2">
                                 <PhoneIcon size={14} weight="fill" className="text-neutral-gray/50" />
                                 <p className="text-sm font-medium text-text-dark dark:text-text-light">{user.phone}</p>
-                                <span className="text-[9px] font-bold uppercase tracking-wider bg-secondary/15 text-secondary px-2 py-0.5 rounded-full">Verified</span>
+                                <span className="text-[9px] font-bold uppercase tracking-wider bg-secondary/15 text-secondary px-2 py-0.5 rounded-lg">Verified</span>
                             </div>
                             <p className="text-[10px] text-neutral-gray mt-1">Phone number change will require re-verification</p>
                         </div>

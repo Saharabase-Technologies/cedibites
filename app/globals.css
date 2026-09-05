@@ -1,56 +1,419 @@
 @import "tailwindcss";
 
-/* ============================================
-   CediBites Custom Colors - Tailwind 4
-   ============================================ */
+/* Dark mode is a class, not a media query. next-themes sets `.dark` on <html>
+   with defaultTheme="system", so an OS-dark visitor still gets dark exactly as
+   before. The difference is that a person can now override it. */
+@custom-variant dark (&:where(.dark, .dark *));
 
-@theme {
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYER 1 — PRIMITIVES
+   Raw brand ramps. Nothing outside layer 2 may reference these directly.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
 
-  /* Fonts */
-  --font-family-brand: var(--font-caprasimo), cursive;
-  --font-family-body: var(--font-manrope), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* ── CediBites red. Brand anchor is 500 = #f40002 ──────────────────────── */
+  --cb-red-50:  #fff1f1;
+  --cb-red-100: #ffdedd;
+  --cb-red-200: #ffc2c0;
+  --cb-red-300: #ff9691;
+  --cb-red-400: #ff5a52;
+  --cb-red-500: #f40002;
+  --cb-red-600: #d90002;
+  --cb-red-700: #b00204;
+  --cb-red-800: #8f0709;
+  --cb-red-900: #760d0e;
+  --cb-red-950: #400304;
 
+  /* ── CediBites yellow. Brand anchor is 400 = #ffdd0b ───────────────────── */
+  --cb-yellow-50:  #fffbe8;
+  --cb-yellow-100: #fff6c2;
+  --cb-yellow-200: #ffeb85;
+  --cb-yellow-300: #ffe23f;
+  --cb-yellow-400: #ffdd0b;
+  --cb-yellow-500: #e6c100;
+  --cb-yellow-600: #c29700;
+  --cb-yellow-700: #9b6d02;
+  --cb-yellow-800: #805508;
+  --cb-yellow-900: #6d460c;
+  --cb-yellow-950: #402400;
 
-  /* Main Colors (Always the same in both themes) */
-  --color-primary: #e49925;
-  --color-primary-hover: #f1ab3e;
-  --color-primary-light: #ffe2b5;
+  /* ── CediBites green. Brand anchor is 500 = #8fa84e ────────────────────── */
+  --cb-green-50:  #f5f8ec;
+  --cb-green-100: #e8f0d4;
+  --cb-green-200: #d3e3ae;
+  --cb-green-300: #b7d07f;
+  --cb-green-400: #9dbb5c;
+  --cb-green-500: #8fa84e;
+  --cb-green-600: #6f853a;
+  --cb-green-700: #56662f;
+  --cb-green-800: #45522a;
+  --cb-green-900: #3b4626;
+  --cb-green-950: #1d2611;
 
-  --color-secondary: #6c833f;
-  --color-secondary-hover: #7b9549;
-  --color-secondary-light: #ddf3b3;
+  /* ── Mono neutrals. The brand guide is explicit: no warm cream here. ────── */
+  --cb-mono-0:   #ffffff;
+  --cb-mono-50:  #fafafa;
+  --cb-mono-100: #f4f4f4;
+  --cb-mono-200: #e8e8e8;
+  --cb-mono-300: #d6d6d6;
+  --cb-mono-400: #a8a8a8;
+  --cb-mono-500: #6e6e6e;
+  --cb-mono-600: #5c5c5c;
+  --cb-mono-700: #434343;
+  --cb-mono-800: #2b2b2b;
+  --cb-mono-900: #1a1a1a;
+  --cb-mono-950: #0e0e0e;
 
-  /* Neutral Colors */
-  --color-neutral-light: #fbf6ed;
-  --color-neutral-card: #fffbf3;
-  --color-neutral-gray: #8b7f70;
+  /* ── The warm ramp the staff portals are built on. Kept verbatim. ──────── */
+  --cb-warm-orange:      #e49925;
+  --cb-warm-orange-hi:   #f1ab3e;
+  --cb-warm-orange-soft: #ffe2b5;
+  --cb-warm-olive:       #6c833f;
+  --cb-warm-olive-hi:    #7b9549;
+  --cb-warm-olive-soft:  #ddf3b3;
+  --cb-warm-paper:       #fbf6ed;
+  --cb-warm-card:        #fffbf3;
+  --cb-warm-gray:        #8b7f70;
+  --cb-warm-brown:       #372b1e;
+  --cb-warm-brown-hi:    #7a5c41;
+  --cb-warm-ink-raised:  #1d1a16;
+  --cb-warm-ink-deep:    #120f0d;
+  --cb-warm-text:        #242424;
+  --cb-warm-text-soft:   #434343;
+}
 
-  /* Dark Colors */
-  --color-brown: #372b1e;
-  --color-brown-light: #7a5c41;
+@media (min-width: 768px) {
+  :root { --page-gutter: 2.5rem; }
+}
+@media (min-width: 1280px) {
+  :root { --page-gutter: 4rem; }
+}
 
-  --color-brand-dark: #1d1a16;
-  --color-brand-darker: #120f0d;
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYER 2 — SEMANTIC ROLES
 
-  /* Text Colors */
-  --color-text-dark: #242424;
-  --color-text-light: #fbf6ed;
-  --color-text-gray: #434343;
+   Order is load-bearing. `:root` and `.cb-customer` have equal specificity, so
+   the customer block must come second, and `.dark .cb-customer` last.
 
-  /* Status Colors */
-  --color-success: #6c833f;
-  --color-warning: #f9a61a;
-  --color-error: #d32f2f;
-  --color-info: #1976d2;
+   Text-on-fill contrast does not change with the theme, so --cb-primary,
+   --cb-accent, --cb-success and --cb-danger are declared once and never
+   flipped. Only the neutrals, the soft tints and the *-ink variants flip.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Staff foundation: POS, kitchen, inventory, admin, partner ───────────── */
+:root {
+  --cb-bg:             var(--cb-warm-paper);
+  --cb-surface:        var(--cb-warm-card);
+  --cb-surface-raised: #ffffff;
+  --cb-surface-sunken: #f5efe2;
+  --cb-fg:             var(--cb-warm-text);
+  --cb-fg-muted:       var(--cb-warm-gray);
+  --cb-fg-subtle:      #a89c8d;
+  --cb-border:         #f0e8d8;
+  --cb-border-strong:  #ddd2bd;
+
+  --cb-primary:         var(--cb-warm-orange);
+  --cb-primary-hover:   var(--cb-warm-orange-hi);
+  --cb-primary-fill:    var(--cb-warm-orange);
+  --cb-primary-ink:     #9a6410;
+  --cb-primary-soft:    var(--cb-warm-orange-soft);
+  --cb-on-primary:      #ffffff;
+
+  --cb-accent:          #f9a61a;
+  --cb-accent-soft:     #ffe2b5;
+  --cb-accent-ink:      #8a5a06;
+  --cb-on-accent:       var(--cb-warm-brown);
+
+  --cb-secondary:       var(--cb-warm-olive);
+  --cb-secondary-hover: var(--cb-warm-olive-hi);
+  --cb-secondary-soft:  var(--cb-warm-olive-soft);
+
+  --cb-success:         var(--cb-warm-olive);
+  --cb-success-ink:     #4d5f2c;
+  --cb-success-soft:    var(--cb-warm-olive-soft);
+  --cb-warning:         #f9a61a;
+  --cb-warning-ink:     #8a5a06;
+  --cb-danger:          #d32f2f;
+  --cb-danger-ink:      #b3261e;
+  --cb-danger-soft:     #fde8e8;
+  --cb-info:            #1976d2;
+
+  --cb-focus:           var(--cb-warm-orange);
+
+  /* Floating chrome. Dark in both themes, because a bar that hovers over the
+     page has to separate from it, and the brand's own layouts put white type
+     on black. */
+  --cb-chrome:      #241d15;
+  --cb-chrome-fg:   #fbf6ed;
+  --cb-chrome-chip: #fbf6ed;
+  --cb-chrome-chip-fg: #241d15;
+
+  /* Literal light/dark anchors. These do NOT flip with the theme: components
+     pair them as `text-text-dark dark:text-text-light`, so `text-dark` must
+     stay dark in both themes and `text-light` must stay light in both. */
+  --cb-ink:        var(--cb-warm-text);
+  --cb-ink-strong: var(--cb-warm-brown);
+  --cb-ink-soft:   var(--cb-warm-brown-hi);
+  --cb-ink-raised: var(--cb-warm-ink-raised);
+  --cb-ink-deep:   var(--cb-warm-ink-deep);
+  --cb-paper:      var(--cb-warm-paper);
+  --cb-card:       var(--cb-warm-card);
+
+  /* Type. `font-brand` and `font-body` never resolved before this file: the
+     theme declared --font-family-* and Tailwind 4 builds its font utilities
+     from --font-*. Both spellings are wired up in layer 3 now.
+
+     Staff headings stay on the body face this phase. Point this at
+     var(--font-caprasimo) to switch roughly 60 staff headings to Caprasimo for
+     the first time. That is a visible change to the staff portals, so it is a
+     deliberate one-line decision and not part of the customer rebrand. */
+  --cb-font-brand: var(--font-manrope), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --cb-font-body:  var(--font-manrope), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Corner radius, as a scale rather than a habit. These are Tailwind's own
+     defaults, so every `rounded-*` on the staff portals lands exactly where it
+     did before. The customer block below tightens them. */
+  /* The page gutter. One value, read by .page-x. */
+  --page-gutter: 1.25rem;
+
+  --cb-radius-xs:  0.125rem;
+  --cb-radius-sm:  0.25rem;
+  --cb-radius-md:  0.375rem;
+  --cb-radius-lg:  0.5rem;
+  --cb-radius-xl:  0.75rem;
+  --cb-radius-2xl: 1rem;
+  --cb-radius-3xl: 1.5rem;
+  --cb-radius-4xl: 2rem;
+}
+
+/* ── Staff, dark ─────────────────────────────────────────────────────────── */
+.dark {
+  --cb-bg:             var(--cb-warm-ink-deep);
+  --cb-surface:        var(--cb-warm-ink-raised);
+  --cb-surface-raised: #262119;
+  --cb-surface-sunken: #0c0a08;
+  --cb-fg:             var(--cb-warm-paper);
+  --cb-fg-muted:       #a2968a;
+  --cb-fg-subtle:      #7d7267;
+  --cb-border:         #2e2820;
+  --cb-border-strong:  #443c30;
+  --cb-primary-ink:    #f1ab3e;
+  --cb-success-ink:    #a8c072;
+  --cb-danger-ink:     #ff8a80;
+  --cb-danger-soft:    #3a1512;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CUSTOMER BRAND — scoped to the .cb-customer wrapper in app/(customer)/layout
+
+   Red is action. Yellow is attention. Green is confirmation. Neutrals carry
+   everything else, which is what lets a saturated red read as deliberate
+   rather than as a discount flyer.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cb-customer {
+  --cb-bg:             var(--cb-mono-50);
+  --cb-surface:        var(--cb-mono-0);
+  --cb-surface-raised: var(--cb-mono-0);
+  --cb-surface-sunken: var(--cb-mono-100);
+  --cb-fg:             var(--cb-mono-900);
+  --cb-fg-muted:       var(--cb-mono-500);   /* 5.1:1 on white */
+  --cb-fg-subtle:      var(--cb-mono-400);
+  --cb-border:         var(--cb-mono-200);
+  --cb-border-strong:  var(--cb-mono-300);
+
+  /* --cb-primary is the brand red as published. White on it is 4.33:1, which
+     clears AA for large text only, so anything carrying a small white label
+     uses --cb-primary-fill (5.3:1) instead. Same red to the eye. */
+  --cb-primary:        var(--cb-red-500);
+  --cb-primary-hover:  var(--cb-red-600);
+  --cb-primary-fill:   var(--cb-red-600);
+  --cb-primary-ink:    #c40004;              /* red text on light, 6.3:1 */
+  --cb-primary-soft:   var(--cb-red-50);
+  --cb-on-primary:     #ffffff;
+
+  /* Yellow never carries white text. White on #ffdd0b is 1.35:1. Ink is 12.9:1. */
+  --cb-accent:         var(--cb-yellow-400);
+  --cb-accent-soft:    var(--cb-yellow-100);
+  --cb-accent-ink:     var(--cb-yellow-700); /* yellow-family text on light */
+  --cb-on-accent:      var(--cb-mono-900);
+
+  --cb-secondary:       var(--cb-green-500);
+  --cb-secondary-hover: var(--cb-green-600);
+  --cb-secondary-soft:  var(--cb-green-100);
+
+  /* Green is 2.7:1 against white, so it fills chips and never sets text. */
+  --cb-success:        var(--cb-green-500);
+  --cb-success-ink:    var(--cb-green-700);  /* 6.3:1 on white */
+  --cb-success-soft:   var(--cb-green-100);
+  --cb-warning:        #efa52e;
+  --cb-warning-ink:    #8a5a06;
+
+  /* Destructive has to read as a different red from the brand, or "Place order"
+     and "Cancel order" become the same button. red-700 is visibly deeper. */
+  --cb-danger:         var(--cb-red-700);
+  --cb-danger-ink:     var(--cb-red-700);
+  --cb-danger-soft:    var(--cb-red-50);
+  --cb-info:           #1d6ad1;
+
+  --cb-focus:          var(--cb-red-500);
+
+  /* The tab pill. Near-black with a white lozenge on the live tab, which is the
+     contrast the brand's own artwork runs on. Red stays reserved for action, so
+     it fills the cart button beside the pill rather than the active tab. */
+  --cb-chrome:         var(--cb-mono-900);
+  --cb-chrome-fg:      var(--cb-mono-0);
+  --cb-chrome-chip:    var(--cb-mono-0);
+  --cb-chrome-chip-fg: var(--cb-mono-900);
+
+  --cb-ink:        var(--cb-mono-900);
+  --cb-ink-strong: var(--cb-mono-800);
+  --cb-ink-soft:   var(--cb-mono-600);
+  --cb-ink-raised: var(--cb-mono-900);
+  --cb-ink-deep:   var(--cb-mono-950);
+  --cb-paper:      var(--cb-mono-50);
+  --cb-card:       var(--cb-mono-0);
+
+  /* American Captain is all-caps and condensed. It carries the wordmark and
+     section headers. It does not carry item names: "GRILLED CHICKEN WITH
+     JOLLOF AND SHITO" at card size is unreadable. Those stay on Montserrat. */
+  --cb-font-brand: var(--font-american-captain), "Arial Narrow", sans-serif;
+  --cb-font-body:  var(--font-montserrat), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Roughly half of Tailwind's defaults. Nothing in the brand's own artwork is
+     a pill: the headline blocks, the contact bar and the QR panel are all hard
+     rectangles. A soft, fully rounded interface would be a different company.
+     Every existing `rounded-2xl` on a customer card squares up through this,
+     without a single component being edited. */
+  --cb-radius-xs:  0.0625rem;
+  --cb-radius-sm:  0.125rem;
+  --cb-radius-md:  0.1875rem;
+  --cb-radius-lg:  0.25rem;
+  --cb-radius-xl:  0.375rem;
+  --cb-radius-2xl: 0.5rem;
+  --cb-radius-3xl: 0.625rem;
+  --cb-radius-4xl: 0.75rem;
+}
+
+/* ── Customer, dark ──────────────────────────────────────────────────────── */
+.dark .cb-customer {
+  --cb-bg:             var(--cb-mono-950);
+  --cb-surface:        var(--cb-mono-900);
+  --cb-surface-raised: #242424;
+  --cb-surface-sunken: #080808;
+  --cb-fg:             var(--cb-mono-100);
+  --cb-fg-muted:       var(--cb-mono-400);   /* 8.1:1 on #0e0e0e */
+  --cb-fg-subtle:      var(--cb-mono-500);
+  --cb-border:         #2e2e2e;
+  --cb-border-strong:  #3d3d3d;
+
+  --cb-primary-ink:    var(--cb-red-400);    /* 6.3:1 on #0e0e0e */
+  --cb-primary-soft:   #2a0708;
+  --cb-accent-ink:     var(--cb-yellow-300);
+  --cb-accent-soft:    #2e2708;
+  --cb-success-ink:    var(--cb-green-300);
+  --cb-success-soft:   #1f2714;
+  --cb-danger:         var(--cb-red-400);
+  --cb-danger-ink:     var(--cb-red-300);
+  --cb-danger-soft:    #2a0708;
+  --cb-warning-ink:    #f0b657;
+
+  /* On a near-black page the pill has to lift off it, not merge into it. */
+  --cb-chrome:         #262626;
+  --cb-chrome-fg:      var(--cb-mono-100);
+  --cb-chrome-chip:    var(--cb-mono-0);
+  --cb-chrome-chip-fg: var(--cb-mono-900);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYER 3 — TAILWIND
+
+   `inline` is required, not cosmetic. A plain @theme resolves var() at :root
+   and hands descendants the already-substituted value, so .cb-customer could
+   never re-tint anything. @theme inline emits `background-color: var(--cb-primary)`
+   straight into the utility, which resolves per element and therefore cascades.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@theme inline {
+
+  /* Fonts. Both spellings are declared: --font-* generates the `font-brand`
+     and `font-body` utilities the codebase actually writes, --font-family-*
+     keeps the single `font-family-brand` usage alive. */
+  --radius-xs:  var(--cb-radius-xs);
+  --radius-sm:  var(--cb-radius-sm);
+  --radius-md:  var(--cb-radius-md);
+  --radius-lg:  var(--cb-radius-lg);
+  --radius-xl:  var(--cb-radius-xl);
+  --radius-2xl: var(--cb-radius-2xl);
+  --radius-3xl: var(--cb-radius-3xl);
+  --radius-4xl: var(--cb-radius-4xl);
+
+  --font-brand:        var(--cb-font-brand);
+  --font-body:         var(--cb-font-body);
+  --font-family-brand: var(--cb-font-brand);
+  --font-family-body:  var(--cb-font-body);
+
+  /* ── New semantic names. Screens re-skinned from here on use these. ────── */
+  --color-bg:              var(--cb-bg);
+  --color-surface:         var(--cb-surface);
+  --color-surface-raised:  var(--cb-surface-raised);
+  --color-surface-sunken:  var(--cb-surface-sunken);
+  --color-fg:              var(--cb-fg);
+  --color-fg-muted:        var(--cb-fg-muted);
+  --color-fg-subtle:       var(--cb-fg-subtle);
+  --color-hairline:        var(--cb-border);
+  --color-hairline-strong: var(--cb-border-strong);
+  --color-primary-fill:    var(--cb-primary-fill);
+  --color-primary-ink:     var(--cb-primary-ink);
+  --color-primary-soft:    var(--cb-primary-soft);
+  --color-on-primary:      var(--cb-on-primary);
+  --color-accent:          var(--cb-accent);
+  --color-accent-soft:     var(--cb-accent-soft);
+  --color-accent-ink:      var(--cb-accent-ink);
+  --color-on-accent:       var(--cb-on-accent);
+  --color-success-ink:     var(--cb-success-ink);
+  --color-success-soft:    var(--cb-success-soft);
+  --color-warning-ink:     var(--cb-warning-ink);
+  --color-danger:          var(--cb-danger);
+  --color-danger-ink:      var(--cb-danger-ink);
+  --color-danger-soft:     var(--cb-danger-soft);
+  --color-focus:           var(--cb-focus);
+  --color-chrome:          var(--cb-chrome);
+  --color-chrome-fg:       var(--cb-chrome-fg);
+  --color-chrome-chip:     var(--cb-chrome-chip);
+  --color-chrome-chip-fg:  var(--cb-chrome-chip-fg);
+
+  /* ── Legacy names, remapped. This is what re-tints the customer side in one
+        move: 395 `primary`, 417 `neutral-gray`, 194 `text-light` and the rest
+        keep compiling, and now resolve through the role layer. Phases 1-4
+        migrate them to the semantic names screen by screen. ─────────────── */
+  --color-primary:         var(--cb-primary);
+  --color-primary-hover:   var(--cb-primary-hover);
+  --color-primary-light:   var(--cb-primary-soft);
+  --color-secondary:       var(--cb-secondary);
+  --color-secondary-hover: var(--cb-secondary-hover);
+  --color-secondary-light: var(--cb-secondary-soft);
+  --color-neutral-light:   var(--cb-paper);
+  --color-neutral-card:    var(--cb-card);
+  --color-neutral-gray:    var(--cb-fg-muted);
+  --color-brown:           var(--cb-ink-strong);
+  --color-brown-light:     var(--cb-ink-soft);
+  --color-brand-dark:      var(--cb-ink-raised);
+  --color-brand-darker:    var(--cb-ink-deep);
+  --color-text-dark:       var(--cb-ink);
+  --color-text-light:      var(--cb-paper);
+  --color-text-gray:       var(--cb-fg-muted);
+  --color-success:         var(--cb-success);
+  --color-warning:         var(--cb-warning);
+  --color-error:           var(--cb-danger);
+  --color-info:            var(--cb-info);
 }
 
 body {
-  /* Body font — Manrope (see app/layout.tsx). Revert to var(--font-cabin) to restore Cabin. */
-  font-family: var(--font-manrope), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-  /* Manrope reads light at 400 — default body copy to 500. Headings use explicit bold weights. */
+  font-family: var(--cb-font-body);
+  /* Manrope and Montserrat both read light at 400, so default body copy to 500.
+     Headings use explicit bold weights. */
   font-weight: 500;
-  background-color: var(--color-bg-primary);
-  color: var(--color-text-primary);
+  background-color: var(--cb-bg);
+  color: var(--cb-fg);
   transition: background-color 0.2s ease, color 0.2s ease;
   line-height: 1.6;
   overflow-x: hidden;
@@ -59,6 +422,66 @@ body {
   /* Global slim scrollbar */
   scrollbar-width: thin;
   scrollbar-color: rgba(55, 43, 30, 0.35) transparent;
+}
+
+/* The .cb-customer wrapper sits inside <body>, so html and body would still
+   paint the warm staff ground behind a customer page. That shows at the
+   overscroll edges and under short pages. :has() lifts the mono ground up to
+   the root wherever a customer screen is mounted. */
+html:has(.cb-customer),
+html:has(.cb-customer) body {
+  background-color: var(--cb-mono-50);
+}
+html.dark:has(.cb-customer),
+html.dark:has(.cb-customer) body {
+  background-color: var(--cb-mono-950);
+}
+
+/* Rubber-band scrolling past the top or bottom of the page reveals the browser
+   behind it, which is the single loudest reminder that this is not an app.
+   Has to sit on the scrolling elements themselves, not on the wrapper. */
+html:has(.cb-customer),
+html:has(.cb-customer) body {
+  overscroll-behavior-y: none;
+}
+
+.cb-customer {
+  /* The grey flash on tap is a browser affordance. Buttons carry their own
+     pressed state instead. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The horizontal rails hide their scrollbar with .no-scrollbar. That class is
+   (0,1,0), the same weight as the `.cb-customer *` tint rule below it, so this
+   states the intent at (0,2,0) where nothing can reach it. A rail that shows a
+   bar under the cards has the cards sitting on a line instead of clear of it. */
+.cb-customer .no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.cb-customer .no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* The global scrollbar is tinted warm brown. Neutral on the customer side. */
+.cb-customer,
+.cb-customer * {
+  scrollbar-color: rgba(26, 26, 26, 0.28) transparent;
+}
+.cb-customer ::-webkit-scrollbar-thumb {
+  background-color: rgba(26, 26, 26, 0.28);
+}
+.cb-customer ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(26, 26, 26, 0.48);
+}
+.dark .cb-customer,
+.dark .cb-customer * {
+  scrollbar-color: rgba(244, 244, 244, 0.30) transparent;
+}
+.dark .cb-customer ::-webkit-scrollbar-thumb {
+  background-color: rgba(244, 244, 244, 0.30);
 }
 
 /* Slim scrollbar for WebKit (Chrome, Safari, Edge) */
@@ -96,16 +519,114 @@ body::-webkit-scrollbar-thumb:hover {
   background-color: rgba(55, 43, 30, 0.45);
 }
 
+/* Height of the fixed customer header. The customer layout renders a spacer of
+   this height, and around twenty screens size themselves with
+   calc(100svh - var(--nav-h)) or stick to it. Pages used to each guess it, so a
+   page was always either overlapped or floating.
 
+   The safe-area inset is folded in here rather than added at each call site,
+   so every one of those screens gets the notch right for free. Keep in sync
+   with the row heights in components/layout/Navbar.tsx. */
+:root {
+  --nav-h: calc(3.5rem + env(safe-area-inset-top, 0px));
+  --tabbar-h: 3.5rem;
+}
+@media (min-width: 768px) {
+  :root {
+    --nav-h: 4.5rem;
+  }
+}
 
 .bg-image {
   background-image: url('/bgpattern.webp');
   background-repeat: repeat;
   background-size: auto;
-  background-attachment: fixed;
+  /* Was `fixed`. A fixed attachment repaints the whole backdrop on every
+     scroll frame and is a long-standing jank source on iOS Safari, which is
+     most of the traffic on this screen. */
+  background-attachment: scroll;
 }
 
 @layer utilities {
+
+  /* The brand's headline device, lifted straight off the flyers: white
+     condensed caps sitting in a solid red block. box-decoration-break is what
+     makes a heading that wraps produce one block per line instead of a single
+     ragged rectangle behind the whole thing. */
+  .block-heading {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  /* The page gutter, in one place.
+     
+     Every section on the customer home used to repeat w-[95%] md:w-[90%]
+     xl:w-[85%]. Two problems with that. Four copies of a rule drift, and a
+     percentage gutter collapses on the devices that need it most: 2.5% is 9px
+     on a small phone, which is not enough air for a card that casts a shadow.
+     A fixed gutter is the same 20px whatever the handset. */
+  .page-x {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 80rem;
+    padding-inline: var(--page-gutter);
+  }
+
+
+  /* Card elevation. An offset and a soft blur, so the card sits on the page
+     rather than glowing on it.
+
+     In dark mode a shadow on a near-black ground is invisible, so the same
+     class draws a hairline there instead. It uses an inset outline rather than
+     a border so nothing shifts by a pixel between the two themes, and so the
+     card never carries a border and a shadow at once. */
+  .card-lift {
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.06), 0 10px 24px -6px rgb(0 0 0 / 0.13);
+  }
+  .card-lift:where(.dark *) {
+    box-shadow: none;
+    outline: 1px solid var(--cb-border);
+    outline-offset: -1px;
+  }
+
+  /* Hover belongs only on a card that is itself clickable. A deal card whose
+     button is the target must not lift under the cursor, or it promises a click
+     it does not accept.
+
+     Written as a real selector rather than a `hover:` variant: a class defined
+     in @layer utilities is plain CSS, so Tailwind cannot compose variants onto
+     it and `hover:card-lift-hover` silently emits nothing. */
+  .card-lift-tap:hover {
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.08), 0 16px 32px -8px rgb(0 0 0 / 0.18);
+  }
+  .card-lift-tap:where(.dark *):hover {
+    box-shadow: none;
+    outline-color: var(--cb-border-strong);
+  }
+
+  /* Floating chrome sits above the page rather than on it, so it needs a real
+     elevation shadow: an offset and a soft blur, not a halo. */
+  .shadow-float {
+    box-shadow: 0 10px 30px -8px rgb(0 0 0 / 0.45), 0 2px 6px -2px rgb(0 0 0 / 0.25);
+  }
+
+  /* Safe areas. env() returns 0px on any device without a notch or a home
+     indicator, so these are inert on a desktop browser. */
+  .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pb-nav  { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
+
+  /* The cart bar arriving above the tab bar. It is the only motion in the
+     shell, and it exists to say where the bar came from. */
+  @keyframes cb-dock-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-dock-in { animation: cb-dock-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-dock-in { animation: none !important; }
+  }
 
   /* Hide scrollbar for Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {

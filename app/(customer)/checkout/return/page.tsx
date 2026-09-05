@@ -20,7 +20,7 @@ function ReturnContent() {
     if (!sessionToken) {
         return (
             <div className="w-full max-w-md bg-white dark:bg-brand-dark rounded-3xl p-8 shadow-sm text-center flex flex-col items-center gap-5">
-                <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-lg bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
                     <XCircleIcon weight="fill" size={48} className="text-red-500" />
                 </div>
                 <h1 className="text-2xl font-bold text-text-dark dark:text-text-light">Invalid Session</h1>
@@ -36,7 +36,7 @@ function ReturnContent() {
     if (session?.status === 'confirmed' && session.order?.order_number) {
         return (
             <div className="w-full max-w-md bg-white dark:bg-brand-dark rounded-3xl p-8 shadow-sm text-center flex flex-col items-center gap-5">
-                <div className="w-20 h-20 rounded-full bg-secondary/10 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-lg bg-secondary/10 flex items-center justify-center">
                     <CheckCircleIcon weight="fill" size={48} className="text-secondary" />
                 </div>
                 <div>
@@ -71,7 +71,7 @@ function ReturnContent() {
     if (session?.status === 'failed') {
         return (
             <div className="w-full max-w-md bg-white dark:bg-brand-dark rounded-3xl p-8 shadow-sm text-center flex flex-col items-center gap-5">
-                <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-lg bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
                     <XCircleIcon weight="fill" size={48} className="text-red-500" />
                 </div>
                 <div>
@@ -91,7 +91,7 @@ function ReturnContent() {
     if (session?.status === 'expired' || session?.status === 'abandoned') {
         return (
             <div className="w-full max-w-md bg-white dark:bg-brand-dark rounded-3xl p-8 shadow-sm text-center flex flex-col items-center gap-5">
-                <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-lg bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
                     <XCircleIcon weight="fill" size={48} className="text-red-500" />
                 </div>
                 <div>
@@ -110,7 +110,7 @@ function ReturnContent() {
     // Pending / payment_initiated — still waiting for callback
     return (
         <div className="w-full max-w-md bg-white dark:bg-brand-dark rounded-3xl p-8 shadow-sm text-center flex flex-col items-center gap-5">
-            <div className="w-20 h-20 rounded-full bg-primary/15 flex items-center justify-center">
+            <div className="w-20 h-20 rounded-lg bg-primary/15 flex items-center justify-center">
                 <SpinnerGapIcon size={40} className="text-primary animate-spin" />
             </div>
             <div>
@@ -130,9 +130,9 @@ function ReturnContent() {
 
 export default function CheckoutReturnPage() {
     return (
-        <div className="min-h-screen bg-neutral-light dark:bg-brand-darker flex items-center justify-center px-4 pt-20 pb-12">
+        <div className="min-h-[calc(100svh-var(--nav-h))] bg-neutral-light dark:bg-brand-darker flex items-center justify-center px-4 pt-10 pb-12">
             <Suspense fallback={
-                <div className="w-20 h-20 rounded-full bg-primary/15 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-lg bg-primary/15 flex items-center justify-center">
                     <SpinnerGapIcon size={40} className="text-primary animate-spin" />
                 </div>
             }>

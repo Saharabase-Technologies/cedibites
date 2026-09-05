@@ -94,7 +94,7 @@ export default function MenuAuditPage() {
 
     if (isLoading && branchesWithMenu.length === 0) {
         return (
-            <div className="min-h-screen bg-brand-darker text-text-light pt-24 pb-16 px-4 flex items-center justify-center">
+            <div className="min-h-[calc(100svh-var(--nav-h))] bg-brand-darker text-text-light pt-10 pb-16 px-4 flex items-center justify-center">
                 <div className="text-neutral-gray">Loading branches and menu...</div>
             </div>
         );
@@ -102,7 +102,7 @@ export default function MenuAuditPage() {
 
     if (branchesWithMenu.length === 0) {
         return (
-            <div className="min-h-screen bg-brand-darker text-text-light pt-24 pb-16 px-4 flex items-center justify-center">
+            <div className="min-h-[calc(100svh-var(--nav-h))] bg-brand-darker text-text-light pt-10 pb-16 px-4 flex items-center justify-center">
                 <div className="text-neutral-gray">No branches found. Add branches and menu items in the admin.</div>
             </div>
         );
@@ -111,7 +111,7 @@ export default function MenuAuditPage() {
     const effectiveActiveBranchId = activeBranchId ?? branchesWithMenu[0].id;
 
     return (
-        <div className="min-h-screen bg-brand-darker text-text-light pt-24 pb-16 px-4 sm:px-8">
+        <div className="min-h-[calc(100svh-var(--nav-h))] bg-brand-darker text-text-light pt-10 pb-16 px-4 sm:px-8">
             <div className="max-w-7xl mx-auto">
 
                 {/* Header */}
@@ -134,7 +134,7 @@ export default function MenuAuditPage() {
                                         : 'bg-white/5 border-white/10 text-neutral-gray hover:border-white/25 hover:text-text-light'
                                     }`}
                             >
-                                <span className={`w-2 h-2 rounded-full shrink-0 ${branch.isOpen ? 'bg-secondary' : 'bg-error'}`} />
+                                <span className={`w-2 h-2 rounded-lg shrink-0 ${branch.isOpen ? 'bg-secondary' : 'bg-error'}`} />
                                 {branch.name}
                                 <span className={`text-xs px-1.5 py-0.5 rounded-md font-bold ${isActive ? 'bg-primary/20 text-primary' : 'bg-white/10 text-neutral-gray'}`}>
                                     {bAvail}/{allItemsCount}
@@ -165,9 +165,9 @@ export default function MenuAuditPage() {
                         <span>{activeBranch?.name} Branch Menu Coverage</span>
                         <span>{availableCount} of {allItemsCount} items</span>
                     </div>
-                    <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-2.5 rounded-lg bg-white/10 overflow-hidden">
                         <div
-                            className="h-full rounded-full bg-primary transition-all duration-500"
+                            className="h-full rounded-lg bg-primary transition-all duration-500"
                             style={{ width: `${coverage}%` }}
                         />
                     </div>
@@ -290,7 +290,7 @@ export default function MenuAuditPage() {
                                         <th key={b.id} className={`px-3 py-3 font-semibold text-center min-w-22.5 bg-white/5
                                             ${b.id === effectiveActiveBranchId ? 'text-primary' : 'text-neutral-gray'}`}>
                                             <div className="flex flex-col items-center gap-1">
-                                                <span className={`w-1.5 h-1.5 rounded-full ${b.isOpen ? 'bg-secondary' : 'bg-error'}`} />
+                                                <span className={`w-1.5 h-1.5 rounded-lg ${b.isOpen ? 'bg-secondary' : 'bg-error'}`} />
                                                 {b.name}
                                             </div>
                                         </th>
@@ -329,7 +329,7 @@ export default function MenuAuditPage() {
                                                     return (
                                                         <td key={branch.id} className={`text-center py-2.5 px-3 ${isHighlighted ? 'bg-primary/5' : ''}`}>
                                                             {has
-                                                                ? <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-secondary/20 text-secondary font-bold text-[10px]">✓</span>
+                                                                ? <span className="inline-flex items-center justify-center w-5 h-5 rounded-lg bg-secondary/20 text-secondary font-bold text-[10px]">✓</span>
                                                                 : <span className="text-white/10 text-base">·</span>
                                                             }
                                                         </td>
@@ -348,7 +348,7 @@ export default function MenuAuditPage() {
                 {/* Legend */}
                 <div className="mt-6 flex items-center gap-6 text-xs text-neutral-gray">
                     <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-secondary/20 text-secondary font-bold text-[9px]">✓</span>
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-lg bg-secondary/20 text-secondary font-bold text-[9px]">✓</span>
                         Available at this branch
                     </div>
                     <div className="flex items-center gap-2">
@@ -356,10 +356,10 @@ export default function MenuAuditPage() {
                         Not on this branch&apos;s menu
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-secondary inline-block" /> Open
+                        <span className="w-2 h-2 rounded-lg bg-secondary inline-block" /> Open
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-error inline-block" /> Closed
+                        <span className="w-2 h-2 rounded-lg bg-error inline-block" /> Closed
                     </div>
                 </div>
 

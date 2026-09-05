@@ -146,7 +146,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-neutral-light dark:bg-brand-darker flex items-center justify-center">
+            <div className="min-h-[calc(100svh-var(--nav-h))] bg-neutral-light dark:bg-brand-darker flex items-center justify-center">
                 <div className="text-center">
                     <SpinnerGapIcon size={48} className="animate-spin text-primary mx-auto mb-4" />
                     <p className="text-neutral-gray">Loading order...</p>
@@ -157,7 +157,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
 
     if (notFound || !order) {
         return (
-            <div className="h-screen flex items-center justify-center  bg-neutral-light dark:bg-brand-darker">
+            <div className="min-h-[calc(100svh-var(--nav-h))] flex items-center justify-center  bg-neutral-light dark:bg-brand-darker">
                 <main className="w-[90%] md:w-150 mx-auto py-12 text-center">
                     <div className="bg-white dark:bg-brand-dark rounded-2xl p-8 border border-neutral-gray/10">
                         <PackageIcon size={64} className="text-neutral-gray/40 mx-auto mb-4" />
@@ -170,7 +170,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
                         </p>
                         <button
                             onClick={() => router.push('/orders')}
-                            className="bg-primary cursor-pointer hover:bg-primary-hover text-white font-semibold px-6 py-3 rounded-full transition-all"
+                            className="bg-primary cursor-pointer hover:bg-primary-hover text-white font-semibold px-6 py-3 rounded-lg transition-all"
                         >
                             Try Again
                         </button>
@@ -195,16 +195,15 @@ export default function OrderTrackingPage({ params }: PageProps) {
     const timeline = order.timeline ?? buildOrderTimeline(order);
 
     return (
-        <div className="min-h-screen bg-neutral-light dark:bg-brand-darker">
-            {/* <Navbar /> */}
-
-            {/* Header */}
-            <header className="bg-brand-dark border-b text-text-neutral-light border-neutral-gray/10 sticky top-0 z-30">
+        <div className="min-h-[calc(100svh-var(--nav-h))] bg-neutral-light dark:bg-brand-darker">
+            {/* Contextual header — sticks beneath the shared navbar rather than
+                fighting it for top-0. */}
+            <header className="bg-brand-dark border-b text-text-neutral-light border-neutral-gray/10 sticky top-(--nav-h) z-20">
                 <div className="w-[90%] md:w-[80%] mx-auto py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <button
                             onClick={() => router.push(backPath)}
-                            className="w-10 h-10 cursor-pointer flex items-center  justify-center rounded-full hover:bg-neutral-gray/10 transition-colors"
+                            className="w-10 h-10 cursor-pointer flex items-center  justify-center rounded-lg hover:bg-neutral-gray/10 transition-colors"
                         >
                             <ArrowLeftIcon className='text-neutral-light' size={20} weight="bold" />
                         </button>
@@ -226,7 +225,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
                                 });
                             }
                         }}
-                        className="w-10 h-10 text-neutral-light cursor-pointer flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors"
+                        className="w-10 h-10 text-neutral-light cursor-pointer flex items-center justify-center rounded-lg hover:bg-neutral-gray/10 transition-colors"
                     >
                         <ShareIcon size={20} weight="bold" />
                     </button>
@@ -242,7 +241,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
                         {/* Cancelled Banner */}
                         {order.status === 'cancelled' && (
                             <div className="bg-error/5 rounded-2xl p-6 border border-error/20 flex items-start gap-4">
-                                <div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center shrink-0">
+                                <div className="w-10 h-10 rounded-lg bg-error/10 flex items-center justify-center shrink-0">
                                     <ProhibitIcon size={20} weight="fill" className="text-error" />
                                 </div>
                                 <div>
@@ -258,7 +257,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
                         {isOutForDelivery && isDelivery && (
                             <div className="bg-linear-to-br from-primary/10 to-primary/5 rounded-2xl p-6 border border-primary/20">
                                 <div className="flex items-center gap-3 mb-4">
-                                    <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
+                                    <div className="w-3 h-3 rounded-lg bg-primary animate-pulse" />
                                     <span className="text-sm font-bold text-primary uppercase tracking-wide">
                                         Live Tracking
                                     </span>
@@ -323,7 +322,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
                                     href={`tel:${order.branch.phone}`}
                                     className="flex items-center gap-3 p-3 rounded-xl bg-neutral-gray/5 hover:bg-primary/10 transition-colors group"
                                 >
-                                    <div className="w-10 h-10 rounded-full bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
+                                    <div className="w-10 h-10 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
                                         <PhoneIcon size={20} className="text-primary" />
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -341,7 +340,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
                                         href={`tel:${order.contact.phone}`}
                                         className="flex items-center gap-3 p-3 rounded-xl bg-neutral-gray/5 hover:bg-primary/10 transition-colors group"
                                     >
-                                        <div className="w-10 h-10 rounded-full bg-secondary/10 group-hover:bg-secondary/20 flex items-center justify-center transition-colors">
+                                        <div className="w-10 h-10 rounded-lg bg-secondary/10 group-hover:bg-secondary/20 flex items-center justify-center transition-colors">
                                             <PhoneIcon size={20} className="text-secondary" />
                                         </div>
                                         <div className="flex-1 min-w-0">
@@ -363,7 +362,7 @@ export default function OrderTrackingPage({ params }: PageProps) {
                                 From
                             </h3>
                             <div className="flex items-start gap-3">
-                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                                     <PackageIcon size={20} className="text-primary" />
                                 </div>
                                 <div className="flex-1 min-w-0">

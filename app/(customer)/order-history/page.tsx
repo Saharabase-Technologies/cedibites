@@ -18,7 +18,6 @@ import {
     ArrowsClockwiseIcon,
     UserIcon,
 } from '@phosphor-icons/react';
-import Navbar from '../../components/layout/Navbar';
 import type { Order as ApiOrder, OrderStatus as ApiOrderStatus } from '@/types/api';
 
 // Status configuration matching API statuses
@@ -120,11 +119,9 @@ export default function OrderHistoryPage() {
     const showLoading = !mounted || isLoading;
 
     return (
-        <div className="min-h-screen bg-neutral-light dark:bg-brand-darker">
-            <Navbar />
+        <div className="min-h-[calc(100svh-var(--nav-h))] bg-neutral-light dark:bg-brand-darker">
 
-            {/* Main Content - pt-24 accounts for fixed Navbar */}
-            <main className="w-[90%] md:w-[80%] lg:w-[70%] mx-auto pt-24 md:pt-28 pb-8 md:pb-12">
+                        <main className="w-[90%] md:w-[80%] lg:w-[70%] mx-auto pt-8 md:pt-10 pb-8 md:pb-12">
 
                 {/* Header */}
                 <div className="mb-8">
@@ -155,12 +152,12 @@ export default function OrderHistoryPage() {
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     placeholder="Search by order number, item, or branch..."
-                                    className="w-full pl-16 pr-12 py-4 bg-neutral-light dark:bg-brand-dark border-2 border-neutral-gray/30 focus:border-primary rounded-full text-text-dark dark:text-text-light placeholder:text-neutral-gray transition-all outline-none"
+                                    className="w-full pl-16 pr-12 py-4 bg-neutral-light dark:bg-brand-dark border-2 border-neutral-gray/30 focus:border-primary rounded-lg text-text-dark dark:text-text-light placeholder:text-neutral-gray transition-all outline-none"
                                 />
                                 {searchQuery && (
                                     <button
                                         onClick={() => setSearchQuery('')}
-                                        className="absolute right-6 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors"
+                                        className="absolute right-6 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-gray/10 transition-colors"
                                     >
                                         <XIcon size={16} weight="bold" />
                                     </button>
@@ -176,10 +173,10 @@ export default function OrderHistoryPage() {
                                 </p>
                                 <button
                                     onClick={() => openAuth()}
-                                    className="mt-2 px-3 py-2 rounded-full group hover:bg-primary/10 text-sm cursor-pointer flex items-center gap-2 font-semibold text-primary hover:underline"
+                                    className="mt-2 px-3 py-2 rounded-lg group hover:bg-primary/10 text-sm cursor-pointer flex items-center gap-2 font-semibold text-primary hover:underline"
                                 >
 
-                                    <span className="inline-flex group-hover:bg-primary group-hover:text-text-light items-center gap-1 cursor-pointer h-12 w-12 px-3 py-3 bg-primary/10  hover:text-white rounded-full transition-all">
+                                    <span className="inline-flex group-hover:bg-primary group-hover:text-text-light items-center gap-1 cursor-pointer h-12 w-12 px-3 py-3 bg-primary/10  hover:text-white rounded-lg transition-all">
                                         <UserIcon size={24} weight="bold" />
                                     </span>
                                     <span className=''>                            sign In
@@ -193,7 +190,7 @@ export default function OrderHistoryPage() {
                         {filteredOrders.length === 0 ? (
                             // Empty State
                             <div className="text-center py-16">
-                                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-neutral-gray/10 mb-6">
+                                <div className="inline-flex items-center justify-center w-20 h-20 rounded-lg bg-neutral-gray/10 mb-6">
                                     <PackageIcon size={40} className="text-neutral-gray/40" />
                                 </div>
                                 <h2 className="text-xl font-bold text-text-dark dark:text-text-light mb-2">
@@ -207,7 +204,7 @@ export default function OrderHistoryPage() {
                                 {!searchQuery && (
                                     <button
                                         onClick={() => router.push('/')}
-                                        className="bg-primary hover:bg-primary-hover text-white font-semibold px-6 py-3 rounded-full transition-all"
+                                        className="bg-primary hover:bg-primary-hover text-white font-semibold px-6 py-3 rounded-lg transition-all"
                                     >
                                         Start Ordering
                                     </button>
@@ -233,7 +230,7 @@ export default function OrderHistoryPage() {
                                                             {order.order_number}
                                                         </h3>
                                                         <span
-                                                            className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusConfig.bg} ${statusConfig.color}`}
+                                                            className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${statusConfig.bg} ${statusConfig.color}`}
                                                         >
                                                             {statusConfig.label}
                                                         </span>
@@ -267,7 +264,7 @@ export default function OrderHistoryPage() {
                                                 {order.items.slice(0, 3).map((item) => (
                                                     <div
                                                         key={item.id}
-                                                        className="flex items-center gap-2 px-3 py-1.5 bg-neutral-light dark:bg-brand-darker rounded-full shrink-0"
+                                                        className="flex items-center gap-2 px-3 py-1.5 bg-neutral-light dark:bg-brand-darker rounded-lg shrink-0"
                                                     >
                                                         <span className="text-sm text-text-dark dark:text-text-light">
                                                             {item.menu_item.name}
@@ -302,7 +299,7 @@ export default function OrderHistoryPage() {
                                                         <button
                                                             onClick={(e) => handleReorder(e, order)}
                                                             disabled={reordering === order.id}
-                                                            className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary hover:text-white text-primary rounded-full font-semibold transition-all disabled:opacity-60"
+                                                            className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary hover:text-white text-primary rounded-lg font-semibold transition-all disabled:opacity-60"
                                                         >
                                                             <ArrowsClockwiseIcon size={18} weight="bold" className={reordering === order.id ? 'animate-spin' : ''} />
                                                             <span>{reordering === order.id ? 'Adding...' : 'Reorder'}</span>

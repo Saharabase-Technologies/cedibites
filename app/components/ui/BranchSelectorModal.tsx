@@ -73,7 +73,7 @@ export default function BranchSelectorModal() {
                     </div>
                     <button
                         onClick={closeBranchSelector}
-                        className="w-10 h-10 flex cursor-pointer items-center justify-center rounded-full hover:bg-neutral-gray/15 transition-colors"
+                        className="w-10 h-10 flex cursor-pointer items-center justify-center rounded-lg hover:bg-neutral-gray/15 transition-colors"
                         aria-label="Close"
                     >
                         <XIcon size={24} className="text-text-gray dark:text-text-light" />
@@ -92,7 +92,7 @@ export default function BranchSelectorModal() {
                             placeholder="Search by name, area, or address..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-brand-dark border-2 border-neutral-gray/20 dark:border-neutral-gray/30 focus:border-primary rounded-full text-text-dark dark:text-text-light transition-all outline-none"
+                            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-brand-dark border-2 border-neutral-gray/20 dark:border-neutral-gray/30 focus:border-primary rounded-lg text-text-dark dark:text-text-light transition-all outline-none"
                         />
                     </div>
                 </div>
@@ -101,7 +101,7 @@ export default function BranchSelectorModal() {
                 <button
                     onClick={handleUseMyLocation}
                     disabled={isRequestingLocation}
-                    className="mx-6 mt-3 cursor-pointer mb-1 flex items-center justify-center gap-2 py-2.5 rounded-full border border-primary/30 hover:bg-primary/10 transition-colors disabled:opacity-60"
+                    className="mx-6 mt-3 cursor-pointer mb-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-primary/30 hover:bg-primary/10 transition-colors disabled:opacity-60"
                 >
                     <GpsFixIcon size={20} className="text-primary" weight="bold" />
                     <span className="text-text-dark dark:text-text-light font-semibold text-sm">
@@ -140,7 +140,7 @@ export default function BranchSelectorModal() {
                                 className="w-full text-left p-4 rounded-xl border-2 border-neutral-gray/20 dark:border-neutral-gray/30 hover:border-primary bg-white dark:bg-brand-dark hover:bg-neutral-light dark:hover:bg-brown transition-all group"
                             >
                                 <div className="flex items-start gap-4">
-                                    <div className="w-12 h-12 flex-shrink-0 rounded-full bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center">
+                                    <div className="w-12 h-12 flex-shrink-0 rounded-lg bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center">
                                         <MapPinIcon weight="fill" size={24} className="text-white" />
                                     </div>
 
@@ -149,7 +149,7 @@ export default function BranchSelectorModal() {
                                             <h3 className="font-semibold text-text-dark dark:text-text-light group-hover:text-primary transition-colors">
                                                 {branch.name}
                                             </h3>
-                                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full flex-shrink-0 ${branch.isOpen
+                                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-lg flex-shrink-0 ${branch.isOpen
                                                 ? 'bg-secondary/20 text-secondary dark:bg-secondary dark:text-white'
                                                 : 'bg-error/20 text-error dark:bg-error dark:text-white'
                                                 }`}>

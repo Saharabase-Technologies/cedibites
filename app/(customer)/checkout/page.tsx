@@ -13,8 +13,9 @@ import {
     CaretRightIcon, SparkleIcon, UserCircleIcon, TagIcon,
 } from '@phosphor-icons/react';
 import { getPromoService, type Promo } from '@/lib/services/promos/promo.service';
-import { useCart, CartItem } from '@/app/components/providers/CartProvider';
-import { useBranch, Branch, BranchWithDistance } from '@/app/components/providers/BranchProvider';
+import { useCart } from '@/app/components/providers/CartProvider';
+import { useBranch } from '@/app/components/providers/BranchProvider';
+import { useBranchSwitch, BranchList, BranchConflictPanel } from '@/app/components/ui/BranchSwitch';
 import { useLocation } from '@/app/components/providers/LocationProvider';
 import { useAuth } from '@/app/components/providers/AuthProvider';
 import { useCreateCheckoutSession, useCheckoutSessionStatus, useAbandonCheckoutSession, useRetryPayment, useChangePaymentMethod } from '@/lib/api/hooks/useCheckoutSession';
@@ -28,7 +29,6 @@ import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 type OrderType = 'delivery' | 'pickup';
 type PaymentMethod = 'mobile_money' | 'cash';
 type Step = 1 | 2 | 3 | 4;
-type BranchSheetView = 'list' | 'conflict';
 
 interface ContactDetails { name: string; phone: string; address: string; note: string; }
 
@@ -186,41 +186,20 @@ function AddressSearchField({ value, onChange, placeholder }: { value: string; o
     );
 }
 
-// ─── Branch Selector Sheet (inline, not CartDrawer) ───────────────────────────
+// --- Branch Selector Sheet -------------------------------------------------
+// Chrome only. The list, the conflict panel and the decision about what happens
+// to the cart all live in components/ui/BranchSwitch.tsx, shared with the cart
+// drawer. This file used to carry its own copy of all three.
 function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-    const { selectedBranch, setSelectedBranch, getBranchesWithDistance, branches } = useBranch();
-    const { coordinates } = useLocation();
-    const { validateCartForBranch, removeUnavailableItems, displayItems: items } = useCart();
+    const { conflict, removing, selectBranch, removeAndSwitch, keepCurrentBranch, reset } =
+        useBranchSwitch({ onSettled: onClose });
 
-    const [sheetView, setSheetView] = useState<BranchSheetView>('list');
-    const [pendingBranch, setPendingBranch] = useState<Branch | null>(null);
-    const [conflict, setConflict] = useState<{ available: CartItem[]; unavailable: CartItem[] } | null>(null);
-
-    useEffect(() => { if (!isOpen) setTimeout(() => { setSheetView('list'); setPendingBranch(null); setConflict(null); }, 300); }, [isOpen]);
+    useEffect(() => { if (!isOpen) setTimeout(reset, 300); }, [isOpen, reset]);
 
     useEffect(() => {
         document.body.style.overflow = isOpen ? 'hidden' : '';
         return () => { document.body.style.overflow = ''; };
     }, [isOpen]);
-
-    const sortedBranches: BranchWithDistance[] = coordinates
-        ? getBranchesWithDistance(coordinates.latitude, coordinates.longitude)
-        : branches.map(b => ({ ...b, distance: 0, deliveryTime: '–', isWithinRadius: true }));
-
-    const handleSelect = (branch: Branch) => {
-        if (branch.id === selectedBranch?.id) { onClose(); return; }
-        if (items.length === 0) { setSelectedBranch(branch); onClose(); return; }
-        const result = validateCartForBranch(branch.menuItemIds);
-        if (result.unavailable.length === 0) { setSelectedBranch(branch); onClose(); }
-        else { setPendingBranch(branch); setConflict(result); setSheetView('conflict'); }
-    };
-
-    const handleRemoveAndSwitch = () => {
-        if (!pendingBranch || !conflict) return;
-        removeUnavailableItems(conflict.unavailable.map(i => i.cartItemId));
-        setSelectedBranch(pendingBranch);
-        onClose();
-    };
 
     return (
         <>
@@ -229,115 +208,35 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-125 md:rounded-2xl md:max-h-[82vh]
                 ${isOpen ? 'translate-y-0' : 'translate-y-full md:opacity-0 md:scale-95 md:pointer-events-none'}`}>
 
-                {/* Header */}
                 <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-neutral-gray/10 shrink-0">
                     <div className="flex items-center gap-3">
-                        {sheetView === 'conflict' && (
-                            <button onClick={() => setSheetView('list')} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors cursor-pointer">
+                        {conflict && (
+                            <button onClick={keepCurrentBranch} aria-label="Back to branch list"
+                                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-gray/10 transition-colors cursor-pointer">
                                 <ArrowLeftIcon weight="bold" size={16} className="text-text-dark dark:text-text-light" />
                             </button>
                         )}
-                        <h3 className="font-bold text-text-dark dark:text-text-light">{sheetView === 'list' ? 'Change Branch' : 'Items Not Available'}</h3>
+                        <h3 className="font-bold text-text-dark dark:text-text-light">
+                            {conflict ? 'Items Not Available' : 'Change Branch'}
+                        </h3>
                     </div>
-                    <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors cursor-pointer">
+                    <button onClick={onClose} aria-label="Close"
+                        className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-gray/10 transition-colors cursor-pointer">
                         <XIcon size={20} weight="bold" className="text-text-dark dark:text-text-light" />
                     </button>
                 </div>
 
-                {/* Branch list */}
-                {sheetView === 'list' && (
-                    <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 flex flex-col gap-3">
-                        <p className="text-xs text-neutral-gray">Sorted by distance. Switching validates your cart automatically.</p>
-                        {sortedBranches.map(branch => {
-                            const isCurrent = branch.id === selectedBranch?.id;
-                            return (
-                                <button key={branch.id} onClick={() => handleSelect(branch)} disabled={!branch.isOpen}
-                                    className={`w-full flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all
-                                        ${isCurrent ? 'border-primary bg-primary/8' : 'border-neutral-gray/15 hover:border-primary/30'}
-                                        ${!branch.isOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isCurrent ? 'bg-primary text-white' : 'bg-neutral-gray/10 text-neutral-gray'}`}>
-                                        <StorefrontIcon weight="fill" size={16} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <p className={`text-sm font-bold ${isCurrent ? 'text-primary' : 'text-text-dark dark:text-text-light'}`}>{branch.name} Branch</p>
-                                            {isCurrent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-white">Current</span>}
-                                            {!branch.isOpen && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-gray/20 text-neutral-gray">Closed</span>}
-                                        </div>
-                                        <p className="text-xs text-neutral-gray mt-0.5 truncate">{branch.address}</p>
-                                        <div className="flex items-center gap-2 mt-1.5 text-xs text-neutral-gray flex-wrap">
-                                            {coordinates && <span>{branch.distance.toFixed(1)} km away</span>}
-                                            <span>·</span><span>{branch.deliveryTime}</span><span>·</span><span>₵{branch.deliveryFee} delivery</span>
-                                        </div>
-                                    </div>
-                                    {!isCurrent && branch.isOpen && <CaretRightIcon size={16} className="text-neutral-gray shrink-0 mt-1" />}
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* Conflict view */}
-                {sheetView === 'conflict' && conflict && pendingBranch && (
-                    <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 flex flex-col gap-5">
-                        <div className="flex items-start gap-3 bg-warning/10 border border-warning/25 rounded-2xl p-4">
-                            <WarningCircleIcon weight="fill" size={20} className="text-warning shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-sm font-bold text-text-dark dark:text-text-light">
-                                    {conflict.unavailable.length} item{conflict.unavailable.length !== 1 ? 's' : ''} not available at {pendingBranch.name} Branch
-                                </p>
-                                <p className="text-xs text-neutral-gray mt-1">Remove them to switch, or stay at your current branch.</p>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                            <p className="text-xs font-semibold text-neutral-gray uppercase tracking-wide">Won't be available</p>
-                            {conflict.unavailable.map(ci => (
-                                <div key={ci.cartItemId} className="flex items-center gap-3 bg-error/5 border border-error/15 rounded-xl p-3">
-                                    <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-error/10 shrink-0">
-                                        {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
-                                        <p className="text-xs text-neutral-gray">Qty {ci.quantity}</p>
-                                    </div>
-                                    <XIcon size={14} weight="bold" className="text-error shrink-0" />
-                                </div>
-                            ))}
-                        </div>
-
-                        {conflict.available.length > 0 && (
-                            <div className="flex flex-col gap-2">
-                                <p className="text-xs font-semibold text-neutral-gray uppercase tracking-wide">Still available</p>
-                                {conflict.available.map(ci => (
-                                    <div key={ci.cartItemId} className="flex items-center gap-3 bg-secondary/5 border border-secondary/15 rounded-xl p-3">
-                                        <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-secondary/10 shrink-0">
-                                            {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
-                                            <p className="text-xs text-neutral-gray">Qty {ci.quantity}</p>
-                                        </div>
-                                        <CheckCircleIcon size={14} weight="fill" className="text-secondary shrink-0" />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        <div className="flex flex-col gap-3 pt-1 pb-2">
-                            <button onClick={handleRemoveAndSwitch} className="w-full flex items-center justify-between bg-primary hover:bg-primary-hover text-white font-bold px-5 py-4 rounded-2xl transition-all active:scale-[0.98] cursor-pointer">
-                                <span>Remove {conflict.unavailable.length} item{conflict.unavailable.length !== 1 ? 's' : ''} & switch</span>
-                                <ArrowRightIcon weight="bold" size={16} />
-                            </button>
-                            <button onClick={onClose} className="w-full border-2 border-neutral-gray/20 text-text-dark dark:text-text-light font-bold px-5 py-3.5 rounded-2xl hover:border-primary/40 hover:text-primary transition-all cursor-pointer">
-                                Keep {selectedBranch?.name} Branch
-                            </button>
-                            <button onClick={() => setSheetView('list')} className="w-full text-sm font-semibold text-neutral-gray hover:text-primary transition-colors py-2 cursor-pointer">
-                                Pick a different branch
-                            </button>
-                        </div>
-                    </div>
-                )}
+                <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+                    {conflict
+                        ? <BranchConflictPanel
+                            conflict={conflict}
+                            removing={removing}
+                            onRemoveAndSwitch={removeAndSwitch}
+                            onKeepCurrent={onClose}
+                            onPickAnother={keepCurrentBranch}
+                        />
+                        : <BranchList onSelect={selectBranch} />}
+                </div>
             </div>
         </>
     );
@@ -353,7 +252,7 @@ function StepIndicator({ current }: { current: Step }) {
                 return (
                     <React.Fragment key={s.n}>
                         <div className="flex items-center gap-1.5">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${done ? 'bg-secondary text-white' : active ? 'bg-primary text-white' : 'bg-neutral-gray/20 text-neutral-gray'}`}>
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${done ? 'bg-secondary text-white' : active ? 'bg-primary text-white' : 'bg-neutral-gray/20 text-neutral-gray'}`}>
                                 {done ? <CheckCircleIcon weight="fill" size={16} /> : s.n}
                             </div>
                             <span className={`text-sm font-semibold hidden sm:inline transition-colors ${active ? 'text-text-dark dark:text-text-light' : done ? 'text-secondary' : 'text-neutral-gray'}`}>{s.label}</span>
@@ -378,7 +277,7 @@ function OrderSummary({ orderType, scConfig, deliveryFeeEnabled, discount, promo
         <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
             <div className="flex items-center justify-between">
                 <h3 className="font-bold text-text-dark dark:text-text-light">Order Summary</h3>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/15 text-primary">{items.length} item{items.length !== 1 ? 's' : ''}</span>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-primary/15 text-primary">{items.length} item{items.length !== 1 ? 's' : ''}</span>
             </div>
             <div className="flex flex-col gap-3">
                 {items.map(ci => (
@@ -609,8 +508,8 @@ function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBa
                         <div key={m.id}>
                             <button onClick={() => setPaymentMethod(m.id)}
                                 className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left cursor-pointer ${paymentMethod === m.id ? 'border-primary bg-primary/5' : 'border-neutral-gray/15 hover:border-primary/30'}`}>
-                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === m.id ? 'border-primary' : 'border-neutral-gray/40'}`}>
-                                    {paymentMethod === m.id && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
+                                <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 ${paymentMethod === m.id ? 'border-primary' : 'border-neutral-gray/40'}`}>
+                                    {paymentMethod === m.id && <div className="w-2.5 h-2.5 rounded-lg bg-primary" />}
                                 </div>
                                 <span className={`${m.color} shrink-0`}>{m.icon}</span>
                                 <div className="flex-1">
@@ -681,7 +580,7 @@ function StepProcessing({ sessionToken, onSuccess, onFail, onAbandon }: {
         const isFailed = session.status === 'failed';
         return (
             <div className="flex flex-col items-center gap-5 py-10 text-center max-w-sm mx-auto">
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center ${isFailed ? 'bg-red-100 dark:bg-red-900/20' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
+                <div className={`w-20 h-20 rounded-lg flex items-center justify-center ${isFailed ? 'bg-red-100 dark:bg-red-900/20' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
                     <WarningCircleIcon weight="fill" size={40} className={isFailed ? 'text-red-500' : 'text-amber-500'} />
                 </div>
                 <div>
@@ -706,7 +605,7 @@ function StepProcessing({ sessionToken, onSuccess, onFail, onAbandon }: {
 
     return (
         <div className="flex flex-col items-center gap-6 py-12 text-center">
-            <div className="w-20 h-20 rounded-full bg-primary/15 flex items-center justify-center">
+            <div className="w-20 h-20 rounded-lg bg-primary/15 flex items-center justify-center">
                 <SpinnerGapIcon size={40} className="text-primary animate-spin" />
             </div>
             <div>
@@ -781,10 +680,10 @@ function StepDone({ orderNumber, orderType, contact }: {
         <div className="flex flex-col items-center gap-6 py-8 text-center">
             {/* Success icon */}
             <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-secondary/15 flex items-center justify-center">
+                <div className="w-24 h-24 rounded-lg bg-secondary/15 flex items-center justify-center">
                     <CheckCircleIcon weight="fill" size={52} className="text-secondary" />
                 </div>
-                <div className="absolute -top-1 -right-1 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                <div className="absolute -top-1 -right-1 w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                     <ShoppingBagIcon weight="fill" size={16} className="text-white" />
                 </div>
             </div>
@@ -824,7 +723,7 @@ function StepDone({ orderNumber, orderType, contact }: {
             {promptState === 'idle' && (
                 <div className="w-full bg-white dark:bg-brand-dark rounded-2xl p-4 shadow-sm border border-primary/15 relative">
                     <button onClick={() => setPromptState('dismissed')}
-                        className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors cursor-pointer">
+                        className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-lg hover:bg-neutral-gray/10 transition-colors cursor-pointer">
                         <XIcon size={13} weight="bold" className="text-neutral-gray" />
                     </button>
                     <div className="flex items-start gap-3 mb-4 text-left">
@@ -838,7 +737,7 @@ function StepDone({ orderNumber, orderType, contact }: {
                     </div>
                     {/* Pre-filled preview */}
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-light dark:bg-brown/30 mb-4">
-                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
                             <UserCircleIcon weight="fill" size={22} className="text-primary" />
                         </div>
                         <div className="text-left min-w-0">
@@ -867,7 +766,7 @@ function StepDone({ orderNumber, orderType, contact }: {
             {(promptState === 'code' || promptState === 'verifying') && (
                 <div className="w-full bg-white dark:bg-brand-dark rounded-2xl p-4 shadow-sm border border-primary/15 relative">
                     <button onClick={() => setPromptState('dismissed')}
-                        className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors cursor-pointer">
+                        className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-lg hover:bg-neutral-gray/10 transition-colors cursor-pointer">
                         <XIcon size={13} weight="bold" className="text-neutral-gray" />
                     </button>
                     <div className="text-left mb-4">
@@ -947,8 +846,8 @@ function StepDone({ orderNumber, orderType, contact }: {
 // ─── Empty Cart Guard ─────────────────────────────────────────────────────────
 function EmptyCartGuard() {
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+        <div className="min-h-[calc(100svh-var(--nav-h))] flex flex-col items-center justify-center gap-6 px-4">
+            <div className="w-20 h-20 rounded-lg bg-primary/10 flex items-center justify-center">
                 <ShoppingBagIcon weight="fill" size={36} className="text-primary/40" />
             </div>
             <div className="text-center">
@@ -1072,7 +971,7 @@ export default function CheckoutPage() {
     const branchUnavailable = branchClosed || branchInactive;
 
     return (
-        <div className="min-h-screen bg-neutral-light dark:bg-brand-darker pt-20 pb-12">
+        <div className="min-h-[calc(100svh-var(--nav-h))] bg-neutral-light dark:bg-brand-darker pt-10 pb-12">
             <div className="w-[95%] md:w-[85%] xl:w-[75%] max-w-5xl mx-auto">
                 <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>

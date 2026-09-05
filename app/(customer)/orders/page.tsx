@@ -13,8 +13,6 @@ import {
     ReceiptIcon,
     CaretRightIcon,
 } from '@phosphor-icons/react';
-import Image from 'next/image';
-import Navbar from '../../components/layout/Navbar';
 
 export default function TrackOrderPage() {
     const router = useRouter();
@@ -46,26 +44,11 @@ export default function TrackOrderPage() {
     };
 
     return (
-        <div className="min-h-screen bg-neutral-light dark:bg-brand-darker">
-            {/* Header */}
-            <Navbar />   <header className="border-b border-neutral-gray/20 bg-white dark:bg-brand-dark">
-                <div className="w-[90%] md:w-[80%] mx-auto py-4 flex items-center justify-between">
-                    <button
-                        onClick={() => router.push('/')}
-                        className="flex items-center gap-2 text-text-dark dark:text-text-light hover:text-primary transition-colors"
-                    >
-                        <Image
-                            src="/images/logo.png"
-                            alt="CediBites"
-                            width={32}
-                            height={32}
-                            className="w-8 h-8"
-                        />
-                        <span className="font-bold text-lg">CediBites</span>
-                    </button>
-
-                </div>
-            </header>
+        <div className="min-h-[calc(100svh-var(--nav-h))] bg-neutral-light dark:bg-brand-darker">
+            {/* The page used to render a second header here — a CediBites logo and
+                wordmark duplicating the navbar's, pointing at /images/logo.png, which
+                does not exist in public/. It sat behind the fixed navbar, so it was a
+                broken image nobody could see. The shared navbar covers it. */}
 
             {/* Main Content */}
             <main className="w-[90%] md:w-[600px] mx-auto py-12 md:py-20">
@@ -82,7 +65,7 @@ export default function TrackOrderPage() {
                 </div>
                 {/* Hero Section */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 mb-6">
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-lg bg-primary/10 mb-6">
                         <PackageIcon size={40} weight="duotone" className="text-primary" />
                     </div>
 
@@ -111,7 +94,7 @@ export default function TrackOrderPage() {
                                 setError('');
                             }}
                             placeholder="Enter order code (e.g., A042)"
-                            className="w-full pl-16 pr-6 py-5 bg-neutral-light  dark:bg-brand-dark border-2 border-neutral-gray/30 focus:border-primary rounded-full text-text-dark dark:text-text-light placeholder:text-neutral-gray transition-all outline-none text-lg font-medium"
+                            className="w-full pl-16 pr-6 py-5 bg-neutral-light  dark:bg-brand-dark border-2 border-neutral-gray/30 focus:border-primary rounded-lg text-text-dark dark:text-text-light placeholder:text-neutral-gray transition-all outline-none text-lg font-medium"
                             maxLength={4}
                         />
                     </div>
@@ -125,7 +108,7 @@ export default function TrackOrderPage() {
                     <button
                         type="submit"
                         disabled={isLoading || !orderCode.trim()}
-                        className="w-full mt-4 bg-primary hover:bg-primary-hover text-white font-bold py-4 px-6 rounded-full transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
+                        className="w-full mt-4 bg-primary hover:bg-primary-hover text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
                     >
                         {isLoading ? (
                             <>
@@ -150,7 +133,7 @@ export default function TrackOrderPage() {
 
                     <div className="space-y-6">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-neutral-gray/10 flex items-center justify-center shrink-0">
+                            <div className="w-12 h-12 rounded-lg bg-neutral-gray/10 flex items-center justify-center shrink-0">
                                 <ReceiptIcon size={24} weight="fill" className="text-neutral-gray" />
                             </div>
                             <div>
@@ -164,7 +147,7 @@ export default function TrackOrderPage() {
                         </div>
 
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-neutral-gray/10 flex items-center justify-center shrink-0">
+                            <div className="w-12 h-12 rounded-lg bg-neutral-gray/10 flex items-center justify-center shrink-0">
                                 <ReceiptIcon size={24} weight="fill" className="text-neutral-gray" />
                             </div>
                             <div>
@@ -178,7 +161,7 @@ export default function TrackOrderPage() {
                         </div>
 
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-neutral-gray/10 flex items-center justify-center shrink-0">
+                            <div className="w-12 h-12 rounded-lg bg-neutral-gray/10 flex items-center justify-center shrink-0">
                                 <ReceiptIcon size={24} weight="fill" className="text-neutral-gray" />
                             </div>
                             <div>
@@ -201,7 +184,7 @@ export default function TrackOrderPage() {
 
                     <div className="space-y-6">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-neutral-gray/10 flex items-center justify-center shrink-0">
+                            <div className="w-12 h-12 rounded-lg bg-neutral-gray/10 flex items-center justify-center shrink-0">
                                 <CheckCircleIcon size={24} weight="fill" className="text-neutral-gray" />
                             </div>
                             <div>
@@ -215,7 +198,7 @@ export default function TrackOrderPage() {
                         </div>
 
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-neutral-gray/10 flex items-center justify-center shrink-0">
+                            <div className="w-12 h-12 rounded-lg bg-neutral-gray/10 flex items-center justify-center shrink-0">
                                 <ClockIcon size={24} weight="fill" className="text-neutral-gray" />
                             </div>
                             <div>
@@ -229,7 +212,7 @@ export default function TrackOrderPage() {
                         </div>
 
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-neutral-gray/10 flex items-center justify-center shrink-0">
+                            <div className="w-12 h-12 rounded-lg bg-neutral-gray/10 flex items-center justify-center shrink-0">
                                 <TruckIcon size={24} weight="fill" className="text-neutral-gray" />
                             </div>
                             <div>
@@ -243,7 +226,7 @@ export default function TrackOrderPage() {
                         </div>
 
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-neutral-gray/10 flex items-center justify-center shrink-0">
+                            <div className="w-12 h-12 rounded-lg bg-neutral-gray/10 flex items-center justify-center shrink-0">
                                 <CheckCircleIcon size={24} weight="fill" className="text-neutral-gray" />
                             </div>
                             <div>

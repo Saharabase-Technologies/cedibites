@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from 'next/script';
-import { Cabin, Caprasimo, Manrope } from 'next/font/google';
+import { Cabin, Caprasimo, Manrope, Montserrat } from 'next/font/google';
 import localFont from 'next/font/local';
 import "./globals.css";
 import { LocationProvider } from "./components/providers/LocationProvider";
@@ -11,6 +11,7 @@ import { RouterInitializer } from "./components/providers/RouterInitializer";
 import { FeedbackCapture } from "./components/feedback/feedback-capture";
 import { FeedbackWidget } from "./components/feedback/feedback-widget";
 import { FEATURES } from "@/lib/constants/features";
+import { ThemeProvider } from "./components/providers/ThemeProvider";
 
 const caprasimo = Caprasimo({
   weight: '400',
@@ -42,6 +43,44 @@ const abeezee = localFont({
   variable: '--font-abeezee',
   display: 'swap',
 });
+
+// ── Customer brand faces ────────────────────────────────────────────────────
+// Montserrat stands in for Mont, the brand's body face. Only two demo weights
+// of Mont are licensed, so the full family is not shippable. Swap it here when
+// the licence lands: nothing else references the family by name.
+const montserrat = Montserrat({
+  weight: ['400', '500', '600', '700', '800'],
+  subsets: ['latin'],
+  variable: '--font-montserrat',
+  display: 'swap',
+});
+
+// American Captain is all-caps and condensed. It carries the wordmark and
+// section headers on the customer side, never item names or body copy.
+const americanCaptain = localFont({
+  src: [{ path: '../fonts/AmericanCaptain.ttf', weight: '400', style: 'normal' }],
+  variable: '--font-american-captain',
+  display: 'swap',
+});
+
+/**
+ * There was no viewport export at all, while appleWebApp.statusBarStyle was
+ * already set to black-translucent. Installed to a home screen, that puts the
+ * page under the iPhone clock with nothing compensating for it. viewportFit
+ * cover is what makes env(safe-area-inset-*) report real numbers, and --nav-h
+ * folds the top inset in for every screen.
+ *
+ * No maximumScale and no userScalable: pinch zoom stays available.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fafafa' },
+    { media: '(prefers-color-scheme: dark)', color: '#0e0e0e' },
+  ],
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://app.cedibites.com'),
@@ -88,24 +127,32 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${cabin.variable} ${manrope.variable} ${caprasimo.variable} bg-neutral-light dark:bg-brand-darker antialiased`}>
-      <body className={abeezee.variable} suppressHydrationWarning>
+    // next-themes writes the `.dark` class onto <html> before paint, so the
+    // hydration warning has to be suppressed here rather than on <body>.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${cabin.variable} ${manrope.variable} ${caprasimo.variable} ${montserrat.variable} ${americanCaptain.variable} bg-bg antialiased`}
+    >
+      <body className={abeezee.variable}>
         <Script
           src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&loading=async`}
           strategy="afterInteractive"
         />
-        <QueryProvider>
-          <RouterInitializer />
-          {FEATURES.feedback && <FeedbackCapture />}
-          <LocationProvider autoRequest={false}>
-            <BranchProvider>
-              <OrderStoreProvider>
-                {children}
-                {FEATURES.feedback && <FeedbackWidget />}
-              </OrderStoreProvider>
-            </BranchProvider>
-          </LocationProvider>
-        </QueryProvider>
+        <ThemeProvider>
+          <QueryProvider>
+            <RouterInitializer />
+            {FEATURES.feedback && <FeedbackCapture />}
+            <LocationProvider autoRequest={false}>
+              <BranchProvider>
+                <OrderStoreProvider>
+                  {children}
+                  {FEATURES.feedback && <FeedbackWidget />}
+                </OrderStoreProvider>
+              </BranchProvider>
+            </LocationProvider>
+          </QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
