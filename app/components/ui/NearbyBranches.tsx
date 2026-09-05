@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-    MapPinIcon, NavigationArrowIcon, MotorcycleIcon,
-    CheckIcon, SpinnerGapIcon,
-} from '@phosphor-icons/react';
+import { NavigationArrowIcon, SpinnerGapIcon } from '@phosphor-icons/react';
 import { useLocation } from '../providers/LocationProvider';
-import { useBranch, type Branch, type BranchWithDistance } from '../providers/BranchProvider';
+import { useBranch } from '../providers/BranchProvider';
+import { useBranchRoute } from '@/lib/api/hooks/useBranches';
+import { deliveryWindowFromMinutes, estimateTravelMinutes, formatRideMinutes } from '@/lib/utils/distance';
+import { decodePolyline } from '@/lib/utils/polyline';
 import BlockHeading from './BlockHeading';
 import BranchMap from './BranchMap';
 
@@ -53,33 +53,28 @@ function useAreaName(coords: { latitude: number; longitude: number } | null) {
     return area;
 }
 
-function Fact({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-    return (
-        <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-fg-muted">
-                {icon} {label}
-            </p>
-            <p className="mt-1 text-sm font-bold text-fg tabular-nums">{value}</p>
-        </div>
-    );
-}
-
 /**
  * Where our kitchens are, and where you are, on one map.
  *
- * There was a list of every branch under this map. It said in words what the
- * pins already say, and on a phone it pushed the map off the screen. One card
- * for the shop you tapped does the job the list was doing without repeating the
- * map back to you.
+ * Under this map there was a list of every branch, then a card for whichever
+ * shop you tapped. Both wrote out in words what the pins already show, and on a
+ * phone they pushed the map itself off the screen. Tapping a shop now turns its
+ * pin red, draws its delivery radius, and runs a dotted line to you with the
+ * minutes on it. You can see whether your own pin falls inside the ring.
  *
- * The distance is a straight line from `calculateDistance` and the bike time
- * comes from `estimateDeliveryTime`, which is the pair the branch switcher and
- * the nearest-branch logic already run on. Deliberately not a second estimate:
- * two numbers for one journey, disagreeing, is worse than one.
+ * That line follows real roads and carries a real drive time when the server can
+ * reach Google's Routes API, and falls back to a straight line and a 30 km/h
+ * estimate when it cannot. Both are worded identically on purpose. A customer
+ * has no use for knowing which one they got, and the map must not look broken on
+ * the day the routing key expires.
+ *
+ * Choosing which kitchen to order from stays with the chip in the header, which
+ * checks the cart before it switches. This section only shows you where they
+ * are.
  */
 export default function NearbyBranches() {
     const { coordinates, permissionStatus, requestLocation, error } = useLocation();
-    const { branches, selectedBranch, setSelectedBranch, getBranchesWithDistance } = useBranch();
+    const { branches, selectedBranch, getBranchesWithDistance } = useBranch();
     const [activeId, setActiveId] = useState<string | null>(null);
 
     /**
@@ -103,6 +98,43 @@ export default function NearbyBranches() {
 
     const nearest = ranked.find(b => Number.isFinite(b.distance)) ?? null;
 
+    // The drive down real roads, when the server can get one. Null otherwise,
+    // and everything below simply falls back.
+    const road = useBranchRoute(activeId, coordinates);
+
+    /**
+     * The journey to the shop you tapped, for the line on the map.
+     *
+     * Memoised because it drives the effect that draws that line. A fresh
+     * object on every render would tear down the polyline and its plate and
+     * build them again, several times a second, for a journey that has not
+     * changed.
+     *
+     * One number feeds the whole plate. Whether the minutes came off a real
+     * route or off the flat estimate, the delivery window above the fold is
+     * built from the same figure, so the two lines cannot contradict each other.
+     *
+     * `withinRadius` deliberately stays on the straight-line distance. That is
+     * the rule the delivery gate runs on everywhere else, and a road that winds
+     * is not a reason to refuse a customer the shop would happily ride to.
+     */
+    const journey = useMemo(() => {
+        const measured = ranked.find(b => b.id === activeId);
+        if (!measured || !Number.isFinite(measured.distance)) return null;
+
+        const minutes = road?.duration_minutes ?? estimateTravelMinutes(measured.distance);
+
+        return {
+            distanceLabel: road?.distance_km !== undefined
+                ? `${road.distance_km.toFixed(1)} km by road`
+                : `${measured.distance.toFixed(1)} km away`,
+            rideTime: formatRideMinutes(minutes),
+            deliveryTime: deliveryWindowFromMinutes(minutes),
+            withinRadius: measured.isWithinRadius,
+            path: road?.polyline ? decodePolyline(road.polyline) : null,
+        };
+    }, [ranked, activeId, road]);
+
     // Stable, so the map's marker effect does not tear down and rebuild every
     // pin on each render of this section.
     const selectFromMap = useCallback((id: string) => setActiveId(id), []);
@@ -123,17 +155,6 @@ export default function NearbyBranches() {
 
     const denied = permissionStatus === 'denied';
 
-    // Two lookups rather than one union. `ranked` only exists once we know where
-    // the customer is; `branches` always does. Keeping them apart means the
-    // distance fields are typed where they exist and simply absent where they
-    // do not, instead of a union that needs narrowing at every read.
-    const measured: BranchWithDistance | null = ranked.find(b => b.id === activeId) ?? null;
-    const active: Branch | null = measured ?? branches.find(b => b.id === activeId) ?? null;
-
-    const distance = measured && Number.isFinite(measured.distance) ? measured.distance : null;
-    const withinRange = measured ? measured.isWithinRadius : null;
-    const isCurrent = active !== null && selectedBranch?.id === active.id;
-
     return (
         <section className="page-x">
             <div className="mb-5">
@@ -152,7 +173,7 @@ export default function NearbyBranches() {
                             <p className="truncate text-sm font-bold text-fg">
                                 {area ? `You're near ${area}` : "We've got your location"}
                             </p>
-                            <p className="text-xs text-fg-muted">Tap a shop on the map to see how far it is.</p>
+                            <p className="text-xs text-fg-muted">Tap a shop to see how long it takes to reach you.</p>
                         </>
                     ) : (
                         <>
@@ -162,7 +183,7 @@ export default function NearbyBranches() {
                             <p className="text-xs text-fg-muted">
                                 {denied
                                     ? 'Turn it back on in your browser settings to see which kitchen is closest.'
-                                    : error ?? 'Share your location and we will show the nearest kitchen and how long the bike takes.'}
+                                    : error ?? 'Share your location and we will show you which kitchen is closest.'}
                             </p>
                         </>
                     )}
@@ -186,76 +207,9 @@ export default function NearbyBranches() {
                 branches={branches}
                 activeId={activeId}
                 nearestId={nearest?.id ?? null}
+                journey={journey}
                 onSelectBranch={selectFromMap}
             />
-
-            {/* ── The one you tapped ────────────────────────────────────── */}
-            {active && (
-                <div className="card-lift mt-3 rounded-2xl bg-surface p-4">
-                    <div className="flex items-center gap-2">
-                        <h3 className="font-brand truncate text-2xl leading-none tracking-wide text-fg">
-                            {active.name}
-                        </h3>
-                        {isCurrent && (
-                            <span className="shrink-0 rounded-md bg-success-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success-ink">
-                                Ordering here
-                            </span>
-                        )}
-                    </div>
-
-                    <p className="mt-1.5 flex items-center gap-2 text-xs">
-                        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-xs ${active.isOpen ? 'bg-success' : 'bg-danger'}`} />
-                        <span className={`font-bold ${active.isOpen ? 'text-success-ink' : 'text-danger-ink'}`}>
-                            {active.isOpen ? 'Open now' : 'Closed'}
-                        </span>
-                        <span className="truncate text-fg-muted">{active.operatingHours}</span>
-                    </p>
-
-                    <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3">
-                        {distance !== null && (
-                            <Fact
-                                icon={<NavigationArrowIcon size={12} weight="fill" />}
-                                label="Distance"
-                                value={`${distance.toFixed(1)} km`}
-                            />
-                        )}
-
-                        {/* A bike time only means something if this shop would
-                            actually ride to you. Outside its delivery radius the
-                            honest answer is that it will not, rather than a
-                            number in the hundreds of minutes. */}
-                        {distance !== null && withinRange && measured && (
-                            <Fact
-                                icon={<MotorcycleIcon size={12} weight="fill" />}
-                                label="On a bike"
-                                value={measured.deliveryTime}
-                            />
-                        )}
-
-                        <Fact
-                            icon={<MapPinIcon size={12} weight="fill" />}
-                            label="Address"
-                            value={active.address}
-                        />
-                    </div>
-
-                    {distance !== null && withinRange === false && (
-                        <p className="mt-3 text-xs font-semibold text-warning-ink">
-                            Too far for delivery from here. You can still collect.
-                        </p>
-                    )}
-
-                    <button
-                        onClick={() => setSelectedBranch(active)}
-                        disabled={isCurrent}
-                        className="mt-4 inline-flex h-11 items-center gap-2 rounded-lg bg-primary-fill px-4 text-sm font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95 disabled:pointer-events-none disabled:opacity-45"
-                    >
-                        {isCurrent
-                            ? <><CheckIcon size={15} weight="bold" /> Ordering from here</>
-                            : `Order from ${active.name}`}
-                    </button>
-                </div>
-            )}
         </section>
     );
 }

@@ -86,6 +86,92 @@ function personPin() {
 }
 
 /**
+ * The journey, on a plate at the middle of the dotted line.
+ *
+ * Three rows, because a customer asks three different questions of a shop on a
+ * map. How long to get there, how far it is, and what happens when I order. The
+ * ride comes off `estimateTravelMinutes` and the delivery estimate off
+ * `estimateDeliveryTime`, and both are built on one riding speed, so the two
+ * times on this plate can never contradict each other or the checkout.
+ */
+function journeyPlate(ride: string, distance: string, outcome: string) {
+    // Estimated from the character count, like the name plate above: nothing
+    // inside a data-URI SVG can measure its own text.
+    const W = Math.round(Math.max(ride.length * 7.2, distance.length * 5.9, outcome.length * 5.9)) + 20;
+    const H = 48;
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+        <rect x="1.4" y="1.4" width="${W - 2.8}" height="${H - 2.8}" rx="7" fill="#ffdd0b" stroke="#ffffff" stroke-width="2.8"/>
+        <text x="${W / 2}" y="15.5" text-anchor="middle" fill="#1a1a1a"
+              font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="700">${esc(ride)}</text>
+        <text x="${W / 2}" y="28" text-anchor="middle" fill="#5b5326"
+              font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="10" font-weight="600">${esc(distance)}</text>
+        <text x="${W / 2}" y="40" text-anchor="middle" fill="#1a1a1a"
+              font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="10" font-weight="700">${esc(outcome)}</text>
+    </svg>`;
+
+    return {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: { width: W, height: H },
+        anchor: { x: W / 2, y: H / 2 },
+    };
+}
+
+/**
+ * Mercator, and back.
+ *
+ * The screen is Mercator, so measuring along a line drawn on it has to be. The
+ * result is scaled back into degrees so that it can be compared with a
+ * longitude: the bare projection is in radians, and mixing the two makes every
+ * north-south leg of a route read as a fifty-seventh of its real length.
+ */
+const mercatorY = (lat: number) =>
+    (180 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + (Math.max(-85, Math.min(85, lat)) * Math.PI / 180) / 2));
+const latFromY = (y: number) =>
+    (2 * Math.atan(Math.exp((y * Math.PI) / 180)) - Math.PI / 2) * (180 / Math.PI);
+
+/**
+ * The halfway point along the line as it is drawn on screen.
+ *
+ * Not the average of the two ends. A road route bends, so its middle is nowhere
+ * near the middle of the pair, and even a straight line between two points has
+ * a middle that plain averaging misses: a degree of latitude is not a fixed
+ * height in Mercator. Over four kilometres nobody would notice that. Over four
+ * hundred the plate sits visibly off the line.
+ */
+function drawnMidpoint(points: { lat: number; lng: number }[]) {
+    if (points.length === 0) return null;
+    if (points.length === 1) return points[0];
+
+    const flat = points.map(p => ({ x: p.lng, y: mercatorY(p.lat) }));
+
+    const spans: number[] = [];
+    let total = 0;
+    for (let i = 1; i < flat.length; i++) {
+        const span = Math.hypot(flat[i].x - flat[i - 1].x, flat[i].y - flat[i - 1].y);
+        spans.push(span);
+        total += span;
+    }
+
+    // Both ends in the same place: a customer standing in the shop.
+    if (total === 0) return points[0];
+
+    let walked = 0;
+    for (let i = 0; i < spans.length; i++) {
+        if (walked + spans[i] >= total / 2) {
+            const along = spans[i] === 0 ? 0 : (total / 2 - walked) / spans[i];
+            return {
+                lat: latFromY(flat[i].y + (flat[i + 1].y - flat[i].y) * along),
+                lng: flat[i].x + (flat[i + 1].x - flat[i].x) * along,
+            };
+        }
+        walked += spans[i];
+    }
+
+    return points[points.length - 1];
+}
+
+/**
  * A quiet base map. Points of interest, transit and road shields are all off:
  * the only things that should read on this map are our kitchens and the person
  * looking at it. The land and water tones come off the mono ramp so the map
@@ -104,13 +190,29 @@ const MAP_STYLE: google.maps.MapTypeStyle[] = [
 ];
 
 export default function BranchMap({
-    coords, branches, activeId, nearestId, onSelectBranch,
+    coords, branches, activeId, nearestId, journey, onSelectBranch,
 }: {
     coords: { latitude: number; longitude: number } | null;
     branches: Branch[];
     activeId: string | null;
-    /** Gets the ring. Null when we do not know where the customer is. */
+    /** Hops every five seconds. Null when we do not know where the customer is. */
     nearestId: string | null;
+    /**
+     * The measured journey to whichever shop is active, or null when we do not
+     * know where the customer is. Must be referentially stable: it drives the
+     * effect that redraws the line.
+     *
+     * `path` is the road route when the server could get one. Without it the
+     * line is drawn straight between the two pins, which is what this did before
+     * routing existed and what it still does when routing is off or refused.
+     */
+    journey: {
+        distanceLabel: string;
+        rideTime: string;
+        deliveryTime: string;
+        withinRadius: boolean;
+        path: { lat: number; lng: number }[] | null;
+    } | null;
     onSelectBranch: (id: string) => void;
 }) {
     const holder = useRef<HTMLDivElement>(null);
@@ -118,6 +220,8 @@ export default function BranchMap({
     const markers = useRef<Record<string, google.maps.Marker>>({});
     const meMarker = useRef<google.maps.Marker | null>(null);
     const range = useRef<google.maps.Circle | null>(null);
+    const route = useRef<google.maps.Polyline | null>(null);
+    const plate = useRef<google.maps.Marker | null>(null);
 
     const [ready, setReady] = useState(false);
     const [failed, setFailed] = useState(false);
@@ -202,12 +306,9 @@ export default function BranchMap({
         }
     }, [ready, branches, coords, onSelectBranch]);
 
-    // Selection, and the ring on the nearest one.
+    // Selection, the delivery ring, and the line from you to the chosen shop.
     useEffect(() => {
         if (!ready || !map.current) return;
-
-        // Somebody who has asked their phone to stop animating things means it.
-        const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
         for (const [id, marker] of Object.entries(markers.current)) {
             const on = id === activeId;
@@ -219,11 +320,6 @@ export default function BranchMap({
                 scale: on ? 1.18 : 1,
             }) as unknown as google.maps.Icon);
             marker.setZIndex(on ? 3 : 1);
-
-            // The nearest kitchen rings until you pick something. Once you have
-            // chosen, the map stops waving at you.
-            const ringing = !still && id === nearestId && (activeId === null || activeId === nearestId);
-            marker.setAnimation(ringing ? google.maps.Animation.BOUNCE : null);
         }
 
         const chosen = activeId ? markers.current[activeId] : null;
@@ -254,7 +350,115 @@ export default function BranchMap({
                 clickable: false,
             });
         }
-    }, [activeId, nearestId, ready, branches]);
+
+        /**
+         * You, the shop, and the journey between the two.
+         *
+         * Dotted rather than solid, because this is the straight line between
+         * two points and not a route down real roads. A solid line would claim
+         * to be one. The plate sits on the middle of it, so the minutes belong
+         * to the journey rather than floating beside a pin.
+         *
+         * Tap a different shop and all three move together: the red pin, the
+         * ring, and this line with its minutes.
+         */
+        route.current?.setMap(null);
+        route.current = null;
+        plate.current?.setMap(null);
+        plate.current = null;
+
+        const me = coords && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude)
+            ? { lat: coords.latitude, lng: coords.longitude }
+            : null;
+
+        if (me && position && journey) {
+            const there = { lat: position.lat(), lng: position.lng() };
+
+            // Real roads when the server found some, the straight line when it
+            // did not. Dotted either way: the styling says "this is the journey"
+            // and does not pretend to know more than it does.
+            const line = journey.path && journey.path.length > 1 ? journey.path : [me, there];
+
+            route.current = new google.maps.Polyline({
+                map: map.current,
+                path: line,
+                // The stroke itself is invisible and the dots ride along it.
+                // This is how the Maps API draws a dotted line.
+                strokeOpacity: 0,
+                icons: [{
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 2.4,
+                        fillColor: '#d90002',
+                        fillOpacity: 1,
+                        strokeOpacity: 0,
+                    },
+                    offset: '0',
+                    repeat: '11px',
+                }],
+                clickable: false,
+                zIndex: 1,
+            });
+
+            // The ride takes as long as it takes whoever makes it, so it shows
+            // on every shop. What changes is the bottom line: this kitchen
+            // brings the food to you, or you go and collect it.
+            const label = drawnMidpoint(line);
+
+            if (label) {
+                plate.current = new google.maps.Marker({
+                    map: map.current,
+                    position: label,
+                    icon: journeyPlate(
+                        journey.rideTime,
+                        journey.distanceLabel,
+                        journey.withinRadius ? `Food in ${journey.deliveryTime}` : 'Collection only',
+                    ) as unknown as google.maps.Icon,
+                    clickable: false,
+                    zIndex: 2,
+                });
+            }
+        }
+    }, [activeId, ready, branches, coords, journey]);
+
+    /**
+     * The nearest kitchen hops once every five seconds.
+     *
+     * It used to bounce without stopping, which is a lot of movement for a shop
+     * that is only sitting there. One hop is enough to say the pin is something
+     * you can tap. Choose a different shop and the map stops waving altogether.
+     */
+    useEffect(() => {
+        if (!ready) return;
+        // Somebody who has asked their phone to stop animating things means it.
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        const id = nearestId && (activeId === null || activeId === nearestId) ? nearestId : null;
+        if (!id) return;
+
+        let settle: ReturnType<typeof setTimeout> | undefined;
+
+        // Read the marker fresh on every hop. The marker effect rebuilds each
+        // pin whenever the branches or the customer's location change, so the
+        // object captured when this effect ran may already be off the map.
+        const hop = () => {
+            const marker = markers.current[id];
+            if (!marker) return;
+            marker.setAnimation(google.maps.Animation.BOUNCE);
+            // A bounce cycle is about 700ms. Clearing it lands the pin.
+            settle = setTimeout(() => marker.setAnimation(null), 700);
+        };
+
+        const first = setTimeout(hop, 1200);
+        const every = setInterval(hop, 5000);
+
+        return () => {
+            clearTimeout(first);
+            clearTimeout(settle);
+            clearInterval(every);
+            markers.current[id]?.setAnimation(null);
+        };
+    }, [ready, activeId, nearestId, branches]);
 
     if (failed) return null;
 
