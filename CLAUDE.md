@@ -30,6 +30,34 @@ why `order_receipt_prints` exists: one row per slip, with the employee, the
 kind, the reprint number, the screen it came from, and a `printed_at` the
 server sets and never accepts from the caller.
 
+**The customer side is a different world from the staff side.** Everything
+under `app/(customer)` plus the shared components it owns runs on the CediBites
+brand: red `#f40002`, yellow `#ffdd0b`, olive green, mono neutrals, American
+Captain over Montserrat. It is scoped to a `.cb-customer` wrapper on
+`app/(customer)/layout.tsx`, so the staff portals below keep their warm
+foundation. Full reference, including the contrast arithmetic behind each role
+and the traps: `docs/CUSTOMER_DESIGN_SYSTEM.md`. Read it before touching a
+customer screen.
+
+Four rules from it are worth repeating here because breaking them is expensive:
+
+- **Red is action, yellow is attention, green is confirmation.** White on
+  `#f40002` is 4.33:1, so a fill carrying a small white label uses
+  `--cb-primary-fill` instead. Yellow never carries white text.
+- **The red block heading is display type only.** At body size the contrast
+  does not hold.
+- **Never attach a photograph to a dish it is not a picture of.** The eight
+  shots in `public/brand` are mapped in `lib/constants/branchPhotos.ts`, and one
+  deal card is deliberately typographic because no full-chicken shot exists.
+- **Radius, page gutter and elevation all come from the token layer**
+  (`--radius-*`, `--page-gutter`, `.card-lift`). If you are typing a pixel value
+  into a customer component, it probably belongs in `app/globals.css`.
+
+**Light mode only, on purpose.** `ThemeProvider` uses `forcedTheme="light"` and
+the root sets `color-scheme: light`. Nothing ever writes `.dark`, so every
+`dark:` utility is inert. The dark token blocks are kept so bringing it back is
+one line rather than a rebuild.
+
 **The inventory portal is the design language.** New staff-facing screens are
 built from `app/inventory/_components` rather than hand-rolled:
 
