@@ -4,6 +4,7 @@ import { orderService } from '../services/order.service';
 import type { CreateOrderRequest, OrdersParams } from '../services/order.service';
 import { getPublicEcho } from '@/lib/echo';
 import type { Order } from '@/types/api';
+import type { ReceiptPrintSource } from '@/types/order';
 
 export const useOrders = (params?: OrdersParams) => {
   const {
@@ -156,7 +157,8 @@ export const useMarkReceiptPrinted = () => {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: (id: number) => orderService.markReceiptPrinted(id),
+    mutationFn: ({ id, source }: { id: number; source?: ReceiptPrintSource }) =>
+      orderService.markReceiptPrinted(id, source),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
     },

@@ -3,6 +3,7 @@ import { FULFILLMENT_LABELS } from '@/lib/constants/order.constants';
 import { toast } from '@/lib/utils/toast';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { RECEIPT_LOGO_DATA_URI } from '@/lib/utils/receiptLogo';
+import { serverNow } from '@/lib/utils/serverClock';
 
 export interface ReceiptBranch {
   name: string;
@@ -158,7 +159,7 @@ function slipHTML(
   // the slip in somebody's hand and the sale it described disagreed by days.
   // The Date row stays the sale; this says when this piece of paper was run.
   const reprintedRow = kind === 'reprint'
-    ? `<tr><td class="label">Reprinted:</td><td>${formatDateTime(new Date())}</td></tr>`
+    ? `<tr><td class="label">Reprinted:</td><td>${formatDateTime(serverNow())}</td></tr>`
     : '';
 
   return `

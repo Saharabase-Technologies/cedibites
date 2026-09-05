@@ -17,6 +17,12 @@ class ToastManager {
     if (!this.container) {
       this.container = document.createElement('div');
       this.container.className = 'fixed top-4 right-4 z-[9999] flex flex-col gap-2';
+      // Cart writes report failures through here now — "could not add that",
+      // "could not remove that" — so the message has to reach a screen reader
+      // as well as the screen. Polite rather than assertive: it should not cut
+      // across whatever is being read, it just needs to arrive.
+      this.container.setAttribute('role', 'status');
+      this.container.setAttribute('aria-live', 'polite');
       document.body.appendChild(this.container);
     }
     return this.container;
@@ -52,10 +58,12 @@ class ToastManager {
       toast.style.transform = 'translateX(100%)';
       toast.style.opacity = '0';
       setTimeout(() => {
-        container.removeChild(toast);
+        // Two toasts expiring together used to race here: the second removeChild
+        // threw because the first had already torn the container off the body.
+        toast.remove();
         if (container.children.length === 0) {
-          document.body.removeChild(container);
-          this.container = null;
+          container.remove();
+          if (this.container === container) this.container = null;
         }
       }, 300);
     }, duration);

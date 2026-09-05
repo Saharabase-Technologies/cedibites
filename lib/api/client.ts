@@ -3,6 +3,7 @@ import { navigateTo } from '@/lib/navigation';
 import { nextRequestId } from '@/lib/feedback/request-id';
 import { recordNetwork } from '@/lib/feedback/network-buffer';
 import { signalProblem } from '@/lib/feedback/auto-prompt';
+import { noteServerTime } from '@/lib/utils/serverClock';
 
 /** Per-request metadata the feedback layer attaches for correlation + timing. */
 interface RequestMeta {
@@ -149,6 +150,10 @@ apiClient.interceptors.request.use(
 // Response interceptor - handle errors globally
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
+    // Learn the server's clock from a header the response already carries. A
+    // till whose own clock is wrong cannot know it, and anything a customer
+    // reads must not be stamped from a machine that is an hour out.
+    noteServerTime(response.headers?.date as string | undefined);
     // Feedback: record the network breadcrumb, then return unchanged.
     recordBreadcrumb(response.config as ConfigWithMeta, response.status);
     // Backend returns data wrapped in { data: ... } for success responses
@@ -156,6 +161,9 @@ apiClient.interceptors.response.use(
     return response.data;
   },
   async (error: AxiosError<ApiResponse>) => {
+    // A failed request still carries the server's clock, and a broken clock is
+    // not the same problem as a broken connection.
+    noteServerTime(error.response?.headers?.date as string | undefined);
     // Feedback: record the breadcrumb (status null when there was no response),
     // then fall through to existing error handling, rethrowing untouched (I4).
     const errStatus = error.response?.status ?? null;

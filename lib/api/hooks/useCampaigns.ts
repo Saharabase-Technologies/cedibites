@@ -55,6 +55,9 @@ export function useCampaignSegments() {
     return {
         segments: data?.segments ?? [],
         seedMode: data?.seed_mode ?? true,
+        // 0 is no limit, which is both the default and what an unloaded
+        // response should mean. A fallback of anything else would have the
+        // audience step flagging a cap that does not exist.
         recipientCap: data?.recipient_cap ?? 0,
         // The rate Hubtel last charged. Falls back to the same figure the
         // backend defaults to, so a slow load never quotes a different price.
@@ -165,6 +168,16 @@ export function useCampaignMutations() {
         onSuccess: invalidate,
     });
 
+    /*
+     * Invalidates like the rest, because the campaign comes back carrying a new
+     * "last tested" stamp that the detail page shows straight away.
+     */
+    const test = useMutation({
+        mutationFn: ({ id, phone }: { id: number; phone: string }) =>
+            campaignService.testCampaign(id, phone),
+        onSuccess: invalidate,
+    });
+
     const send = useMutation({
         mutationFn: (id: number) => campaignService.sendCampaign(id),
         onSuccess: invalidate,
@@ -175,5 +188,5 @@ export function useCampaignMutations() {
         onSuccess: invalidate,
     });
 
-    return { create, update, remove, send, cancel };
+    return { create, update, remove, test, send, cancel };
 }

@@ -8,6 +8,28 @@ belongs in a badge or a pill (see `app/inventory/_components/status-tokens.ts`),
 where it sits with the content it describes and reads the same on every screen
 width. A full border on all four sides is fine; a border on one side is not.
 
+**Times come from the server, never from the machine.** Anything a customer,
+an auditor or a manager will read is stamped with `serverNow()` from
+`lib/utils/serverClock.ts`, not `new Date()`. The clock offset is learned
+passively from the `Date` header on every API response, so it costs nothing.
+
+This is not theoretical. A till at Ashaiman printed a reprint stamped
+01:28:00 pm for an order the server had recorded at 02:28:51 pm, because the
+Reprinted line was the only thing on that slip asking the local computer what
+time it was. That machine was an hour behind and had been since it was set up.
+Ghana is UTC+0 all year with no daylight saving, so a clean one-hour gap can
+never come from our own formatting.
+
+`new Date()` is still fine for anything the machine alone cares about: a
+countdown, an animation, a debounce, how long a ticket has been on screen.
+
+**Anything printed or handed over gets logged, with who and when.** A receipt
+is the document somebody brings back when there is a dispute. `receipt_printed_at`
+holds only the first print and `receipt_print_count` is a bare total, which is
+why `order_receipt_prints` exists: one row per slip, with the employee, the
+kind, the reprint number, the screen it came from, and a `printed_at` the
+server sets and never accepts from the caller.
+
 **The inventory portal is the design language.** New staff-facing screens are
 built from `app/inventory/_components` rather than hand-rolled:
 

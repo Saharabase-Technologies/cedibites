@@ -105,6 +105,28 @@ export function SendConfirmDialog({
                                 </div>
                             )}
 
+                            {/*
+                                Said here, at the last possible moment, because
+                                this is the screen where it can still be acted
+                                on. It does not block the send — plenty of
+                                campaigns are a line of text somebody has read
+                                twice — but "did anybody put this on a phone"
+                                is the question asked afterwards, and it should
+                                not be asked for the first time afterwards.
+                            */}
+                            {!campaign.last_tested_at && !preview.seed_mode && (
+                                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                                    <FlaskIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
+                                    <p className="text-neutral-gray text-sm font-body">
+                                        <span className="text-text-dark font-semibold">
+                                            Nobody has read this on a phone yet.
+                                        </span>{' '}
+                                        Close this and press Test to send yourself a copy first. It costs about two
+                                        pesewas.
+                                    </p>
+                                </div>
+                            )}
+
                             {going === 0 && !preview.seed_mode && (
                                 <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
                                     <WarningCircleIcon size={18} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />

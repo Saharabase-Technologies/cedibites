@@ -107,6 +107,10 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
           stage: order.status,
           since: order.placedAt,
           awaitingAccept: order.status === 'received',
+          // The bell rings for anything the kitchen has not started, which
+          // includes a till sale that arrives already accepted.
+          awaitingKitchen:
+            order.status === 'received' || order.status === 'accepted',
         })),
     [kitchenOrders],
   );

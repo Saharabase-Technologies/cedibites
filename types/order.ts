@@ -4,6 +4,9 @@
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
+/** Which screen a receipt was printed from. Recorded against every print. */
+export type ReceiptPrintSource = 'order_manager' | 'pos_orders' | 'pos_terminal';
+
 export type OrderStatus =
     | 'received'
     | 'accepted'            // kitchen acknowledged

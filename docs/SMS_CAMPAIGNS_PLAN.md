@@ -339,8 +339,15 @@ send cannot drift apart and start disagreeing about who is in "churned".**
 - **Seed-list mode** — send to a fixed list of staff numbers regardless of the chosen segment. This
   is how every mechanism gets proven for a few cedis instead of four figures. **Use this for the
   demo; do not send to the real list to prove the plumbing works.**
-- **Hard recipient cap**, raised deliberately. While the audience is 28,000+ and the UI is new, a
-  mistyped segment must not be able to become a real blast.
+- ~~**Hard recipient cap**, raised deliberately.~~ **Removed 2026-09-04, by the user's decision.**
+  The cap was 2,000, picked before a single campaign had gone out, and it refused the whole customer
+  base. Reaching the whole base is what the console is for. The check is still in the code and
+  `CAMPAIGN_RECIPIENT_CAP` puts a figure back; the default is now 0, meaning no limit. What stands
+  between a wrong click and 28,000 handsets is seed mode and the confirm screen.
+- **Test send**, added 2026-09-04. One copy of the campaign to one number, from the campaign screen,
+  before the real send. It ignores seed mode on purpose: a test delivered to the staff list would
+  show somebody else's handset as proof that yours is fine. It moves no counter on the campaign, and
+  it records who tested it, when, and to which number.
 - **Two-step send** — compose, then approve. The confirm step shows recipient count, character
   count, segment count and projected cost.
 - **Send window** — 8am–7pm, not Sundays, enforced in code. Cheap now, and it leaves the compliance
