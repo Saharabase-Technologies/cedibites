@@ -227,9 +227,15 @@ so it needs no per-item photograph — the menu items mostly have none, which is
 why an item grid rendered as pink rectangles.
 
 Tapping one runs a search and lists every variation with its own price. The
-search term is the **shared substring**, not the label: Drumsticks searches
-`drum` so "7 Drums" and "3 Drumsticks" both come back. A tile only appears if the
-branch actually sells something matching it.
+search term is the **shared substring**, not the label: Jollof searches `jollof`,
+so plain "Jollof Rice" and "Jollof Rice + 3 pieces of Chicken" both come back. A
+tile only appears if the branch actually sells something matching it.
+
+The Drumsticks tile used to be the example here, because the combos were named
+"3 Drumsticks" and "7 Drums" and `drum` swept all of them in. On 2026-09-06 the
+combos were renamed to "3 pieces of Chicken" on prod, so `drum` now returns only
+the two Meat Bites drumstick items. That is what the tile's label promises, so
+the tile got narrower and more honest at the same time.
 
 ### Rules learned the hard way
 

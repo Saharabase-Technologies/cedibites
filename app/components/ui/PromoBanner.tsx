@@ -38,7 +38,7 @@ interface Banner {
 const BANNERS: Banner[] = [
     {
         id: 1,
-        headline: 'Jollof + 3 Drumsticks',
+        headline: 'Jollof Rice + 3 pieces of Chicken',
         subheadline: 'Street Package • GHS 95',
         cta: 'Order Now',
         photo: BRANCH_PHOTOS.jollofDrumsticks,
@@ -62,7 +62,7 @@ const BANNERS: Banner[] = [
     },
     {
         id: 4,
-        headline: 'Fried Rice + 7 Drums + Korkoor',
+        headline: 'Fried Rice + 7 pieces of Chicken + Korkoor',
         subheadline: 'Big Budget Meal • GHS 145',
         cta: 'See Menu',
         photo: BRANCH_PHOTOS.friedRiceDrumsticks,
