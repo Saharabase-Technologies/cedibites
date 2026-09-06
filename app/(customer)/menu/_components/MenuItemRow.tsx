@@ -8,8 +8,6 @@ import { useMenuDiscovery } from '@/app/components/providers/MenuDiscoveryProvid
 import { useCart, makeCartItemId } from '@/app/components/providers/CartProvider';
 import { photoForMenuItem } from '@/lib/constants/branchPhotos';
 
-type Size = NonNullable<SearchableItem['sizes']>[number];
-
 /**
  * Whole cedis when the price is whole, which almost every price here is.
  * "₵65.00" spends four characters saying nothing. The exception is real:
@@ -22,114 +20,23 @@ function cedis(value: number | string | null | undefined): string {
 }
 
 /**
- * Two initials, for a dish nobody has photographed.
+ * A dish, as one line of a menu.
  *
- * No dish on this menu carries an image of its own: every `image_url` from the
- * API is null. Eleven rows borrow one of the nine shots in `public/brand` where
- * that shot is honestly a picture of them, and the other thirty-two get this.
- * A frame kept empty for a photograph that does not exist is just a blank
- * square, and thirty-two of them read as a broken page rather than a plain one.
- */
-const SKIP_WORDS = new Set(['with', 'and', 'the', 'of', 'a', 'in', 'or']);
-
-function initials(name: string): string {
-    const words = name
-        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-        .split(/\s+/)
-        .filter(word => word.length > 0 && !SKIP_WORDS.has(word.toLowerCase()));
-
-    return words.slice(0, 2).map(word => word[0]!.toUpperCase()).join('') || '?';
-}
-
-/**
- * One price, and the button that buys it.
+ * The version before this gave every option its own bordered button with a plus
+ * inside it. Across 43 dishes that came to 62 buttons and 62 outlines on one
+ * screen, inside 43 more outlines, and the food disappeared behind its own
+ * controls.
  *
- * The prices used to be behind the item sheet: the card showed the cheapest of
- * them and you had to open a modal to learn that Assorted Jollof is ₵85. Since
- * no dish has a photograph, these labels and figures are the only thing telling
- * two rows apart, so they belong on the face of the row.
+ * The prices stayed and the buttons went. With only eleven photographs on this
+ * menu the prices are what tells two rows apart, so they are still on the face
+ * of the row, as a line of text rather than as a row of boxes. The action
+ * collapses to one control on the right, which is the only red on the row:
  *
- * In the cart, the chip becomes the quantity control for that exact option. The
- * red is the same red every other action on this side of the product uses, so
- * a chip that has turned red reads as "this is in your order".
- */
-function PriceChip({ item, size, alone }: { item: SearchableItem; size: Size; alone: boolean }) {
-    const { addToCart, removeFromCart, updateQuantity, getCartItem, isLinePending } = useCart();
-    const { isOptionSoldOut } = useMenuDiscovery();
-
-    const cartItem = getCartItem(item.id, size.key);
-    const quantity = cartItem?.quantity ?? 0;
-    const pending = isLinePending(makeCartItemId(item.id, size.key));
-    const soldOut = isOptionSoldOut(size.id);
-
-    const price = cedis(size.price);
-
-    if (soldOut) {
-        return (
-            <span className="flex min-h-10 items-center gap-2 rounded-lg border border-dashed border-hairline px-3 text-sm text-fg-subtle">
-                {!alone && <span>{size.label}</span>}
-                <span className="tabular-nums line-through">{price}</span>
-                <span className="text-xs font-bold uppercase tracking-wide">Off today</span>
-            </span>
-        );
-    }
-
-    if (quantity === 0) {
-        return (
-            <button
-                onClick={() => addToCart(item, size.key)}
-                disabled={pending}
-                aria-label={alone ? `Add ${item.name}, ${price}` : `Add ${size.label} ${item.name}, ${price}`}
-                className="flex min-h-10 items-center gap-2 rounded-lg border border-hairline bg-bg px-3 text-sm transition-colors duration-150 ease-out hover:border-hairline-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-fill disabled:opacity-50"
-            >
-                {!alone && <span className="font-medium text-fg-muted">{size.label}</span>}
-                <span className="font-bold tabular-nums text-fg">{price}</span>
-                {pending
-                    ? <SpinnerGapIcon size={14} className="animate-spin text-fg-muted" />
-                    : <PlusIcon size={14} weight="bold" className="text-primary-ink" />}
-            </button>
-        );
-    }
-
-    return (
-        <div className="flex min-h-10 items-center gap-0.5 rounded-lg bg-primary-fill pl-0.5 pr-0.5 text-white">
-            <button
-                onClick={() => (quantity <= 1
-                    ? removeFromCart(cartItem!.cartItemId)
-                    : updateQuantity(cartItem!.cartItemId, quantity - 1))}
-                disabled={pending}
-                aria-label={quantity <= 1 ? `Remove ${size.label} ${item.name}` : `One fewer ${size.label} ${item.name}`}
-                className="grid h-9 w-9 place-items-center rounded-lg transition-colors duration-150 ease-out hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-            >
-                <MinusIcon size={14} weight="bold" />
-            </button>
-
-            <span className="min-w-5 text-center text-sm font-bold tabular-nums">{quantity}</span>
-
-            <button
-                onClick={() => updateQuantity(cartItem!.cartItemId, quantity + 1)}
-                disabled={pending}
-                aria-label={`One more ${size.label} ${item.name}`}
-                className="grid h-9 w-9 place-items-center rounded-lg transition-colors duration-150 ease-out hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-            >
-                <PlusIcon size={14} weight="bold" />
-            </button>
-
-            {!alone && (
-                <span className="max-w-28 truncate pl-1 pr-2 text-xs font-semibold">{size.label}</span>
-            )}
-        </div>
-    );
-}
-
-/**
- * A dish, at full width.
+ *   one price     it adds that price, then becomes the line's quantity control
+ *   several       it opens the sheet, where you choose and then add
  *
- * It was a card in a two-column grid, and the names on this menu do not fit
- * one: "Assorted Fried Rice / Jollof Rice / Noodles + Full Chicken + Kɔkɔɔ" is
- * sixty-six characters. At half a phone's width that wrapped to four lines
- * above a picture that does not exist. A row gives the name the whole line and
- * puts every price where it can be read without opening anything.
+ * Rows carry no border of their own. They sit on hairlines inside one card per
+ * section, so a section reads as a list rather than as a stack of boxes.
  */
 export default function MenuItemRow({
     item,
@@ -139,81 +46,144 @@ export default function MenuItemRow({
     onOpen: (item: SearchableItem) => void;
 }) {
     const { isItemSoldOut } = useMenuDiscovery();
+    const { addToCart, removeFromCart, updateQuantity, getCartItem, isLinePending } = useCart();
     const [imageFailed, setImageFailed] = useState(false);
 
     const sizes = item.sizes ?? [];
     const soldOut = isItemSoldOut(item);
+    const only = sizes.length === 1 ? sizes[0] : null;
+
     // The dish's own photograph if it ever gets one, otherwise the brand shot
     // that is honestly a picture of it. `photoForMenuItem` refuses far more
     // often than it matches, which is the point of it.
-    const brandPhoto = photoForMenuItem(item.name);
-    const image = item.thumbnail ?? item.image ?? brandPhoto?.src;
-    const tag = item.tags?.[0];
+    const image = item.thumbnail ?? item.image ?? photoForMenuItem(item.name)?.src;
 
-    // "Standard" is what the till calls an option on a dish that only has one.
-    // Printing it beside the price tells a customer nothing.
-    const alone = sizes.length <= 1;
+    // Everything of this dish already in the order, counted across its options.
+    const inCart = sizes.reduce(
+        (total, size) => total + (getCartItem(item.id, size.key)?.quantity ?? 0),
+        0,
+    );
+
+    const onlyLine = only ? getCartItem(item.id, only.key) : undefined;
+    const onlyQuantity = onlyLine?.quantity ?? 0;
+    const pending = only ? isLinePending(makeCartItemId(item.id, only.key)) : false;
+
+    /**
+     * The prices, as a sentence rather than as a set of controls.
+     *
+     * "Plain ₵65 · Assorted ₵85 · Seafood ₵105" is the line a printed menu
+     * carries. It answers what the chips answered without asking the eye to
+     * parse three bordered boxes to do it.
+     */
+    const priceLine = only
+        ? cedis(only.price)
+        : sizes.map(size => `${size.label} ${cedis(size.price)}`).join('   ·   ');
 
     return (
-        <article
-            className={`rounded-2xl border border-hairline bg-surface p-3.5 transition-colors duration-150 ease-out ${
-                soldOut ? 'opacity-55' : 'hover:border-hairline-strong'
-            }`}
-        >
-            {/* The picture, the name and the description are one target. Three
-                separate tab stops onto the same sheet is three times the work
-                for anyone using a keyboard, and a thumbnail that does nothing
-                when tapped is the kind of dead spot a phone punishes you for. */}
+        <article className={`flex items-center gap-3.5 px-4 py-3.5 ${soldOut ? 'opacity-50' : ''}`}>
+
+            {/* The column keeps its width whether or not there is a picture, so
+                every name on the page starts at the same place. Empty is left
+                empty: thirty-two grey squares would be their own kind of noise,
+                and the silence is what makes the eleven real photographs count. */}
             <button
                 onClick={() => onOpen(item)}
-                aria-label={`${item.name}. Open for details`}
-                className="flex w-full gap-3.5 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-fill"
+                tabIndex={-1}
+                aria-hidden={!image}
+                className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg sm:h-16 sm:w-16"
             >
-                <span className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-surface-sunken">
-                    {image && !imageFailed ? (
-                        <Image
-                            src={image}
-                            alt=""
-                            fill
-                            sizes="80px"
-                            className="object-cover"
-                            onError={() => setImageFailed(true)}
-                        />
-                    ) : (
-                        <span className="grid h-full w-full place-items-center text-base font-bold tracking-wide text-fg-subtle">
-                            {initials(item.name)}
+                {image && !imageFailed && (
+                    <Image
+                        src={image}
+                        alt=""
+                        fill
+                        sizes="64px"
+                        className="object-cover"
+                        onError={() => setImageFailed(true)}
+                    />
+                )}
+            </button>
+
+            <button
+                onClick={() => onOpen(item)}
+                className="min-w-0 flex-1 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg"
+            >
+                <span className="flex items-baseline gap-2">
+                    <h3 className="min-w-0 flex-1 text-[15px] font-semibold leading-snug text-fg">
+                        {item.name}
+                    </h3>
+
+                    {soldOut ? (
+                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-fg-muted">
+                            Sold out
                         </span>
-                    )}
+                    ) : item.tags?.[0] ? (
+                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-accent-ink">
+                            {item.tags[0].name}
+                        </span>
+                    ) : null}
                 </span>
 
-                <span className="min-w-0 flex-1">
-                    <span className="flex items-start gap-2">
-                        <h3 className="min-w-0 flex-1 text-[15px] font-bold leading-snug text-fg">{item.name}</h3>
-
-                        {soldOut ? (
-                            <span className="shrink-0 rounded-md bg-surface-sunken px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-fg-muted">
-                                Sold out
-                            </span>
-                        ) : tag ? (
-                            <span className="shrink-0 rounded-md bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent-ink">
-                                {tag.name}
-                            </span>
-                        ) : null}
+                {item.description && (
+                    <span className="mt-0.5 line-clamp-1 block text-[13px] leading-snug text-fg-muted">
+                        {item.description}
                     </span>
+                )}
 
-                    {item.description && (
-                        <span className="mt-1 line-clamp-2 block text-[13px] leading-snug text-fg-muted">
-                            {item.description}
-                        </span>
-                    )}
+                <span className="mt-1 block truncate text-[13px] font-medium leading-snug text-fg">
+                    {priceLine}
                 </span>
             </button>
 
-            {sizes.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                    {sizes.map(size => (
-                        <PriceChip key={size.key} item={item} size={size} alone={alone} />
-                    ))}
+            {!soldOut && (
+                <div className="shrink-0">
+                    {only && onlyQuantity > 0 ? (
+                        <div className="flex h-11 items-center gap-0.5 rounded-lg bg-primary-fill px-0.5 text-white">
+                            <button
+                                onClick={() => (onlyQuantity <= 1
+                                    ? removeFromCart(onlyLine!.cartItemId)
+                                    : updateQuantity(onlyLine!.cartItemId, onlyQuantity - 1))}
+                                disabled={pending}
+                                aria-label={onlyQuantity <= 1 ? `Remove ${item.name}` : `One fewer ${item.name}`}
+                                className="grid h-10 w-8 place-items-center rounded-lg transition-colors duration-150 ease-out hover:bg-white/15"
+                            >
+                                <MinusIcon size={13} weight="bold" />
+                            </button>
+
+                            <span className="min-w-4 text-center text-sm font-bold tabular-nums">
+                                {onlyQuantity}
+                            </span>
+
+                            <button
+                                onClick={() => updateQuantity(onlyLine!.cartItemId, onlyQuantity + 1)}
+                                disabled={pending}
+                                aria-label={`One more ${item.name}`}
+                                className="grid h-10 w-8 place-items-center rounded-lg transition-colors duration-150 ease-out hover:bg-white/15"
+                            >
+                                <PlusIcon size={13} weight="bold" />
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => (only ? addToCart(item, only.key) : onOpen(item))}
+                            disabled={pending}
+                            aria-label={only ? `Add ${item.name}, ${cedis(only.price)}` : `Choose an option for ${item.name}`}
+                            className="relative grid h-11 w-11 place-items-center rounded-lg bg-primary-fill text-white transition-[filter] duration-150 ease-out hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-fill disabled:opacity-50"
+                        >
+                            {pending
+                                ? <SpinnerGapIcon size={16} className="animate-spin" />
+                                : <PlusIcon size={16} weight="bold" />}
+
+                            {/* A dish with several options is chosen on the sheet,
+                                so this cannot be a stepper. It can still say how
+                                many of the dish are already in the order. */}
+                            {inCart > 0 && (
+                                <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-fg px-1 text-[10px] font-bold tabular-nums text-bg">
+                                    {inCart}
+                                </span>
+                            )}
+                        </button>
+                    )}
                 </div>
             )}
         </article>

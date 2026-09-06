@@ -78,7 +78,7 @@ export function MenuNoResults({ query, onClear }: { query: string; onClear: () =
             </p>
             <button
                 onClick={onClear}
-                className="mt-5 inline-flex min-h-11 items-center rounded-lg border border-hairline bg-bg px-5 text-sm font-bold text-fg transition-colors duration-150 ease-out hover:border-hairline-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-fill"
+                className="mt-5 inline-flex min-h-11 items-center rounded-lg border border-hairline bg-bg px-5 text-sm font-bold text-fg transition-colors duration-150 ease-out hover:border-hairline-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg"
             >
                 Show the whole menu
             </button>

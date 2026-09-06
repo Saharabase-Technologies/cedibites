@@ -42,6 +42,15 @@ import { MenuEmpty, MenuError, MenuNoResults, MenuSkeleton } from './_components
  *    sections do not need sorting by price, and one good row beats a choice
  *    between two mediocre densities.
  *
+ * Then a second pass, because the first one was too loud. Every option had
+ * become its own bordered button, which on this menu is 62 buttons inside 43
+ * card outlines, and six red block headings sat over the top of them. The
+ * prices stayed and the boxes went: rows on hairlines inside one card per
+ * section, one action control per row, and headings in plain ink.
+ *
+ * Red now appears in exactly one place on this page, which is the control that
+ * puts food in your cart. That is what the design system says red is for.
+ *
  * Most Popular is a computed section from the API, not a hand-set tag, and it
  * sits first because it answers the question most people arrive with.
  */
@@ -159,7 +168,7 @@ export default function MenuPage() {
                             size={17}
                             weight="bold"
                             className={`pointer-events-none absolute left-3.5 transition-colors duration-150 ease-out ${
-                                searchFocused ? 'text-primary-ink' : 'text-fg-muted'
+                                searchFocused ? 'text-fg' : 'text-fg-muted'
                             }`}
                         />
                         <input
@@ -192,7 +201,7 @@ export default function MenuPage() {
                 {/* The rail belongs to the phone. Desktop reads the same list
                     down the left of the page, where it can stay open. */}
                 {!searching && railSections.length > 1 && (
-                    <div className="md:hidden">
+                    <div className="-mt-0.5 md:hidden">
                         <SectionRail
                             sections={railSections}
                             activeId={currentSection}
@@ -218,7 +227,10 @@ export default function MenuPage() {
                     <BranchCard />
                 </aside>
 
-                <main className="min-w-0 flex-1">
+                {/* Capped rather than stretched. A row is a line of text with a
+                    picture on it, and a line of text 950px wide is a worse read
+                    than the same line at 768 with air beside it. */}
+                <main className="min-w-0 flex-1 md:max-w-3xl">
                     <div className="mb-6 flex items-baseline justify-between gap-4">
                         <BlockHeading tone="plain" size="md" as="h1">Our menu</BlockHeading>
                         {allItems.length > 0 && (
@@ -242,7 +254,7 @@ export default function MenuPage() {
                                 </p>
                                 <button
                                     onClick={clearSearch}
-                                    className="shrink-0 text-sm font-bold text-primary-ink transition-opacity duration-150 ease-out hover:opacity-70"
+                                    className="shrink-0 text-sm font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70"
                                 >
                                     Clear
                                 </button>
@@ -251,7 +263,7 @@ export default function MenuPage() {
                             {searchResults.length === 0 ? (
                                 <MenuNoResults query={searchQuery.trim()} onClear={() => setSearchQuery('')} />
                             ) : (
-                                <div className="grid gap-2.5 xl:grid-cols-2">
+                                <div className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-surface">
                                     {searchResults.map(item => (
                                         <MenuItemRow key={item.id} item={item} onOpen={setDetailItem} />
                                     ))}
@@ -261,18 +273,26 @@ export default function MenuPage() {
                     ) : sections.length === 0 ? (
                         <MenuEmpty branchName={selectedBranch?.name} />
                     ) : (
-                        <div className="flex flex-col gap-12">
+                        <div className="flex flex-col gap-9">
                             {sections.map(section => (
                                 <section
                                     key={section.id}
                                     id={`section-${section.id}`}
-                                    className="scroll-mt-[calc(var(--nav-h)+8rem)] md:scroll-mt-[calc(var(--nav-h)+6rem)]"
+                                    className="scroll-mt-[calc(var(--nav-h)+7rem)] md:scroll-mt-[calc(var(--nav-h)+5.5rem)]"
                                 >
-                                    <div className="mb-4">
-                                        <BlockHeading tone="red" size="sm">{section.label}</BlockHeading>
+                                    {/* Ink, not the red block. Six red blocks down
+                                        one page turned the brand's loudest device
+                                        into wallpaper, and left the eye nowhere to
+                                        rest. The count lives here because the rail
+                                        on a phone no longer carries it. */}
+                                    <div className="mb-3 flex items-baseline gap-3 px-1">
+                                        <BlockHeading tone="plain" size="sm">{section.label}</BlockHeading>
+                                        <span className="shrink-0 text-xs tabular-nums text-fg-subtle">
+                                            {section.count}
+                                        </span>
                                     </div>
 
-                                    <div className="grid gap-2.5 xl:grid-cols-2">
+                                    <div className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-surface">
                                         {section.items.map(item => (
                                             <MenuItemRow key={item.id} item={item} onOpen={setDetailItem} />
                                         ))}
@@ -306,9 +326,9 @@ function BranchButton() {
     return (
         <button
             onClick={openBranchSelector}
-            className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-hairline bg-surface px-3 text-sm font-bold text-fg transition-colors duration-150 ease-out hover:border-hairline-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-fill"
+            className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-hairline bg-surface px-3 text-sm font-bold text-fg transition-colors duration-150 ease-out hover:border-hairline-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg"
         >
-            <StorefrontIcon size={15} weight="fill" className="shrink-0 text-primary-ink" />
+            <StorefrontIcon size={15} weight="fill" className="shrink-0 text-fg-muted" />
             <span className="max-w-24 truncate sm:max-w-40">{selectedBranch.name}</span>
             <CaretDownIcon size={11} weight="bold" className="shrink-0 text-fg-muted" />
         </button>
@@ -346,7 +366,7 @@ function BranchCard() {
 
             <button
                 onClick={openBranchSelector}
-                className="mt-3 text-xs font-bold text-primary-ink transition-opacity duration-150 ease-out hover:opacity-70"
+                className="mt-3 text-xs font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70"
             >
                 Change branch
             </button>

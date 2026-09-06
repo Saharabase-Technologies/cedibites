@@ -11,14 +11,19 @@ export interface MenuSection {
 /**
  * Which part of the menu you are in, and how to get to another part.
  *
- * This replaced a filter. Tapping "Combos" used to hide the other 27 dishes and
- * leave you on a page of its own, and tapping "Soft bites" left you looking at
- * a page with one thing on it, because that category really does hold one item.
- * Jumping instead of filtering means the rest of the menu is always one scroll
- * away, and there is no empty state to design for.
+ * These were filled pills, and the live one was filled red. Red is the action
+ * colour on this side of the product, and which section you are reading is not
+ * an action. The bottom tab bar settled the same argument the same way, with a
+ * white lozenge rather than a red one.
  *
- * The active entry is driven by where the page actually is, not by what was
- * last tapped, so scrolling past the end of Combos moves the rail on its own.
+ * So the live section is simply darker, heavier, and underlined. No fill, no
+ * border, no colour. Six pills across the top of a menu were competing with the
+ * food for the eye, and losing would have been the right outcome.
+ *
+ * Jumping, not filtering. Tapping "Combos" used to hide the other 27 dishes;
+ * tapping "Soft bites" left you on a page with one thing on it, because that
+ * category really does hold one dish. The rail follows the scroll instead, so
+ * the rest of the menu is always a thumb away and there is no empty state.
  */
 export default function SectionRail({
     sections,
@@ -58,7 +63,7 @@ export default function SectionRail({
 
     if (orientation === 'column') {
         return (
-            <nav aria-label="Menu sections" className="flex flex-col gap-1">
+            <nav aria-label="Menu sections" className="flex flex-col">
                 {sections.map(section => {
                     const active = section.id === activeId;
                     return (
@@ -66,16 +71,18 @@ export default function SectionRail({
                             key={section.id}
                             onClick={() => onJump(section.id)}
                             aria-current={active ? 'true' : undefined}
-                            className={`flex min-h-11 items-center gap-3 rounded-lg px-3.5 text-left text-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-fill ${
-                                active
-                                    ? 'bg-primary-fill font-bold text-white'
-                                    : 'font-medium text-fg hover:bg-surface-sunken'
+                            className={`flex min-h-10 items-center gap-3 rounded-sm text-left text-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg ${
+                                active ? 'font-bold text-fg' : 'text-fg-muted hover:text-fg'
                             }`}
                         >
+                            <span
+                                aria-hidden
+                                className={`h-4 w-0.5 shrink-0 rounded-full transition-colors duration-150 ease-out ${
+                                    active ? 'bg-fg' : 'bg-transparent'
+                                }`}
+                            />
                             <span className="min-w-0 flex-1 truncate">{section.label}</span>
-                            <span className={`text-xs tabular-nums ${active ? 'text-white/75' : 'text-fg-muted'}`}>
-                                {section.count}
-                            </span>
+                            <span className="text-xs tabular-nums text-fg-subtle">{section.count}</span>
                         </button>
                     );
                 })}
@@ -85,7 +92,7 @@ export default function SectionRail({
 
     return (
         <div ref={rail} className="no-scrollbar overflow-x-auto">
-            <nav aria-label="Menu sections" className="flex w-max gap-2 px-5 pb-3">
+            <nav aria-label="Menu sections" className="flex w-max gap-5 px-5">
                 {sections.map(section => {
                     const active = section.id === activeId;
                     return (
@@ -94,16 +101,13 @@ export default function SectionRail({
                             data-rail-id={section.id}
                             onClick={() => onJump(section.id)}
                             aria-current={active ? 'true' : undefined}
-                            className={`flex h-10 shrink-0 items-center gap-1.5 rounded-lg px-3.5 text-sm font-bold whitespace-nowrap transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-fill ${
+                            className={`shrink-0 border-b-2 pb-2.5 pt-0.5 text-sm whitespace-nowrap transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg ${
                                 active
-                                    ? 'bg-primary-fill text-white'
-                                    : 'border border-hairline bg-surface text-fg'
+                                    ? 'border-fg font-bold text-fg'
+                                    : 'border-transparent font-medium text-fg-muted'
                             }`}
                         >
                             {section.label}
-                            <span className={`text-xs tabular-nums ${active ? 'text-white/75' : 'text-fg-muted'}`}>
-                                {section.count}
-                            </span>
                         </button>
                     );
                 })}
