@@ -13,7 +13,7 @@ import { useModal } from '@/app/components/providers/ModalProvider';
 import BlockHeading from '@/app/components/ui/BlockHeading';
 import ItemDetailModal from '@/app/components/ui/ItemDetailModal';
 import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryProvider';
-import MenuItemRow from './_components/MenuItemRow';
+import DishEntry from './_components/DishEntry';
 import SectionRail, { type MenuSection } from './_components/SectionRail';
 import { MenuEmpty, MenuError, MenuNoResults, MenuSkeleton } from './_components/MenuStates';
 
@@ -42,14 +42,23 @@ import { MenuEmpty, MenuError, MenuNoResults, MenuSkeleton } from './_components
  *    sections do not need sorting by price, and one good row beats a choice
  *    between two mediocre densities.
  *
- * Then a second pass, because the first one was too loud. Every option had
- * become its own bordered button, which on this menu is 62 buttons inside 43
- * card outlines, and six red block headings sat over the top of them. The
- * prices stayed and the boxes went: rows on hairlines inside one card per
- * section, one action control per row, and headings in plain ink.
+ * Then it was thrown away and built as a board rather than as a catalogue,
+ * because quietening a catalogue was still a catalogue. What a board does
+ * differently:
  *
- * Red now appears in exactly one place on this page, which is the control that
- * puts food in your cart. That is what the design system says red is for.
+ * - The prices are a ladder down the right of each dish, aligned on the cedi
+ *   sign, the way the board above a counter prints them. Each line is itself
+ *   the control. No chips, no outlines, no plus icons.
+ * - A photograph runs full width above the dish it belongs to. The thumbnail
+ *   column it replaces left a hole on every dish nobody has photographed,
+ *   which is thirty-two of the forty-three.
+ * - Dish names are set in the brand face at board size. On a menu with almost
+ *   no photography the names are the picture.
+ * - Sections are a heading and a rule. No cards, no dividers between dishes,
+ *   no boxes anywhere on the page.
+ *
+ * Nothing is coloured until somebody orders it. A ladder line turns red once it
+ * is in the cart and that is the only red the page has.
  *
  * Most Popular is a computed section from the API, not a hand-set tag, and it
  * sits first because it answers the question most people arrive with.
@@ -227,10 +236,7 @@ export default function MenuPage() {
                     <BranchCard />
                 </aside>
 
-                {/* Capped rather than stretched. A row is a line of text with a
-                    picture on it, and a line of text 950px wide is a worse read
-                    than the same line at 768 with air beside it. */}
-                <main className="min-w-0 flex-1 md:max-w-3xl">
+                <main className="min-w-0 flex-1">
                     <div className="mb-6 flex items-baseline justify-between gap-4">
                         <BlockHeading tone="plain" size="md" as="h1">Our menu</BlockHeading>
                         {allItems.length > 0 && (
@@ -263,9 +269,9 @@ export default function MenuPage() {
                             {searchResults.length === 0 ? (
                                 <MenuNoResults query={searchQuery.trim()} onClear={() => setSearchQuery('')} />
                             ) : (
-                                <div className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-surface">
+                                <div className="grid gap-x-12 gap-y-9 xl:grid-cols-2">
                                     {searchResults.map(item => (
-                                        <MenuItemRow key={item.id} item={item} onOpen={setDetailItem} />
+                                        <DishEntry key={item.id} item={item} onOpen={setDetailItem} />
                                     ))}
                                 </div>
                             )}
@@ -273,28 +279,29 @@ export default function MenuPage() {
                     ) : sections.length === 0 ? (
                         <MenuEmpty branchName={selectedBranch?.name} />
                     ) : (
-                        <div className="flex flex-col gap-9">
+                        <div className="flex flex-col gap-14">
                             {sections.map(section => (
                                 <section
                                     key={section.id}
                                     id={`section-${section.id}`}
                                     className="scroll-mt-[calc(var(--nav-h)+7rem)] md:scroll-mt-[calc(var(--nav-h)+5.5rem)]"
                                 >
-                                    {/* Ink, not the red block. Six red blocks down
-                                        one page turned the brand's loudest device
-                                        into wallpaper, and left the eye nowhere to
-                                        rest. The count lives here because the rail
-                                        on a phone no longer carries it. */}
-                                    <div className="mb-3 flex items-baseline gap-3 px-1">
+                                    {/* A heading and a rule, which is what a board
+                                        gives a section. Ink rather than the red
+                                        block: six red blocks down one page turned
+                                        the brand's loudest device into wallpaper.
+                                        The count sits here because the rail on a
+                                        phone no longer carries it. */}
+                                    <div className="mb-6 flex items-baseline gap-3 border-b border-hairline pb-2.5">
                                         <BlockHeading tone="plain" size="sm">{section.label}</BlockHeading>
                                         <span className="shrink-0 text-xs tabular-nums text-fg-subtle">
                                             {section.count}
                                         </span>
                                     </div>
 
-                                    <div className="divide-y divide-hairline overflow-hidden rounded-2xl border border-hairline bg-surface">
+                                    <div className="grid gap-x-12 gap-y-9 xl:grid-cols-2">
                                         {section.items.map(item => (
-                                            <MenuItemRow key={item.id} item={item} onOpen={setDetailItem} />
+                                            <DishEntry key={item.id} item={item} onOpen={setDetailItem} />
                                         ))}
                                     </div>
                                 </section>
