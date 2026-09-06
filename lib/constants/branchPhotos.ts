@@ -146,7 +146,14 @@ export function photoForMenuItem(name: string): BranchPhoto | null {
 
     // Rice or noodles carrying drumsticks, which is exactly what those two
     // takeaway-box frames show.
-    if (has('drum')) {
+    //
+    // The combos stopped saying "drum" on 2026-09-06: "+ 3 Drumsticks" and
+    // "+ 7 Drums" became "+ 3 pieces of Chicken" on prod. The pieces are still
+    // drumsticks and the frames are still honest pictures of these boxes, so
+    // the second phrase is here to keep them. Without it these four rows fall
+    // through to the initials tile and the menu loses four of its eleven
+    // photographs.
+    if (has('drum') || has('pieces of chicken')) {
         // Nobody has photographed a full chicken. The design system already
         // notes this: one deal card is typographic for the same reason.
         if (has('full chicken')) return null;
