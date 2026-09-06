@@ -103,3 +103,65 @@ export function matchMenuItem<T extends { name: string }>(
     }
     return null;
 }
+
+/**
+ * The photograph a menu row may honestly carry, or nothing.
+ *
+ * The house rule is that a photograph is never attached to a dish it is not a
+ * picture of, and on this menu that rule does most of the work. Only nine
+ * photographs exist against 43 dishes, and several of the nine are of
+ * combinations rather than of a plain plate, so a loose match does real damage:
+ * "Fried Rice + Chicken + Fried Egg" would take a bowl of plain fried rice with
+ * neither the chicken nor the egg in the frame, and that is the picture somebody
+ * holds up at the counter when the box arrives.
+ *
+ * So the rules run most specific first, and refuse rather than approximate.
+ * Eleven of the 43 rows come back with a photograph. The rest keep the initials
+ * tile, which is the honest answer until the shots are taken.
+ *
+ * What the frames actually hold, since every rule below is checked against it:
+ *
+ *   drumsticks                drumsticks and three sauces, nothing else
+ *   tilapia                   a WHOLE grilled tilapia, lime, banku, three sauces
+ *   noodles                   a bowl of noodles with beef, sausage and chicken
+ *   friedRice                 a bowl of fried rice and three sauces
+ *   assortedFriedRice         a bowl of assorted fried rice
+ *   jollofDrumsticks          a box of jollof WITH drumsticks, sausage and beef
+ *   friedRiceDrumsticks       a box of fried rice WITH three drumsticks
+ *   friedRiceDrumsticksClose  the same, closer, assorted
+ *   wraps                     four wraps and three sauces
+ */
+export function photoForMenuItem(name: string): BranchPhoto | null {
+    const n = name.toLowerCase().replace(/\s+/g, ' ').trim();
+    const has = (...words: string[]) => words.every(word => n.includes(word));
+
+    if (has('wrap')) return BRANCH_PHOTOS.wraps;
+
+    // Whole tilapia sitting on banku. Not the half, and not the version with an
+    // egg the frame does not have.
+    if (has('banku', 'tilapia') && !has('half') && !has('egg')) return BRANCH_PHOTOS.tilapia;
+
+    // The drumsticks on their own. "Drumsticks (Special Crunch)".
+    if (has('drumsticks (')) return BRANCH_PHOTOS.drumsticks;
+
+    // Rice or noodles carrying drumsticks, which is exactly what those two
+    // takeaway-box frames show.
+    if (has('drum')) {
+        // Nobody has photographed a full chicken. The design system already
+        // notes this: one deal card is typographic for the same reason.
+        if (has('full chicken')) return null;
+        if (has('jollof') && !has('fried rice') && !has('noodles')) return BRANCH_PHOTOS.jollofDrumsticks;
+        if (has('assorted')) return BRANCH_PHOTOS.friedRiceDrumsticksClose;
+        if (has('fried rice') || has('noodles')) return BRANCH_PHOTOS.friedRiceDrumsticks;
+        return null;
+    }
+
+    // A plain plate, and only when the name carries nothing the frame lacks.
+    // An exact match is the whole point: every Economy Pack and every "+ Fried
+    // Egg" falls through to nothing on purpose.
+    if (n === 'noodles') return BRANCH_PHOTOS.noodles;
+    if (n === 'fried rice') return BRANCH_PHOTOS.friedRice;
+    if (n === 'assorted fried rice') return BRANCH_PHOTOS.assortedFriedRice;
+
+    return null;
+}

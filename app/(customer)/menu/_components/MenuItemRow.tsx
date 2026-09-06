@@ -6,6 +6,7 @@ import { MinusIcon, PlusIcon, SpinnerGapIcon } from '@phosphor-icons/react';
 import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryProvider';
 import { useMenuDiscovery } from '@/app/components/providers/MenuDiscoveryProvider';
 import { useCart, makeCartItemId } from '@/app/components/providers/CartProvider';
+import { photoForMenuItem } from '@/lib/constants/branchPhotos';
 
 type Size = NonNullable<SearchableItem['sizes']>[number];
 
@@ -21,12 +22,13 @@ function cedis(value: number | string | null | undefined): string {
 }
 
 /**
- * Two initials, for the tile where a photograph will go.
+ * Two initials, for a dish nobody has photographed.
  *
- * Not one photograph exists on any of the 43 dishes: every `image_url` on the
- * API comes back null. A frame kept empty for a picture that has not been taken
- * is 43 blank squares, so the tile carries the dish's initials until the real
- * shot arrives and takes the same space.
+ * No dish on this menu carries an image of its own: every `image_url` from the
+ * API is null. Eleven rows borrow one of the nine shots in `public/brand` where
+ * that shot is honestly a picture of them, and the other thirty-two get this.
+ * A frame kept empty for a photograph that does not exist is just a blank
+ * square, and thirty-two of them read as a broken page rather than a plain one.
  */
 const SKIP_WORDS = new Set(['with', 'and', 'the', 'of', 'a', 'in', 'or']);
 
@@ -141,7 +143,11 @@ export default function MenuItemRow({
 
     const sizes = item.sizes ?? [];
     const soldOut = isItemSoldOut(item);
-    const image = item.thumbnail ?? item.image;
+    // The dish's own photograph if it ever gets one, otherwise the brand shot
+    // that is honestly a picture of it. `photoForMenuItem` refuses far more
+    // often than it matches, which is the point of it.
+    const brandPhoto = photoForMenuItem(item.name);
+    const image = item.thumbnail ?? item.image ?? brandPhoto?.src;
     const tag = item.tags?.[0];
 
     // "Standard" is what the till calls an option on a dish that only has one.
@@ -163,13 +169,13 @@ export default function MenuItemRow({
                 aria-label={`${item.name}. Open for details`}
                 className="flex w-full gap-3.5 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-fill"
             >
-                <span className="relative h-18 w-18 shrink-0 overflow-hidden rounded-xl bg-surface-sunken">
+                <span className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-surface-sunken">
                     {image && !imageFailed ? (
                         <Image
                             src={image}
                             alt=""
                             fill
-                            sizes="72px"
+                            sizes="80px"
                             className="object-cover"
                             onError={() => setImageFailed(true)}
                         />

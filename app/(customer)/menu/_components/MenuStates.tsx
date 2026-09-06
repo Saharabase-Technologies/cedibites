@@ -16,7 +16,7 @@ export function MenuSkeleton() {
             {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="rounded-2xl border border-hairline bg-surface p-3.5">
                     <div className="flex gap-3.5">
-                        <div className="h-18 w-18 shrink-0 animate-pulse rounded-xl bg-surface-sunken" />
+                        <div className="h-20 w-20 shrink-0 animate-pulse rounded-xl bg-surface-sunken" />
                         <div className="flex-1 pt-1">
                             <div className="h-3.5 w-2/5 animate-pulse rounded-sm bg-surface-sunken" />
                             <div className="mt-2.5 h-3 w-4/5 animate-pulse rounded-sm bg-surface-sunken" />
