@@ -1,6 +1,7 @@
 'use client';
 
 import apiClient from '@/lib/api/client';
+import { useOrderPrefix } from './OrderPrefixProvider';
 import { ArrowRightIcon } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -28,20 +29,35 @@ import { useEffect, useState } from 'react';
  */
 export default function OrderCodeField({ autoFocus = false }: { autoFocus?: boolean }) {
     const router = useRouter();
-    const [prefix, setPrefix] = useState('');
+
+    /**
+     * From the server render when a layout above supplied it, which is the case
+     * on both screens that use this field. Then the letters are in the HTML and
+     * nothing pops into place after the fact.
+     *
+     * The fetch below is the fallback for a field dropped somewhere with no
+     * provider over it. `undefined` means no provider; `null` means the server
+     * asked and got nothing.
+     */
+    const fromServer = useOrderPrefix();
+    const [fetched, setFetched] = useState('');
+    const prefix = fromServer ?? fetched;
+
     const [raw, setRaw] = useState('');
     const [error, setError] = useState('');
 
     useEffect(() => {
+        if (fromServer !== undefined) return;
+
         let live = true;
         apiClient.get('/orders/current-prefix')
             .then(res => {
                 const p = (res as { prefix?: string })?.prefix;
-                if (live && typeof p === 'string' && /^[A-Z]{1,2}$/.test(p)) setPrefix(p);
+                if (live && typeof p === 'string' && /^[A-Z]{1,2}$/.test(p)) setFetched(p);
             })
             .catch(() => { /* They type the whole code, as before. */ });
         return () => { live = false; };
-    }, []);
+    }, [fromServer]);
 
     // A letter in the box means they are typing a code from another cycle, so
     // the prefix gets out of the way rather than doubling it up.

@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { OrderPrefixProvider } from '@/app/components/order/OrderPrefixProvider';
+import { getOrderPrefix } from '@/lib/api/server';
 
 export const metadata: Metadata = {
   title: 'Track an order',
@@ -9,6 +11,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function TrackLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+export default async function TrackLayout({ children }: { children: React.ReactNode }) {
+  const prefix = await getOrderPrefix();
+
+  return <OrderPrefixProvider value={prefix}>{children}</OrderPrefixProvider>;
 }
