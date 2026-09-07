@@ -31,7 +31,7 @@ import BottomSheet from './BottomSheet';
 /** White on #f40002 is 4.33:1: display size or it does not exist. */
 function Block({ children }: { children: React.ReactNode }) {
     return (
-        <span className="inline-block bg-primary px-2.5 py-1.5 font-brand text-[22px] uppercase leading-none tracking-[0.03em] text-white">
+        <span className="inline-block bg-primary px-3 py-2 font-brand text-[34px] uppercase leading-none tracking-[0.03em] text-white sm:text-[40px]">
             {children}
         </span>
     );
@@ -122,7 +122,11 @@ function CodeBoxes({ value, onChange, disabled, invalid }: {
                     onFocus={e => e.target.select()}
                     disabled={disabled}
                     aria-label={`Digit ${i + 1}`}
-                    className={`h-15 min-w-0 flex-1 rounded-xl border-2 bg-surface text-center font-brand text-[30px] leading-none tabular-nums text-fg outline-none transition-colors duration-150 ease-out
+                    /* Montserrat, like the number on the step before it. American
+                       Captain is condensed all-caps: it carries the wordmark and
+                       the block headings, and a digit you are checking against an
+                       SMS is not display type. */
+                    className={`h-15 min-w-0 flex-1 rounded-xl border-2 bg-surface text-center font-body text-[26px] font-bold leading-none tabular-nums text-fg outline-none transition-colors duration-150 ease-out
                         ${invalid ? 'border-danger' : value[i] ? 'border-fg' : 'border-hairline-strong focus:border-fg'}
                         ${disabled ? 'opacity-50' : ''}`}
                 />
@@ -158,16 +162,15 @@ function StepPhone({ onNext }: { onNext: () => void }) {
         <div className="flex flex-col gap-7 px-5 pb-7">
             <div>
                 <Block>Sign in</Block>
-                <p className="mt-4 text-sm leading-relaxed text-fg">
-                    Your number is the account. We text you a six digit code. There is no
-                    password to forget.
+                <p className="mt-4 text-[15px] font-semibold text-fg">
+                    Log in with your phone number.
                 </p>
             </div>
 
             <div>
                 <div className={`flex min-h-14 items-center rounded-xl border-2 bg-surface transition-colors duration-150 ease-out
                     ${error ? 'border-danger' : 'border-hairline-strong focus-within:border-fg'}`}>
-                    <span className="shrink-0 border-r border-hairline py-3 pl-4 pr-3.5 font-brand text-[22px] leading-none tabular-nums text-fg-muted">
+                    <span className="shrink-0 border-r border-hairline py-3.5 pl-4 pr-3.5 font-body text-[19px] font-bold leading-none tabular-nums text-fg-muted">
                         +233
                     </span>
                     <input
@@ -179,20 +182,15 @@ function StepPhone({ onNext }: { onNext: () => void }) {
                         value={phone}
                         onChange={e => { setPhone(e.target.value); setError(''); }}
                         onKeyDown={e => e.key === 'Enter' && submit()}
-                        className="min-w-0 flex-1 bg-transparent px-3.5 font-brand text-[22px] leading-none tabular-nums text-fg outline-none placeholder:text-fg-subtle"
+                        className="min-w-0 flex-1 bg-transparent px-3.5 font-body text-[19px] font-bold leading-none tracking-[0.02em] tabular-nums text-fg outline-none placeholder:font-semibold placeholder:text-fg-subtle"
                     />
                 </div>
                 {error && <div className="mt-2.5"><Problem>{error}</Problem></div>}
             </div>
 
-            <div className="flex flex-col gap-3">
-                <PrimaryButton onClick={submit} disabled={!isValid} loading={loading}>
-                    Text me the code <ArrowRightIcon size={17} weight="bold" />
-                </PrimaryButton>
-                <p className="text-[13px] leading-relaxed text-fg-muted">
-                    One SMS, at your network&apos;s usual rate. Nobody is called.
-                </p>
-            </div>
+            <PrimaryButton onClick={submit} disabled={!isValid} loading={loading}>
+                Text me the code <ArrowRightIcon size={17} weight="bold" />
+            </PrimaryButton>
         </div>
     );
 }
