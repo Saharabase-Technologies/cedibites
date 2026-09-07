@@ -46,9 +46,6 @@ import { MenuEmpty, MenuError, MenuNoResults, MenuSkeleton } from './_components
  * because quietening a catalogue was still a catalogue. What a board does
  * differently:
  *
- * - The prices are a ladder down the right of each dish, aligned on the cedi
- *   sign, the way the board above a counter prints them. Each line is itself
- *   the control. No chips, no outlines, no plus icons.
  * - A photograph runs full width above the dish it belongs to. The thumbnail
  *   column it replaces left a hole on every dish nobody has photographed,
  *   which is thirty-two of the forty-three.
@@ -56,9 +53,13 @@ import { MenuEmpty, MenuError, MenuNoResults, MenuSkeleton } from './_components
  *   no photography the names are the picture.
  * - Sections are a heading and a rule. No cards, no dividers between dishes,
  *   no boxes anywhere on the page.
+ * - The choosing happens in the sheet. A first attempt printed every option and
+ *   its price down the right of each dish, which on "Fried Rice / Jollof + 3
+ *   Drums" squeezed the labels until they truncated to "Fried Ri…". An entry
+ *   now carries what a dish costs and nothing you can press.
  *
- * Nothing is coloured until somebody orders it. A ladder line turns red once it
- * is in the cart and that is the only red the page has.
+ * Nothing is coloured until somebody orders it. A dish already in the order
+ * says so on its last line, and that is the only red the page has.
  *
  * Most Popular is a computed section from the API, not a hand-set tag, and it
  * sits first because it answers the question most people arrive with.

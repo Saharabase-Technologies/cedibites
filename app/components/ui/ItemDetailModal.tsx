@@ -94,7 +94,7 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={handleClose}>
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+                className="absolute inset-0 bg-black/60 transition-opacity duration-300"
                 style={{ opacity: visible ? 1 : 0 }}
             />
 
@@ -115,17 +115,17 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
                     {item.tags && item.tags.length > 0 && (
                         <div className="absolute top-3 left-3 flex gap-2">
                             {item.tags.map(tag => (
-                                <span key={tag.slug} className="flex items-center gap-1 bg-primary text-white text-[11px] font-bold px-2.5 py-1 rounded-lg capitalize">
+                                <span key={tag.slug} className="flex items-center gap-1 bg-accent text-fg text-[11px] font-bold px-2.5 py-1 rounded-lg capitalize">
                                     {tag.name}
                                 </span>
                             ))}
                         </div>
                     )}
-                    <button onClick={handleClose} className="absolute cursor-pointer top-3 right-3 w-9 h-9 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm hover:bg-black/60 transition-colors">
+                    <button onClick={handleClose} className="absolute cursor-pointer top-3 right-3 w-9 h-9 flex items-center justify-center rounded-lg bg-black/45 hover:bg-black/65 transition-colors">
                         <XIcon size={18} weight="bold" className="text-white" />
                     </button>
                     {item.category && (
-                        <span className="absolute bottom-3 left-3 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-white/15 backdrop-blur-sm text-white">
+                        <span className="absolute bottom-3 left-3 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-black/45 text-white">
                             {item.category}
                         </span>
                     )}
@@ -143,7 +143,7 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
                     {/* Variant selector (Plain / Assorted) */}
                     {hasVariants && (
                         <div className="flex flex-col gap-2">
-                            <p className="text-xs font-semibold text-neutral-gray uppercase tracking-wide">Choose Type</p>
+                            <p className="text-xs font-semibold text-neutral-gray uppercase tracking-wide">Choose one</p>
                             <div className="flex gap-2 flex-wrap">
                                 {variantOptions.map((variant) => {
                                     const vQty = getCartItem(item.id, variant)?.quantity ?? 0;
@@ -153,13 +153,13 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
                                         <button
                                             key={variant}
                                             onClick={() => setSelectedVariant(variant)}
-                                            className={`relative flex flex-col items-center px-5 py-2.5 rounded-2xl border-2 transition-all duration-150 min-w-20
-                                                ${isSelected ? 'border-primary bg-primary/10' : 'border-neutral-gray/20 hover:border-primary/40'}`}
+                                            className={`relative flex min-w-20 flex-col items-center rounded-xl border px-5 py-2.5 transition-colors duration-150 ease-out
+                                                ${isSelected ? 'border-fg bg-surface-sunken' : 'border-hairline hover:border-hairline-strong'}`}
                                         >
-                                            <span className={`text-sm font-semibold capitalize ${isSelected ? 'text-primary' : 'text-text-dark dark:text-text-light'}`}>{variant}</span>
-                                            <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-neutral-gray'}`}>₵{vPrice}</span>
+                                            <span className="text-sm font-semibold capitalize text-fg">{variant}</span>
+                                            <span className="text-xs font-bold text-fg-muted">{formatPrice(vPrice)}</span>
                                             {vQty > 0 && (
-                                                <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-lg bg-primary text-white text-[10px] font-bold">
+                                                <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-lg bg-fg text-bg text-[10px] font-bold">
                                                     {vQty}
                                                 </span>
                                             )}
@@ -173,7 +173,7 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
                     {/* Size selector */}
                     {hasSizes && (
                         <div className="flex flex-col gap-2">
-                            <p className="text-xs font-semibold text-neutral-gray uppercase tracking-wide">Choose Size</p>
+                            <p className="text-xs font-semibold text-neutral-gray uppercase tracking-wide">Choose one</p>
                             <div className="flex gap-2 flex-wrap">
                                 {sizes.map((s) => {
                                     const sQty = getCartItem(item.id, s.key)?.quantity ?? 0;
@@ -183,16 +183,16 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
                                         <button
                                             key={s.key}
                                             onClick={() => setSelectedSize(s.key)}
-                                            className={`relative flex flex-col items-center px-5 py-2.5 rounded-2xl border-2 transition-all duration-150 min-w-20
-                                                ${isSelected ? 'border-primary bg-primary/10' : 'border-neutral-gray/20 hover:border-primary/40'}
+                                            className={`relative flex min-w-20 flex-col items-center rounded-xl border px-5 py-2.5 transition-colors duration-150 ease-out
+                                                ${isSelected ? 'border-fg bg-surface-sunken' : 'border-hairline hover:border-hairline-strong'}
                                                 ${sizeSoldOut ? 'opacity-55' : ''}`}
                                         >
-                                            <span className={`text-sm font-semibold ${sizeSoldOut ? 'line-through' : ''} ${isSelected ? 'text-primary' : 'text-text-dark dark:text-text-light'}`}>{s.label}</span>
-                                            <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-neutral-gray'}`}>
-                                                {sizeSoldOut ? 'Sold out' : `₵${s.price}`}
+                                            <span className={`text-sm font-semibold text-fg ${sizeSoldOut ? 'line-through' : ''}`}>{s.label}</span>
+                                            <span className="text-xs font-bold text-fg-muted">
+                                                {sizeSoldOut ? 'Sold out' : formatPrice(s.price)}
                                             </span>
                                             {sQty > 0 && (
-                                                <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-lg bg-primary text-white text-[10px] font-bold">
+                                                <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-lg bg-fg text-bg text-[10px] font-bold">
                                                     {sQty}
                                                 </span>
                                             )}
@@ -209,7 +209,7 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
                             <p className="text-xs text-neutral-gray">
                                 {qty > 0 ? `${qty} × ${formatPrice(activePrice)}` : formatPrice(activePrice)}
                             </p>
-                            <p className="text-2xl font-bold text-primary leading-none">
+                            <p className="text-2xl font-bold text-fg leading-none tabular-nums">
                                 {qty > 0 ? formatPrice(lineTotal) : formatPrice(activePrice)}
                             </p>
                         </div>
@@ -228,7 +228,7 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
                                     onClick={() => { if (qty <= 1) removeFromCart(cartItem!.cartItemId); else updateQuantity(cartItem!.cartItemId, qty - 1); }}
                                     disabled={pending}
                                     aria-label={qty <= 1 ? 'Remove from cart' : 'Decrease quantity'}
-                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-primary text-white active:scale-90 transition-transform disabled:cursor-not-allowed"
+                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-primary text-white transition-transform disabled:cursor-not-allowed"
                                 >
                                     <MinusIcon weight="bold" size={16} />
                                 </button>
@@ -237,7 +237,7 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
                                     onClick={() => updateQuantity(cartItem!.cartItemId, qty + 1)}
                                     disabled={pending}
                                     aria-label="Increase quantity"
-                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-primary text-white active:scale-90 transition-transform disabled:cursor-not-allowed"
+                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-primary text-white transition-transform disabled:cursor-not-allowed"
                                 >
                                     <PlusIcon weight="bold" size={16} />
                                 </button>
@@ -246,7 +246,7 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
                             <button
                                 onClick={() => addToCart(item, cartItemId)}
                                 disabled={pending}
-                                className="flex items-center gap-2 bg-primary hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold px-6 py-3 rounded-2xl transition-all active:scale-95"
+                                className="flex items-center gap-2 bg-primary hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold px-6 py-3 rounded-2xl transition-all"
                             >
                                 <ShoppingCartIcon weight="fill" size={18} />
                                 Add to Cart
