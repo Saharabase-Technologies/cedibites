@@ -81,7 +81,17 @@ export const useOrderByNumber = (orderNumber: string, token?: string) => {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['order', orderNumber],
+    /**
+     * The link holder and the passer-by get different answers, so they get
+     * different cache entries.
+     *
+     * `orders/by-number` returns the delivery address and the contact name only
+     * to a caller holding the tracking token. Keyed on the number alone, the
+     * home screen chip (which holds the token) and the tracking page opened
+     * from a typed-in code shared one slot, and whichever landed first decided
+     * whether the address was on screen. The token itself stays out of the key.
+     */
+    queryKey: ['order', orderNumber, token ? 'linked' : 'public'],
     queryFn: () => orderService.getOrderByNumber(orderNumber, token),
     enabled: !!orderNumber,
   });
@@ -95,11 +105,29 @@ export const useOrderByNumber = (orderNumber: string, token?: string) => {
 
     const channel = echo.channel(`orders.${orderNumber}`);
 
+    /**
+     * The broadcast moves the status and nothing else.
+     *
+     * `OrderBroadcastEvent` carries an `OrderResource`, and this query reads
+     * `orders/by-number`, which is deliberately a different and much smaller
+     * payload. Writing one over the other swapped the shape underneath the
+     * page: the item option arrives as `option_snapshot` on the resource and as
+     * `menu_item_option_snapshot` here, so every line on the tracking screen
+     * quietly lost the part of its name that says which one you ordered, and
+     * `status_history` — the whole timeline — vanished, because the resource has
+     * no such field.
+     *
+     * So the event is trusted for the one field both shapes agree on, and the
+     * refetch behind it brings back the authoritative rest.
+     */
     channel.listen('.order.updated', (event: { type: string; order: Order }) => {
-      queryClient.setQueryData(
-        ['order', orderNumber],
-        (old: Record<string, unknown> | undefined) => old ? { ...old, data: event.order } : old,
+      queryClient.setQueriesData(
+        { queryKey: ['order', orderNumber] },
+        (old: { data?: Record<string, unknown> } | undefined) => (
+          old?.data ? { ...old, data: { ...old.data, status: event.order.status } } : old
+        ),
       );
+      queryClient.invalidateQueries({ queryKey: ['order', orderNumber] });
     });
 
     return () => {

@@ -1,7 +1,8 @@
 'use client';
 
 import { useLocation } from '@/app/components/providers/LocationProvider';
-import { MagnifyingGlassIcon, MapPinIcon, NavigationArrowIcon, SpinnerGapIcon, XIcon } from '@phosphor-icons/react';
+import { locationRecovery, type PermissionRecovery } from '@/lib/utils/locationPermission';
+import { CaretDownIcon, MagnifyingGlassIcon, MapPinIcon, NavigationArrowIcon, SpinnerGapIcon, XIcon } from '@phosphor-icons/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -26,7 +27,7 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
     onChange: (v: string) => void;
     placeholder: string;
 }) {
-    const { coordinates, permissionStatus, requestLocation } = useLocation();
+    const { coordinates, permissionStatus, error, isSupported, deniedWithoutPrompt, requestLocation } = useLocation();
     const [query, setQuery] = useState(value);
     const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -42,6 +43,9 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
      */
     const [awaitingFix, setAwaitingFix] = useState(false);
     const [locationError, setLocationError] = useState('');
+    /** Read after mount: the user agent is a client fact. */
+    const [recovery, setRecovery] = useState<PermissionRecovery | null>(null);
+    const [showSteps, setShowSteps] = useState(false);
     const [searching, setSearching] = useState(false);
     const [googleReady, setGoogleReady] = useState(false);
     const autocompleteRef = useRef<any>(null);
@@ -51,6 +55,8 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
     // A value filled in from somewhere else, such as the "last time" button,
     // has to reach the box the reader is looking at.
     useEffect(() => { setQuery(value); }, [value]);
+
+    useEffect(() => { setRecovery(locationRecovery()); }, []);
 
     useEffect(() => {
         if (window.google?.maps?.places) { setGoogleReady(true); return; }
@@ -169,6 +175,11 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
      * Granting permission is not the same as having a position, and the gap
      * between them is a network round trip on a cold GPS. Whoever pressed the
      * button is still waiting, so the address fills itself when the fix lands.
+     *
+     * It used to stop waiting only on an outright refusal, so a fix that timed
+     * out or came back unavailable left the spinner turning until the page was
+     * reloaded. Anything that is no longer `loading` and has produced no
+     * position has finished, one way or the other.
      */
     useEffect(() => {
         if (!awaitingFix) return;
@@ -179,12 +190,14 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
             return;
         }
 
-        if (permissionStatus === 'denied') {
-            setAwaitingFix(false);
-            setLocating(false);
-            setLocationError('Location is blocked for this site. Type the address instead.');
-        }
-    }, [awaitingFix, coordinates, permissionStatus, fillFromCoordinates]);
+        if (permissionStatus === 'loading') return;
+
+        setAwaitingFix(false);
+        setLocating(false);
+        // A refusal gets the recovery steps below instead. Saying it twice, once
+        // as a red line and once as a panel, helps nobody.
+        setLocationError(permissionStatus === 'denied' ? '' : error ?? 'Could not find you. Type the address instead.');
+    }, [awaitingFix, coordinates, permissionStatus, error, fillFromCoordinates]);
 
     return (
         <div ref={containerRef} className="relative">
@@ -219,7 +232,7 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
               * saw the one control that would have saved them typing an address
               * on a phone. Pressing it is what asks for permission now.
               */}
-            {permissionStatus !== 'denied' && (
+            {permissionStatus !== 'denied' && isSupported && (
                 <button
                     onClick={handleUseMyLocation}
                     disabled={locating || permissionStatus === 'loading'}
@@ -234,6 +247,65 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
 
             {locationError && (
                 <p className="mt-2 text-[13px] font-semibold text-danger-ink">{locationError}</p>
+            )}
+
+            {/*
+              * The refusal, and what to do about it.
+              *
+              * "Location is blocked for this site" was true and useless. On an
+              * iPhone with Chrome's Location switch set to Never the site is
+              * never asked at all, so nothing a customer changes in Chrome will
+              * help them; the switch is three screens into iOS Settings. This
+              * names the screens for the device in hand and offers the retry,
+              * so nobody has to reload to find out whether it worked.
+              */}
+            {permissionStatus === 'denied' && recovery && (
+                <div className="mt-2.5 rounded-xl bg-surface-sunken px-3.5 py-3">
+                    <button
+                        onClick={() => setShowSteps(v => !v)}
+                        aria-expanded={showSteps}
+                        className="flex w-full items-center gap-2 text-left"
+                    >
+                        <span className="min-w-0 flex-1 text-[13px] font-bold text-fg">
+                            {deniedWithoutPrompt
+                                ? 'Your phone is blocking this, not the site'
+                                : 'Location is off for this site'}
+                        </span>
+                        <CaretDownIcon
+                            size={13}
+                            weight="bold"
+                            className={`shrink-0 text-fg-muted transition-transform duration-150 ease-out ${showSteps ? 'rotate-180' : ''}`}
+                        />
+                    </button>
+
+                    {showSteps ? (
+                        <div className="mt-3">
+                            <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-fg-muted">
+                                {recovery.device}
+                            </p>
+                            <ol className="mt-2 flex flex-col gap-2">
+                                {recovery.steps.map((step, i) => (
+                                    <li key={step} className="flex gap-2.5">
+                                        <span className="grid h-4.5 w-4.5 shrink-0 place-items-center rounded-lg bg-fg text-[10px] font-bold tabular-nums text-surface">
+                                            {i + 1}
+                                        </span>
+                                        <span className="text-[13px] leading-relaxed text-fg">{step}</span>
+                                    </li>
+                                ))}
+                            </ol>
+                            <button
+                                onClick={handleUseMyLocation}
+                                className="mt-3 text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70"
+                            >
+                                I have changed it, try again
+                            </button>
+                        </div>
+                    ) : (
+                        <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
+                            Type the address instead, or tap to see how to turn it back on.
+                        </p>
+                    )}
+                </div>
             )}
 
             {showSuggestions && (searching || suggestions.length > 0) && (

@@ -26,6 +26,17 @@ interface AuthContextType {
     // Session
     user: AuthUser | null;
     isLoggedIn: boolean;
+    /**
+     * The stored session has not been read back yet.
+     *
+     * `isLoggedIn` opens false and stays false until `/auth/user` answers, so
+     * for the first few hundred milliseconds of every page load a signed-in
+     * customer is indistinguishable from a guest. Anything that redirects,
+     * hides or offers to sign somebody in has to wait for this to go false, or
+     * it acts on an answer that has not arrived. The account page did not wait,
+     * and bounced its way to the home screen on every visit.
+     */
+    isRestoring: boolean;
     logout: () => void;
 
     // OTP flow
@@ -52,6 +63,48 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * The signed-in customer, kept on the device between page loads.
+ *
+ * `client.ts` has always cleared this key on a 401 that carried the customer
+ * token, but nothing ever wrote it, so there was no cached identity to bridge
+ * the gap while `/auth/user` was in flight. The token alone is not enough: a
+ * name is needed to draw the header, and every screen that asks "is this person
+ * signed in" was answering no until the network came back.
+ *
+ * It is a cache, never the authority. The token decides; this only decides what
+ * is on screen for the moment before the server confirms it.
+ */
+const CACHED_USER_KEY = 'cedibites-auth-user';
+
+function readCachedUser(): AuthUser | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        const raw = window.localStorage.getItem(CACHED_USER_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as Partial<AuthUser>;
+        if (typeof parsed.name !== 'string' || typeof parsed.phone !== 'string') return null;
+        return {
+            id: parsed.id,
+            name: parsed.name,
+            phone: parsed.phone,
+            email: parsed.email,
+            savedAddresses: parsed.savedAddresses ?? [],
+            createdAt: typeof parsed.createdAt === 'number' ? parsed.createdAt : Date.now(),
+        };
+    } catch {
+        return null;
+    }
+}
+
+function writeCachedUser(user: AuthUser | null): void {
+    if (typeof window === 'undefined') return;
+    try {
+        if (user) window.localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
+        else window.localStorage.removeItem(CACHED_USER_KEY);
+    } catch { /* private window */ }
+}
+
 // Helper to convert API User to AuthUser
 function mapApiUserToAuthUser(apiUser: User): AuthUser {
     return {
@@ -75,34 +128,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [requiresRegistration, setRequiresRegistration] = useState(false);
     const [hydrated, setHydrated] = useState(false);
 
-    // ── Load persisted session ──
+    /**
+     * ── Load persisted session ──
+     *
+     * Two steps, and the first one is the fix. The cached user goes into state
+     * synchronously so a returning customer is signed in from the first paint;
+     * the request behind it then confirms or clears. Waiting for the network
+     * before admitting anybody is signed in is what made the session look as
+     * though it had not persisted, because every guard on the customer side
+     * reads `isLoggedIn` and the account page acts on it inside an effect that
+     * runs long before the answer lands.
+     *
+     * Only a 401 signs them out. A dropped connection or a 500 leaves the token
+     * where it is: the server has said nothing about this credential, and
+     * throwing somebody out of their account because the wifi went is worse
+     * than showing them a stale name for a minute.
+     */
     useEffect(() => {
-        const loadUser = async () => {
-            const token = localStorage.getItem('cedibites_auth_token');
-            if (!token) {
-                setHydrated(true);
-                return;
-            }
+        const token = localStorage.getItem('cedibites_auth_token');
 
+        if (!token) {
+            writeCachedUser(null);
+            setHydrated(true);
+            return;
+        }
+
+        const cached = readCachedUser();
+        if (cached) setUser(cached);
+
+        let cancelled = false;
+
+        (async () => {
             try {
                 const response = await authService.getUser();
-                setUser(mapApiUserToAuthUser(response.data));
+                if (cancelled) return;
+                const fresh = mapApiUserToAuthUser(response.data);
+                setUser(fresh);
+                writeCachedUser(fresh);
             } catch (error: unknown) {
+                if (cancelled) return;
                 const status = error instanceof ApiError ? error.status : 0;
                 if (status === 401) {
+                    setUser(null);
+                    writeCachedUser(null);
                     localStorage.removeItem('cedibites_auth_token');
                     localStorage.removeItem(GUEST_SESSION_KEY);
                 }
             } finally {
-                setHydrated(true);
+                if (!cancelled) setHydrated(true);
             }
-        };
+        })();
 
-        loadUser();
+        return () => { cancelled = true; };
     }, []);
 
     const persistUser = (u: AuthUser) => {
         setUser(u);
+        writeCachedUser(u);
     };
 
     // ── Reverb session sync ──
@@ -117,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         channel.listen('.customer.session', (event: { type: string }) => {
             if (event.type === 'session.revoked') {
                 setUser(null);
+                writeCachedUser(null);
                 localStorage.removeItem('cedibites_auth_token');
                 localStorage.removeItem(GUEST_SESSION_KEY);
                 localStorage.removeItem('cedibites-cart-cache');
@@ -143,6 +226,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } finally {
             disconnectCustomerEcho();
             setUser(null);
+            writeCachedUser(null);
             localStorage.removeItem('cedibites_auth_token');
             localStorage.removeItem(GUEST_SESSION_KEY);
             localStorage.removeItem('cedibites-cart-cache');
@@ -342,6 +426,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         <AuthContext.Provider value={{
             user,
             isLoggedIn: !!user,
+            isRestoring: !hydrated,
             logout,
             authStep,
             setAuthStep,

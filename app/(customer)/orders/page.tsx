@@ -119,7 +119,7 @@ function timeAgo(dateString: string): string {
 export default function OrderHistoryPage() {
     const router = useRouter();
     const { openAuth } = useModal();
-    const { isLoggedIn } = useAuth();
+    const { isLoggedIn, isRestoring } = useAuth();
     const { addItem } = useCart();
     const [reordering, setReordering] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -176,8 +176,13 @@ export default function OrderHistoryPage() {
         }
     };
 
-    // Use same layout for loading and content to avoid hydration mismatch
-    const showLoading = !mounted || isLoading;
+    /**
+     * Same layout for loading and content, to avoid a hydration mismatch — and
+     * the restore window counts as loading. Without it a signed-in customer
+     * whose `/orders` call answered before `/auth/user` did was shown the
+     * "you are not signed in" panel over a list that had already arrived.
+     */
+    const showLoading = !mounted || isRestoring || isLoading;
 
     return (
         <div className="min-h-dvh bg-bg">

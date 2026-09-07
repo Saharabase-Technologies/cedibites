@@ -2,7 +2,6 @@
 
 import React from 'react'
 import GreetingBar from '../components/ui/GreetingBar'
-import LiveOrderPill from '../components/ui/LiveOrderPill'
 import HomeHero from '../components/ui/HomeHero'
 import PromoBanner from '../components/ui/PromoBanner'
 import StapleGrid from '../components/ui/StapleGrid'
@@ -27,11 +26,13 @@ export default function Page() {
   return (
     <div className='flex flex-col bg-bg pb-10'>
 
-      {/* The pill renders nothing when there is no order in flight, which is
-          most of the time. The greeting sitting alone is the intended state. */}
-      <div className='page-x flex items-start justify-between gap-4 pt-5 pb-4 md:pt-8'>
+      {/* One live order indicator, not two. LiveOrderPill sat beside this and
+          drew a second chip for the same order whenever a signed-in customer
+          had ordered from the phone in their hand, which is the normal case.
+          GreetingBar's own chip works for guests as well and carries the
+          tracking token, so it is the one that stayed. */}
+      <div className='page-x pt-5 pb-4 md:pt-8'>
         <GreetingBar />
-        <LiveOrderPill />
       </div>
 
       <HomeHero />

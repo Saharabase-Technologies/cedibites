@@ -1,20 +1,92 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-    XIcon, PhoneIcon, ArrowRightIcon, ArrowLeftIcon,
-    CheckCircleIcon, UserIcon, SpinnerGapIcon,
-    DeviceMobileIcon, LockIcon, WarningCircleIcon,
+    ArrowLeftIcon, ArrowRightIcon, SpinnerGapIcon, XIcon,
 } from '@phosphor-icons/react';
-import Image from 'next/image';
 import { useAuth } from '@/app/components/providers/AuthProvider';
 import { useModal } from '@/app/components/providers/ModalProvider';
+import { normalizeGhanaPhone } from '@/app/lib/phone';
+import BottomSheet from './BottomSheet';
 
-// ─── OTP Input (6 individual boxes) ──────────────────────────────────────────
-function OTPInput({ value, onChange, disabled }: {
-    value: string; onChange: (v: string) => void; disabled?: boolean;
+/**
+ * Signing in.
+ *
+ * The old screen was three centred blocks in a row: a tinted circle holding an
+ * icon, a heading, and a line of explanation under it — the shape every
+ * generated interface arrives in. It also hand-rolled its own sheet, its own
+ * backdrop and its own Escape handler while the cart, the item sheet and the
+ * branch picker all shared BottomSheet, so it was the one panel on the customer
+ * side you could not drag shut.
+ *
+ * What replaces it is loud rather than decorated. The red block heading off the
+ * flyers, left aligned; the number set in the display face at a size you can
+ * read across a table; nothing centred, no icon tiles, and one instruction per
+ * screen. The boldness is scale and weight, not a red panel — filling large
+ * chrome with #f40002 is the one thing the brand rules say not to do.
+ */
+
+// ─── Shared pieces ────────────────────────────────────────────────────────────
+
+/** White on #f40002 is 4.33:1: display size or it does not exist. */
+function Block({ children }: { children: React.ReactNode }) {
+    return (
+        <span className="inline-block bg-primary px-2.5 py-1.5 font-brand text-[22px] uppercase leading-none tracking-[0.03em] text-white">
+            {children}
+        </span>
+    );
+}
+
+function PrimaryButton({ children, onClick, disabled, loading }: {
+    children: React.ReactNode;
+    onClick: () => void;
+    disabled?: boolean;
+    loading?: boolean;
+}) {
+    return (
+        <button
+            onClick={onClick}
+            disabled={disabled || loading}
+            className="flex min-h-13 w-full items-center justify-center gap-2 rounded-xl bg-primary-fill px-5 text-[15px] font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95 disabled:bg-surface-sunken disabled:text-fg-subtle"
+        >
+            {loading ? <SpinnerGapIcon size={18} className="animate-spin" /> : children}
+        </button>
+    );
+}
+
+function Problem({ children }: { children: React.ReactNode }) {
+    return <p className="text-[13px] font-semibold leading-relaxed text-danger-ink">{children}</p>;
+}
+
+/**
+ * Focus, after the sheet has taken it.
+ *
+ * BottomSheet moves focus to the panel in an effect so Tab is trapped from the
+ * first keystroke, and a parent's effect runs after its children's. A plain
+ * `autoFocus` here loses that race every time, which is why the keyboard never
+ * came up on the number.
+ */
+function useDelayedFocus(ref: React.RefObject<HTMLInputElement | null>) {
+    useEffect(() => {
+        const t = setTimeout(() => ref.current?.focus(), 60);
+        return () => clearTimeout(t);
+    }, [ref]);
+}
+
+// ─── The code boxes ───────────────────────────────────────────────────────────
+
+function CodeBoxes({ value, onChange, disabled, invalid }: {
+    value: string;
+    onChange: (v: string) => void;
+    disabled?: boolean;
+    invalid?: boolean;
 }) {
     const inputs = useRef<(HTMLInputElement | null)[]>([]);
+
+    useEffect(() => {
+        const t = setTimeout(() => inputs.current[0]?.focus(), 60);
+        return () => clearTimeout(t);
+    }, []);
 
     const handleKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Backspace' && !value[i] && i > 0) inputs.current[i - 1]?.focus();
@@ -24,8 +96,7 @@ function OTPInput({ value, onChange, disabled }: {
         const char = e.target.value.replace(/\D/g, '').slice(-1);
         const arr = value.padEnd(6, ' ').split('');
         arr[i] = char || ' ';
-        const next = arr.join('').replace(/ /g, '');
-        onChange(next);
+        onChange(arr.join('').replace(/ /g, ''));
         if (char && i < 5) inputs.current[i + 1]?.focus();
     };
 
@@ -36,102 +107,99 @@ function OTPInput({ value, onChange, disabled }: {
     };
 
     return (
-        <div className="flex items-center gap-2 justify-center" onPaste={handlePaste}>
+        <div className="flex items-center gap-2" onPaste={handlePaste}>
             {Array.from({ length: 6 }).map((_, i) => (
                 <input
                     key={i}
                     ref={el => { inputs.current[i] = el; }}
-                    type="text" inputMode="numeric" maxLength={1}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete={i === 0 ? 'one-time-code' : 'off'}
+                    maxLength={1}
                     value={value[i] ?? ''}
                     onChange={e => handleChange(i, e)}
                     onKeyDown={e => handleKey(i, e)}
                     onFocus={e => e.target.select()}
                     disabled={disabled}
-                    className={`w-11 h-13 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all
-                        bg-neutral-light dark:bg-brown/40
-                        text-text-dark dark:text-text-light
-                        ${value[i]
-                            ? 'border-primary bg-primary/8 dark:bg-primary/15'
-                            : 'border-neutral-gray/30 focus:border-primary'}
-                        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    aria-label={`Digit ${i + 1}`}
+                    className={`h-15 min-w-0 flex-1 rounded-xl border-2 bg-surface text-center font-brand text-[30px] leading-none tabular-nums text-fg outline-none transition-colors duration-150 ease-out
+                        ${invalid ? 'border-danger' : value[i] ? 'border-fg' : 'border-hairline-strong focus:border-fg'}
+                        ${disabled ? 'opacity-50' : ''}`}
                 />
             ))}
         </div>
     );
 }
 
-// ─── Step: Phone Entry ────────────────────────────────────────────────────
+// ─── Step one: the number ─────────────────────────────────────────────────────
+
 function StepPhone({ onNext }: { onNext: () => void }) {
     const { sendOTP, pendingPhone } = useAuth();
-    const [phone, setPhone] = useState(pendingPhone || '');
+    const [phone, setPhone] = useState(pendingPhone.replace(/^\+233/, '') || '');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const field = useRef<HTMLInputElement>(null);
+    useDelayedFocus(field);
 
-    const isValid = phone.replace(/\D/g, '').length >= 9;
+    const digits = phone.replace(/\D/g, '');
+    const isValid = digits.replace(/^0/, '').length === 9;
 
-    const handleSubmit = async () => {
-        if (!isValid) return;
+    const submit = async () => {
+        if (!isValid || loading) return;
         setLoading(true);
         setError('');
-        const formatted = phone.startsWith('+') ? phone : `+233${phone.replace(/^0/, '')}`;
-        const result = await sendOTP(formatted);
+        const result = await sendOTP(normalizeGhanaPhone(digits.startsWith('0') ? digits : `0${digits}`));
         setLoading(false);
         if (result.success) onNext();
-        else setError(result.error ?? 'Something went wrong');
+        else setError(result.error ?? 'That did not go through. Try again.');
     };
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="text-center">
-                <div className="w-16 h-16 rounded-lg bg-primary/15 flex items-center justify-center mx-auto mb-4">
-                    <PhoneIcon weight="fill" size={28} className="text-primary" />
-                </div>
-                <h2 className="text-xl font-bold text-text-dark dark:text-text-light">Sign in to CediBites</h2>
-                <p className="text-sm text-neutral-gray mt-1">Enter your phone number to receive a verification code</p>
+        <div className="flex flex-col gap-7 px-5 pb-7">
+            <div>
+                <Block>Sign in</Block>
+                <p className="mt-4 text-sm leading-relaxed text-fg">
+                    Your number is the account. We text you a six digit code. There is no
+                    password to forget.
+                </p>
             </div>
 
-            <div className="flex flex-col gap-2">
-                <label className="text-xs font-semibold text-neutral-gray">Phone Number</label>
-                <div className={`flex items-center bg-neutral-light dark:bg-brand-dark border-2 rounded-2xl overflow-hidden transition-all ${error ? 'border-error' : 'border-neutral-gray/40 focus-within:border-primary'}`}>
-                    <div className="flex items-center gap-2 px-4 py-3.5 border-r border-neutral-gray/20 shrink-0">
-                        <span className="text-lg">🇬🇭</span>
-                        <span className="text-sm font-semibold text-neutral-gray">+233</span>
-                    </div>
+            <div>
+                <div className={`flex min-h-14 items-center rounded-xl border-2 bg-surface transition-colors duration-150 ease-out
+                    ${error ? 'border-danger' : 'border-hairline-strong focus-within:border-fg'}`}>
+                    <span className="shrink-0 border-r border-hairline py-3 pl-4 pr-3.5 font-brand text-[22px] leading-none tabular-nums text-fg-muted">
+                        +233
+                    </span>
                     <input
+                        ref={field}
                         type="tel"
+                        inputMode="numeric"
+                        autoComplete="tel-national"
                         placeholder="24 000 0000"
                         value={phone}
                         onChange={e => { setPhone(e.target.value); setError(''); }}
-                        onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                        autoFocus
-                        className="flex-1 px-4 py-3.5 bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/50 text-base font-medium"
+                        onKeyDown={e => e.key === 'Enter' && submit()}
+                        className="min-w-0 flex-1 bg-transparent px-3.5 font-brand text-[22px] leading-none tabular-nums text-fg outline-none placeholder:text-fg-subtle"
                     />
                 </div>
+                {error && <div className="mt-2.5"><Problem>{error}</Problem></div>}
             </div>
 
-            {error && (
-                <p className="flex items-center gap-1.5 text-xs text-error font-medium">
-                    <WarningCircleIcon size={13} weight="fill" /> {error}
+            <div className="flex flex-col gap-3">
+                <PrimaryButton onClick={submit} disabled={!isValid} loading={loading}>
+                    Text me the code <ArrowRightIcon size={17} weight="bold" />
+                </PrimaryButton>
+                <p className="text-[13px] leading-relaxed text-fg-muted">
+                    One SMS, at your network&apos;s usual rate. Nobody is called.
                 </p>
-            )}
-
-            <button
-                onClick={handleSubmit} disabled={!isValid || loading}
-                className={`flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-[0.98]
-                    ${isValid && !loading ? 'bg-primary hover:bg-primary-hover text-white' : 'bg-neutral-gray/20 text-neutral-gray cursor-not-allowed'}`}
-            >
-                {loading ? <SpinnerGapIcon size={20} className="animate-spin" /> : <>Send Code <ArrowRightIcon weight="bold" size={18} /></>}
-            </button>
-
-            <p className="text-xs text-center text-neutral-gray">
-                We&apos;ll send a 6-digit code via SMS. Standard rates may apply.
-            </p>
+            </div>
         </div>
     );
 }
 
-// ─── Step: OTP Verify ─────────────────────────────────────────────────────────
-function StepOTP({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+// ─── Step two: the code ───────────────────────────────────────────────────────
+
+function StepCode({ onBack }: { onBack: () => void }) {
     const { verifyOTP, sendOTP, pendingPhone } = useAuth();
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
@@ -145,59 +213,68 @@ function StepOTP({ onNext, onBack }: { onNext: () => void; onBack: () => void })
         return () => clearTimeout(t);
     }, [cooldown]);
 
-    const handleVerify = async (val: string) => {
+    const verify = async (val: string) => {
         if (val.length !== 6) return;
-        setLoading(true); setError('');
+        setLoading(true);
+        setError('');
         const result = await verifyOTP(val);
         setLoading(false);
-        if (result.success) onNext();
-        else { setError(result.error ?? 'Invalid code'); setCode(''); }
+        // Success moves `authStep` inside the provider, so this step unmounts
+        // on its own. Nothing to do here but hold the failure.
+        if (!result.success) { setError(result.error ?? 'That code did not match.'); setCode(''); }
     };
 
-    const handleResend = async () => {
+    const resend = async () => {
         setResending(true);
         await sendOTP(pendingPhone);
         setResending(false);
         setCooldown(30);
-        setCode(''); setError('');
+        setCode('');
+        setError('');
     };
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="text-center">
-                <div className="w-16 h-16 rounded-lg bg-primary/15 flex items-center justify-center mx-auto mb-4">
-                    <DeviceMobileIcon weight="fill" size={28} className="text-primary" />
-                </div>
-                <h2 className="text-xl font-bold text-text-dark dark:text-text-light">Enter your code</h2>
-                <p className="text-sm text-neutral-gray mt-1">
-                    Code sent to <strong className="text-text-dark dark:text-text-light">{pendingPhone}</strong>
+        <div className="flex flex-col gap-7 px-5 pb-7">
+            <div>
+                <Block>Your code</Block>
+                <p className="mt-4 text-sm leading-relaxed text-fg">
+                    Six digits, on the way to{' '}
+                    <span className="font-bold tabular-nums">{pendingPhone}</span>.
                 </p>
             </div>
 
-            <OTPInput value={code} onChange={val => { setCode(val); if (val.length === 6) handleVerify(val); }} disabled={loading} />
+            <div>
+                <CodeBoxes
+                    value={code}
+                    onChange={val => { setCode(val); setError(''); if (val.length === 6) verify(val); }}
+                    disabled={loading}
+                    invalid={Boolean(error)}
+                />
+                {error && <div className="mt-3"><Problem>{error}</Problem></div>}
+                {loading && (
+                    <p className="mt-3 flex items-center gap-2 text-[13px] font-semibold text-fg-muted">
+                        <SpinnerGapIcon size={14} className="animate-spin" /> Checking
+                    </p>
+                )}
+            </div>
 
-            {error && (
-                <p className="flex items-center justify-center gap-1.5 text-sm text-error font-medium">
-                    <WarningCircleIcon size={14} weight="fill" /> {error}
-                </p>
-            )}
-
-            {loading && (
-                <div className="flex items-center justify-center gap-2 text-sm text-neutral-gray">
-                    <SpinnerGapIcon size={16} className="animate-spin text-primary" /> Verifying...
-                </div>
-            )}
-
-            <div className="flex items-center justify-between text-sm">
-                <button onClick={onBack} className="flex items-center gap-1.5 text-neutral-gray hover:text-primary transition-colors font-medium">
-                    <ArrowLeftIcon weight="bold" size={14} /> Change number
+            <div className="flex items-center justify-between gap-4">
+                <button
+                    onClick={onBack}
+                    className="flex items-center gap-1.5 text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70"
+                >
+                    <ArrowLeftIcon size={13} weight="bold" /> Wrong number
                 </button>
                 {cooldown > 0 ? (
-                    <span className="text-neutral-gray">Resend in {cooldown}s</span>
+                    <span className="text-[13px] tabular-nums text-fg-subtle">Send again in {cooldown}s</span>
                 ) : (
-                    <button onClick={handleResend} disabled={resending} className="text-primary font-semibold hover:underline flex items-center gap-1">
+                    <button
+                        onClick={resend}
+                        disabled={resending}
+                        className="flex items-center gap-1.5 text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70 disabled:opacity-50"
+                    >
                         {resending && <SpinnerGapIcon size={13} className="animate-spin" />}
-                        Resend code
+                        Send it again
                     </button>
                 )}
             </div>
@@ -205,187 +282,124 @@ function StepOTP({ onNext, onBack }: { onNext: () => void; onBack: () => void })
     );
 }
 
-// ─── Step: Name Entry ─────────────────────────────────────────────────────────
+// ─── Step three: the name ─────────────────────────────────────────────────────
+
 function StepName({ onDone }: { onDone: () => void }) {
     const { saveProfile, pendingPhone } = useAuth();
     const [name, setName] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const field = useRef<HTMLInputElement>(null);
+    useDelayedFocus(field);
 
-    const handleSave = async () => {
-        if (!name.trim()) return;
+    const save = async (value: string) => {
         setLoading(true);
         setError('');
-        const result = await saveProfile(name.trim(), pendingPhone);
+        const result = await saveProfile(value, pendingPhone);
         setLoading(false);
         if (result.success) onDone();
-        else setError(result.error ?? 'Registration failed. Please try again.');
-    };
-
-    const handleSkip = async () => {
-        setLoading(true);
-        setError('');
-        const result = await saveProfile('Guest', pendingPhone);
-        setLoading(false);
-        if (result.success) onDone();
-        else setError(result.error ?? 'Registration failed. Please try again.');
+        else setError(result.error ?? 'We could not finish setting that up. Try again.');
     };
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="text-center">
-                <div className="w-16 h-16 rounded-lg bg-primary/15 flex items-center justify-center mx-auto mb-4">
-                    <UserIcon weight="fill" size={28} className="text-primary" />
-                </div>
-                <h2 className="text-xl font-bold text-text-dark dark:text-text-light">What&apos;s your name?</h2>
-                <p className="text-sm text-neutral-gray mt-1">So we can personalise your experience</p>
-            </div>
-
-            <div className="flex flex-col gap-2">
-                <label className="text-xs font-semibold text-neutral-gray">Your Name</label>
-                <div className={`flex items-center bg-neutral-light dark:bg-brand-dark border-2 rounded-2xl overflow-hidden transition-all ${error ? 'border-error' : 'border-neutral-gray/40 focus-within:border-primary'}`}>
-                    <span className="pl-4 text-neutral-gray shrink-0"><UserIcon weight="fill" size={16} /></span>
-                    <input
-                        type="text"
-                        placeholder="e.g. Kwame Mensah"
-                        value={name}
-                        onChange={e => { setName(e.target.value); setError(''); }}
-                        onKeyDown={e => e.key === 'Enter' && handleSave()}
-                        autoFocus
-                        disabled={loading}
-                        className="flex-1 px-3 py-4 bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/50 text-base font-medium"
-                    />
-                </div>
-                {error && (
-                    <p className="flex items-center gap-1.5 text-xs text-error font-medium">
-                        <WarningCircleIcon size={13} weight="fill" /> {error}
-                    </p>
-                )}
-            </div>
-
-            <button
-                onClick={handleSave}
-                disabled={!name.trim() || loading}
-                className={`flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-[0.98]
-                    ${name.trim() && !loading ? 'bg-primary hover:bg-primary-hover text-white' : 'bg-neutral-gray/20 text-neutral-gray cursor-not-allowed'}`}
-            >
-                {loading ? <SpinnerGapIcon size={20} className="animate-spin" /> : <>Continue <ArrowRightIcon weight="bold" size={18} /></>}
-            </button>
-
-            <button
-                onClick={handleSkip}
-                disabled={loading}
-                className="text-sm text-center text-neutral-gray hover:text-primary transition-colors disabled:opacity-50"
-            >
-                Skip for now
-            </button>
-        </div>
-    );
-}
-
-// ─── Step: Welcome ────────────────────────────────────────────────────────────
-function StepDoneWelcome({ onClose }: { onClose: () => void }) {
-    const { user } = useAuth();
-    useEffect(() => { const t = setTimeout(onClose, 2200); return () => clearTimeout(t); }, [onClose]);
-
-    return (
-        <div className="flex flex-col items-center gap-5 py-6 text-center">
-            <div className="relative">
-                <div className="w-20 h-20 rounded-lg bg-secondary/15 flex items-center justify-center">
-                    <CheckCircleIcon weight="fill" size={44} className="text-secondary" />
-                </div>
-                <div className="absolute -top-1 -right-1 w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-sm">
-                    👋
-                </div>
-            </div>
+        <div className="flex flex-col gap-7 px-5 pb-7">
             <div>
-                <h2 className="text-xl font-bold text-text-dark dark:text-text-light">
-                    Welcome{user?.name && user.name !== 'Guest' ? `, ${user.name.split(' ')[0]}!` : ' back!'}
-                </h2>
-                <p className="text-sm text-neutral-gray mt-1">You're signed in. Faster checkout awaits.</p>
+                <Block>Your name</Block>
+                <p className="mt-4 text-sm leading-relaxed text-fg">
+                    It goes on the ticket, so whoever hands over the bag knows whose order it is.
+                </p>
             </div>
-            <div className="w-full bg-neutral-gray/10 rounded-lg h-1 overflow-hidden">
-                <div className="h-full bg-primary rounded-lg animate-[shrink_2.2s_linear_forwards]" style={{ width: '100%' }} />
+
+            <div>
+                <input
+                    ref={field}
+                    type="text"
+                    autoComplete="name"
+                    placeholder="Kwame Mensah"
+                    value={name}
+                    onChange={e => { setName(e.target.value); setError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && name.trim() && save(name.trim())}
+                    disabled={loading}
+                    className={`min-h-14 w-full rounded-xl border-2 bg-surface px-4 text-lg font-semibold text-fg outline-none transition-colors duration-150 ease-out placeholder:font-normal placeholder:text-fg-subtle
+                        ${error ? 'border-danger' : 'border-hairline-strong focus:border-fg'}`}
+                />
+                {error && <div className="mt-2.5"><Problem>{error}</Problem></div>}
+            </div>
+
+            <div className="flex flex-col gap-3">
+                <PrimaryButton onClick={() => save(name.trim())} disabled={!name.trim()} loading={loading}>
+                    Done <ArrowRightIcon size={17} weight="bold" />
+                </PrimaryButton>
+                <button
+                    onClick={() => save('Guest')}
+                    disabled={loading}
+                    className="self-start text-[13px] font-bold text-fg-muted underline underline-offset-4 transition-colors duration-150 ease-out hover:text-fg disabled:opacity-50"
+                >
+                    Skip, I will do it later
+                </button>
             </div>
         </div>
     );
 }
 
-// ─── Auth Modal ───────────────────────────────────────────────────────────────
+// ─── Step four: in ────────────────────────────────────────────────────────────
+
+function StepWelcome({ onClose }: { onClose: () => void }) {
+    const { user } = useAuth();
+    useEffect(() => { const t = setTimeout(onClose, 1800); return () => clearTimeout(t); }, [onClose]);
+
+    const first = user?.name && user.name !== 'Guest' ? user.name.trim().split(/\s+/)[0] : null;
+
+    return (
+        <div className="flex flex-col gap-4 px-5 pb-9 pt-2">
+            <p className="font-brand text-[40px] uppercase leading-none tracking-[0.01em] text-fg">
+                {first ? `Welcome, ${first}` : 'You are in'}
+            </p>
+            <p className="text-sm leading-relaxed text-fg-muted">
+                Your orders and your saved addresses follow this number now, on any phone you
+                sign in from.
+            </p>
+        </div>
+    );
+}
+
+// ─── The sheet ────────────────────────────────────────────────────────────────
+
 export default function AuthModal() {
     const { isAuthOpen, closeAuth } = useModal();
     const { authStep, setAuthStep, user } = useAuth();
 
-    // Reset to phone step when modal opens (unless already logged in)
+    // Opening lands on the number, unless a session is already in hand.
     useEffect(() => {
         if (isAuthOpen && !user) setAuthStep('phone');
-    }, [isAuthOpen]);
+    }, [isAuthOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Close on Escape
-    useEffect(() => {
-        const h = (e: KeyboardEvent) => { if (e.key === 'Escape') closeAuth(); };
-        window.addEventListener('keydown', h);
-        return () => window.removeEventListener('keydown', h);
-    }, [closeAuth]);
+    const close = () => { closeAuth(); setTimeout(() => setAuthStep('idle'), 300); };
 
-    const handleClose = () => { closeAuth(); setTimeout(() => setAuthStep('idle'), 300); };
+    const header = (
+        <div className="flex items-start justify-end px-5 pb-1 pt-1 md:pt-4">
+            <button
+                onClick={close}
+                aria-label="Close"
+                className="-mr-2 grid h-10 w-10 shrink-0 place-items-center rounded-lg text-fg-muted transition-colors duration-150 ease-out hover:bg-surface-sunken hover:text-fg"
+            >
+                <XIcon size={18} weight="bold" />
+            </button>
+        </div>
+    );
+
+    if (!isAuthOpen) return null;
 
     return (
-        <>
-            {/* Backdrop */}
-            <div
-                className={`fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity duration-300
-                    ${isAuthOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-                onClick={handleClose}
-            />
-
-            {/* Modal */}
-            <div className={`fixed z-50 bg-white dark:bg-brand-darker shadow-2xl transition-all duration-300
-                inset-x-0 bottom-0 rounded-t-3xl max-h-[92dvh] overflow-y-auto
-                md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2
-                md:w-105 md:rounded-2xl md:max-h-[90vh]
-                ${isAuthOpen ? 'translate-y-0 md:opacity-100 md:scale-100' : 'translate-y-full md:opacity-0 md:scale-95 md:pointer-events-none'}`}
-            >
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 pt-6 pb-2 shrink-0">
-                    <div className="flex items-center gap-2">
-                        <Image src="/cblogo.webp" alt="CediBites" width={28} height={28} className="object-contain" />
-                        <span className="text-sm font-bold text-neutral-gray">CediBites</span>
-                    </div>
-                    <button onClick={handleClose}
-                        className="w-9 h-9 cursor-pointer flex items-center justify-center rounded-lg hover:bg-neutral-gray/10 transition-colors">
-                        <XIcon size={18} weight="bold" className="text-text-dark dark:text-text-light" />
-                    </button>
-                </div>
-
-                {/* Step content */}
-                <div className="px-6 pb-8 pt-2">
-                    {authStep === 'phone' && (
-                        <StepPhone onNext={() => setAuthStep('otp')} />
-                    )}
-                    {authStep === 'otp' && (
-                        <StepOTP
-                            onNext={() => {}}
-                            onBack={() => setAuthStep('phone')}
-                        />
-                    )}
-                    {authStep === 'naming' && (
-                        <StepName onDone={() => setAuthStep('done')} />
-                    )}
-                    {authStep === 'done' && (
-                        <StepDoneWelcome onClose={handleClose} />
-                    )}
-                </div>
-
-                {/* Secure footer */}
-                {authStep !== 'done' && (
-                    <div className="px-6 pb-5 border-t border-neutral-gray/8 pt-4">
-                        <p className="text-[10px] text-center text-neutral-gray flex items-center justify-center gap-1.5">
-                            <LockIcon size={10} /> Secured · Your data is safe with CediBites
-                        </p>
-                    </div>
-                )}
-            </div>
-        </>
+        <BottomSheet open={isAuthOpen} onClose={close} label="Sign in" header={header}>
+            {/* `idle` falls through to the number. The step is set in an effect
+                when the sheet opens, and a sheet that renders nothing for one
+                frame — or forever, if a signed-in user reaches it — is worse
+                than starting on the first question. */}
+            {(authStep === 'phone' || authStep === 'idle') && <StepPhone onNext={() => setAuthStep('otp')} />}
+            {authStep === 'otp' && <StepCode onBack={() => setAuthStep('phone')} />}
+            {authStep === 'naming' && <StepName onDone={() => setAuthStep('done')} />}
+            {authStep === 'done' && <StepWelcome onClose={close} />}
+        </BottomSheet>
     );
 }

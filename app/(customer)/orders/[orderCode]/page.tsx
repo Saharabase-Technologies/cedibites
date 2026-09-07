@@ -2,13 +2,15 @@
 
 import { photoForMenuItem } from '@/lib/constants/branchPhotos';
 import { useOrderByNumber } from '@/lib/api/hooks/useOrders';
+import { readLastOrder } from '@/lib/orders/lastOrder';
+import { branchTitle } from '@/lib/utils/branchName';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import type { Order as ApiOrder } from '@/types/api';
 import { ArrowLeftIcon, PhoneIcon, ShareIcon, SpinnerGapIcon } from '@phosphor-icons/react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { use, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import Timeline from './_components/Timeline';
 import { trackOrder } from './_components/trackOrder';
 
@@ -37,9 +39,20 @@ function Line({ item }: { item: ApiOrder['items'][number] }) {
     // The snapshot first: it is what the menu said at the moment of the order,
     // and a dish renamed since then must not rewrite somebody's old receipt.
     const name = item.menu_item_snapshot?.name ?? item.menu_item?.name ?? 'Item';
+    /**
+     * The receipt name, in the same order of preference as everywhere else.
+     *
+     * The snapshot's `display_name` is the name the till prints. It is null on
+     * every order placed before that field was filled in, and this screen used
+     * to skip straight from there to `option_label` — a menu pill like
+     * "Assorted" or "Fried Rice" — because the payload carried no live option
+     * to look at. The live `display_name` sits between the two now, so an old
+     * order picks up the proper name the moment the menu has one.
+     */
     const label = getOrderItemLineLabel({
         name,
         sizeLabel: item.menu_item_option_snapshot?.display_name
+            ?? item.menu_item_option?.display_name
             ?? item.menu_item_option_snapshot?.option_label
             ?? item.menu_item_option?.option_label
             ?? '',
@@ -85,6 +98,8 @@ export default function TrackOrderPage({ params }: { params: Promise<{ orderCode
     const { orderCode } = use(params);
     const router = useRouter();
 
+    const code = decodeURIComponent(orderCode).toUpperCase();
+
     /**
      * The secret half of the link we texted.
      *
@@ -92,8 +107,29 @@ export default function TrackOrderPage({ params }: { params: Promise<{ orderCode
      * into the tracking box. The order shows either way; only the address it is
      * going to depends on this.
      */
-    const token = useSearchParams().get('t') ?? undefined;
-    const { order, isLoading, error } = useOrderByNumber(decodeURIComponent(orderCode).toUpperCase(), token);
+    const linkToken = useSearchParams().get('t') ?? undefined;
+
+    /**
+     * Or the copy this phone kept when it placed the order.
+     *
+     * Read after mount, because localStorage during render makes the server
+     * pass and the first client pass disagree. Somebody looking at the order on
+     * the device that placed it is not a stranger who guessed the code, and
+     * telling them the address is only on their SMS — while they hold the phone
+     * that typed it — is the app refusing to recognise its own customer.
+     *
+     * Only for this exact order. A stored token belongs to one order number and
+     * is worthless against any other.
+     */
+    const [deviceToken, setDeviceToken] = useState<string | undefined>(undefined);
+    useEffect(() => {
+        if (linkToken) return;
+        const last = readLastOrder();
+        if (last?.number?.toUpperCase() === code) setDeviceToken(last.token);
+    }, [linkToken, code]);
+
+    const token = linkToken ?? deviceToken;
+    const { order, isLoading, error } = useOrderByNumber(code, token);
 
     if (isLoading) {
         return (
@@ -159,7 +195,7 @@ export default function TrackOrderPage({ params }: { params: Promise<{ orderCode
                 <div className="rounded-xl bg-surface-sunken px-4 py-4">
                     <p className="text-sm font-bold text-fg">This order was cancelled</p>
                     <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
-                        Nothing is being cooked. Call {order.branch?.name ?? 'the branch'} on{' '}
+                        Nothing is being cooked. Call {branchTitle(order.branch?.name)} on{' '}
                         {order.branch?.phone ?? 'the branch line'} if that is a surprise.
                     </p>
                 </div>
@@ -213,26 +249,52 @@ export default function TrackOrderPage({ params }: { params: Promise<{ orderCode
                 </div>
             </section>
 
-            {/* ── Where it is going, and who to ring ──────────────────────── */}
+            {/* ── Where it is going, and who to ring ────────────────────────
+              *
+              * Pickup says the shop, in full. "Cooked at Ashaiman" named a town
+              * of a quarter of a million people and left the collector to work
+              * out which building; the branch name and its street are the whole
+              * answer to the only question this section exists for.
+              *
+              * Delivery leads with the destination, and the kitchen is the
+              * quieter second line. The address shows for whoever holds the
+              * tracking link, whoever is signed in to the account that placed
+              * the order, and whoever is on the device that placed it. A
+              * forwarded link without the token shows the stage and the money
+              * and never says whose door this is.
+              */}
             <section className="pt-8">
                 <Heading>{delivery ? 'Where it goes' : 'Where you collect it'}</Heading>
-                <div className="mt-4 flex flex-col gap-1">
-                    {delivery && (
-                        order.delivery_address
-                            ? <p className="text-sm leading-relaxed text-fg">{order.delivery_address}</p>
-                            /* No token, so no address. Said plainly rather than
-                               left as a gap somebody reads as a broken page. */
-                            : <p className="text-sm leading-relaxed text-fg-muted">
-                                The address is only shown on the tracking link we texted you.
+
+                {delivery ? (
+                    <div className="mt-4 flex flex-col gap-4">
+                        {order.delivery_address ? (
+                            <p className="text-base font-semibold leading-relaxed text-fg">
+                                {order.delivery_address}
                             </p>
-                    )}
-                    <p className="text-sm text-fg-muted">
-                        Cooked at <span className="font-bold text-fg">{order.branch?.name ?? 'the branch'}</span>
-                    </p>
-                    {!delivery && order.branch?.address && (
-                        <p className="text-sm leading-relaxed text-fg-muted">{order.branch.address}</p>
-                    )}
-                </div>
+                        ) : (
+                            <p className="text-sm leading-relaxed text-fg-muted">
+                                The address is on the tracking link we texted, and on the phone
+                                that placed the order. Sign in to see it here.
+                            </p>
+                        )}
+                        {/* Which kitchen, and nothing more. Its street is of no
+                            use to somebody waiting at their own door, and the
+                            call button below is the reason they would want it. */}
+                        <p className="text-sm text-fg-muted">
+                            From <span className="font-bold text-fg">{branchTitle(order.branch?.name)}</span>
+                        </p>
+                    </div>
+                ) : (
+                    <div className="mt-4 flex flex-col gap-1">
+                        <p className="font-brand text-[26px] uppercase leading-none tracking-[0.01em] text-fg">
+                            {branchTitle(order.branch?.name)}
+                        </p>
+                        {order.branch?.address && (
+                            <p className="text-sm leading-relaxed text-fg-muted">{order.branch.address}</p>
+                        )}
+                    </div>
+                )}
 
                 {order.branch?.phone && (
                     <a
@@ -240,7 +302,7 @@ export default function TrackOrderPage({ params }: { params: Promise<{ orderCode
                         className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-surface-sunken px-4 text-sm font-bold text-fg transition-opacity duration-150 ease-out hover:opacity-80"
                     >
                         <PhoneIcon size={15} weight="fill" />
-                        Call {order.branch.name}
+                        Call {branchTitle(order.branch.name)}
                     </a>
                 )}
             </section>

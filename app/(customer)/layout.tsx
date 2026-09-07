@@ -3,8 +3,7 @@ import { ModalProvider } from '../components/providers/ModalProvider';
 import { AuthProvider } from '../components/providers/AuthProvider';
 import { MenuDiscoveryProvider } from '../components/providers/MenuDiscoveryProvider';
 import { CartProvider } from '../components/providers/CartProvider';
-import LocationRequestModal from '../components/ui/LocationRequestModal';
-import BranchSelectorModal from '../components/ui/BranchSelectorModal';
+import LocationSheet from '../components/ui/LocationSheet';
 import Navbar, { NavbarSpacer } from '../components/layout/Navbar';
 import BottomNav, { BottomNavSpacer } from '../components/layout/BottomNav';
 import CartDrawer from '../components/ui/CartDrawer';
@@ -99,8 +98,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                             <CartDrawer />
                             <AuthModal />
                             <SearchSheet />
-                            <LocationRequestModal />
-                            <BranchSelectorModal />
+                            <LocationSheet />
                         </CartProvider>
                     </MenuDiscoveryProvider>
                 </AuthProvider>

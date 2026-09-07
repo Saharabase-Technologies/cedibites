@@ -672,6 +672,28 @@ body::-webkit-scrollbar-thumb:hover {
     .animate-dock-in { animation: none !important; }
   }
 
+  /*
+     The live dot on an order that is genuinely moving.
+
+     A ring leaves the dot and fades, once every two seconds. It is on the home
+     screen chip only, where the status behind it is fed by the Reverb
+     subscription in `useOrderByNumber` — the dot is a claim that this number is
+     live, so it must never sit on a figure that is polled or cached.
+
+     Two elements: the dot itself never moves, because a pulsing size on a 8px
+     mark reads as a wobble rather than a heartbeat.
+  */
+  @keyframes cb-live-ring {
+    0%   { opacity: 0.55; transform: scale(1); }
+    70%  { opacity: 0;    transform: scale(2.6); }
+    100% { opacity: 0;    transform: scale(2.6); }
+  }
+  .animate-live-ring { animation: cb-live-ring 2s cubic-bezier(0, 0, 0.2, 1) infinite; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-live-ring { animation: none !important; opacity: 0 !important; }
+  }
+
   /* Hide scrollbar for Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
     display: none;

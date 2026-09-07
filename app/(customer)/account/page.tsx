@@ -135,17 +135,33 @@ function EditableField({ label, value, placeholder, onSave, type = 'text' }: {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function AccountPage() {
-    const { user, isLoggedIn, logout, updateProfile } = useAuth();
+    const { user, isLoggedIn, isRestoring, logout, updateProfile } = useAuth();
     const { openAuth } = useModal();
     const router = useRouter();
 
-    // Redirect guests to home
+    /**
+     * Guests go home. Signed-in customers do not.
+     *
+     * This effect used to run on the first render, when `isLoggedIn` is false
+     * for everybody because the stored session has not been read back yet. So a
+     * signed-in customer opening their own account was thrown to the home screen
+     * and shown the sign-in sheet, every single time, and the session looked as
+     * though it had not persisted when it had. Nothing is decided until the
+     * restore is finished.
+     */
     useEffect(() => {
-        if (!isLoggedIn) {
-            openAuth();
-            router.replace('/');
-        }
-    }, [isLoggedIn, openAuth, router]);
+        if (isRestoring || isLoggedIn) return;
+        openAuth();
+        router.replace('/');
+    }, [isRestoring, isLoggedIn, openAuth, router]);
+
+    if (isRestoring) {
+        return (
+            <div className="page-x mx-auto flex min-h-[60svh] max-w-2xl items-center justify-center">
+                <SpinnerGapIcon size={26} className="animate-spin text-fg-subtle" />
+            </div>
+        );
+    }
 
     if (!isLoggedIn || !user) return null;
 
