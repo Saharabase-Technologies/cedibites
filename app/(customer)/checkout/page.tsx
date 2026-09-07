@@ -332,6 +332,9 @@ export default function CheckoutPage() {
                                     momoNumber={momoNumber}
                                     setMomoNumber={setMomoOverride}
                                     onMomoChecked={setMomoCheck}
+                                    totals={totals}
+                                    serviceLabel={serviceLabel}
+                                    moneyReady={moneyReady}
                                 />
 
                                 {/* Under the question, not beside it. On a

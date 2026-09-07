@@ -84,11 +84,11 @@ export default function OrderPlaced({ orderNumber, orderType, contact }: {
 
             <p className="mt-5 text-sm leading-relaxed text-fg">
                 {orderType === 'delivery'
-                    ? <>The kitchen at {selectedBranch?.name ?? 'the branch'} has it. A rider brings it to {where} in about 25 to 40 minutes.</>
-                    : <>The kitchen at {selectedBranch?.name ?? 'the branch'} has it. Collect it from {where} in about 15 to 20 minutes.</>}
+                    ? <>The kitchen at {selectedBranch?.name ?? 'the branch'} has it. A rider will bring it to {where}.</>
+                    : <>The kitchen at {selectedBranch?.name ?? 'the branch'} has it. Collect it from {where}.</>}
             </p>
             <p className="mt-2 text-[13px] leading-relaxed text-fg-muted">
-                The tracking link is on its way to {contact.phone} by SMS.
+                Updates on your order go to {contact.phone} by SMS.
             </p>
 
             <div className="mt-8 flex flex-col gap-3">
@@ -96,7 +96,7 @@ export default function OrderPlaced({ orderNumber, orderType, contact }: {
                     href={`/orders/${orderNumber}`}
                     className="flex min-h-13 items-center justify-center gap-2 rounded-xl bg-primary-fill px-5 text-[15px] font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95"
                 >
-                    Follow this order <ArrowRightIcon size={16} weight="bold" />
+                    Track my order <ArrowRightIcon size={16} weight="bold" />
                 </Link>
                 <Link
                     href="/menu"
@@ -109,12 +109,20 @@ export default function OrderPlaced({ orderNumber, orderType, contact }: {
             {/* ── Claiming the account ─────────────────────────────────────── */}
             {state === 'idle' && (
                 <div className="mt-10 border-t border-hairline pt-6">
-                    <h2 className="font-brand text-[15px] uppercase leading-none tracking-[0.04em] text-fg">
-                        Keep your order history
+                    <h2 className="font-brand text-2xl uppercase leading-none tracking-[0.01em] text-fg">
+                        Become a CediBiter
                     </h2>
+                    <p className="mt-3 text-sm leading-relaxed text-fg">
+                        This order lives on this phone and nowhere else. Change your handset and it is gone,
+                        along with the address you just typed in.
+                    </p>
+                    <p className="mt-2.5 text-sm leading-relaxed text-fg">
+                        An account carries every order you have placed to any phone you sign in from, fills
+                        your details in next time, and keeps you on the list for the deals and discounts that
+                        go out by SMS.
+                    </p>
                     <p className="mt-2.5 text-[13px] leading-relaxed text-fg-muted">
-                        Every order this number has ever placed becomes yours to see, on any phone you sign in
-                        from. We send a code to {contact.phone} to check the number is yours.
+                        We send a code to {contact.phone} to check the number is yours.
                     </p>
                     {error && <p className="mt-2.5 text-[13px] font-semibold text-danger-ink">{error}</p>}
                     <div className="mt-4 flex items-center gap-5">
@@ -122,7 +130,7 @@ export default function OrderPlaced({ orderNumber, orderType, contact }: {
                             onClick={sendCode}
                             className="min-h-11 rounded-xl bg-surface-sunken px-5 text-sm font-bold text-fg transition-opacity duration-150 ease-out hover:opacity-80"
                         >
-                            Send me the code
+                            Claim my account
                         </button>
                         <button
                             onClick={() => setState('dismissed')}
@@ -181,7 +189,7 @@ export default function OrderPlaced({ orderNumber, orderType, contact }: {
             {state === 'saved' && !isLoggedIn && (
                 <p className="mt-10 flex items-center gap-2 border-t border-hairline pt-6 text-[13px] font-semibold text-fg">
                     <CheckIcon size={14} weight="bold" className="shrink-0 text-success-ink" />
-                    Signed in. Your order history is yours.
+                    You are a CediBiter. Every order you place is yours to see.
                 </p>
             )}
         </div>

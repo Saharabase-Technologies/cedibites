@@ -82,7 +82,16 @@ function Pending({ w = 'w-16' }: { w?: string }) {
     return <span aria-hidden className={`inline-block h-3.5 ${w} rounded-sm bg-surface-sunken align-middle`} />;
 }
 
-function Money({ totals, serviceLabel, ready }: { totals: Totals; serviceLabel: string; ready: boolean }) {
+/**
+ * Every charge on the order, itemised.
+ *
+ * Exported because the payment question needs it too. On a phone the strip at
+ * the top of checkout is closed by default, so somebody typing their MoMo
+ * number could see a total and no working. A service charge nobody was shown
+ * before they were charged it is the kind of thing people ring the branch
+ * about.
+ */
+export function Money({ totals, serviceLabel, ready }: { totals: Totals; serviceLabel: string; ready: boolean }) {
     if (!ready) {
         return (
             <div className="flex flex-col gap-3 text-sm">

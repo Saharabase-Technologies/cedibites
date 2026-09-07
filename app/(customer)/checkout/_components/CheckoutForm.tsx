@@ -8,6 +8,8 @@ import AddressSearchField from './AddressSearchField';
 import BranchSelectorSheet from './BranchSelectorSheet';
 import { Field, Reveal, StepHeading, controlClass } from './Field';
 import MomoField, { type MomoCheck } from './MomoField';
+import { Money } from './OrderPanel';
+import type { Totals } from './pricing';
 import type { RecalledDetails } from './recall';
 import { STAGES, stageIsBefore } from './types';
 import type { ContactDetails, OrderType, PaymentMethod, Stage } from './types';
@@ -170,6 +172,7 @@ export default function CheckoutForm({
     paymentMethod, setPaymentMethod, methods,
     contact, setContact, recalled,
     momoNumber, setMomoNumber, onMomoChecked,
+    totals, serviceLabel, moneyReady,
 }: {
     stage: Stage;
     onJumpTo: (s: Stage) => void;
@@ -185,6 +188,9 @@ export default function CheckoutForm({
     momoNumber: string;
     setMomoNumber: (v: string) => void;
     onMomoChecked: (c: MomoCheck) => void;
+    totals: Totals;
+    serviceLabel: string;
+    moneyReady: boolean;
 }) {
     const { selectedBranch } = useBranch();
     const [branchSheet, setBranchSheet] = useState(false);
@@ -334,9 +340,6 @@ export default function CheckoutForm({
                                     </div>
                                 </div>
 
-                                <p className="text-sm leading-relaxed text-fg-muted">
-                                    The tracking link is sent to this number by SMS.
-                                </p>
                             </div>
                         )}
 
@@ -367,6 +370,12 @@ export default function CheckoutForm({
                                         onChecked={onMomoChecked}
                                     />
                                 )}
+
+                                {/* What they are agreeing to, itemised, on the
+                                    question where they agree to it. */}
+                                <div className="border-t border-hairline pt-5">
+                                    <Money totals={totals} serviceLabel={serviceLabel} ready={moneyReady} />
+                                </div>
 
                                 {noteOpen ? (
                                     <Field label={orderType === 'delivery' ? 'Note for the rider' : 'Note for the kitchen'}>
