@@ -112,10 +112,34 @@ function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
+/** Set once the customer has picked a branch themselves. */
+const CHOSEN_KEY = 'selected-branch-chosen';
+
 export function BranchProvider({ children }: { children: ReactNode }) {
-    const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+    const [selectedBranch, setSelectedBranchState] = useState<Branch | null>(null);
     const { coordinates } = useLocation();
     const previousCoordinatesRef = useRef<{ latitude: number; longitude: number } | null>(null);
+
+    /**
+     * Whether the branch on screen was the customer's own decision.
+     *
+     * Everything outside this provider that calls `setSelectedBranch` is a
+     * customer tapping a branch in the cart sheet, the checkout sheet or the
+     * header selector. So the exposed setter is the record of a deliberate
+     * choice, and the automatic paths use the raw state setter instead.
+     *
+     * Without the distinction the nearest-branch rule cannot work: a branch
+     * saved to this device looks identical whether they chose it or we guessed
+     * it, so either the guess overrides their choice on every page load or
+     * their choice blocks the guess forever.
+     */
+    const chosenRef = useRef(false);
+
+    const setSelectedBranch = useCallback((branch: Branch | null) => {
+        chosenRef.current = true;
+        try { localStorage.setItem(CHOSEN_KEY, '1'); } catch { /* private window */ }
+        setSelectedBranchState(branch);
+    }, []);
 
     // Fetch branches from API
     const { branches: apiBranches, isLoading } = useBranches();
@@ -175,10 +199,11 @@ export function BranchProvider({ children }: { children: ReactNode }) {
         if (!coordinates) return;
         const nearest = findNearestBranch(coordinates.latitude, coordinates.longitude);
         if (nearest) {
+            // Pressed by the customer, so it counts as their choice.
             setSelectedBranch(nearest);
             previousCoordinatesRef.current = coordinates;
         }
-    }, [coordinates, findNearestBranch]);
+    }, [coordinates, findNearestBranch, setSelectedBranch]);
 
     // Returns the menuItemIds for a given branch id
     const getBranchMenu = useCallback((branchId: string): string[] => {
@@ -190,35 +215,68 @@ export function BranchProvider({ children }: { children: ReactNode }) {
         return getBranchMenu(branchId).includes(itemId);
     }, [getBranchMenu]);
 
-    // Auto-select nearest branch when location changes significantly
+    /**
+     * The nearest branch, which is the whole reason we ask for a location.
+     *
+     * Two things were wrong here and between them the rule almost never fired.
+     *
+     * The position was stamped into `previousCoordinatesRef` even when no
+     * branch came back, and no branch comes back until the branch list has
+     * loaded. A phone answers geolocation from a cached fix in milliseconds and
+     * the branch list is a network round trip, so the usual order was: position
+     * arrives, no branches yet, nothing selected, position stamped anyway.
+     * Branches then load, the effect runs again, the distance from the stamped
+     * position to the same position is zero, `hasChanged` is false, and it
+     * never tries again. The stamp is only written now when a branch was
+     * actually found.
+     *
+     * And the branch saved on the device was treated as gospel. The effect
+     * below would set it before the location ever resolved, so `selectedBranch`
+     * was already truthy and the nearest rule had nothing left to do. It now
+     * only stands aside for a branch the customer picked themselves.
+     */
     useEffect(() => {
-        if (!coordinates) return;
-        const hasChanged = previousCoordinatesRef.current
+        if (!coordinates || chosenRef.current) return;
+
+        const previous = previousCoordinatesRef.current;
+        const moved = previous
             ? calculateDistance(
-                previousCoordinatesRef.current.latitude,
-                previousCoordinatesRef.current.longitude,
-                coordinates.latitude, coordinates.longitude
+                previous.latitude, previous.longitude,
+                coordinates.latitude, coordinates.longitude,
             ) > 0.5
             : true;
 
-        if (hasChanged) {
-            const nearest = findNearestBranch(coordinates.latitude, coordinates.longitude);
-            if (nearest && (!selectedBranch || selectedBranch.id !== nearest.id)) {
-                setSelectedBranch(nearest);
-            }
-            previousCoordinatesRef.current = coordinates;
-        }
-    }, [coordinates, findNearestBranch]);
+        if (!moved) return;
 
-    // Persist selected branch
+        const nearest = findNearestBranch(coordinates.latitude, coordinates.longitude);
+        if (!nearest) return; // Branches are still loading. Try again when they land.
+
+        if (!selectedBranch || selectedBranch.id !== nearest.id) {
+            setSelectedBranchState(nearest);
+        }
+        previousCoordinatesRef.current = coordinates;
+    }, [coordinates, findNearestBranch, selectedBranch]);
+
+    /**
+     * Something on screen while the location question is still open.
+     *
+     * The branch last used on this device, or the first one taking orders. The
+     * nearest rule above overrules this the moment a position arrives, unless
+     * the customer has chosen for themselves.
+     */
     useEffect(() => {
-        if (branches.length === 0) return; // Wait for branches to load
+        if (branches.length === 0 || selectedBranch) return;
+
+        try {
+            chosenRef.current = localStorage.getItem(CHOSEN_KEY) === '1';
+        } catch { /* private window */ }
 
         const savedId = localStorage.getItem('selected-branch-id');
-        if (!selectedBranch) {
-            const branch = (savedId && branches.find(b => b.id === savedId)) || branches[0];
-            if (branch) setSelectedBranch(branch);
-        }
+        const branch = (savedId && branches.find(b => b.id === savedId))
+            || branches.find(b => b.isOpen)
+            || branches[0];
+
+        if (branch) setSelectedBranchState(branch);
     }, [branches, selectedBranch]);
 
     useEffect(() => {

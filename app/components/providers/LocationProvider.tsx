@@ -55,6 +55,25 @@ export function LocationProvider({ children, autoRequest = false }: LocationProv
         }
     }, []);
 
+    /**
+     * Ask the browser where we are once it has already agreed to tell us.
+     *
+     * Permission granted and position known are two different things, and only
+     * the first survives a reload. Nothing called `requestLocation` for a
+     * customer who had said yes on a previous visit: `autoRequest` is false in
+     * the root layout, and the modal that asks only appears while the status is
+     * still `prompt`. So the people most willing to share their location were
+     * exactly the ones we never asked, `coordinates` stayed null, and the
+     * nearest-branch rule that the whole permission exists for never ran.
+     *
+     * No dialog comes of this. The browser has the answer and hands it over.
+     */
+    useEffect(() => {
+        if (permissionStatus === 'granted' && !coordinates) {
+            requestLocation();
+        }
+    }, [permissionStatus, coordinates]);
+
     // Auto-request location on mount if enabled
     useEffect(() => {
         if (autoRequest && permissionStatus === 'prompt') {
