@@ -79,12 +79,20 @@ export default function BottomSheet({
         return () => clearTimeout(t);
     }, [open]);
 
-    // ── The page stays where it was ─────────────────────────────────────────
+    /**
+     * The page stays where it was.
+     *
+     * Keyed on `open`, not `rendered`. The sheet is fixed-position, so it can
+     * finish sliding out over a page that is already free to scroll, and the
+     * 260ms it spends animating is 260ms the lock used to hold on past the tap
+     * that closed it. On the cart's checkout button that tap also navigates,
+     * which left the body pinned while a whole new route mounted under it.
+     */
     useEffect(() => {
-        if (!rendered) return;
+        if (!open) return;
         lockScroll();
         return unlockScroll;
-    }, [rendered]);
+    }, [open]);
 
     // ── Escape, and focus that stays inside ─────────────────────────────────
     useEffect(() => {

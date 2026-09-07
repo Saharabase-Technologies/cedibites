@@ -5,7 +5,7 @@ import { MenuDiscoveryProvider } from '../components/providers/MenuDiscoveryProv
 import { CartProvider } from '../components/providers/CartProvider';
 import LocationRequestModal from '../components/ui/LocationRequestModal';
 import BranchSelectorModal from '../components/ui/BranchSelectorModal';
-import Navbar from '../components/layout/Navbar';
+import Navbar, { NavbarSpacer } from '../components/layout/Navbar';
 import BottomNav, { BottomNavSpacer } from '../components/layout/BottomNav';
 import CartDrawer from '../components/ui/CartDrawer';
 import AuthModal from '../components/ui/AuthModal';
@@ -90,7 +90,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                                 tracking — openCart() and openAuth() flipped state that had
                                 nothing listening, and the drawer simply never appeared. */}
                             <Navbar />
-                            <div aria-hidden className="h-(--nav-h) shrink-0" />
+                            <NavbarSpacer />
                             {children}
                             {/* In the flow, so the last row of the menu is not
                                 sitting under the tabs. */}

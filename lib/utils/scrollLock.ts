@@ -16,6 +16,14 @@
  * the offset it was already at so nothing appears to jump, and put the reader
  * back where they were on the way out.
  *
+ * **Putting them back is only right if they are still on the same screen.** The
+ * cart's checkout button closes the sheet and navigates in one tap, so the lock
+ * outlives the route. It was taken 1,240px down the menu and released on a
+ * freshly mounted checkout, which then got scrolled to 1,240 and clamped back
+ * to its own end. That was the flash: checkout drawn at the wrong offset for a
+ * quarter of a second, then snapped. The path is recorded with the offset, and
+ * a release on a different one restores the body without moving anybody.
+ *
  * The staff portals still lock the old way. They are a different world and this
  * has never bitten them, but the same utility works there when somebody wants
  * it: see InventoryModal and OrderDrawer.
@@ -32,6 +40,7 @@ interface SavedBodyStyle {
 
 let holders = 0;
 let scrollY = 0;
+let lockedPath = '';
 let saved: SavedBodyStyle | null = null;
 
 export function lockScroll(): void {
@@ -41,6 +50,7 @@ export function lockScroll(): void {
     if (holders > 1) return;
 
     scrollY = window.scrollY;
+    lockedPath = window.location.pathname;
 
     const body = document.body.style;
     saved = {
@@ -76,6 +86,10 @@ export function unlockScroll(): void {
     body.width = saved.width;
     body.overflow = saved.overflow;
     saved = null;
+
+    // A new screen starts at its own top. Restoring the old offset here is what
+    // dragged checkout down to where the menu had been.
+    if (window.location.pathname !== lockedPath) return;
 
     // Instant, and before paint. `scroll-behavior: smooth` anywhere on the page
     // would otherwise animate the reader back to where they already were.

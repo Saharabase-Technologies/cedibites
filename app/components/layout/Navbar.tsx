@@ -258,3 +258,16 @@ export default function Navbar() {
         </header>
     );
 }
+
+/**
+ * Holds the space the fixed header sits in.
+ *
+ * It has to know about the full-screen routes for the same reason the header
+ * does. The layout rendered this unconditionally, so checkout, which draws no
+ * header at all, opened on 56px of nothing above its own title bar.
+ */
+export function NavbarSpacer() {
+    const pathname = usePathname();
+    if (isFullScreenRoute(pathname)) return null;
+    return <div aria-hidden className="h-(--nav-h) shrink-0" />;
+}
