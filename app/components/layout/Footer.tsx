@@ -46,7 +46,7 @@ const SOCIAL = [
 const QUICK_LINKS = [
     { label: 'Home', href: '/' },
     { label: 'Our Menu', href: '/menu' },
-    { label: 'Track Order', href: '/orders' },
+    { label: 'Track an order', href: '/track' },
     { label: 'Find a Branch', href: '#' },
 ];
 

@@ -229,6 +229,13 @@ export type OrderStatus =
   | 'pending'
   | 'confirmed'
   | 'received'
+  /**
+   * The branch has taken the order on. A real status in Order::$transitions and
+   * the one the Order Manager board turns on, and it was missing from this
+   * union, so nothing on the customer side could name the moment a branch
+   * picked an order up.
+   */
+  | 'accepted'
   | 'preparing'
   | 'ready'
   | 'ready_for_pickup'
@@ -374,6 +381,23 @@ export interface Order {
   status: OrderStatus;
   /** ISO time the order entered its CURRENT status, from order_status_history. */
   stage_changed_at?: string | null;
+  /**
+   * Every transition this order has been through, with the time it happened.
+   *
+   * The server has always sent this. The customer tracking page ignored it and
+   * drew its timeline from `created_at` plus a fixed offset per step, so an
+   * order placed at seven and delivered at quarter past eight told the customer
+   * it arrived at 7:35. These are the real times.
+   */
+  status_history?: Array<{
+    id: number;
+    status: OrderStatus;
+    notes?: string | null;
+    changed_by_type?: string | null;
+    changed_by?: { id: number; name: string } | null;
+    changed_at?: string | null;
+    created_at?: string | null;
+  }>;
   items: OrderItem[];
   payment?: Payment;
   payments?: Payment[];

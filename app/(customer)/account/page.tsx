@@ -214,7 +214,7 @@ export default function AccountPage() {
                 {/* ── Quick links ─────────────────────────────────────────── */}
                 <Section title="My Activity">
                     <div className="flex flex-col gap-1">
-                        <Link href="/order-history" className="flex items-center gap-3 px-1 py-3 rounded-xl hover:bg-neutral-light dark:hover:bg-white/5 transition-colors group">
+                        <Link href="/orders" className="flex items-center gap-3 px-1 py-3 rounded-xl hover:bg-neutral-light dark:hover:bg-white/5 transition-colors group">
                             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                                 <PathIcon size={16} weight="fill" className="text-primary" />
                             </div>

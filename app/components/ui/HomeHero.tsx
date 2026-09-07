@@ -153,7 +153,7 @@ export default function HomeHero() {
 
                 <div className="mt-2 flex justify-end">
                     <Link
-                        href="/orders"
+                        href="/track"
                         className="text-sm font-bold text-primary-ink transition-opacity duration-150 ease-out hover:opacity-70"
                     >
                         All my orders

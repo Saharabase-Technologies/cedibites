@@ -45,7 +45,7 @@ export const CUSTOMER_NAV: CustomerNavItem[] = [
         longLabel: 'My Orders',
         href: '/orders',
         icon: ReceiptIcon,
-        matchPrefixes: ['/orders/', '/order-history'],
+        matchPrefixes: ['/orders/', '/track'],
     },
     {
         // Search is an action, not a place. It opens over whatever you were

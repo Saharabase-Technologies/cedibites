@@ -31,6 +31,18 @@ const nextConfig: NextConfig = {
       // The standalone staff screen was folded into My Branch as a team roster.
       { source: '/staff/partner/staff', destination: '/partner/branch', permanent: true },
       { source: '/staff/partner/:path*', destination: '/partner/dashboard', permanent: false },
+
+      /**
+       * The two customer order routes were named backwards.
+       *
+       * `/orders` was a box you typed a code into and `/order-history` was the
+       * actual list, so the Orders tab took people to a form asking for
+       * something they had come to the app to look up. `/orders` is the list
+       * now, `/orders/AH637` is one of them, and `/track` is the code box.
+       *
+       * Old links are in SMS threads and browser history, so this stays.
+       */
+      { source: '/order-history', destination: '/orders', permanent: true },
     ];
   },
 };

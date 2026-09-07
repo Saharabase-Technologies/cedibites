@@ -217,9 +217,25 @@
   --cb-surface-sunken: var(--cb-mono-100);
   --cb-fg:             var(--cb-mono-900);
   --cb-fg-muted:       var(--cb-mono-500);   /* 5.1:1 on white */
-  --cb-fg-subtle:      var(--cb-mono-400);
-  --cb-border:         var(--cb-mono-200);
-  --cb-border-strong:  var(--cb-mono-300);
+
+  /* Placeholders and hint text live on this, and a placeholder is text: it has
+     to clear 4.5:1 like any other. mono-400 was 2.4:1, which is why the address
+     field read as empty even when it was prompting you. #767676 is the lightest
+     grey that clears it on both white and the page ground. */
+  --cb-fg-subtle:      #767676;              /* 4.5:1 on white, 4.4:1 on the page */
+
+  /* Two borders, and they do different jobs.
+
+     `border` separates rows. It was mono-200 at 1.2:1, which is close to
+     invisible, and the checkout screens lean on it hard now that the cards are
+     gone. mono-300 is still quiet and can actually be seen.
+
+     `border-strong` draws controls: the ring on an unselected payment option,
+     the edge of the branch chip on hover. WCAG asks 3:1 of anything that shows
+     you where a control is, and mono-300 gave 1.5:1. A radio button nobody can
+     find is not a subtle radio button. */
+  --cb-border:         var(--cb-mono-300);   /* 1.5:1, a divider you can see */
+  --cb-border-strong:  #8f8f8f;              /* 3.2:1, clears non-text contrast */
 
   /* --cb-primary is the brand red as published. White on it is 4.33:1, which
      clears AA for large text only, so anything carrying a small white label
