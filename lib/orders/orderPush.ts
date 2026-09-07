@@ -37,24 +37,62 @@ export function pushSupported(): boolean {
         && 'PushManager' in window;
 }
 
+/** Byte-for-byte, so a subscription minted under an older VAPID key is caught. */
+function sameKey(a: ArrayBuffer | null | undefined, b: Uint8Array): boolean {
+    if (!a) return false;
+    const seen = new Uint8Array(a);
+    if (seen.length !== b.length) return false;
+    return seen.every((byte, i) => byte === b[i]);
+}
+
 export async function subscribeToOrderUpdates(orderNumber: string, token: string): Promise<PushResult> {
     if (!pushSupported()) return 'unsupported';
 
     try {
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') return 'denied';
-
-        const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-        await navigator.serviceWorker.ready;
-
+        /**
+         * Everything that can fail on its own happens before the dialog.
+         *
+         * This used to ask for permission first. The server had no VAPID key,
+         * so the fetch below returned null and the whole thing failed — after
+         * the customer had already said yes. A browser asks once and remembers
+         * the answer, so that grant was spent on a request that could never
+         * have worked, and there is no way to offer it to that person again.
+         *
+         * Permission is the one step with a cost to the reader, so it goes last
+         * of the things that can go wrong.
+         */
         const keyRes = await apiClient.get('/push/public-key') as { public_key?: string };
         const vapid = keyRes?.public_key;
         if (!vapid) return 'failed';
 
-        const existing = await registration.pushManager.getSubscription();
+        const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        await navigator.serviceWorker.ready;
+
+        const applicationServerKey = urlBase64ToUint8Array(vapid);
+
+        /**
+         * A subscription this browser already holds is only reusable while it
+         * was minted under the key the server is signing with now. Rotating
+         * VAPID invalidates every outstanding one, and reusing a stale
+         * subscription fails silently at the push service: we would report
+         * success and the phone would never buzz.
+         */
+        let existing = await registration.pushManager.getSubscription();
+        if (existing && !sameKey(existing.options?.applicationServerKey, applicationServerKey)) {
+            await existing.unsubscribe();
+            existing = null;
+        }
+
+        // Only now, and only if there is nothing to reuse. An existing
+        // subscription means permission was granted already.
+        if (!existing) {
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') return 'denied';
+        }
+
         const subscription = existing ?? await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapid).buffer as ArrayBuffer,
+            applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
         });
 
         const json = subscription.toJSON();
