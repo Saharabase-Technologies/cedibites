@@ -43,7 +43,7 @@ export default function CartDrawer() {
     const { isCartOpen, closeCart } = useModal();
     const {
         displayItems: items, removeFromCart, updateQuantity, totalItems, subtotal,
-        validateCartForBranch, removeUnavailableItems, isLinePending,
+        validateCartForBranch, removeUnavailableItems,
     } = useCart();
     const { selectedBranch } = useBranch();
 
@@ -121,7 +121,7 @@ export default function CartDrawer() {
             {blocked ? (
                 <button
                     onClick={() => setView('branch-select')}
-                    className="mt-4 flex min-h-13 w-full items-center justify-center rounded-xl bg-primary-fill px-5 text-sm font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95"
+                    className="mt-4 flex min-h-15 w-full items-center justify-center rounded-2xl bg-primary-fill px-5 text-base font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95"
                 >
                     Change branch to carry on
                 </button>
@@ -129,12 +129,12 @@ export default function CartDrawer() {
                 <Link
                     href="/checkout"
                     onClick={closeCart}
-                    className="mt-4 flex min-h-13 w-full items-center justify-between rounded-xl bg-primary-fill px-5 text-sm font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95"
+                    className="mt-4 flex min-h-15 w-full items-center justify-between rounded-2xl bg-primary-fill px-5 text-base font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95"
                 >
                     <span>Go to checkout</span>
                     <span className="flex items-center gap-2 tabular-nums">
                         {formatPrice(subtotal)}
-                        <ArrowRightIcon size={16} weight="bold" />
+                        <ArrowRightIcon size={18} weight="bold" />
                     </span>
                 </Link>
             )}
@@ -210,7 +210,6 @@ export default function CartDrawer() {
                             <CartLine
                                 key={ci.cartItemId}
                                 cartItem={ci}
-                                pending={isLinePending(ci.cartItemId)}
                                 onRemove={() => removeFromCart(ci.cartItemId)}
                                 onIncrease={() => updateQuantity(ci.cartItemId, ci.quantity + 1)}
                                 onDecrease={() => {
@@ -275,9 +274,8 @@ function Notice({ title, body, action, onAction, secondary, onSecondary }: {
 }
 
 /** One line of the order. No card: a hairline is enough to separate two rows. */
-function CartLine({ cartItem, pending, onRemove, onIncrease, onDecrease }: {
+function CartLine({ cartItem, onRemove, onIncrease, onDecrease }: {
     cartItem: CartItem;
-    pending: boolean;
     onRemove: () => void;
     onIncrease: () => void;
     onDecrease: () => void;
@@ -287,7 +285,12 @@ function CartLine({ cartItem, pending, onRemove, onIncrease, onDecrease }: {
     const hasPhoto = Boolean(image) && !imgError;
 
     return (
-        <li className={`flex items-center gap-3.5 border-t border-hairline px-5 py-3.5 transition-opacity duration-150 ease-out ${pending ? 'opacity-55' : ''}`}>
+        /* No dimming and no disabling while the write is in flight.
+           `updateQuantity` is optimistic: the new count is on screen before the
+           request leaves, and it returns early for a line the server has not
+           given an id yet, so a fast thumb cannot duplicate anything. Greying
+           the row out was inventing a wait that was not happening. */
+        <li className="flex items-center gap-3.5 border-t border-hairline px-5 py-3.5">
             <span className="relative grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-lg bg-surface-sunken">
                 {hasPhoto ? (
                     <Image
@@ -315,7 +318,6 @@ function CartLine({ cartItem, pending, onRemove, onIncrease, onDecrease }: {
                     <div className="flex items-center gap-0.5 rounded-lg bg-surface-sunken p-0.5">
                         <button
                             onClick={onDecrease}
-                            disabled={pending}
                             aria-label={cartItem.quantity <= 1 ? 'Remove from the order' : 'One fewer'}
                             className="grid h-8 w-8 place-items-center rounded-md text-fg transition-colors duration-150 ease-out hover:bg-bg"
                         >
@@ -326,7 +328,6 @@ function CartLine({ cartItem, pending, onRemove, onIncrease, onDecrease }: {
                         </span>
                         <button
                             onClick={onIncrease}
-                            disabled={pending}
                             aria-label="One more"
                             className="grid h-8 w-8 place-items-center rounded-md text-fg transition-colors duration-150 ease-out hover:bg-bg"
                         >

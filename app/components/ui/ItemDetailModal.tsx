@@ -138,7 +138,6 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
                             onClick={() => (qty <= 1
                                 ? removeFromCart(cartItem!.cartItemId)
                                 : updateQuantity(cartItem!.cartItemId, qty - 1))}
-                            disabled={pending}
                             aria-label={qty <= 1 ? 'Remove from the order' : 'One fewer'}
                             className="grid h-11 w-10 place-items-center rounded-lg text-fg transition-colors duration-150 ease-out hover:bg-bg"
                         >
@@ -149,7 +148,6 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
                         </span>
                         <button
                             onClick={() => updateQuantity(cartItem!.cartItemId, qty + 1)}
-                            disabled={pending}
                             aria-label="One more"
                             className="grid h-11 w-10 place-items-center rounded-lg text-fg transition-colors duration-150 ease-out hover:bg-bg"
                         >
