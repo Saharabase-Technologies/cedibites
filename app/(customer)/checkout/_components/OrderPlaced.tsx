@@ -29,7 +29,7 @@ export default function OrderPlaced({ orderNumber, orderType, contact }: {
     // Claiming the account behind this number carries its past orders and
     // addresses with it, so it goes through an OTP rather than trusting that
     // whoever typed the number owns it.
-    const [state, setState] = useState<'idle' | 'sending' | 'code' | 'verifying' | 'saved' | 'dismissed'>(
+    const [state, setState] = useState<'idle' | 'sending' | 'code' | 'verifying' | 'saved'>(
         isLoggedIn ? 'saved' : 'idle',
     );
     const [code, setCode] = useState('');
@@ -113,32 +113,18 @@ export default function OrderPlaced({ orderNumber, orderType, contact }: {
                         Become a CediBiter
                     </h2>
                     <p className="mt-3 text-sm leading-relaxed text-fg">
-                        This order lives on this phone and nowhere else. Change your handset and it is gone,
-                        along with the address you just typed in.
-                    </p>
-                    <p className="mt-2.5 text-sm leading-relaxed text-fg">
-                        An account carries every order you have placed to any phone you sign in from, fills
-                        your details in next time, and keeps you on the list for the deals and discounts that
-                        go out by SMS.
+                        Next order takes two taps. Deals, discounts and packages put together for CediBiters.
                     </p>
                     <p className="mt-2.5 text-[13px] leading-relaxed text-fg-muted">
                         We send a code to {contact.phone} to check the number is yours.
                     </p>
                     {error && <p className="mt-2.5 text-[13px] font-semibold text-danger-ink">{error}</p>}
-                    <div className="mt-4 flex items-center gap-5">
-                        <button
-                            onClick={sendCode}
-                            className="min-h-11 rounded-xl bg-surface-sunken px-5 text-sm font-bold text-fg transition-opacity duration-150 ease-out hover:opacity-80"
-                        >
-                            Claim my account
-                        </button>
-                        <button
-                            onClick={() => setState('dismissed')}
-                            className="text-[13px] font-bold text-fg-muted underline underline-offset-4 transition-colors duration-150 ease-out hover:text-fg"
-                        >
-                            Not now
-                        </button>
-                    </div>
+                    <button
+                        onClick={sendCode}
+                        className="mt-4 flex min-h-13 w-full items-center justify-center rounded-xl bg-surface-sunken px-5 text-[15px] font-bold text-fg transition-opacity duration-150 ease-out hover:opacity-80"
+                    >
+                        Claim my account
+                    </button>
                 </div>
             )}
 
