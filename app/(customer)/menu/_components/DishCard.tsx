@@ -84,8 +84,8 @@ export default function DishCard({
                 className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg"
             />
 
-            {hasPhoto && (
-                <span className="relative block aspect-4/3 w-full shrink-0 overflow-hidden bg-surface-sunken">
+            <span className="relative block aspect-4/3 w-full shrink-0 overflow-hidden bg-surface-sunken">
+                {hasPhoto ? (
                     <Image
                         src={image!}
                         alt=""
@@ -94,22 +94,40 @@ export default function DishCard({
                         className="object-cover"
                         onError={() => setImageFailed(true)}
                     />
+                ) : (
+                    /* The mark, quietly, on the ground the photograph would have
+                       used. Eighteen dishes have no picture and a card that
+                       simply skipped the panel made the grid ragged; this keeps
+                       every card the same shape and says whose kitchen it is
+                       rather than announcing a missing file. The stock "No
+                       Image Available" plate in public/ is not used: it is
+                       somebody else's basil and pasta, and it tells a customer
+                       about our filing rather than about the food. */
+                    <span className="grid h-full w-full place-items-center">
+                        <Image
+                            src="/logo/mark-black.webp"
+                            alt=""
+                            width={256}
+                            height={179}
+                            className="w-[26%] max-w-24 opacity-20"
+                        />
+                    </span>
+                )}
 
-                    {/* On the photograph, where a flash on a menu board goes.
-                        Yellow is the brand's attention colour and it never
-                        carries white text, so it takes ink. */}
-                    {!soldOut && tag && (
-                        <span className="absolute left-2.5 top-2.5 z-10 rounded-md bg-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-fg">
-                            {tag.name}
-                        </span>
-                    )}
-                    {soldOut && (
-                        <span className="absolute left-2.5 top-2.5 z-10 rounded-md bg-fg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-bg">
-                            Sold out
-                        </span>
-                    )}
-                </span>
-            )}
+                {/* Up on the panel, where a flash on a menu board goes. Yellow
+                   is the brand's attention colour and it never carries white
+                   text, so it takes ink. */}
+                {!soldOut && tag && (
+                    <span className="absolute left-2.5 top-2.5 z-10 rounded-md bg-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-fg">
+                        {tag.name}
+                    </span>
+                )}
+                {soldOut && (
+                    <span className="absolute left-2.5 top-2.5 z-10 rounded-md bg-fg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-bg">
+                        Sold out
+                    </span>
+                )}
+            </span>
 
             <div className="pointer-events-none relative z-10 flex flex-1 flex-col p-3.5">
                 {/* Body face, not the brand face.
@@ -121,40 +139,16 @@ export default function DishCard({
 
                     The name is still the card when there is no picture, so it
                     takes the room the picture would have had. */}
-                <h3
-                    className={`relative z-10 text-fg ${
-                        hasPhoto
-                            ? 'line-clamp-2 text-[15px] font-semibold leading-snug'
-                            : 'line-clamp-4 text-xl font-bold leading-tight sm:text-[22px]'
-                    }`}
-                >
+                <h3 className="relative z-10 line-clamp-2 text-[15px] font-semibold leading-snug text-fg">
                     {item.name}
                 </h3>
 
-                {/* Straight under the name. Whether there is anything to
-                    decide is the next thing you want after what the dish is,
-                    and it comes before what it costs. A card with a photograph
-                    carries its tag up on the picture; one without has nowhere
-                    else to put it, so it joins this line. */}
-                {((!hasPhoto && (tag || soldOut)) || sizes.length > 1) && (
-                    <p className="relative z-10 mt-1.5 truncate text-[10px] font-bold uppercase tracking-widest">
-                        {!hasPhoto && soldOut && <span className="text-fg-muted">Sold out</span>}
-                        {!hasPhoto && !soldOut && tag && <span className="text-accent-ink">{tag.name}</span>}
-                        {!hasPhoto && (tag || soldOut) && sizes.length > 1 && (
-                            <span aria-hidden className="text-fg-subtle"> · </span>
-                        )}
-                        {sizes.length > 1 && (
-                            <span className="text-fg-muted">{sizes.length} choices</span>
-                        )}
-                    </p>
-                )}
-
-                {/* Only the typographic card has room for a description, and
-                    only there does it earn its place: it is what keeps a card
-                    with no photograph from being a name alone in a box. */}
-                {!hasPhoto && item.description && (
-                    <p className="mt-2.5 line-clamp-3 text-[13px] leading-relaxed text-fg-muted">
-                        {item.description}
+                {/* Straight under the name. Whether there is anything to decide
+                    is the next thing you want after what the dish is, and it
+                    comes before what it costs. Tags sit on the picture. */}
+                {sizes.length > 1 && (
+                    <p className="relative z-10 mt-1.5 truncate text-[10px] font-bold uppercase tracking-widest text-fg-muted">
+                        {sizes.length} choices
                     </p>
                 )}
 
