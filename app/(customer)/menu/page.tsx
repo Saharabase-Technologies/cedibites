@@ -1,12 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-    CaretDownIcon,
-    MagnifyingGlassIcon,
-    StorefrontIcon,
-    XIcon,
-} from '@phosphor-icons/react';
+import { MagnifyingGlassIcon, XIcon } from '@phosphor-icons/react';
 import { useMenuDiscovery } from '@/app/components/providers/MenuDiscoveryProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useModal } from '@/app/components/providers/ModalProvider';
@@ -214,7 +209,11 @@ export default function MenuPage() {
 
             {/* ── Sticky header: find, and where you are ──────────────────── */}
             <div className="sticky top-(--nav-h) z-20 border-b border-hairline bg-bg">
-                <div className="page-x flex items-center gap-2.5 py-3">
+                {/* Search, and nothing beside it. The branch button that used to
+                    sit here repeated the chip in the app header directly above,
+                    so the same control appeared twice on one screen and took a
+                    third of the search field on a phone to do it. */}
+                <div className="page-x flex items-center py-3">
                     <div className="relative flex min-w-0 flex-1 items-center md:max-w-96">
                         <MagnifyingGlassIcon
                             size={17}
@@ -246,8 +245,6 @@ export default function MenuPage() {
                             </button>
                         )}
                     </div>
-
-                    <BranchButton />
                 </div>
 
                 {/* The rail belongs to the phone. Desktop reads the same list
@@ -364,30 +361,6 @@ export default function MenuPage() {
                 <ItemDetailModal item={detailItem} onClose={() => setDetailItem(null)} />
             )}
         </div>
-    );
-}
-
-/**
- * Which kitchen this menu belongs to.
- *
- * Not decoration: the menu, the prices and what is sold out all come from one
- * branch, so the branch is part of reading the page correctly.
- */
-function BranchButton() {
-    const { selectedBranch } = useBranch();
-    const { openBranchSelector } = useModal();
-
-    if (!selectedBranch) return null;
-
-    return (
-        <button
-            onClick={openBranchSelector}
-            className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-hairline bg-surface px-3 text-sm font-bold text-fg transition-colors duration-150 ease-out hover:border-hairline-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg"
-        >
-            <StorefrontIcon size={15} weight="fill" className="shrink-0 text-fg-muted" />
-            <span className="max-w-24 truncate sm:max-w-40">{selectedBranch.name}</span>
-            <CaretDownIcon size={11} weight="bold" className="shrink-0 text-fg-muted" />
-        </button>
     );
 }
 

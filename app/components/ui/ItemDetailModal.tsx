@@ -202,7 +202,7 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
             <div
                 ref={panel}
                 tabIndex={-1}
-                className="relative flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-bg outline-none sm:max-w-md sm:rounded-3xl"
+                className="relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-bg outline-none sm:max-h-[88dvh] sm:max-w-md sm:rounded-3xl"
                 style={{
                     transform: visible ? `translateY(${dragY}px)` : 'translateY(100%)',
                     transition: dragging ? 'none' : `transform ${ANIMATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`,
@@ -221,7 +221,7 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
                     </div>
 
                     {hasPhoto ? (
-                        <div className="relative aspect-16/9 w-full overflow-hidden bg-surface-sunken">
+                        <div className="relative aspect-16/9 max-h-52 w-full overflow-hidden bg-surface-sunken">
                             <Image
                                 src={image!}
                                 alt=""
