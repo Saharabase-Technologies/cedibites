@@ -145,7 +145,12 @@ function Thumb({ cartItem, className = '' }: { cartItem: CartItem; className?: s
     );
 }
 
-export function OrderRecap({ totals, serviceLabel, ready }: { totals: Totals; serviceLabel: string; ready: boolean }) {
+export function OrderRecap({ totals, serviceLabel, ready, onChangeBranch }: {
+    totals: Totals;
+    serviceLabel: string;
+    ready: boolean;
+    onChangeBranch: () => void;
+}) {
     const { displayItems: items } = useCart();
     const { selectedBranch } = useBranch();
     const [open, setOpen] = useState(false);
@@ -182,6 +187,23 @@ export function OrderRecap({ totals, serviceLabel, ready }: { totals: Totals; se
 
             {open && (
                 <div className="pb-4">
+                    {/* Which branch is cooking belongs with what they are
+                        cooking, not stuck to the delivery question where it had
+                        nothing to do with the address being typed above it. */}
+                    {selectedBranch && (
+                        <div className="flex items-center gap-4 pb-1">
+                            <p className="min-w-0 flex-1 truncate text-[13px] text-fg-muted">
+                                Cooked at <span className="font-bold text-fg">{selectedBranch.name}</span>
+                            </p>
+                            <button
+                                onClick={onChangeBranch}
+                                className="shrink-0 text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70"
+                            >
+                                Change
+                            </button>
+                        </div>
+                    )}
+
                     <Lines items={items} />
                     <div className="pt-4">
                         <Money totals={totals} serviceLabel={serviceLabel} ready={ready} />
@@ -205,10 +227,11 @@ export function OrderRecap({ totals, serviceLabel, ready }: { totals: Totals; se
  * The list is capped and scrolls inside itself for the same reason: the total
  * has to stay on screen with the question, however much somebody ordered.
  */
-export function OrderPanel({ totals, serviceLabel, ready }: {
+export function OrderPanel({ totals, serviceLabel, ready, onChangeBranch }: {
     totals: Totals;
     serviceLabel: string;
     ready: boolean;
+    onChangeBranch: () => void;
 }) {
     const { displayItems: items } = useCart();
     const { selectedBranch } = useBranch();
@@ -219,7 +242,19 @@ export function OrderPanel({ totals, serviceLabel, ready }: {
                 <h2 className="font-brand text-[15px] uppercase leading-none tracking-[0.04em] text-fg">
                     Your order
                 </h2>
-                {selectedBranch && <p className="mt-1.5 text-[13px] text-fg-muted">From {selectedBranch.name}</p>}
+                {selectedBranch && (
+                    <div className="mt-1.5 flex items-center gap-3">
+                        <p className="min-w-0 flex-1 truncate text-[13px] text-fg-muted">
+                            Cooked at <span className="font-bold text-fg">{selectedBranch.name}</span>
+                        </p>
+                        <button
+                            onClick={onChangeBranch}
+                            className="shrink-0 text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70"
+                        >
+                            Change
+                        </button>
+                    </div>
+                )}
 
                 <div className="mt-2 max-h-[38vh] overflow-y-auto overscroll-contain">
                     <Lines items={items} />

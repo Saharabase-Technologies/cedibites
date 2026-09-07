@@ -279,6 +279,12 @@ export interface CheckoutSession {
   created_at: string;
   updated_at: string;
   failure_reason?: string | null;
+  /**
+   * Whose problem the failure was, so the screen can offer the right next step.
+   * 'customer' is their wallet, PIN or timeout; 'number' is a number that
+   * cannot be charged; 'ours' is our configuration or gateway.
+   */
+  failure_kind?: 'customer' | 'number' | 'ours' | 'unknown' | null;
   // Recovery flags from show() endpoint
   can_retry?: boolean;
   can_change_payment?: boolean;

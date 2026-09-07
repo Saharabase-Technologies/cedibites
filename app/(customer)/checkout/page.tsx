@@ -13,6 +13,7 @@ import type { Promo } from '@/lib/services/promos/promo.service';
 import { toast } from '@/lib/utils/toast';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import BranchSelectorSheet from './_components/BranchSelectorSheet';
 import CheckoutForm from './_components/CheckoutForm';
 import { UNCHECKED, type MomoCheck } from './_components/MomoField';
 import EmptyCartGuard from './_components/EmptyCartGuard';
@@ -73,6 +74,17 @@ export default function CheckoutPage() {
      * takes it off that leash for good: somebody paying from a different wallet
      * should not have it snatched back when they correct their contact number.
      */
+    /**
+     * One branch sheet for the whole screen.
+     *
+     * The form used to own it, which was fine while the only way to change
+     * branch was a line inside the delivery question. Now the order summary
+     * offers it too, and two components cannot each hold their own copy of the
+     * same sheet without one of them opening behind the other.
+     */
+    const [branchSheet, setBranchSheet] = useState(false);
+    const openBranchSheet = useCallback(() => setBranchSheet(true), []);
+
     const [momoOverride, setMomoOverride] = useState<string | null>(null);
     const [momoCheck, setMomoCheck] = useState<MomoCheck>(UNCHECKED);
     const momoNumber = momoOverride ?? contact.phone;
@@ -308,7 +320,7 @@ export default function CheckoutPage() {
                     />
                 ) : (
                     <>
-                        <OrderRecap totals={totals} serviceLabel={serviceLabel} ready={moneyReady} />
+                        <OrderRecap totals={totals} serviceLabel={serviceLabel} ready={moneyReady} onChangeBranch={openBranchSheet} />
 
                         <div className="grid items-start gap-10 py-7 lg:grid-cols-[1fr_340px] lg:py-9">
                             {/* min-w-0, or the column refuses to go narrower
@@ -335,6 +347,7 @@ export default function CheckoutPage() {
                                     totals={totals}
                                     serviceLabel={serviceLabel}
                                     moneyReady={moneyReady}
+                                    onChangeBranch={openBranchSheet}
                                 />
 
                                 {/* Under the question, not beside it. On a
@@ -352,10 +365,12 @@ export default function CheckoutPage() {
                                 </div>
                             </div>
 
-                            <OrderPanel totals={totals} serviceLabel={serviceLabel} ready={moneyReady} />
+                            <OrderPanel totals={totals} serviceLabel={serviceLabel} ready={moneyReady} onChangeBranch={openBranchSheet} />
                         </div>
 
                         <PayBarSpacer />
+                        <BranchSelectorSheet isOpen={branchSheet} onClose={() => setBranchSheet(false)} />
+
                         <PayBar
                             totals={totals}
                             stage={stage}

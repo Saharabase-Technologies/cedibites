@@ -5,7 +5,6 @@ import { isValidGhanaPhone } from '@/app/lib/phone';
 import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 import React, { useState } from 'react';
 import AddressSearchField from './AddressSearchField';
-import BranchSelectorSheet from './BranchSelectorSheet';
 import { Field, Reveal, StepHeading, controlClass } from './Field';
 import MomoField, { type MomoCheck } from './MomoField';
 import { Money } from './OrderPanel';
@@ -172,7 +171,7 @@ export default function CheckoutForm({
     paymentMethod, setPaymentMethod, methods,
     contact, setContact, recalled,
     momoNumber, setMomoNumber, onMomoChecked,
-    totals, serviceLabel, moneyReady,
+    totals, serviceLabel, moneyReady, onChangeBranch,
 }: {
     stage: Stage;
     onJumpTo: (s: Stage) => void;
@@ -191,9 +190,9 @@ export default function CheckoutForm({
     totals: Totals;
     serviceLabel: string;
     moneyReady: boolean;
+    onChangeBranch: () => void;
 }) {
     const { selectedBranch } = useBranch();
-    const [branchSheet, setBranchSheet] = useState(false);
     const [noteOpen, setNoteOpen] = useState(Boolean(contact.note));
     const [phoneTouched, setPhoneTouched] = useState(false);
 
@@ -222,8 +221,7 @@ export default function CheckoutForm({
     };
 
     return (
-        <>
-            <div className="flex flex-col">
+        <div className="flex flex-col">
 
                 {branchShut && selectedBranch && (
                     <div className="mb-7">
@@ -235,7 +233,7 @@ export default function CheckoutForm({
                                 ? 'Nothing can be sent from here at the moment.'
                                 : 'Nothing leaves the kitchen until it opens again.'}
                             action="Order from another branch"
-                            onAction={() => setBranchSheet(true)}
+                            onAction={() => onChangeBranch()}
                         />
                     </div>
                 )}
@@ -282,27 +280,18 @@ export default function CheckoutForm({
                                                 <span className="truncate text-[13px] font-semibold text-fg">{recalled.address}</span>
                                             </button>
                                         )}
-
-                                        {selectedBranch && (
-                                            <div className="flex items-center gap-4 border-t border-hairline pt-4">
-                                                <p className="min-w-0 flex-1 text-sm text-fg-muted">
-                                                    Cooked at <span className="font-bold text-fg">{selectedBranch.name}</span>
-                                                </p>
-                                                <TextButton onClick={() => setBranchSheet(true)} className="shrink-0">Change</TextButton>
-                                            </div>
-                                        )}
                                     </>
                                 ) : selectedBranch ? (
-                                    <div className="flex items-start gap-4 border-t border-hairline pt-4">
+                                    <div className="flex items-start gap-4">
                                         <div className="min-w-0 flex-1">
                                             <p className="text-[15px] font-bold text-fg">{selectedBranch.name}</p>
                                             <p className="mt-1 text-sm leading-relaxed text-fg-muted">{selectedBranch.address}</p>
                                             <p className="mt-0.5 text-sm tabular-nums text-fg-muted">{selectedBranch.phone}</p>
                                         </div>
-                                        <TextButton onClick={() => setBranchSheet(true)} className="shrink-0">Change</TextButton>
+                                        <TextButton onClick={() => onChangeBranch()} className="shrink-0">Change</TextButton>
                                     </div>
                                 ) : (
-                                    <TextButton onClick={() => setBranchSheet(true)}>Pick a branch</TextButton>
+                                    <TextButton onClick={() => onChangeBranch()}>Pick a branch</TextButton>
                                 )}
                             </div>
                         )}
@@ -399,9 +388,6 @@ export default function CheckoutForm({
                         )}
                     </Reveal>
                 </div>
-            </div>
-
-            <BranchSelectorSheet isOpen={branchSheet} onClose={() => setBranchSheet(false)} />
-        </>
+        </div>
     );
 }

@@ -13,6 +13,64 @@ import { useEffect, useState } from 'react';
  * up, and giving up has to cancel the session rather than just navigating away
  * from it.
  */
+/**
+ * What went wrong, in words, and what to do about it.
+ *
+ * The screen used to say "the payment did not go through" and offer a retry,
+ * whatever had happened. Hubtel had told us more than that every time: the
+ * reason has been written onto the checkout session by the RMP callback since
+ * that callback was built. It just never left the server.
+ *
+ * The difference matters because the next step is not the same. Somebody whose
+ * wallet was short should try again once they have topped up. Somebody whose
+ * payment failed because our own merchant account cannot take mobile money
+ * should be told to pay cash and not to keep pressing a button that will keep
+ * failing.
+ */
+function explain(session: { status?: string; failure_reason?: string | null; failure_kind?: string | null }): {
+    heading: string;
+    body: string;
+} {
+    if (session.status === 'expired') {
+        return {
+            heading: 'The prompt timed out',
+            body: 'Nothing has been charged. Send it again, or pay cash instead.',
+        };
+    }
+
+    switch (session.failure_kind) {
+        case 'customer':
+            return {
+                heading: 'The payment was not approved',
+                body: 'That is usually not enough money on the wallet, a wrong PIN, or the prompt sitting '
+                    + 'too long before it was answered. Nothing has been charged. Top up and send it again, '
+                    + 'or pay cash instead.',
+            };
+
+        case 'number':
+            return {
+                heading: 'That number could not be charged',
+                body: 'Nothing has been charged. Check the number and send it to the right one, or pay cash '
+                    + 'instead.',
+            };
+
+        case 'ours':
+            return {
+                heading: 'We could not take the payment',
+                body: 'This one is on us, not on you or your wallet. Sending it again will hit the same '
+                    + 'problem, so pay cash instead and the order goes through as normal.',
+            };
+
+        default:
+            return {
+                heading: 'The payment did not go through',
+                body: session.failure_reason
+                    ? `${session.failure_reason} Nothing has been charged.`
+                    : 'Nothing has been charged. Send it again, or pay cash instead.',
+            };
+    }
+}
+
 export default function PaymentWait({ sessionToken, onSuccess, onFail, onAbandon }: {
     sessionToken: string;
     onSuccess: (orderNumber: string) => void;
@@ -40,22 +98,20 @@ export default function PaymentWait({ sessionToken, onSuccess, onFail, onAbandon
     };
 
     if (showRecovery && session) {
-        const failed = session.status === 'failed';
+        const { heading, body } = explain(session);
+
         return (
             <div className="mx-auto flex max-w-sm flex-col items-center py-12 text-center">
                 <h2 className="font-brand text-3xl uppercase leading-none tracking-[0.02em] text-fg">
-                    {failed ? 'The payment did not go through' : 'That took too long'}
+                    {heading}
                 </h2>
-                <p className="mt-3 text-sm leading-relaxed text-fg-muted">
-                    {failed
-                        ? 'Nothing has been charged. Try it again, or pay cash instead.'
-                        : 'The payment window closed before it was confirmed. Nothing has been charged.'}
-                </p>
+                <p className="mt-3 text-sm leading-relaxed text-fg-muted">{body}</p>
                 <div className="mt-6 w-full">
                     <PaymentRecoveryActions
                         session={session}
                         onOrderCreated={onSuccess}
                         onAbandoned={onAbandon}
+                        leadWithCash={session.failure_kind === 'ours'}
                     />
                 </div>
             </div>

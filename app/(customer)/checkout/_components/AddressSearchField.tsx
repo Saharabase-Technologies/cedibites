@@ -26,7 +26,7 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
     onChange: (v: string) => void;
     placeholder: string;
 }) {
-    const { coordinates } = useLocation();
+    const { coordinates, permissionStatus, requestLocation } = useLocation();
     const [query, setQuery] = useState(value);
     const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -112,7 +112,13 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
     };
 
     const handleUseMyLocation = async () => {
-        if (!coordinates) return;
+        // Nobody has been asked yet. Ask, and they can press it again once the
+        // browser has answered.
+        if (!coordinates) {
+            requestLocation();
+            return;
+        }
+
         setLocating(true);
         try {
             const res = await fetch(
@@ -155,10 +161,19 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
                 )}
             </div>
 
-            {coordinates && (
+            {/*
+              * Shown to anybody the browser has not refused.
+              *
+              * This used to be gated on `coordinates`, so it appeared only for
+              * somebody who had already granted location on another screen.
+              * Everybody else, which is most people arriving at checkout, never
+              * saw the one control that would have saved them typing an address
+              * on a phone. Pressing it is what asks for permission now.
+              */}
+            {permissionStatus !== 'denied' && (
                 <button
                     onClick={handleUseMyLocation}
-                    disabled={locating}
+                    disabled={locating || permissionStatus === 'loading'}
                     className="mt-2 flex items-center gap-1.5 text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70 disabled:opacity-50"
                 >
                     {locating

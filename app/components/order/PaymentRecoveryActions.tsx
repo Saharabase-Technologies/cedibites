@@ -22,6 +22,14 @@ interface PaymentRecoveryActionsProps {
   onAbandoned?: () => void;
   /** Hide the abandon/back-to-cart action */
   hideAbandon?: boolean;
+  /**
+   * Put cash first and demote the retry.
+   *
+   * For a failure that was ours: a misconfigured merchant account or a gateway
+   * we could not reach. Sending the prompt again will hit the same wall, so
+   * leading with a red Retry button is walking somebody into it twice.
+   */
+  leadWithCash?: boolean;
 }
 
 export default function PaymentRecoveryActions({
@@ -29,6 +37,7 @@ export default function PaymentRecoveryActions({
   onOrderCreated,
   onAbandoned,
   hideAbandon = false,
+  leadWithCash = false,
 }: PaymentRecoveryActionsProps) {
   const [showChangeNumber, setShowChangeNumber] = useState(false);
   const [newMomoNumber, setNewMomoNumber] = useState(session.momo_number ?? '');
@@ -91,11 +100,15 @@ export default function PaymentRecoveryActions({
 
       {/* Retry / Re-send MoMo prompt */}
       {session.can_retry && (
-        <div className="flex flex-col gap-2">
+        <div className={`flex flex-col gap-2 ${leadWithCash ? 'order-2' : ''}`}>
           <button
             onClick={handleRetry}
             disabled={isBusy}
-            className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold py-3.5 rounded-2xl transition-all disabled:opacity-50"
+            className={`w-full flex items-center justify-center gap-2 font-bold py-3.5 rounded-2xl transition-all disabled:opacity-50 ${
+              leadWithCash
+                ? 'bg-surface-sunken text-fg hover:opacity-80'
+                : 'bg-primary hover:bg-primary-hover text-white'
+            }`}
           >
             {retry.isPending ? (
               <SpinnerGapIcon size={18} className="animate-spin" />
@@ -137,7 +150,11 @@ export default function PaymentRecoveryActions({
         <button
           onClick={handleSwitchToCash}
           disabled={isBusy}
-          className="w-full flex items-center justify-center gap-2 bg-secondary/10 hover:bg-secondary/20 text-secondary font-semibold py-3.5 rounded-2xl transition-all disabled:opacity-50"
+          className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl transition-all disabled:opacity-50 ${
+            leadWithCash
+              ? 'order-1 bg-primary-fill hover:brightness-95 text-white font-bold'
+              : 'bg-secondary/10 hover:bg-secondary/20 text-secondary font-semibold'
+          }`}
         >
           {changePayment.isPending ? (
             <SpinnerGapIcon size={18} className="animate-spin" />
