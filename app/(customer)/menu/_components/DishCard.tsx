@@ -84,7 +84,11 @@ export default function DishCard({
                 className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg"
             />
 
-            <span className="relative block aspect-4/3 w-full shrink-0 overflow-hidden bg-surface-sunken">
+            {/* pointer-events-none, or the tap dies here. This panel is
+                positioned and comes after the card's own button in the markup,
+                so it paints on top of it and hit-testing stops at the picture:
+                tapping the photograph of a dish did nothing at all. */}
+            <span className="pointer-events-none relative block aspect-4/3 w-full shrink-0 overflow-hidden bg-surface-sunken">
                 {hasPhoto ? (
                     <Image
                         src={image!}
