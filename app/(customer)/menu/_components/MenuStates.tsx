@@ -12,16 +12,13 @@ import { ArrowClockwiseIcon, WifiSlashIcon } from '@phosphor-icons/react';
  */
 export function MenuSkeleton() {
     return (
-        <div className="grid gap-x-12 gap-y-9 xl:grid-cols-2" aria-hidden>
-            {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex items-start gap-4">
-                    <div className="min-w-0 flex-1">
-                        <div className="h-4 w-2/5 animate-pulse rounded-sm bg-surface-sunken" />
-                        <div className="mt-3 h-3 w-4/5 animate-pulse rounded-sm bg-surface-sunken" />
-                        <div className="mt-2 h-3 w-3/5 animate-pulse rounded-sm bg-surface-sunken" />
-                    </div>
-                    <div className="w-32 shrink-0 sm:w-36">
-                        <div className="h-8 animate-pulse rounded-lg bg-surface-sunken" />
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 2xl:grid-cols-4" aria-hidden>
+            {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="overflow-hidden rounded-2xl border border-hairline bg-surface">
+                    <div className="aspect-4/3 w-full animate-pulse bg-surface-sunken" />
+                    <div className="p-3.5">
+                        <div className="h-3.5 w-3/5 animate-pulse rounded-sm bg-surface-sunken" />
+                        <div className="mt-4 h-3.5 w-2/5 animate-pulse rounded-sm bg-surface-sunken" />
                     </div>
                 </div>
             ))}

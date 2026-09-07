@@ -13,7 +13,7 @@ import { useModal } from '@/app/components/providers/ModalProvider';
 import BlockHeading from '@/app/components/ui/BlockHeading';
 import ItemDetailModal from '@/app/components/ui/ItemDetailModal';
 import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryProvider';
-import DishEntry from './_components/DishEntry';
+import DishCard from './_components/DishCard';
 import SectionRail, { type MenuSection } from './_components/SectionRail';
 import { MenuEmpty, MenuError, MenuNoResults, MenuSkeleton } from './_components/MenuStates';
 
@@ -46,20 +46,20 @@ import { MenuEmpty, MenuError, MenuNoResults, MenuSkeleton } from './_components
  * because quietening a catalogue was still a catalogue. What a board does
  * differently:
  *
- * - A photograph runs full width above the dish it belongs to. The thumbnail
- *   column it replaces left a hole on every dish nobody has photographed,
- *   which is thirty-two of the forty-three.
- * - Dish names are set in the brand face at board size. On a menu with almost
- *   no photography the names are the picture.
- * - Sections are a heading and a rule. No cards, no dividers between dishes,
- *   no boxes anywhere on the page.
- * - The choosing happens in the sheet. A first attempt printed every option and
- *   its price down the right of each dish, which on "Fried Rice / Jollof + 3
- *   Drums" squeezed the labels until they truncated to "Fried Ri…". An entry
- *   now carries what a dish costs and nothing you can press.
+ * - The choosing happens in the sheet. An earlier attempt printed every option
+ *   and its price beside each dish, which on "Fried Rice / Jollof + 3 Drums"
+ *   squeezed the labels until they truncated to "Fried Ri…". Nothing on this
+ *   page is pressable except the dish itself.
+ * - Which is what made cards possible. A card holding three labelled prices and
+ *   three buttons is unreadable; a card holding a picture, a name and a price
+ *   is what cards are for.
+ * - A card with no photograph gives the space to its name instead of leaving an
+ *   empty frame, because thirty-two of the forty-three dishes have no picture
+ *   and a grid of empty frames is what made the first build look broken.
+ * - Sections are a heading and a rule. No sidebars of filters, no dividers.
  *
  * Nothing is coloured until somebody orders it. A dish already in the order
- * says so on its last line, and that is the only red the page has.
+ * carries a small count, and that is the only red the page has.
  *
  * Most Popular is a computed section from the API, not a hand-set tag, and it
  * sits first because it answers the question most people arrive with.
@@ -270,9 +270,9 @@ export default function MenuPage() {
                             {searchResults.length === 0 ? (
                                 <MenuNoResults query={searchQuery.trim()} onClear={() => setSearchQuery('')} />
                             ) : (
-                                <div className="grid gap-x-12 gap-y-9 xl:grid-cols-2">
+                                <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 2xl:grid-cols-4">
                                     {searchResults.map(item => (
-                                        <DishEntry key={item.id} item={item} onOpen={setDetailItem} />
+                                        <DishCard key={item.id} item={item} onOpen={setDetailItem} />
                                     ))}
                                 </div>
                             )}
@@ -280,7 +280,7 @@ export default function MenuPage() {
                     ) : sections.length === 0 ? (
                         <MenuEmpty branchName={selectedBranch?.name} />
                     ) : (
-                        <div className="flex flex-col gap-14">
+                        <div className="flex flex-col gap-12">
                             {sections.map(section => (
                                 <section
                                     key={section.id}
@@ -300,9 +300,9 @@ export default function MenuPage() {
                                         </span>
                                     </div>
 
-                                    <div className="grid gap-x-12 gap-y-9 xl:grid-cols-2">
+                                    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 2xl:grid-cols-4">
                                         {section.items.map(item => (
-                                            <DishEntry key={item.id} item={item} onOpen={setDetailItem} />
+                                            <DishCard key={item.id} item={item} onOpen={setDetailItem} />
                                         ))}
                                     </div>
                                 </section>
