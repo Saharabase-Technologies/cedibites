@@ -1,6 +1,8 @@
 'use client';
 
 import { useBranch } from '@/app/components/providers/BranchProvider';
+import { useRouter } from 'next/navigation';
+import ScreenHeader from '@/app/components/layout/ScreenHeader';
 import { useCart } from '@/app/components/providers/CartProvider';
 import { useLocation } from '@/app/components/providers/LocationProvider';
 import { normalizeGhanaPhone } from '@/app/lib/phone';
@@ -15,7 +17,6 @@ import EmptyCartGuard from './_components/EmptyCartGuard';
 import OrderSummary from './_components/OrderSummary';
 import StepDetails from './_components/StepDetails';
 import StepDone from './_components/StepDone';
-import StepIndicator from './_components/StepIndicator';
 import StepPayment from './_components/StepPayment';
 import StepProcessing from './_components/StepProcessing';
 import { DEFAULT_SC_CONFIG } from './_components/types';
@@ -23,6 +24,7 @@ import type { ContactDetails, OrderType, PaymentMethod, ServiceChargeConfig, Ste
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CheckoutPage() {
+    const router = useRouter();
     const { displayItems: items, clearCart, subtotal } = useCart();
     const { selectedBranch, branches } = useBranch();
     const { coordinates } = useLocation();
@@ -128,34 +130,58 @@ export default function CheckoutPage() {
 
     if (items.length === 0 && step !== 3 && step !== 4) return <EmptyCartGuard />;
 
+    /**
+     * Where back goes, which depends on how far in you are.
+     *
+     * Step two returns to the details. Step one leaves the flow. Three and four
+     * have no arrow at all: there is nothing useful to go back to while a
+     * payment is being confirmed, and nothing to undo once it has been.
+     */
+    const goBack = step === 2
+        ? () => setStep(1)
+        : step === 1
+            ? () => router.back()
+            : undefined;
+
+    const screenTitle = step === 4 ? 'Order confirmed'
+        : step === 3 ? 'Confirming payment'
+            : step === 2 ? 'Payment'
+                : 'Checkout';
+
     const branchClosed = effectiveBranch && !effectiveBranch.isOpen;
     const branchInactive = effectiveBranch && !effectiveBranch.isActive;
     const branchUnavailable = branchClosed || branchInactive;
 
     return (
-        <div className="min-h-[calc(100svh-var(--nav-h))] bg-neutral-light dark:bg-brand-darker pt-10 pb-12">
-            <div className="w-[95%] md:w-[85%] xl:w-[75%] max-w-5xl mx-auto">
-                <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-text-dark dark:text-text-light">{step === 4 ? 'Order Confirmed' : step === 3 ? 'Processing Payment' : 'Checkout'}</h1>
-                        {step <= 2 && <p className="text-sm text-neutral-gray mt-1">Complete your order details below</p>}
-                    </div>
-                    {step <= 3 && <StepIndicator current={step} />}
-                </div>
+        <div className="min-h-dvh bg-bg">
+            {/* Navbar renders nothing on a full-screen route, so this is the
+                only chrome the screen has and the only way back out of it. */}
+            <ScreenHeader
+                title={screenTitle}
+                onBack={goBack}
+                backLabel={step === 2 ? 'Back to your details' : 'Leave checkout'}
+                right={step <= 2 ? (
+                    <span className="text-xs font-bold uppercase tracking-widest text-fg-muted">
+                        Step {step} of 2
+                    </span>
+                ) : undefined}
+                progress={step <= 2 ? step / 2 : undefined}
+            />
+
+            <div className="page-x mx-auto max-w-5xl py-6 md:py-8">
 
                 {branchUnavailable && step <= 2 && (
-                    <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl bg-error/5 border border-error/20">
-                        <WarningCircleIcon weight="fill" size={22} className="text-error shrink-0 mt-0.5" />
-                        <div>
-                            <p className="text-sm font-bold text-error">
-                                {branchInactive ? 'This branch is currently inactive' : 'This branch is currently closed'}
-                            </p>
-                            <p className="text-xs text-error/80 mt-1">
-                                {branchInactive
-                                    ? 'This branch is not accepting orders at the moment. Please select a different branch or try again later.'
-                                    : 'This branch is closed right now. Please check back during operating hours or select a different branch.'}
-                            </p>
-                        </div>
+                    <div className="mb-6 rounded-xl bg-surface-sunken px-4 py-3.5">
+                        <p className="text-sm font-bold text-fg">
+                            {branchInactive
+                                ? `${effectiveBranch?.name} is not taking orders`
+                                : `${effectiveBranch?.name} is closed`}
+                        </p>
+                        <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
+                            {branchInactive
+                                ? 'Nothing can be sent from here at the moment. Change the branch in your order to carry on.'
+                                : 'Nothing leaves the kitchen until it opens again. Change the branch in your order to carry on.'}
+                        </p>
                     </div>
                 )}
 
