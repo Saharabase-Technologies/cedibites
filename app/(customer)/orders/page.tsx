@@ -2,6 +2,9 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import OrderCodeField from '@/app/components/order/OrderCodeField';
 import { useRouter } from 'next/navigation';
 import { useModal } from '../../components/providers/ModalProvider';
 import { useAuth } from '../../components/providers/AuthProvider';
@@ -16,28 +19,83 @@ import {
     MapPinIcon,
     ArrowRightIcon,
     ArrowsClockwiseIcon,
-    UserIcon,
+    SpinnerGapIcon,
 } from '@phosphor-icons/react';
 import type { Order as ApiOrder, OrderStatus as ApiOrderStatus } from '@/types/api';
 
-// Status configuration matching API statuses
-const STATUS_CONFIG: Record<ApiOrderStatus, {
-    label: string; color: string; bg: string;
-}> = {
-    pending: { label: 'Pending', color: 'text-info', bg: 'bg-info/8' },
-    confirmed: { label: 'Confirmed', color: 'text-info', bg: 'bg-info/8' },
-    received: { label: 'Received', color: 'text-info', bg: 'bg-info/8' },
-    // Missing until the OrderStatus union was corrected, so an order the branch
-    // had accepted rendered with no pill at all.
-    accepted: { label: 'Accepted', color: 'text-info', bg: 'bg-info/8' },
-    preparing: { label: 'Preparing', color: 'text-warning', bg: 'bg-warning/8' },
-    ready: { label: 'Ready', color: 'text-primary', bg: 'bg-primary/8' },
-    ready_for_pickup: { label: 'Ready for pickup', color: 'text-primary', bg: 'bg-primary/8' },
-    out_for_delivery: { label: 'On the way', color: 'text-primary', bg: 'bg-primary/8' },
-    delivered: { label: 'Delivered', color: 'text-secondary', bg: 'bg-secondary/8' },
-    completed: { label: 'Completed', color: 'text-secondary', bg: 'bg-secondary/8' },
-    cancel_requested: { label: 'Cancel Requested', color: 'text-warning', bg: 'bg-warning/8' },
-    cancelled: { label: 'Cancelled', color: 'text-error', bg: 'bg-error/8' },
+/**
+ * What somebody signed out sees on this page.
+ *
+ * It used to be a red banner sitting above a search box that searched nothing
+ * and an empty list, so a guest got two empty states stacked, and the banner
+ * said the same sentence twice: "Sign in to view your order history. Order
+ * history is only available for signed-in customers."
+ *
+ * Red is the action colour on this side of the product and it is spent on
+ * paying. Nothing has gone wrong here, so nothing is tinted. The page is simply
+ * about something else until you sign in.
+ *
+ * The code box is here rather than behind a link to it. `GET /orders/by-number`
+ * is public and always has been, so an account has never been needed to follow
+ * an order. Somebody who opens this page while their food is out is looking for
+ * that one order, and sending them to another screen to type five characters is
+ * a step for nothing. The account buys them the list, not the tracking.
+ */
+function SignedOut({ onSignIn }: { onSignIn: () => void }) {
+    return (
+        <div className="flex flex-col items-center px-5 py-16 text-center">
+            <Image src="/logo/mark-black.webp" alt="" width={256} height={179} className="w-16 opacity-15" />
+
+            <h2 className="mt-6 font-brand text-3xl uppercase leading-none tracking-[0.01em] text-fg">
+                Your orders live here
+            </h2>
+            <p className="mt-3 max-w-sm text-sm leading-relaxed text-fg-muted">
+                Put in the code from your SMS to follow that order. Sign in and every order you have placed
+                shows up on this page instead.
+            </p>
+
+            <div className="mt-6 flex w-full justify-center">
+                <OrderCodeField />
+            </div>
+
+            <button
+                onClick={onSignIn}
+                className="mt-5 text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70"
+            >
+                Sign in for the full list
+            </button>
+        </div>
+    );
+}
+
+/**
+ * How each status reads in the list.
+ *
+ * Four tones, not nine. The old map painted `received`, `confirmed` and
+ * `pending` three different shades of the same blue and put the live states in
+ * red, which is the action colour on this side and belongs on buttons. What a
+ * customer needs from a pill is whether the order is finished, still moving, or
+ * dead, and every one of these clears contrast on the page ground.
+ */
+const STATUS_CONFIG: Record<ApiOrderStatus, { label: string; tone: 'live' | 'done' | 'dead' }> = {
+    pending: { label: 'Pending', tone: 'live' },
+    confirmed: { label: 'Confirmed', tone: 'live' },
+    received: { label: 'Received', tone: 'live' },
+    accepted: { label: 'Accepted', tone: 'live' },
+    preparing: { label: 'Being cooked', tone: 'live' },
+    ready: { label: 'Ready', tone: 'live' },
+    ready_for_pickup: { label: 'Ready to collect', tone: 'live' },
+    out_for_delivery: { label: 'On the way', tone: 'live' },
+    delivered: { label: 'Delivered', tone: 'done' },
+    completed: { label: 'Completed', tone: 'done' },
+    cancel_requested: { label: 'Cancelling', tone: 'dead' },
+    cancelled: { label: 'Cancelled', tone: 'dead' },
+};
+
+const TONE_CLASS: Record<'live' | 'done' | 'dead', string> = {
+    live: 'bg-fg text-white',
+    done: 'bg-success-soft text-success-ink',
+    dead: 'bg-surface-sunken text-fg-muted',
 };
 
 const formatPrice = (p: number | string | null | undefined): string => {
@@ -122,198 +180,135 @@ export default function OrderHistoryPage() {
     const showLoading = !mounted || isLoading;
 
     return (
-        <div className="min-h-[calc(100svh-var(--nav-h))] bg-neutral-light dark:bg-brand-darker">
+        <div className="min-h-dvh bg-bg">
+            <main className="page-x mx-auto max-w-3xl pb-16 pt-8">
 
-                        <main className="w-[90%] md:w-[80%] lg:w-[70%] mx-auto pt-8 md:pt-10 pb-8 md:pb-12">
-
-                {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-3xl md:text-4xl font-bold text-text-dark dark:text-text-light mb-2">
-                        Order History
-                    </h1>
-                </div>
+                <h1 className="mb-7 font-brand text-4xl uppercase leading-none tracking-[0.01em] text-fg">
+                    My orders
+                </h1>
 
                 {showLoading ? (
-                    <div className="flex items-center justify-center py-16">
-                        <div className="text-center">
-                            <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
-                            <p className="text-neutral-gray">Loading your orders...</p>
-                        </div>
+                    <div className="flex items-center justify-center py-20">
+                        <SpinnerGapIcon size={26} className="animate-spin text-fg-subtle" />
                     </div>
+                ) : !isLoggedIn ? (
+                    <SignedOut onSignIn={openAuth} />
                 ) : (
                     <>
                         {/* Search */}
-                        <div className="mb-8">
-                            <div className="relative">
-                                <MagnifyingGlassIcon
-                                    size={24}
-                                    weight="bold"
-                                    className="absolute left-6 top-1/2 -translate-y-1/2 text-neutral-gray"
-                                />
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Search by order number, item, or branch..."
-                                    className="w-full pl-16 pr-12 py-4 bg-neutral-light dark:bg-brand-dark border-2 border-neutral-gray/30 focus:border-primary rounded-lg text-text-dark dark:text-text-light placeholder:text-neutral-gray transition-all outline-none"
-                                />
-                                {searchQuery && (
-                                    <button
-                                        onClick={() => setSearchQuery('')}
-                                        className="absolute right-6 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-gray/10 transition-colors"
-                                    >
-                                        <XIcon size={16} weight="bold" />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Guest Notice */}
-                        {!isLoggedIn && (
-                            <div className="mb-6 p-4 bg-primary/10 flex items-center justify-between border border-primary/20 rounded-2xl">
-                                <p className="text-sm text-text-dark dark:text-text-light">
-                                    <span className="font-semibold">Sign in to view your order history.</span> Order history is only available for signed-in customers.
-                                </p>
+                        <div className="mb-7 flex min-h-13 items-center rounded-xl border border-hairline bg-surface transition-colors duration-150 ease-out focus-within:border-fg">
+                            <MagnifyingGlassIcon size={16} weight="bold" className="ml-3.5 shrink-0 text-fg-subtle" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="An order number, a dish, a branch"
+                                className="min-w-0 flex-1 bg-transparent px-3 text-fg outline-none placeholder:text-fg-subtle"
+                            />
+                            {searchQuery && (
                                 <button
-                                    onClick={() => openAuth()}
-                                    className="mt-2 px-3 py-2 rounded-lg group hover:bg-primary/10 text-sm cursor-pointer flex items-center gap-2 font-semibold text-primary hover:underline"
+                                    onClick={() => setSearchQuery('')}
+                                    aria-label="Clear the search"
+                                    className="grid h-11 w-11 shrink-0 place-items-center text-fg-subtle transition-colors duration-150 ease-out hover:text-fg"
                                 >
-
-                                    <span className="inline-flex group-hover:bg-primary group-hover:text-text-light items-center gap-1 cursor-pointer h-12 w-12 px-3 py-3 bg-primary/10  hover:text-white rounded-lg transition-all">
-                                        <UserIcon size={24} weight="bold" />
-                                    </span>
-                                    <span className=''>                            sign In
-                                    </span>
-
+                                    <XIcon size={15} weight="bold" />
                                 </button>
-                            </div>
-                        )}
+                            )}
+                        </div>
 
                         {/* Orders List */}
                         {filteredOrders.length === 0 ? (
                             // Empty State
-                            <div className="text-center py-16">
-                                <div className="inline-flex items-center justify-center w-20 h-20 rounded-lg bg-neutral-gray/10 mb-6">
-                                    <PackageIcon size={40} className="text-neutral-gray/40" />
-                                </div>
-                                <h2 className="text-xl font-bold text-text-dark dark:text-text-light mb-2">
-                                    {searchQuery ? 'No orders found' : 'No orders yet'}
-                                </h2>
-                                <p className="text-neutral-gray mb-6">
+                            <div className="flex flex-col items-center py-16 text-center">
+                                <Image src="/logo/mark-black.webp" alt="" width={256} height={179} className="w-16 opacity-15" />
+                                <p className="mt-5 text-base font-bold text-fg">
+                                    {searchQuery ? 'Nothing matches that' : 'Nothing here yet'}
+                                </p>
+                                <p className="mt-1 max-w-64 text-sm leading-relaxed text-fg-muted">
                                     {searchQuery
-                                        ? 'Try a different search term'
-                                        : 'Your order history will appear here'}
+                                        ? 'Try the order number, or the name of a dish.'
+                                        : 'Jollof, wraps, drumsticks and the rest are one tap away.'}
                                 </p>
                                 {!searchQuery && (
-                                    <button
-                                        onClick={() => router.push('/')}
-                                        className="bg-primary hover:bg-primary-hover text-white font-semibold px-6 py-3 rounded-lg transition-all"
+                                    <Link
+                                        href="/menu"
+                                        className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-primary-fill px-5 text-sm font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95"
                                     >
-                                        Start Ordering
-                                    </button>
+                                        Open the menu
+                                    </Link>
                                 )}
                             </div>
                         ) : (
-                            <div className="space-y-4">
+                            <ul className="divide-y divide-hairline border-y border-hairline">
                                 {filteredOrders.map((order) => {
-                                    const statusConfig = STATUS_CONFIG[order.status];
+                                    const cfg = STATUS_CONFIG[order.status];
                                     const isCompleted = ['delivered', 'completed'].includes(order.status);
+                                    const where = order.order_type === 'delivery'
+                                        ? order.delivery_address?.split(',')[0]
+                                        : order.branch?.name;
 
                                     return (
-                                        <button
-                                            key={order.id}
-                                            onClick={() => handleOrderClick(order.order_number)}
-                                            className="w-full bg-white/50 cursor-pointer dark:bg-brand-dark rounded-2xl p-5 border border-neutral-gray/10 hover:border-primary/30 hover:shadow-md transition-all text-left group"
-                                        >
-                                            {/* Header */}
-                                            <div className="flex items-start justify-between gap-4 mb-4">
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-3 mb-2">
-                                                        <h3 className="font-bold text-text-dark dark:text-text-light">
+                                        <li key={order.id} className="py-4">
+                                            {/* The row is a link and the reorder is a
+                                                button beside it. They used to be a
+                                                button inside a button, which no browser
+                                                is obliged to make sense of. */}
+                                            <Link
+                                                href={`/orders/${order.order_number}`}
+                                                className="group flex items-start gap-4"
+                                            >
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                                                        <span className="font-brand text-xl uppercase leading-none tracking-[0.01em] text-fg">
                                                             {order.order_number}
-                                                        </h3>
-                                                        <span
-                                                            className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${statusConfig.bg} ${statusConfig.color}`}
-                                                        >
-                                                            {statusConfig.label}
+                                                        </span>
+                                                        <span className={`rounded-md px-2 py-1 text-[11px] font-bold uppercase leading-none tracking-[0.04em] ${TONE_CLASS[cfg.tone]}`}>
+                                                            {cfg.label}
                                                         </span>
                                                     </div>
-                                                    <div className="flex items-center gap-4 text-sm text-neutral-gray">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <CalendarIcon size={16} />
-                                                            <span>{timeAgo(order.created_at)}</span>
-                                                        </div>
-                                                        {order.order_type === 'delivery' && order.delivery_address && (
-                                                            <>
-                                                                <span>•</span>
-                                                                <div className="flex items-center gap-1.5 truncate">
-                                                                    <MapPinIcon size={16} />
-                                                                    <span className="truncate">
-                                                                        {order.delivery_address.split(',')[0]}
-                                                                    </span>
-                                                                </div>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <ArrowRightIcon
-                                                    size={20}
-                                                    className="text-neutral-gray group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0"
-                                                />
-                                            </div>
 
-                                            {/* Items */}
-                                            <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar">
-                                                {order.items.slice(0, 3).map((item) => (
-                                                    <div
-                                                        key={item.id}
-                                                        className="flex items-center gap-2 px-3 py-1.5 bg-neutral-light dark:bg-brand-darker rounded-lg shrink-0"
-                                                    >
-                                                        <span className="text-sm text-text-dark dark:text-text-light">
-                                                            {item.menu_item.name}
-                                                        </span>
-                                                        {item.quantity > 1 && (
-                                                            <span className="text-xs text-neutral-gray">
-                                                                ×{item.quantity}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                                {order.items.length > 3 && (
-                                                    <span className="text-sm text-neutral-gray shrink-0">
-                                                        +{order.items.length - 3} more
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {/* Footer */}
-                                            <div className="flex items-center justify-between pt-4 border-t border-neutral-gray/10">
-                                                <div>
-                                                    <p className="text-sm text-neutral-gray mb-1">
-                                                        Total Amount
+                                                    <p className="mt-2 truncate text-sm text-fg-muted">
+                                                        {timeAgo(order.created_at)}
+                                                        {where ? ` \u00b7 ${where}` : ''}
                                                     </p>
-                                                    <p className="text-lg font-bold text-primary">
+
+                                                    <p className="mt-1 truncate text-sm text-fg">
+                                                        {order.items
+                                                            .map(i => (i.quantity > 1 ? `${i.quantity} \u00d7 ` : '') + (i.menu_item_snapshot?.name ?? i.menu_item?.name ?? 'Item'))
+                                                            .join(', ')}
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex shrink-0 items-center gap-3">
+                                                    <span className="text-base font-bold tabular-nums text-fg">
                                                         {formatPrice(order.total_amount ?? order.total)}
-                                                    </p>
+                                                    </span>
+                                                    <ArrowRightIcon
+                                                        size={16}
+                                                        weight="bold"
+                                                        className="text-fg-subtle transition-colors duration-150 ease-out group-hover:text-fg"
+                                                    />
                                                 </div>
+                                            </Link>
 
-                                                <div className="flex items-center gap-2">
-                                                    {isCompleted && (
-                                                        <button
-                                                            onClick={(e) => handleReorder(e, order)}
-                                                            disabled={reordering === order.id}
-                                                            className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary hover:text-white text-primary rounded-lg font-semibold transition-all disabled:opacity-60"
-                                                        >
-                                                            <ArrowsClockwiseIcon size={18} weight="bold" className={reordering === order.id ? 'animate-spin' : ''} />
-                                                            <span>{reordering === order.id ? 'Adding...' : 'Reorder'}</span>
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </button>
+                                            {isCompleted && (
+                                                <button
+                                                    onClick={(e) => handleReorder(e, order)}
+                                                    disabled={reordering === order.id}
+                                                    className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-surface-sunken px-4 text-sm font-bold text-fg transition-opacity duration-150 ease-out hover:opacity-80 disabled:opacity-60"
+                                                >
+                                                    <ArrowsClockwiseIcon
+                                                        size={15}
+                                                        weight="bold"
+                                                        className={reordering === order.id ? 'animate-spin' : ''}
+                                                    />
+                                                    {reordering === order.id ? 'Adding it back' : 'Order this again'}
+                                                </button>
+                                            )}
+                                        </li>
                                     );
                                 })}
-                            </div>
+                            </ul>
                         )}
                     </>
                 )}
