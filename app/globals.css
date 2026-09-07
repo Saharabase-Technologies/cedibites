@@ -459,6 +459,26 @@ html:has(.cb-customer) body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Safari on iOS zooms the whole page whenever it focuses a field whose text is
+   smaller than 16px, and it does not zoom back out afterwards. Nearly every
+   field on this side was text-sm, which is 14, so tapping the menu search or a
+   checkout field threw the layout sideways and left it there.
+
+   The other way to stop it is maximum-scale on the viewport, and that turns off
+   pinch zoom for everybody. app/layout.tsx says in as many words that this was
+   deliberately not done, and it was right. Sizing the control is the fix that
+   costs nobody anything.
+
+   Phone widths only. On a desktop there is no auto-zoom to prevent and a
+   14px field is a reasonable thing to want. */
+@media (max-width: 767px) {
+  .cb-customer input,
+  .cb-customer select,
+  .cb-customer textarea {
+    font-size: 16px;
+  }
+}
+
 /* The horizontal rails hide their scrollbar with .no-scrollbar. That class is
    (0,1,0), the same weight as the `.cb-customer *` tint rule below it, so this
    states the intent at (0,2,0) where nothing can reach it. A rail that shows a
