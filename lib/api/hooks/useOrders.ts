@@ -72,7 +72,7 @@ export const useOrder = (id: number) => {
   };
 };
 
-export const useOrderByNumber = (orderNumber: string) => {
+export const useOrderByNumber = (orderNumber: string, token?: string) => {
   const queryClient = useQueryClient();
 
   const {
@@ -82,7 +82,7 @@ export const useOrderByNumber = (orderNumber: string) => {
     refetch,
   } = useQuery({
     queryKey: ['order', orderNumber],
-    queryFn: () => orderService.getOrderByNumber(orderNumber),
+    queryFn: () => orderService.getOrderByNumber(orderNumber, token),
     enabled: !!orderNumber,
   });
 

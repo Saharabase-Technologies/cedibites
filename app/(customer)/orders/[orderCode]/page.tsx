@@ -7,7 +7,7 @@ import type { Order as ApiOrder } from '@/types/api';
 import { ArrowLeftIcon, PhoneIcon, ShareIcon, SpinnerGapIcon } from '@phosphor-icons/react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useState } from 'react';
 import Timeline from './_components/Timeline';
 import { trackOrder } from './_components/trackOrder';
@@ -82,7 +82,16 @@ function Line({ item }: { item: ApiOrder['items'][number] }) {
 export default function TrackOrderPage({ params }: { params: Promise<{ orderCode: string }> }) {
     const { orderCode } = use(params);
     const router = useRouter();
-    const { order, isLoading, error } = useOrderByNumber(decodeURIComponent(orderCode).toUpperCase());
+
+    /**
+     * The secret half of the link we texted.
+     *
+     * Present when they arrived from the SMS, absent when they typed the code
+     * into the tracking box. The order shows either way; only the address it is
+     * going to depends on this.
+     */
+    const token = useSearchParams().get('t') ?? undefined;
+    const { order, isLoading, error } = useOrderByNumber(decodeURIComponent(orderCode).toUpperCase(), token);
 
     if (isLoading) {
         return (
@@ -206,8 +215,14 @@ export default function TrackOrderPage({ params }: { params: Promise<{ orderCode
             <section className="pt-8">
                 <Heading>{delivery ? 'Where it goes' : 'Where you collect it'}</Heading>
                 <div className="mt-4 flex flex-col gap-1">
-                    {delivery && order.delivery_address && (
-                        <p className="text-sm leading-relaxed text-fg">{order.delivery_address}</p>
+                    {delivery && (
+                        order.delivery_address
+                            ? <p className="text-sm leading-relaxed text-fg">{order.delivery_address}</p>
+                            /* No token, so no address. Said plainly rather than
+                               left as a gap somebody reads as a broken page. */
+                            : <p className="text-sm leading-relaxed text-fg-muted">
+                                The address is only shown on the tracking link we texted you.
+                            </p>
                     )}
                     <p className="text-sm text-fg-muted">
                         Cooked at <span className="font-bold text-fg">{order.branch?.name ?? 'the branch'}</span>

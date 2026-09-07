@@ -57,8 +57,16 @@ export const orderService = {
   /**
    * Get single order by order number (public, no auth required)
    */
-  getOrderByNumber: (orderNumber: string): Promise<{ data: Order }> => {
-    return apiClient.get(`/orders/by-number/${orderNumber}`);
+  /**
+   * One order, by its code.
+   *
+   * `token` is the secret half of the link we text. Without it the response
+   * carries the stage and the money and nothing personal; with it, the address
+   * the food is going to. An order code is short enough to guess, so the
+   * address is not on offer to a bare code.
+   */
+  getOrderByNumber: (orderNumber: string, token?: string): Promise<{ data: Order }> => {
+    return apiClient.get(`/orders/by-number/${orderNumber}`, token ? { params: { t: token } } : undefined);
   },
 
   /**
