@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import AddressSearchField from './AddressSearchField';
 import BranchSelectorSheet from './BranchSelectorSheet';
 import { Field, Reveal, StepHeading, controlClass } from './Field';
+import MomoField, { type MomoCheck } from './MomoField';
 import type { RecalledDetails } from './recall';
 import { STAGES, stageIsBefore } from './types';
 import type { ContactDetails, OrderType, PaymentMethod, Stage } from './types';
@@ -168,6 +169,7 @@ export default function CheckoutForm({
     orderType, setOrderType, orderTypes,
     paymentMethod, setPaymentMethod, methods,
     contact, setContact, recalled,
+    momoNumber, setMomoNumber, onMomoChecked,
 }: {
     stage: Stage;
     onJumpTo: (s: Stage) => void;
@@ -180,6 +182,9 @@ export default function CheckoutForm({
     contact: ContactDetails;
     setContact: React.Dispatch<React.SetStateAction<ContactDetails>>;
     recalled: RecalledDetails;
+    momoNumber: string;
+    setMomoNumber: (v: string) => void;
+    onMomoChecked: (c: MomoCheck) => void;
 }) {
     const { selectedBranch } = useBranch();
     const [branchSheet, setBranchSheet] = useState(false);
@@ -206,7 +211,8 @@ export default function CheckoutForm({
                 : { lead: 'Pickup at', value: selectedBranch?.name ?? 'the branch' };
         }
         if (s === 'who') return { value: contact.name, tail: contact.phone };
-        return { lead: 'Paying by', value: paymentMethod === 'mobile_money' ? 'Mobile Money' : 'Cash' };
+        if (paymentMethod === 'cash') return { lead: 'Paying by', value: 'Cash' };
+        return { lead: 'Mobile Money on', value: momoNumber };
     };
 
     return (
@@ -352,6 +358,14 @@ export default function CheckoutForm({
                                             />
                                         ))}
                                     </div>
+                                )}
+
+                                {paymentMethod === 'mobile_money' && (
+                                    <MomoField
+                                        value={momoNumber}
+                                        onChange={setMomoNumber}
+                                        onChecked={onMomoChecked}
+                                    />
                                 )}
 
                                 {noteOpen ? (

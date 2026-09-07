@@ -44,12 +44,17 @@ export function enabledPaymentMethods(branch: Branch | null): PaymentMethod[] {
  * be nonsense to refuse to continue past the address over a phone number
  * nobody has been asked for yet. Returns undefined when this stage is answered.
  */
-export function stageBlocker(stage: Stage, { branch, orderType, contact, orderTypes, methods }: {
+export function stageBlocker(stage: Stage, { branch, orderType, contact, orderTypes, methods, paymentMethod, momoNumber, momoRegistered }: {
     branch: Branch | null;
     orderType: OrderType;
     contact: ContactDetails;
     orderTypes: OrderType[];
     methods: PaymentMethod[];
+    paymentMethod: PaymentMethod;
+    /** The number the prompt will go to. Empty is fine until they pick MoMo. */
+    momoNumber: string;
+    /** False only when Hubtel has said so. Null means it could not be asked. */
+    momoRegistered: boolean | null;
 }): string | undefined {
     // A shut branch stops everything, at every stage. There is no point letting
     // somebody fill in three answers for an order that cannot be cooked.
@@ -71,5 +76,16 @@ export function stageBlocker(stage: Stage, { branch, orderType, contact, orderTy
     }
 
     if (methods.length === 0) return `${branch.name} has no way to take payment right now.`;
+
+    if (paymentMethod === 'mobile_money') {
+        if (!momoNumber.trim()) return 'Add the number to charge.';
+        if (!isValidGhanaPhone(momoNumber)) return 'That is not a Ghana mobile money number.';
+
+        // Only when Hubtel has actually said no. Null means the check could not
+        // be made, and not being able to check is no reason to stop somebody
+        // ordering: the prompt still goes out and either lands or does not.
+        if (momoRegistered === false) return 'No mobile money account on that number.';
+    }
+
     return undefined;
 }

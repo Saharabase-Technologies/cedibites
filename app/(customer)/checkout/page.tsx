@@ -14,6 +14,7 @@ import { toast } from '@/lib/utils/toast';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import CheckoutForm from './_components/CheckoutForm';
+import { UNCHECKED, type MomoCheck } from './_components/MomoField';
 import EmptyCartGuard from './_components/EmptyCartGuard';
 import OrderPlaced from './_components/OrderPlaced';
 import PaymentWait from './_components/PaymentWait';
@@ -63,6 +64,18 @@ export default function CheckoutPage() {
     const [promoReady, setPromoReady] = useState(false);
 
     const [recalled, setRecalled] = useState<RecalledDetails>(NO_RECALL);
+
+    /**
+     * The number the Mobile Money prompt goes to.
+     *
+     * Null means nobody has changed it, and it follows the number they gave for
+     * the order, because that is the one people pay from. Typing in the field
+     * takes it off that leash for good: somebody paying from a different wallet
+     * should not have it snatched back when they correct their contact number.
+     */
+    const [momoOverride, setMomoOverride] = useState<string | null>(null);
+    const [momoCheck, setMomoCheck] = useState<MomoCheck>(UNCHECKED);
+    const momoNumber = momoOverride ?? contact.phone;
 
     /**
      * Whether the browser has had a turn yet.
@@ -160,7 +173,10 @@ export default function CheckoutPage() {
 
     const serviceLabel = scConfig.percent > 0 ? `Service charge, ${scConfig.percent}%` : 'Service charge';
 
-    const blocked = stageBlocker(stage, { branch: effectiveBranch, orderType, contact, orderTypes, methods });
+    const blocked = stageBlocker(stage, {
+        branch: effectiveBranch, orderType, contact, orderTypes, methods,
+        paymentMethod, momoNumber, momoRegistered: momoCheck.registered,
+    });
 
     // ── Placing it ───────────────────────────────────────────────────────────
     const handlePlace = useCallback(async () => {
@@ -183,6 +199,9 @@ export default function CheckoutPage() {
                 delivery_longitude: orderType === 'delivery' && coordinates ? coordinates.longitude : undefined,
                 special_instructions: contact.note || undefined,
                 payment_method: paymentMethod,
+                momo_number: paymentMethod === 'mobile_money'
+                    ? normalizeGhanaPhone(momoNumber)
+                    : undefined,
             });
 
             if (paymentMethod === 'mobile_money') {
@@ -211,7 +230,7 @@ export default function CheckoutPage() {
         } finally {
             setPlacing(false);
         }
-    }, [effectiveBranch, paymentMethod, orderType, contact, coordinates, createSession, clearCart]);
+    }, [effectiveBranch, paymentMethod, orderType, contact, momoNumber, coordinates, createSession, clearCart]);
 
     const handlePaid = useCallback((num: string) => {
         clearCart();
@@ -310,6 +329,9 @@ export default function CheckoutPage() {
                                     contact={contact}
                                     setContact={setContact}
                                     recalled={recalled}
+                                    momoNumber={momoNumber}
+                                    setMomoNumber={setMomoOverride}
+                                    onMomoChecked={setMomoCheck}
                                 />
 
                                 {/* Under the question, not beside it. On a
