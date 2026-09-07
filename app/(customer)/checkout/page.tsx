@@ -53,6 +53,18 @@ export default function CheckoutPage() {
 
     const [recalled, setRecalled] = useState<RecalledDetails>(NO_RECALL);
 
+    /**
+     * Whether the browser has had a turn yet.
+     *
+     * /checkout is prerendered at build time, and the cart lives behind a guest
+     * session id in localStorage that a build machine has never seen. React
+     * Query reports a disabled query as `isLoading: false`, so the static HTML
+     * for this route was the "nothing to pay for yet" screen. Every visit
+     * painted an empty cart first, whatever was actually in it.
+     */
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => { setMounted(true); }, []);
+
     const effectiveBranch = selectedBranch ?? branches.find(b => b.isOpen) ?? branches[0] ?? null;
 
     // ── What this phone and this account already know ────────────────────────
@@ -213,10 +225,9 @@ export default function CheckoutPage() {
         return (
             <div className="min-h-dvh bg-bg">
                 <ScreenHeader title={title} onBack={goBack} backLabel="Leave checkout" />
-                {/* Nothing is claimed about an empty cart until the cart has
-                    actually answered. This used to say "your cart is empty" to
-                    people whose cart was still loading. */}
-                {!cartLoading && <EmptyCartGuard />}
+                {/* Nothing is claimed about an empty cart until this browser
+                    has actually looked in it. */}
+                {mounted && !cartLoading && <EmptyCartGuard />}
             </div>
         );
     }
