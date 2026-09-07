@@ -1,15 +1,16 @@
 /**
  * What a checkout is made of.
  *
- * Lifted out of a 1,022-line page.tsx along with everything else in this
- * folder. Eleven components, the pricing rules and these types all shared one
- * file, which is why nobody could change the payment step without reading the
- * address autocomplete.
+ * There are no steps any more. Choosing delivery, saying where it goes, saying
+ * who it is for and picking how to pay all happen on one screen, so the only
+ * thing left to name is which of the three screens you are on: the form, the
+ * wait for Hubtel, or the receipt. The wait and the receipt are states, not
+ * steps, which is why neither of them has a back arrow.
  */
 
 export type OrderType = 'delivery' | 'pickup';
 export type PaymentMethod = 'mobile_money' | 'cash';
-export type Step = 1 | 2 | 3 | 4;
+export type Phase = 'form' | 'paying' | 'placed';
 
 export interface ContactDetails {
     name: string;

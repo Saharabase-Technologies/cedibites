@@ -1,64 +1,72 @@
 'use client';
 
+import BottomSheet from '@/app/components/ui/BottomSheet';
 import { BranchConflictPanel, BranchList, useBranchSwitch } from '@/app/components/ui/BranchSwitch';
-import { lockScroll, unlockScroll } from '@/lib/utils/scrollLock';
 import { ArrowLeftIcon, XIcon } from '@phosphor-icons/react';
 import { useEffect } from 'react';
 
-// --- Branch Selector Sheet -------------------------------------------------
-// Chrome only. The list, the conflict panel and the decision about what happens
-// to the cart all live in components/ui/BranchSwitch.tsx, shared with the cart
-// drawer. This file used to carry its own copy of all three.
+/**
+ * Changing branch, from checkout.
+ *
+ * Chrome only. The list, the conflict panel and the decision about what happens
+ * to the cart all live in components/ui/BranchSwitch, shared with the cart
+ * drawer.
+ *
+ * It used to hand-roll the sheet as well: its own backdrop, its own translate,
+ * its own scroll lock and a blurred panel. That meant the two places a customer
+ * changes branch behaved differently on the same phone, and only one of them
+ * could be dragged shut. It sits on the shared BottomSheet now, so it drags,
+ * traps focus and answers Escape exactly like the cart does.
+ */
 export default function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const { conflict, removing, selectBranch, removeAndSwitch, keepCurrentBranch, reset } =
         useBranchSwitch({ onSettled: onClose });
 
-    useEffect(() => { if (!isOpen) setTimeout(reset, 300); }, [isOpen, reset]);
-
+    // Backing out and coming back should not reopen a conflict about a branch
+    // that has already been walked away from.
     useEffect(() => {
-        if (!isOpen) return;
+        if (isOpen) return;
+        const t = setTimeout(reset, 300);
+        return () => clearTimeout(t);
+    }, [isOpen, reset]);
 
-        lockScroll();
-        return unlockScroll;
-    }, [isOpen]);
+    const header = (
+        <div className="flex items-center gap-2 px-5 pb-4 pt-1 md:pt-5">
+            {conflict && (
+                <button
+                    onClick={keepCurrentBranch}
+                    aria-label="Back to the branch list"
+                    className="-ml-2 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-fg transition-colors duration-150 ease-out hover:bg-surface-sunken"
+                >
+                    <ArrowLeftIcon size={17} weight="bold" />
+                </button>
+            )}
+            <h2 className="flex-1 text-lg font-bold text-fg">
+                {conflict ? 'Not on that menu' : 'Change branch'}
+            </h2>
+            <button
+                onClick={onClose}
+                aria-label="Close"
+                className="-mr-2 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-fg-muted transition-colors duration-150 ease-out hover:bg-surface-sunken hover:text-fg"
+            >
+                <XIcon size={18} weight="bold" />
+            </button>
+        </div>
+    );
 
     return (
-        <>
-            <div className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={onClose} />
-            <div className={`fixed inset-x-0 bottom-0 z-50 bg-white dark:bg-brand-darker rounded-t-3xl shadow-2xl flex flex-col transition-transform duration-300 ease-out max-h-[88dvh]
-                md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-125 md:rounded-2xl md:max-h-[82vh]
-                ${isOpen ? 'translate-y-0' : 'translate-y-full md:opacity-0 md:scale-95 md:pointer-events-none'}`}>
-
-                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-neutral-gray/10 shrink-0">
-                    <div className="flex items-center gap-3">
-                        {conflict && (
-                            <button onClick={keepCurrentBranch} aria-label="Back to branch list"
-                                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-gray/10 transition-colors cursor-pointer">
-                                <ArrowLeftIcon weight="bold" size={16} className="text-text-dark dark:text-text-light" />
-                            </button>
-                        )}
-                        <h3 className="font-bold text-text-dark dark:text-text-light">
-                            {conflict ? 'Items Not Available' : 'Change Branch'}
-                        </h3>
-                    </div>
-                    <button onClick={onClose} aria-label="Close"
-                        className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-gray/10 transition-colors cursor-pointer">
-                        <XIcon size={20} weight="bold" className="text-text-dark dark:text-text-light" />
-                    </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4">
-                    {conflict
-                        ? <BranchConflictPanel
-                            conflict={conflict}
-                            removing={removing}
-                            onRemoveAndSwitch={removeAndSwitch}
-                            onKeepCurrent={onClose}
-                            onPickAnother={keepCurrentBranch}
-                        />
-                        : <BranchList onSelect={selectBranch} />}
-                </div>
+        <BottomSheet open={isOpen} onClose={onClose} label="Change branch" header={header}>
+            <div className="px-5 pb-5">
+                {conflict
+                    ? <BranchConflictPanel
+                        conflict={conflict}
+                        removing={removing}
+                        onRemoveAndSwitch={removeAndSwitch}
+                        onKeepCurrent={onClose}
+                        onPickAnother={keepCurrentBranch}
+                    />
+                    : <BranchList onSelect={selectBranch} />}
             </div>
-        </>
+        </BottomSheet>
     );
 }

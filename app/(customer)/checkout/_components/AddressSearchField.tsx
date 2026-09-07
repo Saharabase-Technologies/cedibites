@@ -1,15 +1,31 @@
 'use client';
 
-import React from 'react';
 import { useLocation } from '@/app/components/providers/LocationProvider';
 import { MagnifyingGlassIcon, MapPinIcon, NavigationArrowIcon, SpinnerGapIcon, XIcon } from '@phosphor-icons/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 // ─── Address Search ───────────────────────────────────────────────────────────
 declare global { interface Window { google: any; initGooglePlaces: () => void; } }
 interface AddressSuggestion { id: string; mainText: string; secondaryText: string; fullAddress: string; }
 
-export default function AddressSearchField({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+/**
+ * Where the food is going.
+ *
+ * Google Places when there is a key, Nominatim when there is not. Neither is
+ * asked anything until three characters are in, and both are biased towards
+ * wherever the phone says it is.
+ *
+ * The field carries no label of its own any more. "Where it goes" is the
+ * heading directly above it, and a second copy of that inside the box was one
+ * of the four places this screen used to explain itself twice.
+ */
+export default function AddressSearchField({ value, onChange, placeholder }: {
+    value: string;
+    onChange: (v: string) => void;
+    placeholder: string;
+}) {
     const { coordinates } = useLocation();
     const [query, setQuery] = useState(value);
     const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
@@ -20,6 +36,10 @@ export default function AddressSearchField({ value, onChange, placeholder }: { v
     const autocompleteRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // A value filled in from somewhere else, such as the "last time" button,
+    // has to reach the box the reader is looking at.
+    useEffect(() => { setQuery(value); }, [value]);
 
     useEffect(() => {
         if (window.google?.maps?.places) { setGoogleReady(true); return; }
@@ -40,7 +60,9 @@ export default function AddressSearchField({ value, onChange, placeholder }: { v
     }, [googleReady]);
 
     useEffect(() => {
-        const h = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node)) setShowSuggestions(false); };
+        const h = (e: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) setShowSuggestions(false);
+        };
         document.addEventListener('mousedown', h);
         return () => document.removeEventListener('mousedown', h);
     }, []);
@@ -69,62 +91,112 @@ export default function AddressSearchField({ value, onChange, placeholder }: { v
         if (coordinates) req.locationBias = { center: { lat: coordinates.latitude, lng: coordinates.longitude }, radius: 20000 };
         autocompleteRef.current.getPlacePredictions(req, (preds: any[], status: string) => {
             setSearching(false);
-            if (status === 'OK' && preds) setSuggestions(preds.map(p => ({ id: p.place_id, mainText: p.structured_formatting?.main_text ?? p.description, secondaryText: p.structured_formatting?.secondary_text ?? '', fullAddress: p.description })));
+            if (status === 'OK' && preds) setSuggestions(preds.map(p => ({
+                id: p.place_id,
+                mainText: p.structured_formatting?.main_text ?? p.description,
+                secondaryText: p.structured_formatting?.secondary_text ?? '',
+                fullAddress: p.description,
+            })));
             else setSuggestions([]);
         });
     }, [coordinates]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const v = e.target.value; setQuery(v); onChange(v); setShowSuggestions(true);
+        const v = e.target.value;
+        setQuery(v); onChange(v); setShowSuggestions(true);
         if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => googleReady && autocompleteRef.current ? fetchGoogle(v) : fetchNominatim(v), 300);
+        debounceRef.current = setTimeout(
+            () => (googleReady && autocompleteRef.current ? fetchGoogle(v) : fetchNominatim(v)),
+            300,
+        );
     };
 
     const handleUseMyLocation = async () => {
         if (!coordinates) return;
         setLocating(true);
         try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${coordinates.latitude}&lon=${coordinates.longitude}&format=json`, { headers: { 'Accept-Language': 'en' } });
+            const res = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?lat=${coordinates.latitude}&lon=${coordinates.longitude}&format=json`,
+                { headers: { 'Accept-Language': 'en' } },
+            );
             const data = await res.json();
             const a = data.address ?? {};
-            const parts = [a.house_number && a.road ? `${a.house_number} ${a.road}` : a.road, a.suburb ?? a.neighbourhood, a.city ?? a.town ?? a.village].filter(Boolean);
+            const parts = [
+                a.house_number && a.road ? `${a.house_number} ${a.road}` : a.road,
+                a.suburb ?? a.neighbourhood,
+                a.city ?? a.town ?? a.village,
+            ].filter(Boolean);
             const addr = parts.length > 0 ? parts.join(', ') : data.display_name;
             setQuery(addr); onChange(addr);
-        } catch { } finally { setLocating(false); }
+        } catch { /* leave it to be typed */ } finally { setLocating(false); }
     };
 
     return (
         <div ref={containerRef} className="relative">
-            <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-neutral-gray flex items-center gap-1.5">Delivery Address<span className="text-error">*</span></label>
-                <div className="relative flex items-center bg-neutral-light dark:bg-brand-dark border-2 border-neutral-gray/50 focus-within:border-primary rounded-xl transition-all overflow-hidden">
-                    <span className="pl-3.5 text-neutral-gray shrink-0"><MagnifyingGlassIcon size={15} weight="bold" /></span>
-                    <input type="text" value={query} onChange={handleChange} onFocus={() => query.length >= 3 && setShowSuggestions(true)} placeholder={placeholder}
-                        className="flex-1 px-3 py-3 text-sm bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/60" />
-                    {query && <button onClick={() => { setQuery(''); onChange(''); setSuggestions([]); }} className="pr-3 cursor-pointer text-neutral-gray hover:text-text-dark transition-colors"><XIcon size={14} weight="bold" /></button>}
-                </div>
-                {coordinates && (
-                    <button onClick={handleUseMyLocation} disabled={locating} className="flex items-center gap-2 text-xs font-semibold text-primary hover:text-primary-hover transition-colors w-fit mt-0.5 cursor-pointer">
-                        {locating ? <SpinnerGapIcon size={13} className="animate-spin" /> : <NavigationArrowIcon size={13} weight="fill" />}
-                        Use my current location
+            <div className="flex min-h-12 items-center rounded-xl border border-hairline bg-surface transition-colors duration-150 ease-out focus-within:border-fg">
+                <MagnifyingGlassIcon size={16} weight="bold" className="ml-3.5 shrink-0 text-fg-subtle" />
+                <input
+                    type="text"
+                    autoComplete="street-address"
+                    value={query}
+                    onChange={handleChange}
+                    onFocus={() => query.length >= 3 && setShowSuggestions(true)}
+                    placeholder={placeholder}
+                    className="min-w-0 flex-1 bg-transparent px-3 text-fg outline-none placeholder:text-fg-subtle"
+                />
+                {query && (
+                    <button
+                        onClick={() => { setQuery(''); onChange(''); setSuggestions([]); }}
+                        aria-label="Clear the address"
+                        className="grid h-11 w-11 shrink-0 place-items-center text-fg-subtle transition-colors duration-150 ease-out hover:text-fg"
+                    >
+                        <XIcon size={15} weight="bold" />
                     </button>
                 )}
             </div>
+
+            {coordinates && (
+                <button
+                    onClick={handleUseMyLocation}
+                    disabled={locating}
+                    className="mt-2 flex items-center gap-1.5 text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70 disabled:opacity-50"
+                >
+                    {locating
+                        ? <SpinnerGapIcon size={13} className="animate-spin" />
+                        : <NavigationArrowIcon size={13} weight="fill" />}
+                    {locating ? 'Finding you' : 'Use where I am now'}
+                </button>
+            )}
+
             {showSuggestions && (searching || suggestions.length > 0) && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white dark:bg-brand-dark rounded-2xl shadow-xl border border-neutral-gray/15 overflow-hidden">
-                    {searching && suggestions.length === 0
-                        ? <div className="flex items-center gap-2 px-4 py-3 text-sm text-neutral-gray"><SpinnerGapIcon size={14} className="animate-spin text-primary" /> Searching addresses...</div>
-                        : suggestions.map((s, i) => (
-                            <button key={s.id} onClick={() => { setQuery(s.fullAddress); onChange(s.fullAddress); setSuggestions([]); setShowSuggestions(false); }}
-                                className={`w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-primary/5 transition-colors cursor-pointer ${i < suggestions.length - 1 ? 'border-b border-neutral-gray/8' : ''}`}>
-                                <MapPinIcon weight="fill" size={14} className="text-primary mt-0.5 shrink-0" />
-                                <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{s.mainText}</p>
-                                    {s.secondaryText && <p className="text-xs text-neutral-gray truncate">{s.secondaryText}</p>}
-                                </div>
-                            </button>
-                        ))
-                    }
+                <div className="absolute inset-x-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-hairline bg-surface shadow-float">
+                    {searching && suggestions.length === 0 ? (
+                        <p className="flex items-center gap-2 px-4 py-3.5 text-sm text-fg-muted">
+                            <SpinnerGapIcon size={14} className="animate-spin" /> Looking
+                        </p>
+                    ) : (
+                        <ul className="divide-y divide-hairline">
+                            {suggestions.map(s => (
+                                <li key={s.id}>
+                                    <button
+                                        onClick={() => {
+                                            setQuery(s.fullAddress); onChange(s.fullAddress);
+                                            setSuggestions([]); setShowSuggestions(false);
+                                        }}
+                                        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-surface-sunken"
+                                    >
+                                        <MapPinIcon size={14} weight="fill" className="mt-0.5 shrink-0 text-fg-subtle" />
+                                        <span className="min-w-0">
+                                            <span className="block truncate text-sm font-semibold text-fg">{s.mainText}</span>
+                                            {s.secondaryText && (
+                                                <span className="mt-0.5 block truncate text-[13px] text-fg-muted">{s.secondaryText}</span>
+                                            )}
+                                        </span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
             )}
         </div>

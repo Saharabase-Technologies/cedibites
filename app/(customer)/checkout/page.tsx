@@ -1,78 +1,160 @@
 'use client';
 
 import { useBranch } from '@/app/components/providers/BranchProvider';
-import { useRouter } from 'next/navigation';
-import ScreenHeader from '@/app/components/layout/ScreenHeader';
 import { useCart } from '@/app/components/providers/CartProvider';
 import { useLocation } from '@/app/components/providers/LocationProvider';
+import { useAuth } from '@/app/components/providers/AuthProvider';
+import ScreenHeader from '@/app/components/layout/ScreenHeader';
 import { normalizeGhanaPhone } from '@/app/lib/phone';
 import apiClient, { ApiError } from '@/lib/api/client';
 import { useCreateCheckoutSession } from '@/lib/api/hooks/useCheckoutSession';
 import { getPromoService } from '@/lib/services/promos/promo.service';
 import type { Promo } from '@/lib/services/promos/promo.service';
 import { toast } from '@/lib/utils/toast';
-import { WarningCircleIcon } from '@phosphor-icons/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import CheckoutForm from './_components/CheckoutForm';
 import EmptyCartGuard from './_components/EmptyCartGuard';
-import OrderSummary from './_components/OrderSummary';
-import StepDetails from './_components/StepDetails';
-import StepDone from './_components/StepDone';
-import StepPayment from './_components/StepPayment';
-import StepProcessing from './_components/StepProcessing';
+import OrderPlaced from './_components/OrderPlaced';
+import PaymentWait from './_components/PaymentWait';
+import { OrderPanel, OrderRecap } from './_components/OrderPanel';
+import { PayBar, PayBarSpacer, PayAction } from './_components/PayBar';
+import { blockingReason, enabledOrderTypes, enabledPaymentMethods } from './_components/availability';
+import { computeTotals } from './_components/pricing';
+import { readRecalled, writeRecalled, type RecalledDetails } from './_components/recall';
 import { DEFAULT_SC_CONFIG } from './_components/types';
-import type { ContactDetails, OrderType, PaymentMethod, ServiceChargeConfig, Step } from './_components/types';
+import type { ContactDetails, OrderType, PaymentMethod, Phase, ServiceChargeConfig } from './_components/types';
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+const NO_RECALL: RecalledDetails = { name: '', phone: '', address: '' };
+
 export default function CheckoutPage() {
     const router = useRouter();
-    const { displayItems: items, clearCart, subtotal } = useCart();
+    const { displayItems: items, clearCart, subtotal, isLoading: cartLoading } = useCart();
     const { selectedBranch, branches } = useBranch();
     const { coordinates } = useLocation();
+    const { user, isLoggedIn } = useAuth();
     const createSession = useCreateCheckoutSession();
-    const [step, setStep] = useState<Step>(1);
+
+    const [phase, setPhase] = useState<Phase>('form');
     const [orderType, setOrderType] = useState<OrderType>('delivery');
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mobile_money');
     const [placing, setPlacing] = useState(false);
     const [orderNumber, setOrderNumber] = useState('');
     const [sessionToken, setSessionToken] = useState<string | null>(null);
     const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });
+
     const [scConfig, setScConfig] = useState<ServiceChargeConfig>(DEFAULT_SC_CONFIG);
     const [deliveryFeeEnabled, setDeliveryFeeEnabled] = useState(false);
-    const [activePromo, setActivePromo] = useState<Promo | null>(null);
-    const [promoDiscount, setPromoDiscount] = useState(0);
+    const [configReady, setConfigReady] = useState(false);
 
+    const [promo, setPromo] = useState<Promo | null>(null);
+    const [promoDiscount, setPromoDiscount] = useState(0);
+    const [promoReady, setPromoReady] = useState(false);
+
+    const [recalled, setRecalled] = useState<RecalledDetails>(NO_RECALL);
+
+    const effectiveBranch = selectedBranch ?? branches.find(b => b.isOpen) ?? branches[0] ?? null;
+
+    // ── What this phone and this account already know ────────────────────────
+    // localStorage cannot be read while rendering without the server and the
+    // client disagreeing about what the first paint says, so it lands here and
+    // fills in only the fields still empty. Nobody's typing is ever overwritten.
+    useEffect(() => {
+        const saved = readRecalled();
+        setRecalled(saved);
+        setContact(c => ({
+            ...c,
+            name: c.name || (isLoggedIn ? user?.name ?? '' : '') || saved.name,
+            phone: c.phone || (isLoggedIn ? user?.phone ?? '' : '') || saved.phone,
+            address: c.address || saved.address,
+        }));
+    }, [isLoggedIn, user?.name, user?.phone]);
+
+    // ── Charges ──────────────────────────────────────────────────────────────
     useEffect(() => {
         apiClient.get('/checkout-config').then((res: unknown) => {
             const d = (res as { data?: { service_charge_enabled?: boolean; service_charge_percent?: number; service_charge_cap?: number; delivery_fee_enabled?: boolean } })?.data;
             if (d) {
-                setScConfig({ enabled: d.service_charge_enabled ?? true, percent: d.service_charge_percent ?? 1, cap: d.service_charge_cap ?? 5 });
+                setScConfig({
+                    enabled: d.service_charge_enabled ?? true,
+                    percent: d.service_charge_percent ?? 1,
+                    cap: d.service_charge_cap ?? 5,
+                });
                 setDeliveryFeeEnabled(d.delivery_fee_enabled ?? false);
             }
-        }).catch(() => { /* fall back to defaults */ });
+        }).catch(() => { /* the defaults stand */ })
+            .finally(() => setConfigReady(true));
     }, []);
 
-    const effectiveBranch = selectedBranch ?? branches.find(b => b.isOpen) ?? branches[0] ?? null;
-
-    // Auto-resolve best applicable promo
+    // ── The best promo this order qualifies for ──────────────────────────────
     useEffect(() => {
-        if (!effectiveBranch || items.length === 0) { setActivePromo(null); setPromoDiscount(0); return; }
+        if (!effectiveBranch || items.length === 0) {
+            setPromo(null); setPromoDiscount(0); setPromoReady(true);
+            return;
+        }
+        setPromoReady(false);
         const itemIds = items.map(ci => String(ci.item.id));
         getPromoService().resolvePromo(itemIds, String(effectiveBranch.id), subtotal).then(p => {
-            if (!p) { setActivePromo(null); setPromoDiscount(0); return; }
-            setActivePromo(p);
-            setPromoDiscount(getPromoService().calculateDiscount(p, subtotal));
-        }).catch(() => { setActivePromo(null); setPromoDiscount(0); });
+            setPromo(p ?? null);
+            setPromoDiscount(p ? getPromoService().calculateDiscount(p, subtotal) : 0);
+        }).catch(() => {
+            setPromo(null); setPromoDiscount(0);
+        }).finally(() => setPromoReady(true));
     }, [items, effectiveBranch, subtotal]);
 
-    const handlePlaceOrder = useCallback(async () => {
+    // ── What the branch will take ────────────────────────────────────────────
+    const orderTypes = useMemo(() => enabledOrderTypes(effectiveBranch), [effectiveBranch]);
+    const methods = useMemo(() => enabledPaymentMethods(effectiveBranch), [effectiveBranch]);
+
+    // A branch offering one of something has already made the choice.
+    useEffect(() => {
+        if (orderTypes.length > 0 && !orderTypes.includes(orderType)) setOrderType(orderTypes[0]);
+    }, [orderTypes, orderType]);
+
+    useEffect(() => {
+        if (methods.length > 0 && !methods.includes(paymentMethod)) setPaymentMethod(methods[0]);
+    }, [methods, paymentMethod]);
+
+    // ── The money, worked out once for the bar and the panel ─────────────────
+    const totals = useMemo(() => computeTotals({
+        subtotal,
+        orderType,
+        scConfig,
+        deliveryFeeEnabled,
+        branchDeliveryFee: effectiveBranch?.deliveryFee,
+        discount: promoDiscount,
+        promoName: promo?.name,
+        paymentMethod,
+    }), [subtotal, orderType, scConfig, deliveryFeeEnabled, effectiveBranch?.deliveryFee, promoDiscount, promo?.name, paymentMethod]);
+
+    /**
+     * The figures are only true once the server has said what it charges and
+     * whether this order has a promo on it. Before that the screen would be
+     * showing a total built from the fallbacks, then quietly changing it. The
+     * bar holds the button until both have landed.
+     */
+    const moneyReady = configReady && promoReady;
+
+    const serviceLabel = scConfig.percent > 0 ? `Service charge, ${scConfig.percent}%` : 'Service charge';
+
+    const blocked = blockingReason({ branch: effectiveBranch, orderType, contact, orderTypes, methods });
+
+    // ── Placing it ───────────────────────────────────────────────────────────
+    const handlePlace = useCallback(async () => {
         if (!effectiveBranch) return;
+        const phone = normalizeGhanaPhone(contact.phone);
         setPlacing(true);
+
+        // Written now rather than on confirmation. They typed it either way, and
+        // a payment that fails is exactly when nobody wants to type it again.
+        writeRecalled({ name: contact.name.trim(), phone, address: contact.address.trim() });
+
         try {
             const session = await createSession.mutateAsync({
                 branch_id: Number(effectiveBranch.id),
                 order_type: orderType,
                 customer_name: contact.name,
-                customer_phone: normalizeGhanaPhone(contact.phone),
+                customer_phone: phone,
                 delivery_address: orderType === 'delivery' ? contact.address : undefined,
                 delivery_latitude: orderType === 'delivery' && coordinates ? coordinates.latitude : undefined,
                 delivery_longitude: orderType === 'delivery' && coordinates ? coordinates.longitude : undefined,
@@ -81,126 +163,117 @@ export default function CheckoutPage() {
             });
 
             if (paymentMethod === 'mobile_money') {
-                // Redirect to Hubtel checkout if we have a URL
+                // The backend clears the cart when the order is created, so it is
+                // deliberately left alone here: a payment that fails leaves the
+                // customer with their order still in hand.
                 if (session.checkout_url) {
-                    // Don't clear cart here — backend clears it when order is created.
-                    // If payment fails, the customer can retry with their cart intact.
                     window.location.href = session.checkout_url;
                     return;
                 }
-                // Otherwise poll for status (e.g. if redirect didn't happen)
                 setSessionToken(session.session_token);
-                setStep(3);
+                setPhase('paying');
+                return;
+            }
+
+            if (session.status === 'confirmed' && session.order?.order_number) {
+                clearCart();
+                setOrderNumber(session.order.order_number);
+                setPhase('placed');
             } else {
-                // Cash: backend creates order immediately
-                if (session.status === 'confirmed' && session.order?.order_number) {
-                    clearCart();
-                    setOrderNumber(session.order.order_number);
-                    setStep(4);
-                } else {
-                    // Session still pending — poll for status
-                    setSessionToken(session.session_token);
-                    setStep(3);
-                }
+                setSessionToken(session.session_token);
+                setPhase('paying');
             }
         } catch (err: unknown) {
-            const msg = err instanceof ApiError ? err.message : 'Failed to place order. Please try again.';
-            toast.error(msg);
+            toast.error(err instanceof ApiError ? err.message : 'The order did not go through. Try again.');
         } finally {
             setPlacing(false);
         }
     }, [effectiveBranch, paymentMethod, orderType, contact, coordinates, createSession, clearCart]);
 
-    const handleProcessingSuccess = useCallback((num: string) => {
+    const handlePaid = useCallback((num: string) => {
         clearCart();
         setOrderNumber(num);
-        setStep(4);
+        setPhase('placed');
     }, [clearCart]);
 
-    const handleProcessingFail = useCallback((message: string) => {
-        toast.error(message);
-        setStep(2);
+    const handleGaveUp = useCallback(() => {
+        setPhase('form');
         setSessionToken(null);
     }, []);
 
-    const handleProcessingAbandon = useCallback(() => {
-        setStep(2);
-        setSessionToken(null);
-    }, []);
+    // ── What is on screen ────────────────────────────────────────────────────
+    const title = phase === 'placed' ? 'Order placed' : phase === 'paying' ? 'Payment' : 'Checkout';
 
-    if (items.length === 0 && step !== 3 && step !== 4) return <EmptyCartGuard />;
+    // Only the form can be left, and only backwards into the menu. There is
+    // nothing useful behind a payment being confirmed, and nothing to undo once
+    // it has been.
+    const goBack = phase === 'form' ? () => router.back() : undefined;
 
-    /**
-     * Where back goes, which depends on how far in you are.
-     *
-     * Step two returns to the details. Step one leaves the flow. Three and four
-     * have no arrow at all: there is nothing useful to go back to while a
-     * payment is being confirmed, and nothing to undo once it has been.
-     */
-    const goBack = step === 2
-        ? () => setStep(1)
-        : step === 1
-            ? () => router.back()
-            : undefined;
-
-    const screenTitle = step === 4 ? 'Order confirmed'
-        : step === 3 ? 'Confirming payment'
-            : step === 2 ? 'Payment'
-                : 'Checkout';
-
-    const branchClosed = effectiveBranch && !effectiveBranch.isOpen;
-    const branchInactive = effectiveBranch && !effectiveBranch.isActive;
-    const branchUnavailable = branchClosed || branchInactive;
+    if (phase === 'form' && items.length === 0) {
+        return (
+            <div className="min-h-dvh bg-bg">
+                <ScreenHeader title={title} onBack={goBack} backLabel="Leave checkout" />
+                {/* Nothing is claimed about an empty cart until the cart has
+                    actually answered. This used to say "your cart is empty" to
+                    people whose cart was still loading. */}
+                {!cartLoading && <EmptyCartGuard />}
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-dvh bg-bg">
-            {/* Navbar renders nothing on a full-screen route, so this is the
-                only chrome the screen has and the only way back out of it. */}
-            <ScreenHeader
-                title={screenTitle}
-                onBack={goBack}
-                backLabel={step === 2 ? 'Back to your details' : 'Leave checkout'}
-                right={step <= 2 ? (
-                    <span className="text-xs font-bold uppercase tracking-widest text-fg-muted">
-                        Step {step} of 2
-                    </span>
-                ) : undefined}
-                progress={step <= 2 ? step / 2 : undefined}
-            />
+            <ScreenHeader title={title} onBack={goBack} backLabel="Leave checkout" />
 
-            <div className="page-x mx-auto max-w-5xl py-6 md:py-8">
-
-                {branchUnavailable && step <= 2 && (
-                    <div className="mb-6 rounded-xl bg-surface-sunken px-4 py-3.5">
-                        <p className="text-sm font-bold text-fg">
-                            {branchInactive
-                                ? `${effectiveBranch?.name} is not taking orders`
-                                : `${effectiveBranch?.name} is closed`}
-                        </p>
-                        <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
-                            {branchInactive
-                                ? 'Nothing can be sent from here at the moment. Change the branch in your order to carry on.'
-                                : 'Nothing leaves the kitchen until it opens again. Change the branch in your order to carry on.'}
-                        </p>
-                    </div>
-                )}
-
-                {step === 4 ? (
-                    <div className="max-w-md mx-auto">
-                        <StepDone orderNumber={orderNumber} orderType={orderType} contact={contact} />
-                    </div>
-                ) : step === 3 && sessionToken ? (
-                    <div className="max-w-md mx-auto">
-                        <StepProcessing sessionToken={sessionToken} onSuccess={handleProcessingSuccess} onFail={handleProcessingFail} onAbandon={handleProcessingAbandon} />
-                    </div>
+            <div className="page-x mx-auto max-w-5xl">
+                {phase === 'placed' ? (
+                    <OrderPlaced orderNumber={orderNumber} orderType={orderType} contact={contact} />
+                ) : phase === 'paying' && sessionToken ? (
+                    <PaymentWait
+                        sessionToken={sessionToken}
+                        onSuccess={handlePaid}
+                        onFail={msg => { toast.error(msg); handleGaveUp(); }}
+                        onAbandon={handleGaveUp}
+                    />
                 ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
-                        <div>
-                            {step === 1 && <StepDetails orderType={orderType} setOrderType={setOrderType} contact={contact} setContact={setContact} onNext={() => { setContact(c => ({ ...c, phone: normalizeGhanaPhone(c.phone) })); setStep(2); }} />}
-                            {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} scConfig={scConfig} />}
+                    <>
+                        <OrderRecap totals={totals} serviceLabel={serviceLabel} ready={moneyReady} />
+
+                        <div className="grid gap-10 py-7 lg:grid-cols-[1fr_340px] lg:py-9">
+                            <CheckoutForm
+                                orderType={orderType}
+                                setOrderType={setOrderType}
+                                orderTypes={orderTypes}
+                                paymentMethod={paymentMethod}
+                                setPaymentMethod={setPaymentMethod}
+                                methods={methods}
+                                contact={contact}
+                                setContact={setContact}
+                                recalled={recalled}
+                                knownContact={Boolean(contact.name && contact.phone)}
+                            />
+
+                            <OrderPanel totals={totals} serviceLabel={serviceLabel} ready={moneyReady}>
+                                <PayAction
+                                    method={paymentMethod}
+                                    placing={placing}
+                                    ready={moneyReady}
+                                    blockedBecause={blocked}
+                                    onPlace={handlePlace}
+                                />
+                            </OrderPanel>
                         </div>
-                        <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} scConfig={scConfig} deliveryFeeEnabled={deliveryFeeEnabled} discount={promoDiscount} promoName={activePromo?.name} /></div>
-                    </div>
+
+                        <PayBarSpacer />
+                        <PayBar
+                            totals={totals}
+                            method={paymentMethod}
+                            placing={placing}
+                            ready={moneyReady}
+                            blockedBecause={blocked}
+                            onPlace={handlePlace}
+                        />
+                    </>
                 )}
             </div>
         </div>
