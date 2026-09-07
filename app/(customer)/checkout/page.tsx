@@ -18,6 +18,7 @@ import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useBranchSwitch, BranchList, BranchConflictPanel } from '@/app/components/ui/BranchSwitch';
 import { useLocation } from '@/app/components/providers/LocationProvider';
 import { useAuth } from '@/app/components/providers/AuthProvider';
+import { lockScroll, unlockScroll } from '@/lib/utils/scrollLock';
 import { useCreateCheckoutSession, useCheckoutSessionStatus, useAbandonCheckoutSession, useRetryPayment, useChangePaymentMethod } from '@/lib/api/hooks/useCheckoutSession';
 import PaymentRecoveryActions from '@/app/components/order/PaymentRecoveryActions';
 import type { PaymentMethod as UnifiedPaymentMethod, FulfillmentType } from '@/types/order';
@@ -197,8 +198,10 @@ function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     useEffect(() => { if (!isOpen) setTimeout(reset, 300); }, [isOpen, reset]);
 
     useEffect(() => {
-        document.body.style.overflow = isOpen ? 'hidden' : '';
-        return () => { document.body.style.overflow = ''; };
+        if (!isOpen) return;
+
+        lockScroll();
+        return unlockScroll;
     }, [isOpen]);
 
     return (

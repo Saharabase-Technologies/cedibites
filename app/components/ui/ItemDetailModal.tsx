@@ -7,6 +7,7 @@ import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryPro
 import { useMenuDiscovery } from '@/app/components/providers/MenuDiscoveryProvider';
 import { useCart, DEFAULT_SIZE_KEY, makeCartItemId } from '@/app/components/providers/CartProvider';
 import { photoForMenuItem } from '@/lib/constants/branchPhotos';
+import { lockScroll, unlockScroll } from '@/lib/utils/scrollLock';
 
 interface ItemDetailModalProps {
     item: SearchableItem | null;
@@ -97,15 +98,14 @@ export default function ItemDetailModal({ item, onClose, initialSizeKey }: ItemD
     }, [onClose]);
 
     // ── The page stays where it was ─────────────────────────────────────────
+    // `overflow: hidden` on the body, which is what this used to do, is not a
+    // lock on a phone: iOS scrolls the document with touch regardless of it,
+    // which is precisely where a bottom sheet matters. See scrollLock.ts.
     useEffect(() => {
         if (!item) return;
 
-        // Whatever it was, not necessarily "". A cart drawer may already have
-        // locked the body, and clearing it outright would unlock the page for
-        // a modal that is still open.
-        const previous = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-        return () => { document.body.style.overflow = previous; };
+        lockScroll();
+        return unlockScroll;
     }, [item]);
 
     // ── Escape, and focus that stays inside ─────────────────────────────────
