@@ -291,31 +291,43 @@ export default function CheckoutPage() {
                     <>
                         <OrderRecap totals={totals} serviceLabel={serviceLabel} ready={moneyReady} />
 
-                        <div className="grid gap-10 py-7 lg:grid-cols-[1fr_340px] lg:py-9">
-                            <CheckoutForm
-                                stage={stage}
-                                onJumpTo={setStage}
-                                orderType={orderType}
-                                setOrderType={setOrderType}
-                                orderTypes={orderTypes}
-                                paymentMethod={paymentMethod}
-                                setPaymentMethod={setPaymentMethod}
-                                methods={methods}
-                                contact={contact}
-                                setContact={setContact}
-                                recalled={recalled}
-                            />
-
-                            <OrderPanel totals={totals} serviceLabel={serviceLabel} ready={moneyReady}>
-                                <PayAction
+                        <div className="grid items-start gap-10 py-7 lg:grid-cols-[1fr_340px] lg:py-9">
+                            {/* min-w-0, or the column refuses to go narrower
+                                than its widest line. A grid item is auto-width
+                                by default, so a long address pushed the whole
+                                form past the edge of the page instead of
+                                wrapping inside it. */}
+                            <div className="min-w-0">
+                                <CheckoutForm
                                     stage={stage}
-                                    method={paymentMethod}
-                                    placing={placing}
-                                    ready={moneyReady}
-                                    blockedBecause={blocked}
-                                    onAdvance={handleAdvance}
+                                    onJumpTo={setStage}
+                                    orderType={orderType}
+                                    setOrderType={setOrderType}
+                                    orderTypes={orderTypes}
+                                    paymentMethod={paymentMethod}
+                                    setPaymentMethod={setPaymentMethod}
+                                    methods={methods}
+                                    contact={contact}
+                                    setContact={setContact}
+                                    recalled={recalled}
                                 />
-                            </OrderPanel>
+
+                                {/* Under the question, not beside it. On a
+                                    phone this is hidden and the pinned bar at
+                                    the foot of the screen carries it. */}
+                                <div className="mt-9">
+                                    <PayAction
+                                        stage={stage}
+                                        method={paymentMethod}
+                                        placing={placing}
+                                        ready={moneyReady}
+                                        blockedBecause={blocked}
+                                        onAdvance={handleAdvance}
+                                    />
+                                </div>
+                            </div>
+
+                            <OrderPanel totals={totals} serviceLabel={serviceLabel} ready={moneyReady} />
                         </div>
 
                         <PayBarSpacer />

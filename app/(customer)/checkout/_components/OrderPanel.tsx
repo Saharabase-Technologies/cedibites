@@ -185,12 +185,21 @@ export function OrderRecap({ totals, serviceLabel, ready }: { totals: Totals; se
 
 // ─── The panel, beside the form ───────────────────────────────────────────────
 
-export function OrderPanel({ totals, serviceLabel, ready, children }: {
+/**
+ * The order, beside the form.
+ *
+ * It does not carry the button. It used to, and a seven line order pushed the
+ * button off the bottom of a 1080px screen while the question it belonged to
+ * sat at the top with empty space under it. The action goes under the question
+ * it answers; this panel is here to be checked against, not acted on.
+ *
+ * The list is capped and scrolls inside itself for the same reason: the total
+ * has to stay on screen with the question, however much somebody ordered.
+ */
+export function OrderPanel({ totals, serviceLabel, ready }: {
     totals: Totals;
     serviceLabel: string;
     ready: boolean;
-    /** The pay button. On a wide screen it belongs at the foot of this panel. */
-    children?: React.ReactNode;
 }) {
     const { displayItems: items } = useCart();
     const { selectedBranch } = useBranch();
@@ -203,15 +212,13 @@ export function OrderPanel({ totals, serviceLabel, ready, children }: {
                 </h2>
                 {selectedBranch && <p className="mt-1.5 text-[13px] text-fg-muted">From {selectedBranch.name}</p>}
 
-                <div className="mt-2">
+                <div className="mt-2 max-h-[38vh] overflow-y-auto overscroll-contain">
                     <Lines items={items} />
                 </div>
 
                 <div className="mt-4 border-t border-hairline pt-4">
                     <Money totals={totals} serviceLabel={serviceLabel} ready={ready} />
                 </div>
-
-                {children && <div className="mt-5">{children}</div>}
             </div>
         </div>
     );

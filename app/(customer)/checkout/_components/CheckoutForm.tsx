@@ -46,15 +46,31 @@ function TextButton({ onClick, children, className = '' }: {
 /**
  * A question already answered.
  *
- * The answer, not the question. "Delivery to Community 25" says what was asked
- * and what was said in one line, where "Where it goes: Community 25" would
- * spend half the row repeating a heading nobody needs twice.
+ * The answer, not the question. "Delivery to Alhaji Sulley Road" says what was
+ * asked and what was said in one line, where "Where it goes: Alhaji Sulley
+ * Road" would spend half the row repeating a heading nobody needs twice.
+ *
+ * The lead carries no weight and the answer does, so the eye lands on the part
+ * that changes. No tracking on either: this is a line to be read, not a label
+ * to be admired, and letter-spaced body text is neither.
+ *
+ * It wraps rather than truncates. A Ghanaian address is long, and cutting one
+ * off is exactly the moment somebody needed to check it.
  */
-function Answered({ text, onChange }: { text: string; onChange: () => void }) {
+function Answered({ lead, value, tail, onChange }: {
+    lead?: string;
+    value: string;
+    tail?: string;
+    onChange: () => void;
+}) {
     return (
-        <div className="flex items-center gap-4 border-b border-hairline py-3.5">
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">{text}</p>
-            <TextButton onClick={onChange} className="shrink-0">Change</TextButton>
+        <div className="flex items-start gap-4 border-b border-hairline py-3.5">
+            <p className="min-w-0 flex-1 text-sm leading-snug text-fg">
+                {lead && <span className="text-fg-muted">{lead} </span>}
+                <span className="font-bold break-words">{value}</span>
+                {tail && <span className="tabular-nums text-fg-muted">, {tail}</span>}
+            </p>
+            <TextButton onClick={onChange} className="shrink-0 pt-px">Change</TextButton>
         </div>
     );
 }
@@ -183,14 +199,14 @@ export default function CheckoutForm({
         && recalled.address !== contact.address;
 
     /** What a finished question reads as once it is folded away. */
-    const answerFor = (s: Stage): string => {
+    const answerFor = (s: Stage): { lead?: string; value: string; tail?: string } => {
         if (s === 'where') {
             return orderType === 'delivery'
-                ? `Delivery to ${contact.address || 'an address'}`
-                : `Pickup at ${selectedBranch?.name ?? 'the branch'}`;
+                ? { lead: 'Delivery to', value: contact.address || 'an address' }
+                : { lead: 'Pickup at', value: selectedBranch?.name ?? 'the branch' };
         }
-        if (s === 'who') return [contact.name, contact.phone].filter(Boolean).join(', ');
-        return paymentMethod === 'mobile_money' ? 'Mobile Money' : 'Cash';
+        if (s === 'who') return { value: contact.name, tail: contact.phone };
+        return { lead: 'Paying by', value: paymentMethod === 'mobile_money' ? 'Mobile Money' : 'Cash' };
     };
 
     return (
@@ -214,7 +230,7 @@ export default function CheckoutForm({
 
                 {/* Everything already settled, folded into a line each. */}
                 {STAGES.filter(s => stageIsBefore(s, stage)).map(s => (
-                    <Answered key={s} text={answerFor(s)} onChange={() => onJumpTo(s)} />
+                    <Answered key={s} {...answerFor(s)} onChange={() => onJumpTo(s)} />
                 ))}
 
                 {/* The question being asked. */}

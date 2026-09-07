@@ -122,10 +122,14 @@ export function PayBarSpacer() {
 }
 
 /**
- * The same button at the foot of the desktop panel, where there is no bar.
+ * The same button under the question, on a screen too wide for a pinned bar.
  *
- * The figure is directly above it in the panel's own Total row, so this one
- * carries the reason it cannot be pressed instead.
+ * It sat at the foot of the order panel until a seven line order pushed it off
+ * the bottom of the screen, with the question it belonged to at the top and
+ * nothing between them. A button belongs beneath the thing it acts on.
+ *
+ * The total is already in the panel alongside, so this carries the action and,
+ * when it cannot be pressed, the reason.
  */
 export function PayAction({ stage, method, placing, ready, blockedBecause, onAdvance }: {
     stage: Stage;
@@ -136,17 +140,17 @@ export function PayAction({ stage, method, placing, ready, blockedBecause, onAdv
     onAdvance: () => void;
 }) {
     return (
-        <div>
+        <div className="hidden lg:block">
             <Button
                 stage={stage}
                 method={method}
                 placing={placing}
                 disabled={!ready || Boolean(blockedBecause)}
                 onAdvance={onAdvance}
-                className="w-full"
+                className="min-w-56"
             />
             {ready && blockedBecause && (
-                <p className="mt-2.5 text-center text-[13px] font-semibold text-fg-muted">{blockedBecause}</p>
+                <p className="mt-2.5 text-[13px] font-semibold text-fg-muted">{blockedBecause}</p>
             )}
         </div>
     );
