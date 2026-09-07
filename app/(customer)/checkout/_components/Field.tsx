@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 /**
  * The small parts the checkout form is built from.
@@ -12,13 +12,23 @@ import React from 'react';
  */
 
 /**
- * A group heading.
+ * The question being asked, set as display type.
  *
- * American Captain, which is condensed and all caps, so a 13px line reads as a
- * heading without a rule under it or a tint behind it. It is the only place on
- * this screen the brand face appears: item names and body copy stay on
- * Montserrat, where they are legible.
+ * American Captain is condensed and all caps. That is what makes it right for a
+ * heading somebody reads at a glance and wrong for anything small: at the 15px
+ * this used to be set at, the counters close up and it stops being legible on a
+ * phone. The form asks one question at a time now, so the question can have the
+ * size the face actually needs.
  */
+export function StepHeading({ children }: { children: React.ReactNode }) {
+    return (
+        <h2 className="font-brand text-[32px] uppercase leading-[0.92] tracking-[0.01em] text-fg md:text-[40px]">
+            {children}
+        </h2>
+    );
+}
+
+/** A group under a heading. */
 export function Section({ title, children, className = '' }: {
     title: string;
     children: React.ReactNode;
@@ -26,10 +36,8 @@ export function Section({ title, children, className = '' }: {
 }) {
     return (
         <section className={className}>
-            <h2 className="font-brand text-[15px] uppercase leading-none tracking-[0.04em] text-fg">
-                {title}
-            </h2>
-            <div className="mt-3">{children}</div>
+            <StepHeading>{title}</StepHeading>
+            <div className="mt-6">{children}</div>
         </section>
     );
 }
@@ -42,8 +50,8 @@ export function Field({ label, error, hint, children }: {
     children: React.ReactNode;
 }) {
     return (
-        <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-semibold text-fg-muted">{label}</label>
+        <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-fg-muted">{label}</label>
             {children}
             {error
                 ? <p className="text-[13px] font-semibold text-danger-ink">{error}</p>
@@ -59,6 +67,37 @@ export function Field({ label, error, hint, children }: {
  * field needs the input itself, not a box around it, to carry the class.
  */
 export const controlClass =
-    'min-h-12 w-full rounded-xl border border-hairline bg-surface px-3.5 text-fg ' +
+    'min-h-13 w-full rounded-xl border border-hairline bg-surface px-4 text-fg ' +
     'outline-none transition-colors duration-150 ease-out ' +
     'placeholder:text-fg-subtle focus:border-fg';
+
+/**
+ * One question arriving.
+ *
+ * Give it a `key` that changes with the question and each one fades up as the
+ * last is taken away. 180ms and ease out, then it stops: this is telling you
+ * something moved on, not performing.
+ *
+ * Anybody who has asked their phone to stop animating gets the same change with
+ * no travel, which is the whole point of asking.
+ */
+export function Reveal({ children }: { children: React.ReactNode }) {
+    const [shown, setShown] = useState(false);
+
+    useEffect(() => {
+        const raf = requestAnimationFrame(() => setShown(true));
+        return () => cancelAnimationFrame(raf);
+    }, []);
+
+    return (
+        <div
+            className={
+                'transition-[opacity,transform] duration-200 ease-out ' +
+                'motion-reduce:transition-none motion-reduce:translate-y-0 ' +
+                (shown ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0')
+            }
+        >
+            {children}
+        </div>
+    );
+}

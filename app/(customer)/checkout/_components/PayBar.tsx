@@ -3,35 +3,37 @@
 import { ArrowRightIcon, SpinnerGapIcon } from '@phosphor-icons/react';
 import { formatPrice } from './pricing';
 import type { Totals } from './pricing';
-import type { PaymentMethod } from './types';
+import type { PaymentMethod, Stage } from './types';
 
 /**
- * The total, and the one button that acts on it.
+ * The total, and the one button that moves you forward.
  *
- * The old step two had a Back button, a Place Order button carrying a second
- * copy of the price, and two footnotes underneath explaining the split between
- * what Hubtel takes and what the rider takes. Four things, one decision.
+ * There is a single button at the foot of the screen for the whole checkout. On
+ * the first two questions it carries you to the next one; on the last it takes
+ * the money. Which of those it is doing is the only thing that changes about
+ * it, so the thumb never has to look for it in a new place.
  *
- * The number lives on the left and the action lives on the right, so neither
- * says what the other already said. The button never carries a figure.
+ * The figure lives on the left and the action on the right, so neither says
+ * what the other already said. The button never carries a price.
  */
 
-/** What the button says. Never a figure: the figure is beside it. */
-function label(method: PaymentMethod, placing: boolean): string {
+function label(stage: Stage, method: PaymentMethod, placing: boolean): string {
     if (placing) return 'Sending it through';
+    if (stage !== 'pay') return 'Continue';
     return method === 'mobile_money' ? 'Pay with Mobile Money' : 'Place the order';
 }
 
-function Button({ method, placing, disabled, onPlace, className = '' }: {
+function Button({ stage, method, placing, disabled, onAdvance, className = '' }: {
+    stage: Stage;
     method: PaymentMethod;
     placing: boolean;
     disabled: boolean;
-    onPlace: () => void;
+    onAdvance: () => void;
     className?: string;
 }) {
     return (
         <button
-            onClick={onPlace}
+            onClick={onAdvance}
             disabled={disabled || placing}
             className={
                 'flex min-h-13 items-center justify-center gap-2 rounded-xl bg-primary-fill px-5 text-[15px] font-bold text-white ' +
@@ -40,10 +42,8 @@ function Button({ method, placing, disabled, onPlace, className = '' }: {
                 className
             }
         >
-            {placing
-                ? <SpinnerGapIcon size={17} className="animate-spin" />
-                : null}
-            {label(method, placing)}
+            {placing && <SpinnerGapIcon size={17} className="animate-spin" />}
+            {label(stage, method, placing)}
             {!placing && <ArrowRightIcon size={16} weight="bold" />}
         </button>
     );
@@ -55,17 +55,18 @@ function Button({ method, placing, disabled, onPlace, className = '' }: {
  * `PayBarSpacer` goes at the end of the form so the last field can always be
  * scrolled out from under this.
  */
-export function PayBar({ totals, method, placing, ready, blockedBecause, onPlace }: {
+export function PayBar({ totals, stage, method, placing, ready, blockedBecause, onAdvance }: {
     totals: Totals;
+    stage: Stage;
     method: PaymentMethod;
     placing: boolean;
     /** False until the server has said what it charges. No figure is shown yet. */
     ready: boolean;
-    /** What is still missing. The button is dead until this is undefined. */
+    /** What is still missing on this question. The button is dead until undefined. */
     blockedBecause?: string;
-    onPlace: () => void;
+    onAdvance: () => void;
 }) {
-    const splitPayment = totals.delivery > 0 && method === 'mobile_money';
+    const splitPayment = totals.delivery > 0 && method === 'mobile_money' && stage === 'pay';
 
     return (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pb-safe lg:hidden">
@@ -88,15 +89,16 @@ export function PayBar({ totals, method, placing, ready, blockedBecause, onPlace
                 </div>
 
                 <Button
+                    stage={stage}
                     method={method}
                     placing={placing}
                     disabled={!ready || Boolean(blockedBecause)}
-                    onPlace={onPlace}
+                    onAdvance={onAdvance}
                     className="shrink-0"
                 />
             </div>
 
-            {ready && totals.delivery > 0 && (
+            {ready && stage === 'pay' && totals.delivery > 0 && (
                 <p className="page-x pb-3 text-[13px] text-fg-muted">
                     {method === 'mobile_money'
                         ? `The rider collects ${formatPrice(totals.delivery)} for delivery at the door.`
@@ -125,20 +127,22 @@ export function PayBarSpacer() {
  * The figure is directly above it in the panel's own Total row, so this one
  * carries the reason it cannot be pressed instead.
  */
-export function PayAction({ method, placing, ready, blockedBecause, onPlace }: {
+export function PayAction({ stage, method, placing, ready, blockedBecause, onAdvance }: {
+    stage: Stage;
     method: PaymentMethod;
     placing: boolean;
     ready: boolean;
     blockedBecause?: string;
-    onPlace: () => void;
+    onAdvance: () => void;
 }) {
     return (
         <div>
             <Button
+                stage={stage}
                 method={method}
                 placing={placing}
                 disabled={!ready || Boolean(blockedBecause)}
-                onPlace={onPlace}
+                onAdvance={onAdvance}
                 className="w-full"
             />
             {ready && blockedBecause && (

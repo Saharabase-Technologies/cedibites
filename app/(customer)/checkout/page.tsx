@@ -19,11 +19,11 @@ import OrderPlaced from './_components/OrderPlaced';
 import PaymentWait from './_components/PaymentWait';
 import { OrderPanel, OrderRecap } from './_components/OrderPanel';
 import { PayBar, PayBarSpacer, PayAction } from './_components/PayBar';
-import { blockingReason, enabledOrderTypes, enabledPaymentMethods } from './_components/availability';
+import { stageBlocker, enabledOrderTypes, enabledPaymentMethods } from './_components/availability';
 import { computeTotals } from './_components/pricing';
 import { readRecalled, writeRecalled, type RecalledDetails } from './_components/recall';
-import { DEFAULT_SC_CONFIG } from './_components/types';
-import type { ContactDetails, OrderType, PaymentMethod, Phase, ServiceChargeConfig } from './_components/types';
+import { DEFAULT_SC_CONFIG, STAGES, nextStage, stageIsBefore } from './_components/types';
+import type { ContactDetails, OrderType, PaymentMethod, Phase, ServiceChargeConfig, Stage } from './_components/types';
 
 const NO_RECALL: RecalledDetails = { name: '', phone: '', address: '' };
 
@@ -36,6 +36,17 @@ export default function CheckoutPage() {
     const createSession = useCreateCheckoutSession();
 
     const [phase, setPhase] = useState<Phase>('form');
+
+    /**
+     * The question on screen, and the furthest one reached.
+     *
+     * `furthest` is what makes Change cheap. Tap it on the address while
+     * standing at payment and you are taken back one question, but Continue
+     * returns you straight to payment rather than walking you through the name
+     * and number you had already given.
+     */
+    const [stage, setStage] = useState<Stage>('where');
+    const [furthest, setFurthest] = useState<Stage>('where');
     const [orderType, setOrderType] = useState<OrderType>('delivery');
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mobile_money');
     const [placing, setPlacing] = useState(false);
@@ -149,7 +160,7 @@ export default function CheckoutPage() {
 
     const serviceLabel = scConfig.percent > 0 ? `Service charge, ${scConfig.percent}%` : 'Service charge';
 
-    const blocked = blockingReason({ branch: effectiveBranch, orderType, contact, orderTypes, methods });
+    const blocked = stageBlocker(stage, { branch: effectiveBranch, orderType, contact, orderTypes, methods });
 
     // ── Placing it ───────────────────────────────────────────────────────────
     const handlePlace = useCallback(async () => {
@@ -213,13 +224,38 @@ export default function CheckoutPage() {
         setSessionToken(null);
     }, []);
 
+    /**
+     * The one button at the foot. It moves you on, or on the last question it
+     * takes the money.
+     */
+    const handleAdvance = useCallback(() => {
+        if (stage === 'pay') { handlePlace(); return; }
+
+        // Standing behind where they had already got to means they came back
+        // through Change. Send them forward to where they were, not through
+        // answers they have already given.
+        const next = stageIsBefore(stage, furthest) ? furthest : nextStage(stage);
+        if (!next) return;
+
+        setStage(next);
+        setFurthest(f => (stageIsBefore(f, next) ? next : f));
+    }, [stage, furthest, handlePlace]);
+
     // ── What is on screen ────────────────────────────────────────────────────
     const title = phase === 'placed' ? 'Order placed' : phase === 'paying' ? 'Payment' : 'Checkout';
 
-    // Only the form can be left, and only backwards into the menu. There is
-    // nothing useful behind a payment being confirmed, and nothing to undo once
-    // it has been.
-    const goBack = phase === 'form' ? () => router.back() : undefined;
+    /**
+     * Back is one question, then out.
+     *
+     * There is nothing useful behind a payment being confirmed and nothing to
+     * undo once it has been, so the arrow is gone on those two screens.
+     */
+    const stageIndex = STAGES.indexOf(stage);
+    const goBack = phase !== 'form'
+        ? undefined
+        : stageIndex > 0
+            ? () => setStage(STAGES[stageIndex - 1])
+            : () => router.back();
 
     if (phase === 'form' && items.length === 0) {
         return (
@@ -234,7 +270,12 @@ export default function CheckoutPage() {
 
     return (
         <div className="min-h-dvh bg-bg">
-            <ScreenHeader title={title} onBack={goBack} backLabel="Leave checkout" />
+            <ScreenHeader
+                title={title}
+                onBack={goBack}
+                backLabel={stageIndex > 0 ? 'Back to the last question' : 'Leave checkout'}
+                progress={phase === 'form' ? (stageIndex + 1) / STAGES.length : undefined}
+            />
 
             <div className="page-x mx-auto max-w-5xl">
                 {phase === 'placed' ? (
@@ -252,6 +293,8 @@ export default function CheckoutPage() {
 
                         <div className="grid gap-10 py-7 lg:grid-cols-[1fr_340px] lg:py-9">
                             <CheckoutForm
+                                stage={stage}
+                                onJumpTo={setStage}
                                 orderType={orderType}
                                 setOrderType={setOrderType}
                                 orderTypes={orderTypes}
@@ -261,16 +304,16 @@ export default function CheckoutPage() {
                                 contact={contact}
                                 setContact={setContact}
                                 recalled={recalled}
-                                knownContact={Boolean(contact.name && contact.phone)}
                             />
 
                             <OrderPanel totals={totals} serviceLabel={serviceLabel} ready={moneyReady}>
                                 <PayAction
+                                    stage={stage}
                                     method={paymentMethod}
                                     placing={placing}
                                     ready={moneyReady}
                                     blockedBecause={blocked}
-                                    onPlace={handlePlace}
+                                    onAdvance={handleAdvance}
                                 />
                             </OrderPanel>
                         </div>
@@ -278,11 +321,12 @@ export default function CheckoutPage() {
                         <PayBarSpacer />
                         <PayBar
                             totals={totals}
+                            stage={stage}
                             method={paymentMethod}
                             placing={placing}
                             ready={moneyReady}
                             blockedBecause={blocked}
-                            onPlace={handlePlace}
+                            onAdvance={handleAdvance}
                         />
                     </>
                 )}

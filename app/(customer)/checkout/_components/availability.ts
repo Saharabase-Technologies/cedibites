@@ -1,6 +1,6 @@
 import type { Branch } from '@/app/components/providers/BranchProvider';
 import { isValidGhanaPhone } from '@/app/lib/phone';
-import type { ContactDetails, OrderType, PaymentMethod } from './types';
+import type { ContactDetails, OrderType, PaymentMethod, Stage } from './types';
 
 /**
  * What this branch will actually accept, and whether the order is ready to go.
@@ -38,29 +38,38 @@ export function enabledPaymentMethods(branch: Branch | null): PaymentMethod[] {
 }
 
 /**
- * Why the pay button is dead, in the words shown beside it.
+ * Why the button at the foot is dead, in the words shown beside it.
  *
- * Returns undefined when the order can go. One reason at a time, in the order
- * the questions are asked on the screen, so it always names the first thing
- * still missing rather than the last.
+ * Asked per stage, because the form only ever shows one question and it would
+ * be nonsense to refuse to continue past the address over a phone number
+ * nobody has been asked for yet. Returns undefined when this stage is answered.
  */
-export function blockingReason({ branch, orderType, contact, orderTypes, methods }: {
+export function stageBlocker(stage: Stage, { branch, orderType, contact, orderTypes, methods }: {
     branch: Branch | null;
     orderType: OrderType;
     contact: ContactDetails;
     orderTypes: OrderType[];
     methods: PaymentMethod[];
 }): string | undefined {
+    // A shut branch stops everything, at every stage. There is no point letting
+    // somebody fill in three answers for an order that cannot be cooked.
     if (!branch) return 'Choose a branch to order from.';
     if (!branch.isActive) return `${branch.name} is not taking orders.`;
     if (!branch.isOpen) return `${branch.name} is closed.`;
     if (orderTypes.length === 0) return `${branch.name} is not taking orders right now.`;
+
+    if (stage === 'where') {
+        if (orderType === 'delivery' && !contact.address.trim()) return 'Add the address it goes to.';
+        return undefined;
+    }
+
+    if (stage === 'who') {
+        if (!contact.name.trim()) return 'Add the name for the order.';
+        if (!contact.phone.trim()) return 'Add a phone number.';
+        if (!isValidGhanaPhone(contact.phone)) return 'That phone number is not a Ghana number.';
+        return undefined;
+    }
+
     if (methods.length === 0) return `${branch.name} has no way to take payment right now.`;
-
-    if (orderType === 'delivery' && !contact.address.trim()) return 'Add the address it goes to.';
-    if (!contact.name.trim()) return 'Add the name for the order.';
-    if (!contact.phone.trim()) return 'Add a phone number.';
-    if (!isValidGhanaPhone(contact.phone)) return 'That phone number is not a Ghana number.';
-
     return undefined;
 }
