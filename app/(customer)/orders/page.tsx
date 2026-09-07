@@ -272,7 +272,9 @@ export default function OrderHistoryPage() {
                                                         {where ? ` \u00b7 ${where}` : ''}
                                                     </p>
 
-                                                    <p className="mt-1 truncate text-sm text-fg">
+                                                    {/* Wraps rather than cuts. The receipt name
+                                                        is the whole point of the line. */}
+                                                    <p className="mt-1 text-sm leading-snug break-words text-fg">
                                                         {order.items
                                                             .map(i => (i.quantity > 1 ? `${i.quantity} \u00d7 ` : '') + (i.menu_item_snapshot?.name ?? i.menu_item?.name ?? 'Item'))
                                                             .join(', ')}

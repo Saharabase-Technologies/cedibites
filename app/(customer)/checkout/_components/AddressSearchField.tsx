@@ -31,6 +31,17 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
     const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [locating, setLocating] = useState(false);
+    /**
+     * They pressed the button and the browser has not answered yet.
+     *
+     * Pressing it used to call `requestLocation()` and stop there, on the
+     * assumption they would press again once permission was granted. Nothing
+     * on screen said so, so the first press looked like a dead button and the
+     * address never filled. This remembers the press and finishes the job the
+     * moment a position arrives.
+     */
+    const [awaitingFix, setAwaitingFix] = useState(false);
+    const [locationError, setLocationError] = useState('');
     const [searching, setSearching] = useState(false);
     const [googleReady, setGoogleReady] = useState(false);
     const autocompleteRef = useRef<any>(null);
@@ -111,18 +122,13 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
         );
     };
 
-    const handleUseMyLocation = async () => {
-        // Nobody has been asked yet. Ask, and they can press it again once the
-        // browser has answered.
-        if (!coordinates) {
-            requestLocation();
-            return;
-        }
-
+    /** Turn a position into something a rider can read, and put it in the box. */
+    const fillFromCoordinates = useCallback(async (lat: number, lon: number) => {
         setLocating(true);
+        setLocationError('');
         try {
             const res = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?lat=${coordinates.latitude}&lon=${coordinates.longitude}&format=json`,
+                `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
                 { headers: { 'Accept-Language': 'en' } },
             );
             const data = await res.json();
@@ -133,9 +139,52 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
                 a.city ?? a.town ?? a.village,
             ].filter(Boolean);
             const addr = parts.length > 0 ? parts.join(', ') : data.display_name;
-            setQuery(addr); onChange(addr);
-        } catch { /* leave it to be typed */ } finally { setLocating(false); }
+            if (addr) { setQuery(addr); onChange(addr); }
+            else setLocationError('Could not name that spot. Type the address instead.');
+        } catch {
+            setLocationError('Could not reach the map. Type the address instead.');
+        } finally {
+            setLocating(false);
+        }
+    }, [onChange]);
+
+    const handleUseMyLocation = () => {
+        setLocationError('');
+
+        if (coordinates) {
+            void fillFromCoordinates(coordinates.latitude, coordinates.longitude);
+            return;
+        }
+
+        // No position yet. Ask, hold the spinner, and let the effect below
+        // finish it when the browser answers.
+        setAwaitingFix(true);
+        setLocating(true);
+        requestLocation();
     };
+
+    /**
+     * The second half of a press made before the browser had answered.
+     *
+     * Granting permission is not the same as having a position, and the gap
+     * between them is a network round trip on a cold GPS. Whoever pressed the
+     * button is still waiting, so the address fills itself when the fix lands.
+     */
+    useEffect(() => {
+        if (!awaitingFix) return;
+
+        if (coordinates) {
+            setAwaitingFix(false);
+            void fillFromCoordinates(coordinates.latitude, coordinates.longitude);
+            return;
+        }
+
+        if (permissionStatus === 'denied') {
+            setAwaitingFix(false);
+            setLocating(false);
+            setLocationError('Location is blocked for this site. Type the address instead.');
+        }
+    }, [awaitingFix, coordinates, permissionStatus, fillFromCoordinates]);
 
     return (
         <div ref={containerRef} className="relative">
@@ -181,6 +230,10 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
                         : <NavigationArrowIcon size={13} weight="fill" />}
                     {locating ? 'Finding you' : 'Use where I am now'}
                 </button>
+            )}
+
+            {locationError && (
+                <p className="mt-2 text-[13px] font-semibold text-danger-ink">{locationError}</p>
             )}
 
             {showSuggestions && (searching || suggestions.length > 0) && (

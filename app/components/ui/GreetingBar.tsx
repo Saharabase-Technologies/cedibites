@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useBranch } from '../providers/BranchProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { serverNow } from '@/lib/utils/serverClock';
+import ActiveOrderChip from './ActiveOrderChip';
 
 function greetingFor(hour: number): string {
     if (hour < 12) return 'Good morning';
@@ -43,9 +44,17 @@ export default function GreetingBar() {
         // below it. Both are display type; lining them up is what makes the top
         // of the screen read as one thing rather than two.
         <div className="flex flex-col gap-1 pl-4 sm:pl-6">
-            <h1 className="font-brand text-4xl leading-none tracking-wide text-fg md:text-5xl">
-                {greeting ?? 'Welcome'}{firstName ? `, ${firstName}` : ''}
-            </h1>
+            {/* The greeting and the order share a row. Somebody with food on
+                the way opens the app to find out where it is, so the answer
+                sits on the same line as their name rather than a screen away.
+                It wraps under on a narrow phone rather than squeezing the
+                greeting, which is display type and does not shrink well. */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pr-4">
+                <h1 className="font-brand text-4xl leading-none tracking-wide text-fg md:text-5xl">
+                    {greeting ?? 'Welcome'}{firstName ? `, ${firstName}` : ''}
+                </h1>
+                <ActiveOrderChip />
+            </div>
 
             {selectedBranch && typeof isOpen === 'boolean' && (
                 <p className="flex items-center gap-2 text-sm">

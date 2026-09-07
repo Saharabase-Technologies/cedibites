@@ -292,6 +292,12 @@ export interface CheckoutSession {
    * cannot be charged; 'ours' is our configuration or gateway.
    */
   failure_kind?: 'customer' | 'number' | 'ours' | 'unknown' | null;
+  /**
+   * The secret half of the tracking link, sent beside the order and never
+   * inside it. `OrderResource` is what goes out on a public broadcast channel,
+   * so a token living in there would be handed to anybody listening.
+   */
+  tracking_token?: string;
   // Recovery flags from show() endpoint
   can_retry?: boolean;
   can_change_payment?: boolean;

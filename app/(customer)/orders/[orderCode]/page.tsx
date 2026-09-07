@@ -48,8 +48,8 @@ function Line({ item }: { item: ApiOrder['items'][number] }) {
     const hasPhoto = Boolean(src) && !broken;
 
     return (
-        <li className="flex items-center gap-3 py-3">
-            <span className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-surface-sunken">
+        <li className="flex items-start gap-3 py-3">
+            <span className="relative mt-0.5 grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-surface-sunken">
                 {hasPhoto ? (
                     <Image src={src!} alt="" fill sizes="44px" className="object-cover" onError={() => setBroken(true)} />
                 ) : (
@@ -57,7 +57,9 @@ function Line({ item }: { item: ApiOrder['items'][number] }) {
                 )}
             </span>
             <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold leading-snug text-fg">{label}</p>
+                {/* Wraps. A receipt name is long on purpose and cutting it off
+                    is how "Fried Rice, Assorted" became "Fried Rice, Asso…". */}
+                <p className="text-sm font-semibold leading-snug text-balance break-words text-fg">{label}</p>
                 <p className="mt-0.5 text-[13px] tabular-nums text-fg-muted">
                     {item.quantity} × {money(item.unit_price)}
                 </p>

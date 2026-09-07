@@ -24,6 +24,7 @@ import { PayBar, PayBarSpacer, PayAction } from './_components/PayBar';
 import { stageBlocker, enabledOrderTypes, enabledPaymentMethods } from './_components/availability';
 import { computeTotals } from './_components/pricing';
 import { readRecalled, writeRecalled, type RecalledDetails } from './_components/recall';
+import { writeLastOrder } from '@/lib/orders/lastOrder';
 import { DEFAULT_SC_CONFIG, STAGES, nextStage, stageIsBefore } from './_components/types';
 import type { ContactDetails, OrderType, PaymentMethod, Phase, ServiceChargeConfig, Stage } from './_components/types';
 
@@ -53,6 +54,7 @@ export default function CheckoutPage() {
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mobile_money');
     const [placing, setPlacing] = useState(false);
     const [orderNumber, setOrderNumber] = useState('');
+    const [trackingToken, setTrackingToken] = useState<string | undefined>();
     const [sessionToken, setSessionToken] = useState<string | null>(null);
     const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });
 
@@ -232,6 +234,10 @@ export default function CheckoutPage() {
             if (session.status === 'confirmed' && session.order?.order_number) {
                 clearCart();
                 setOrderNumber(session.order.order_number);
+                setTrackingToken(session.tracking_token);
+                // So the home screen can carry it beside the greeting until it
+                // is delivered, whether or not they ever sign in.
+                writeLastOrder({ number: session.order.order_number, token: session.tracking_token });
                 setPhase('placed');
             } else {
                 setSessionToken(session.session_token);
@@ -244,9 +250,11 @@ export default function CheckoutPage() {
         }
     }, [effectiveBranch, paymentMethod, orderType, contact, momoNumber, coordinates, createSession, clearCart]);
 
-    const handlePaid = useCallback((num: string) => {
+    const handlePaid = useCallback((num: string, token?: string) => {
         clearCart();
         setOrderNumber(num);
+        setTrackingToken(token);
+        writeLastOrder({ number: num, token });
         setPhase('placed');
     }, [clearCart]);
 
@@ -310,7 +318,7 @@ export default function CheckoutPage() {
 
             <div className="page-x mx-auto max-w-5xl">
                 {phase === 'placed' ? (
-                    <OrderPlaced orderNumber={orderNumber} orderType={orderType} contact={contact} />
+                    <OrderPlaced orderNumber={orderNumber} orderType={orderType} contact={contact} trackingToken={trackingToken} />
                 ) : phase === 'paying' && sessionToken ? (
                     <PaymentWait
                         sessionToken={sessionToken}

@@ -73,7 +73,7 @@ function explain(session: { status?: string; failure_reason?: string | null; fai
 
 export default function PaymentWait({ sessionToken, onSuccess, onFail, onAbandon }: {
     sessionToken: string;
-    onSuccess: (orderNumber: string) => void;
+    onSuccess: (orderNumber: string, trackingToken?: string) => void;
     onFail: (message: string) => void;
     onAbandon: () => void;
 }) {
@@ -84,7 +84,7 @@ export default function PaymentWait({ sessionToken, onSuccess, onFail, onAbandon
     useEffect(() => {
         if (!session) return;
         if (session.status === 'confirmed' && session.order?.order_number) {
-            onSuccess(session.order.order_number);
+            onSuccess(session.order.order_number, session.tracking_token);
         } else if (session.status === 'failed' || session.status === 'expired') {
             setShowRecovery(true);
         }
