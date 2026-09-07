@@ -10,17 +10,23 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { use, useState } from 'react';
 import Timeline from './_components/Timeline';
-import { expectedWait, trackOrder } from './_components/trackOrder';
+import { trackOrder } from './_components/trackOrder';
 
 const money = (n: number | string | null | undefined) => {
     const v = typeof n === 'number' ? n : Number(n);
     return Number.isFinite(v) ? `₵${v.toFixed(2)}` : '₵0.00';
 };
 
-/** Section heading, in the brand face, at a size the brand face can carry. */
+/**
+ * The red block heading from the brand's own artwork.
+ *
+ * White on #f40002 is 4.33:1, which clears AA for large text and nothing else,
+ * so this is display size or it does not exist. That is why it is 22px here and
+ * why the 15px version it replaces was set in plain black instead.
+ */
 function Heading({ children }: { children: React.ReactNode }) {
     return (
-        <h2 className="font-brand text-[15px] uppercase leading-none tracking-[0.04em] text-fg">
+        <h2 className="inline-block bg-primary px-3 py-2 font-brand text-[22px] uppercase leading-none tracking-[0.03em] text-white">
             {children}
         </h2>
     );
@@ -107,7 +113,6 @@ export default function TrackOrderPage({ params }: { params: Promise<{ orderCode
     }
 
     const tracked = trackOrder(order);
-    const wait = expectedWait(order);
     const delivery = order.order_type === 'delivery';
 
     return (
@@ -153,11 +158,6 @@ export default function TrackOrderPage({ params }: { params: Promise<{ orderCode
                         {tracked.current?.label ?? 'Order received'}
                     </p>
                     <p className="mt-2.5 text-sm leading-relaxed text-fg">{tracked.current?.note}</p>
-                    {wait && (
-                        <p className="mt-1 text-sm text-fg-muted">
-                            {delivery ? 'Usually ' : 'Usually ready in '}{wait} from when it is placed.
-                        </p>
-                    )}
                 </div>
             )}
 
@@ -165,7 +165,7 @@ export default function TrackOrderPage({ params }: { params: Promise<{ orderCode
             {!tracked.cancelled && (
                 <section className="pt-8">
                     <Heading>Progress</Heading>
-                    <div className="mt-5">
+                    <div className="mt-6">
                         <Timeline stages={tracked.stages} />
                     </div>
                 </section>
@@ -174,7 +174,7 @@ export default function TrackOrderPage({ params }: { params: Promise<{ orderCode
             {/* ── What is in it ───────────────────────────────────────────── */}
             <section className="pt-8">
                 <Heading>What you ordered</Heading>
-                <ul className="mt-2 divide-y divide-hairline">
+                <ul className="mt-4 divide-y divide-hairline">
                     {(order.items ?? []).map(item => <Line key={item.id} item={item} />)}
                 </ul>
 

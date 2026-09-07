@@ -154,14 +154,3 @@ export function trackOrder(order: ApiOrder): TrackedOrder {
     };
 }
 
-/**
- * How long it should take, from here.
- *
- * One figure, deliberately loose. The kitchen never agreed to twenty-five
- * minutes and a customer told twenty-five who waits fifty rings the branch. An
- * hour is what the branches actually run at on a busy evening.
- */
-export function expectedWait(order: ApiOrder): string | null {
-    if (['completed', 'delivered', 'cancelled'].includes(order.status)) return null;
-    return order.order_type === 'delivery' ? 'about an hour' : 'about 20 minutes';
-}
