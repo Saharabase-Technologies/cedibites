@@ -146,9 +146,16 @@ export default function Footer({ className = '' }: { className?: string }) {
 
                 {/* ── Col 1: Brand ── */}
                 <div className="flex flex-col gap-4 sm:col-span-2 lg:col-span-1">
-                    <Link href="/" className="flex items-center gap-2">
-                        <Image src="/cblogo.webp" alt="CediBites" width={36} height={36} className="object-contain" />
-                        <span className="text-xl font-bold text-primary font-body">CediBites</span>
+                    {/* White, because this panel is near-black. The red
+                        lockup on that ground is 2.3:1 and unreadable. */}
+                    <Link href="/" className="flex items-center" aria-label="CediBites, home">
+                        <Image
+                            src="/logo/logo-white.webp"
+                            alt="CediBites"
+                            width={640}
+                            height={103}
+                            className="h-6 w-auto"
+                        />
                     </Link>
                     <p className="text-sm text-white/50 leading-relaxed max-w-[220px]">
                         Authentic Ghanaian flavours, delivered fresh to your door from our branches across Accra.

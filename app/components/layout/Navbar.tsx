@@ -118,9 +118,20 @@ export default function Navbar() {
         >
             {/* ── Mobile: 56px. Brand on the left, branch on the right. ─────── */}
             <div className="flex h-14 items-center gap-2 px-4 md:hidden">
-                <Link href="/" className="flex shrink-0 items-center gap-2">
-                    <Image src="/cblogo.webp" alt="" width={28} height={28} className="object-contain" priority />
-                    <span className="font-brand text-2xl leading-none tracking-wide text-fg">CediBites</span>
+                {/* One lockup, not a mark beside a word set in a different
+                    face. The wordmark in the artwork is the real one; the
+                    American Captain version standing next to it was a stand-in
+                    from before these files existed. Red, because the header is
+                    white and this is the identity surface. */}
+                <Link href="/" className="flex shrink-0 items-center" aria-label="CediBites, home">
+                    <Image
+                        src="/logo/logo-red.webp"
+                        alt="CediBites"
+                        width={640}
+                        height={103}
+                        className="h-[22px] w-auto"
+                        priority
+                    />
                 </Link>
                 <div className="ml-auto flex min-w-0 items-center gap-2">
                     <BranchChip />
@@ -131,9 +142,15 @@ export default function Navbar() {
             {/* ── Desktop: 72px. ─────────────────────────────────────────────── */}
             <div className="hidden h-18 items-center gap-6 px-6 md:flex lg:px-10">
 
-                <Link href="/" className="flex shrink-0 items-center gap-2.5">
-                    <Image src="/cblogo.webp" alt="" width={38} height={38} className="object-contain" priority />
-                    <span className="font-brand text-3xl leading-none tracking-wide text-fg">CediBites</span>
+                <Link href="/" className="flex shrink-0 items-center" aria-label="CediBites, home">
+                    <Image
+                        src="/logo/logo-red.webp"
+                        alt="CediBites"
+                        width={640}
+                        height={103}
+                        className="h-7 w-auto"
+                        priority
+                    />
                 </Link>
 
                 <nav className="flex flex-1 items-center justify-center gap-1" aria-label="Main">
