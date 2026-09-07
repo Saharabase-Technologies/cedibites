@@ -23,7 +23,7 @@ export interface Staple {
 
 export const STAPLES: Staple[] = [
     { label: 'Fried Rice', term: 'fried rice', photo: BRANCH_PHOTOS.friedRice },
-    { label: 'Jollof', term: 'jollof', photo: BRANCH_PHOTOS.jollofDrumsticks },
+    { label: 'Jollof', term: 'jollof', photo: BRANCH_PHOTOS.jollofPlain },
     { label: 'Noodles', term: 'noodles', photo: BRANCH_PHOTOS.noodles },
     { label: 'Drumsticks', term: 'drum', photo: BRANCH_PHOTOS.drumsticks },
     { label: 'Banku', term: 'banku', photo: BRANCH_PHOTOS.tilapia },

@@ -223,29 +223,35 @@ export default function MenuPage() {
             </div>
 
             {/* ── Body ────────────────────────────────────────────────────── */}
-            <div className="page-x flex items-start gap-8 py-6 md:py-8">
+            <div className="page-x flex flex-col items-start gap-6 py-6 md:flex-row md:gap-8 md:py-8">
 
-                <aside className="sticky top-[calc(var(--nav-h)+5.5rem)] hidden w-52 shrink-0 md:block xl:w-56">
-                    {railSections.length > 1 && (
-                        <SectionRail
-                            sections={railSections}
-                            activeId={currentSection}
-                            onJump={jumpTo}
-                            orientation="column"
-                        />
-                    )}
-                    <BranchCard />
-                </aside>
-
-                <main className="min-w-0 flex-1">
-                    <div className="mb-6 flex items-baseline justify-between gap-4">
+                {/* The page title sits on top of the categories rather than on
+                    top of the food, so the left column reads as one thing: this
+                    is the menu, and these are its parts. */}
+                <aside className="w-full shrink-0 md:sticky md:top-[calc(var(--nav-h)+5.5rem)] md:w-52 xl:w-56">
+                    <div className="flex items-baseline justify-between gap-4 md:block">
                         <BlockHeading tone="plain" size="md" as="h1">Our menu</BlockHeading>
                         {allItems.length > 0 && (
-                            <p className="shrink-0 text-sm text-fg-muted tabular-nums">
+                            <p className="shrink-0 text-sm tabular-nums text-fg-muted md:mt-2">
                                 {allItems.length} items
                             </p>
                         )}
                     </div>
+
+                    <div className="mt-7 hidden md:block">
+                        {railSections.length > 1 && (
+                            <SectionRail
+                                sections={railSections}
+                                activeId={currentSection}
+                                onJump={jumpTo}
+                                orientation="column"
+                            />
+                        )}
+                        <BranchCard />
+                    </div>
+                </aside>
+
+                <main className="w-full min-w-0 flex-1">
 
                     {error && allItems.length === 0 ? (
                         <MenuError onRetry={retryFetch} />
@@ -270,7 +276,7 @@ export default function MenuPage() {
                             {searchResults.length === 0 ? (
                                 <MenuNoResults query={searchQuery.trim()} onClear={() => setSearchQuery('')} />
                             ) : (
-                                <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 2xl:grid-cols-4">
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                     {searchResults.map(item => (
                                         <DishCard key={item.id} item={item} onOpen={setDetailItem} />
                                     ))}
@@ -287,20 +293,20 @@ export default function MenuPage() {
                                     id={`section-${section.id}`}
                                     className="scroll-mt-[calc(var(--nav-h)+7rem)] md:scroll-mt-[calc(var(--nav-h)+5.5rem)]"
                                 >
-                                    {/* A heading and a rule, which is what a board
-                                        gives a section. Ink rather than the red
-                                        block: six red blocks down one page turned
-                                        the brand's loudest device into wallpaper.
-                                        The count sits here because the rail on a
-                                        phone no longer carries it. */}
-                                    <div className="mb-6 flex items-baseline gap-3 border-b border-hairline pb-2.5">
-                                        <BlockHeading tone="plain" size="sm">{section.label}</BlockHeading>
+                                    {/* The red block, which is the brand's own
+                                        headline device and the thing that makes a
+                                        CediBites page readable as one from across
+                                        a room. It is the only red on the page that
+                                        is not a cart count, and the cards under it
+                                        carry none at all. */}
+                                    <div className="mb-5 flex items-baseline gap-3">
+                                        <BlockHeading tone="red" size="sm">{section.label}</BlockHeading>
                                         <span className="shrink-0 text-xs tabular-nums text-fg-subtle">
                                             {section.count}
                                         </span>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 2xl:grid-cols-4">
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                         {section.items.map(item => (
                                             <DishCard key={item.id} item={item} onOpen={setDetailItem} />
                                         ))}
