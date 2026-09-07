@@ -131,9 +131,27 @@ export default function DishCard({
                     {item.name}
                 </h3>
 
-                {/* Only the typographic card has room for a description, and only
-                    there does it earn its place: it is what keeps a card with no
-                    photograph from being a name alone in a box. */}
+                {/* Straight under the name. Whether there is anything to
+                    decide is the next thing you want after what the dish is,
+                    and it comes before what it costs. A card with a photograph
+                    carries its tag up on the picture; one without has nowhere
+                    else to put it, so it joins this line. */}
+                {((!hasPhoto && (tag || soldOut)) || sizes.length > 1) && (
+                    <p className="relative z-10 mt-1.5 truncate text-[10px] font-bold uppercase tracking-widest">
+                        {!hasPhoto && soldOut && <span className="text-fg-muted">Sold out</span>}
+                        {!hasPhoto && !soldOut && tag && <span className="text-accent-ink">{tag.name}</span>}
+                        {!hasPhoto && (tag || soldOut) && sizes.length > 1 && (
+                            <span aria-hidden className="text-fg-subtle"> · </span>
+                        )}
+                        {sizes.length > 1 && (
+                            <span className="text-fg-muted">{sizes.length} choices</span>
+                        )}
+                    </p>
+                )}
+
+                {/* Only the typographic card has room for a description, and
+                    only there does it earn its place: it is what keeps a card
+                    with no photograph from being a name alone in a box. */}
                 {!hasPhoto && item.description && (
                     <p className="mt-2.5 line-clamp-3 text-[13px] leading-relaxed text-fg-muted">
                         {item.description}
@@ -146,22 +164,6 @@ export default function DishCard({
                             {spread && <span className="mr-1 text-[11px] font-semibold text-fg-muted">from</span>}
                             {cedis(lowest)}
                         </p>
-
-                        {/* A card with a photograph carries its tag up there.
-                            One without has nowhere to put it, so it stays on
-                            this line. */}
-                        {((!hasPhoto && (tag || soldOut)) || sizes.length > 1) && (
-                            <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-widest">
-                                {!hasPhoto && soldOut && <span className="text-fg-muted">Sold out</span>}
-                                {!hasPhoto && !soldOut && tag && <span className="text-accent-ink">{tag.name}</span>}
-                                {!hasPhoto && (tag || soldOut) && sizes.length > 1 && (
-                                    <span aria-hidden className="text-fg-subtle"> · </span>
-                                )}
-                                {sizes.length > 1 && (
-                                    <span className="text-fg-muted">{sizes.length} choices</span>
-                                )}
-                            </p>
-                        )}
                     </div>
 
                     {/* Ink rather than red. Forty-three red buttons is the page
