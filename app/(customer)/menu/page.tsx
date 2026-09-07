@@ -84,6 +84,18 @@ export default function MenuPage() {
     const [searchFocused, setSearchFocused] = useState(false);
     const searchInput = useRef<HTMLInputElement>(null);
 
+    /**
+     * True while a tap on the rail is still scrolling the page.
+     *
+     * Without this the rail fought itself. Tapping "Combos" set Combos live and
+     * then the smooth scroll travelled through every section in between, and
+     * the observer dutifully lit each one as it passed. On a phone the rail
+     * also re-centres on whatever is live, so the strip slid back and forth
+     * under the thumb for the whole journey.
+     */
+    const jumping = useRef(false);
+    const jumpSettled = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
     const searching = searchQuery.trim().length > 0;
 
     /**
@@ -129,6 +141,9 @@ export default function MenuPage() {
 
         const observer = new IntersectionObserver(
             entries => {
+                // A jump already knows where it is going. Let it arrive.
+                if (jumping.current) return;
+
                 for (const entry of entries) {
                     if (entry.isIntersecting) inBand.add(entry.target.id);
                     else inBand.delete(entry.target.id);
@@ -142,7 +157,7 @@ export default function MenuPage() {
             },
             // Top of the band sits under the sticky header; the bottom cuts off
             // most of the viewport so only one section can own it at a time.
-            { rootMargin: '-160px 0px -65% 0px', threshold: 0 },
+            { rootMargin: '-140px 0px -60% 0px', threshold: 0 },
         );
 
         for (const section of sections) {
@@ -154,9 +169,36 @@ export default function MenuPage() {
     }, [sections, searching]);
 
     const jumpTo = useCallback((id: string) => {
-        document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const target = document.getElementById(`section-${id}`);
+        if (!target) return;
+
+        const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        jumping.current = true;
         setActiveSection(id);
+        target.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
+
+        clearTimeout(jumpSettled.current);
+
+        if (still) {
+            jumping.current = false;
+            return;
+        }
+
+        // `scrollend` is the right event and is not everywhere yet, so the
+        // timer is the floor rather than the plan. Whichever lands first wins.
+        const release = () => {
+            jumping.current = false;
+            clearTimeout(jumpSettled.current);
+            window.removeEventListener('scrollend', release);
+        };
+
+        window.addEventListener('scrollend', release, { once: true });
+        jumpSettled.current = setTimeout(release, 1000);
     }, []);
+
+    // A jump left mid-flight by a navigation should not leave the rail frozen.
+    useEffect(() => () => clearTimeout(jumpSettled.current), []);
 
     const clearSearch = () => {
         setSearchQuery('');

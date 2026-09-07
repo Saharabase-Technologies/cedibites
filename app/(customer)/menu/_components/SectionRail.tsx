@@ -54,11 +54,18 @@ export default function SectionRail({
         const railBox = rail.current.getBoundingClientRect();
         const entryBox = entry.getBoundingClientRect();
 
-        // Only when it is actually out of view. Calling this on every tick
+        // Only when it is actually out of view. Running this on every tick
         // fights the reader's own horizontal scrolling.
-        if (entryBox.left < railBox.left || entryBox.right > railBox.right) {
-            entry.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        }
+        if (entryBox.left >= railBox.left && entryBox.right <= railBox.right) return;
+
+        // The strip is scrolled directly rather than through scrollIntoView on
+        // the entry. scrollIntoView is allowed to move every scrollable
+        // ancestor to do its job, and the ancestor here is the page: asking the
+        // rail to tidy itself could drag the menu up or down under the reader.
+        rail.current.scrollBy({
+            left: entryBox.left - railBox.left - (railBox.width - entryBox.width) / 2,
+            behavior: 'smooth',
+        });
     }, [activeId, orientation]);
 
     if (orientation === 'column') {
