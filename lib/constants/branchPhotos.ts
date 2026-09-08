@@ -294,10 +294,25 @@ export function photoForMenuItem(name: string): BranchPhoto | null {
         return BRANCH_PHOTOS.assortedFriedRice;
     }
 
-    // ── Plain plates ────────────────────────────────────────────────────────
-    if (has('noodle')) return BRANCH_PHOTOS.noodles;
+    /*
+     * ── Plain plates ────────────────────────────────────────────────────────
+     *
+     * The scene shots, not the flat yellow ones.
+     *
+     * Five frames in the set are studio flat-lays on saturated yellow:
+     * jollofPlain, friedRice, friedRiceClose, noodles, noodlesBowl. They are
+     * clean and they are dull, and on a card they read as stock rather than as
+     * this kitchen's food. The same dishes have scene frames — fried rice on a
+     * wooden board with the three sauces, noodles filling a takeaway box — and
+     * those show the packaging a customer actually receives.
+     *
+     * Plain jollof is the exception: `jollof-plain.jpg` is the only photograph
+     * of it that exists, and jollofDrumsticks is a picture of a different dish.
+     * It keeps the yellow frame until somebody shoots a plate of plain jollof.
+     */
+    if (has('noodle')) return BRANCH_PHOTOS.noodlesBox;
     if (has('jollof')) return BRANCH_PHOTOS.jollofPlain;
-    if (has('fried rice') || n === 'rice') return BRANCH_PHOTOS.friedRice;
+    if (has('fried rice') || n === 'rice') return BRANCH_PHOTOS.friedRiceSauces;
     if (has('plantain')) return null;
 
     return null;

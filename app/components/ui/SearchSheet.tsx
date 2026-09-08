@@ -10,6 +10,7 @@ import { useMenuDiscovery, type SearchableItem } from '../providers/MenuDiscover
 import { useCart, DEFAULT_SIZE_KEY } from '../providers/CartProvider';
 import { useModal } from '../providers/ModalProvider';
 import ItemDetailModal from './ItemDetailModal';
+import SectionRail from '@/app/(customer)/menu/_components/SectionRail';
 
 const formatPrice = (p: number | string | null | undefined) => {
     const n = typeof p === 'number' ? p : Number(p);
@@ -177,16 +178,29 @@ export default function SearchSheet() {
 
     const rows = useMemo(() => toRows(searchResults, searchQuery), [searchResults, searchQuery]);
 
+    /**
+     * The keyboard comes up every time, without fail.
+     *
+     * This used to stand aside whenever a query was already in the box, on the
+     * reasoning that a staple tile pre-runs a search and focusing would throw
+     * the keyboard over the answer. What it actually did was skip the focus for
+     * anybody who had searched once before: the term survives in state, so
+     * every later tap on the Search tab opened a sheet with a cold field.
+     *
+     * It focuses always and selects what is there, so the first key replaces the
+     * old term rather than appending to it. Somebody who came to read pre-run
+     * results dismisses the keyboard with one swipe; somebody who came to type
+     * would otherwise have to reach for the field first, every time.
+     */
     useEffect(() => {
         if (!isSearchOpen) return;
-        // Opened from a staple tile the query is already run, so the results are
-        // what somebody came for. Taking focus there would throw the keyboard up
-        // over the answer. Only an empty sheet asks to be typed into.
-        if (searchQuery.trim()) return;
         // A beat, so the sheet is painted before the keyboard is asked for.
-        const t = setTimeout(() => inputRef.current?.focus(), 60);
+        const t = setTimeout(() => {
+            inputRef.current?.focus();
+            inputRef.current?.select();
+        }, 60);
         return () => clearTimeout(t);
-    }, [isSearchOpen, searchQuery]);
+    }, [isSearchOpen]);
 
     useEffect(() => {
         if (!isSearchOpen) return;
@@ -302,21 +316,29 @@ export default function SearchSheet() {
                         )}
 
                         {categories.length > 0 && (
-                            <div>
-                                <p className="mb-2.5 text-[10px] font-bold uppercase tracking-widest text-fg-muted">
+                            /*
+                             * The menu's own rail, not a second set of pills.
+                             *
+                             * These were wrapping chips with a border, which is
+                             * a different control from the underlined strip the
+                             * menu uses for exactly the same list. One design,
+                             * one component: SectionRail in `row`, which brings
+                             * the horizontal scroll with it.
+                             *
+                             * `-mx-4` cancels this pane's padding so the strip
+                             * runs to both edges and its own `px-5` puts the
+                             * first entry back on the gutter.
+                             */
+                            <div className="-mx-4">
+                                <p className="mb-2.5 px-5 text-[10px] font-bold uppercase tracking-widest text-fg-muted">
                                     Browse
                                 </p>
-                                <div className="flex flex-wrap gap-2">
-                                    {categories.map(c => (
-                                        <button
-                                            key={c.id}
-                                            onClick={() => pickCategory(c.id)}
-                                            className="h-9 rounded-lg border border-hairline bg-surface px-3 text-sm font-semibold text-fg transition-colors duration-150 ease-out hover:border-hairline-strong"
-                                        >
-                                            {c.label}
-                                        </button>
-                                    ))}
-                                </div>
+                                <SectionRail
+                                    sections={categories.map(c => ({ id: c.id, label: c.label, count: 0 }))}
+                                    activeId={null}
+                                    onJump={pickCategory}
+                                    orientation="row"
+                                />
                             </div>
                         )}
                     </div>

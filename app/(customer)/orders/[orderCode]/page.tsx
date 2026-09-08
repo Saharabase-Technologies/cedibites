@@ -264,7 +264,7 @@ export default function TrackOrderPage({ params }: { params: Promise<{ orderCode
               * and never says whose door this is.
               */}
             <section className="pt-8">
-                <Heading>{delivery ? 'Where it goes' : 'Where you collect it'}</Heading>
+                <Heading>{delivery ? 'Going to' : 'Collect from'}</Heading>
 
                 {delivery ? (
                     <div className="mt-4 flex flex-col gap-4">

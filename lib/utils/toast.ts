@@ -68,7 +68,7 @@ class ToastManager {
       'gap:8px',
       'align-items:center',
       'width:calc(100% - 32px)',
-      'max-width:26rem',
+      'max-width:30rem',
       // The stack must never swallow taps meant for the page underneath it.
       // Each toast turns pointer events back on for itself.
       'pointer-events:none',
@@ -97,18 +97,18 @@ class ToastManager {
     toast.style.cssText = [
       'display:flex',
       'align-items:flex-start',
-      'gap:10px',
+      'gap:11px',
       'width:100%',
       'box-sizing:border-box',
-      'padding:12px 14px',
-      'border-radius:10px',
+      'padding:15px 17px',
+      'border-radius:12px',
       `background:${SURFACE}`,
       'color:#ffffff',
-      'font-size:14px',
+      'font-size:15px',
       'font-weight:600',
       'line-height:1.45',
       'text-align:left',
-      'box-shadow:0 8px 24px -6px rgb(0 0 0 / 0.4)',
+      'box-shadow:0 10px 30px -8px rgb(0 0 0 / 0.45)',
       'pointer-events:auto',
       'cursor:pointer',
       instant ? 'opacity:1' : 'opacity:0',
@@ -122,9 +122,9 @@ class ToastManager {
     mark.setAttribute('aria-hidden', 'true');
     mark.style.cssText = [
       'flex:0 0 auto',
-      'width:8px',
-      'height:8px',
-      'margin-top:6px',
+      'width:9px',
+      'height:9px',
+      'margin-top:7px',
       'border-radius:2px',
       `background:${ACCENT[type]}`,
     ].join(';');

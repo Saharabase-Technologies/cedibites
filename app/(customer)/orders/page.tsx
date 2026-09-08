@@ -1,7 +1,7 @@
 // app/(customer)/order-history/page.tsx
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import OrderCodeField from '@/app/components/order/OrderCodeField';
@@ -121,6 +121,8 @@ export default function OrderHistoryPage() {
     const { addItem } = useCart();
     const [reordering, setReordering] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [searching, setSearching] = useState(false);
+    const searchRef = useRef<HTMLInputElement>(null);
     const [statusFilter, setStatusFilter] = useState<ApiOrderStatus | undefined>(undefined);
     const [page, setPage] = useState(1);
     const [mounted, setMounted] = useState(false);
@@ -198,26 +200,37 @@ export default function OrderHistoryPage() {
                     <SignedOut onSignIn={openAuth} />
                 ) : (
                     <>
-                        {/* Search */}
-                        <div className="mb-7 flex min-h-13 items-center rounded-xl border border-hairline bg-surface transition-colors duration-150 ease-out focus-within:border-fg">
-                            <MagnifyingGlassIcon size={16} weight="bold" className="ml-3.5 shrink-0 text-fg-subtle" />
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="An order number, a dish, a branch"
-                                className="min-w-0 flex-1 bg-transparent px-3 text-fg outline-none placeholder:text-fg-subtle"
-                            />
-                            {searchQuery && (
+                        {/*
+                          * Searching is an action, so it is a button, not a
+                          * permanent field.
+                          *
+                          * A field pinned above the list took the first 13mm of
+                          * every visit to this page for a control most people
+                          * never touch: somebody opening My Orders is looking at
+                          * the top of the list, which is the order they just
+                          * placed. The button sits bottom right, above the tab
+                          * bar, and opens the field in place when it is wanted.
+                          */}
+                        {searching && (
+                            <div className="mb-6 flex min-h-13 items-center rounded-xl border border-hairline bg-surface transition-colors duration-150 ease-out focus-within:border-fg">
+                                <MagnifyingGlassIcon size={16} weight="bold" className="ml-3.5 shrink-0 text-fg-subtle" />
+                                <input
+                                    ref={searchRef}
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="An order number, a dish, a branch"
+                                    className="min-w-0 flex-1 bg-transparent px-3 text-fg outline-none placeholder:text-fg-subtle"
+                                />
                                 <button
-                                    onClick={() => setSearchQuery('')}
-                                    aria-label="Clear the search"
+                                    onClick={() => { setSearchQuery(''); setSearching(false); }}
+                                    aria-label="Close the search"
                                     className="grid h-11 w-11 shrink-0 place-items-center text-fg-subtle transition-colors duration-150 ease-out hover:text-fg"
                                 >
                                     <XIcon size={15} weight="bold" />
                                 </button>
-                            )}
-                        </div>
+                            </div>
+                        )}
 
                         {/* Orders List */}
                         {filteredOrders.length === 0 ? (
@@ -277,7 +290,12 @@ export default function OrderHistoryPage() {
                                     return (
                                         <li
                                             key={order.id}
-                                            className="rounded-2xl border border-hairline bg-surface p-4 sm:p-5"
+                                            /* The home screen's card: lifted, not
+                                               outlined. A card never carries a
+                                               border and a shadow at once, and the
+                                               deals rail and the staple tiles both
+                                               settled that on `.card-lift`. */
+                                            className="card-lift rounded-2xl bg-surface p-4 sm:p-5"
                                         >
                                             {/* The card is a link and the reorder is a
                                                 button under it. They used to be a button
@@ -354,6 +372,22 @@ export default function OrderHistoryPage() {
                     </>
                 )}
             </main>
+
+            {/* Only once there is a list worth searching, and never while the
+                field is already open. */}
+            {isLoggedIn && !searching && !showLoading && orders.length > 0 && (
+                <button
+                    onClick={() => {
+                        setSearching(true);
+                        setTimeout(() => searchRef.current?.focus(), 60);
+                    }}
+                    aria-label="Search your orders"
+                    className="fixed right-5 z-30 grid h-14 w-14 place-items-center rounded-2xl bg-fg text-white shadow-float transition-opacity duration-150 ease-out hover:opacity-90"
+                    style={{ bottom: 'calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 20px)' }}
+                >
+                    <MagnifyingGlassIcon size={20} weight="bold" />
+                </button>
+            )}
 
         </div>
     );
