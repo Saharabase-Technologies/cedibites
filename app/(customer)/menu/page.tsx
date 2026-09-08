@@ -339,7 +339,7 @@ export default function MenuPage() {
                                         is not a cart count, and the cards under it
                                         carry none at all. */}
                                     <div className="mb-5 flex items-baseline gap-3">
-                                        <BlockHeading tone="red" size="sm">{section.label}</BlockHeading>
+                                        <BlockHeading tone="red" size="section">{section.label}</BlockHeading>
                                         <span className="shrink-0 text-xs tabular-nums text-fg-subtle">
                                             {section.count}
                                         </span>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ArrowLeftIcon, ArrowRightIcon, SpinnerGapIcon, XIcon,
 } from '@phosphor-icons/react';
@@ -75,6 +75,17 @@ function useDelayedFocus(ref: React.RefObject<HTMLInputElement | null>) {
 
 // ─── The code boxes ───────────────────────────────────────────────────────────
 
+/**
+ * A run of exactly six digits, or nothing.
+ *
+ * Exactly six, not the first six of a longer run: a clipboard holding a Ghana
+ * phone number would otherwise offer "024123" as somebody’s code.
+ */
+function sixDigits(text: string): string | null {
+    const runs = text.match(/\d+/g) ?? [];
+    return runs.find(run => run.length === 6) ?? null;
+}
+
 function CodeBoxes({ value, onChange, disabled, invalid }: {
     value: string;
     onChange: (v: string) => void;
@@ -82,55 +93,136 @@ function CodeBoxes({ value, onChange, disabled, invalid }: {
     invalid?: boolean;
 }) {
     const inputs = useRef<(HTMLInputElement | null)[]>([]);
+    const [clip, setClip] = useState<string | null>(null);
 
     useEffect(() => {
         const t = setTimeout(() => inputs.current[0]?.focus(), 60);
         return () => clearTimeout(t);
     }, []);
 
+    /** Put a whole code in and land the caret on the last box. */
+    const fill = useCallback((code: string) => {
+        const six = code.replace(/\D/g, '').slice(0, 6);
+        if (!six) return;
+        onChange(six);
+        inputs.current[Math.min(six.length, 6) - 1]?.focus();
+    }, [onChange]);
+
+    /**
+     * The SMS, read by the browser.
+     *
+     * Chrome on Android hands over the code without the customer touching
+     * anything, as long as the message ends with the `@host #code` line. Nothing
+     * else implements it and it rejects on abort, so both are swallowed: this is
+     * a shortcut, never the way in.
+     */
+    useEffect(() => {
+        if (typeof window === 'undefined' || !('OTPCredential' in window)) return;
+
+        const ac = new AbortController();
+        (navigator.credentials.get({
+            signal: ac.signal,
+            otp: { transport: ['sms'] },
+        } as CredentialRequestOptions & { otp: { transport: string[] } }) as Promise<Credential | null>)
+            .then(cred => {
+                const code = (cred as (Credential & { code?: string }) | null)?.code;
+                if (code) fill(code);
+            })
+            .catch(() => { /* unsupported, aborted, or the customer dismissed it */ });
+
+        return () => ac.abort();
+    }, [fill]);
+
+    /**
+     * The clipboard, on a tap.
+     *
+     * Read only from a gesture. Reading it on mount raises a permission prompt
+     * on Safari the moment the sheet opens, over a question the customer has not
+     * been asked yet, and silently lifting whatever somebody had copied is not
+     * a thing to do behind their back. So the button offers what it found and
+     * they decide.
+     */
+    const offerClipboard = useCallback(async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            const six = sixDigits(text);
+            if (six) { fill(six); setClip(null); }
+            else setClip('none');
+        } catch {
+            setClip('none');
+        }
+    }, [fill]);
+
     const handleKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Backspace' && !value[i] && i > 0) inputs.current[i - 1]?.focus();
     };
 
+    /**
+     * One digit typed, or the whole code arriving at once.
+     *
+     * iOS puts the entire six-digit code from the SMS into the field that
+     * carries `autocomplete="one-time-code"` — all of it, into box one. This
+     * used to `.slice(-1)` it, which threw away five of the six digits and left
+     * a single stray number on screen, so the platform's own autofill was the
+     * one path that could not work.
+     */
     const handleChange = (i: number, e: React.ChangeEvent<HTMLInputElement>) => {
-        const char = e.target.value.replace(/\D/g, '').slice(-1);
+        const digits = e.target.value.replace(/\D/g, '');
+
+        if (digits.length > 1) { fill(digits); return; }
+
         const arr = value.padEnd(6, ' ').split('');
-        arr[i] = char || ' ';
+        arr[i] = digits || ' ';
         onChange(arr.join('').replace(/ /g, ''));
-        if (char && i < 5) inputs.current[i + 1]?.focus();
+        if (digits && i < 5) inputs.current[i + 1]?.focus();
     };
 
     const handlePaste = (e: React.ClipboardEvent) => {
-        const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-        if (pasted) { onChange(pasted); inputs.current[Math.min(pasted.length, 5)]?.focus(); }
+        const pasted = e.clipboardData.getData('text');
+        const six = sixDigits(pasted) ?? pasted.replace(/\D/g, '').slice(0, 6);
+        if (six) fill(six);
         e.preventDefault();
     };
 
     return (
-        <div className="flex items-center gap-2" onPaste={handlePaste}>
-            {Array.from({ length: 6 }).map((_, i) => (
-                <input
-                    key={i}
-                    ref={el => { inputs.current[i] = el; }}
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete={i === 0 ? 'one-time-code' : 'off'}
-                    maxLength={1}
-                    value={value[i] ?? ''}
-                    onChange={e => handleChange(i, e)}
-                    onKeyDown={e => handleKey(i, e)}
-                    onFocus={e => e.target.select()}
+        <div>
+            <div className="flex items-center gap-2" onPaste={handlePaste}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                    <input
+                        key={i}
+                        ref={el => { inputs.current[i] = el; }}
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete={i === 0 ? 'one-time-code' : 'off'}
+                        // Not maxLength={1}: iOS autofill writes all six here and
+                        // a cap of one would truncate it before onChange ever ran.
+                        maxLength={i === 0 ? 6 : 1}
+                        value={value[i] ?? ''}
+                        onChange={e => handleChange(i, e)}
+                        onKeyDown={e => handleKey(i, e)}
+                        onFocus={e => e.target.select()}
+                        disabled={disabled}
+                        aria-label={`Digit ${i + 1}`}
+                        /* Montserrat, like the number on the step before it. American
+                           Captain is condensed all-caps: it carries the wordmark and
+                           the block headings, and a digit you are checking against an
+                           SMS is not display type. */
+                        className={`h-15 min-w-0 flex-1 rounded-xl border-2 bg-surface text-center font-body text-[26px] font-bold leading-none tabular-nums text-fg outline-none transition-colors duration-150 ease-out
+                            ${invalid ? 'border-danger' : value[i] ? 'border-fg' : 'border-hairline-strong focus:border-fg'}
+                            ${disabled ? 'opacity-50' : ''}`}
+                    />
+                ))}
+            </div>
+
+            {value.length < 6 && (
+                <button
+                    onClick={offerClipboard}
                     disabled={disabled}
-                    aria-label={`Digit ${i + 1}`}
-                    /* Montserrat, like the number on the step before it. American
-                       Captain is condensed all-caps: it carries the wordmark and
-                       the block headings, and a digit you are checking against an
-                       SMS is not display type. */
-                    className={`h-15 min-w-0 flex-1 rounded-xl border-2 bg-surface text-center font-body text-[26px] font-bold leading-none tabular-nums text-fg outline-none transition-colors duration-150 ease-out
-                        ${invalid ? 'border-danger' : value[i] ? 'border-fg' : 'border-hairline-strong focus:border-fg'}
-                        ${disabled ? 'opacity-50' : ''}`}
-                />
-            ))}
+                    className="mt-3 text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70 disabled:opacity-50"
+                >
+                    {clip === 'none' ? 'No code on the clipboard' : 'Paste the code'}
+                </button>
+            )}
         </div>
     );
 }

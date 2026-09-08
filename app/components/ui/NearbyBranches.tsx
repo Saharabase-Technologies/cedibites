@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavigationArrowIcon, SpinnerGapIcon } from '@phosphor-icons/react';
 import { useLocation } from '../providers/LocationProvider';
 import { useBranch } from '../providers/BranchProvider';
+import { useModal } from '../providers/ModalProvider';
 import { useBranchRoute } from '@/lib/api/hooks/useBranches';
 import { deliveryWindowFromMinutes, estimateTravelMinutes, formatRideMinutes } from '@/lib/utils/distance';
 import { decodePolyline } from '@/lib/utils/polyline';
@@ -75,6 +76,7 @@ function useAreaName(coords: { latitude: number; longitude: number } | null) {
 export default function NearbyBranches() {
     const { coordinates, permissionStatus, requestLocation, error } = useLocation();
     const { branches, selectedBranch, getBranchesWithDistance } = useBranch();
+    const { openLocationModal } = useModal();
     const [activeId, setActiveId] = useState<string | null>(null);
 
     /**
@@ -161,28 +163,37 @@ export default function NearbyBranches() {
                 <BlockHeading tone="red" size="lg">Where we are</BlockHeading>
             </div>
 
-            {/* ── Where the customer is ─────────────────────────────────── */}
-            <div className="card-lift mb-3 flex items-center gap-3 rounded-2xl bg-surface p-4">
+            {/*
+              * ── Where the customer is ───────────────────────────────────
+              *
+              * Wraps on a phone. This was one `items-center` row holding a 44px
+              * tile, two lines of copy and a 150px button, so on a 360px screen
+              * the copy was squeezed into about a third of the width and broke
+              * over four lines beside a button it could not sit next to. The
+              * button now takes its own full-width row until there is room for
+              * it on the end.
+              */}
+            <div className="card-lift mb-3 flex flex-wrap items-center gap-3 rounded-2xl bg-surface p-4">
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-accent-soft">
                     <NavigationArrowIcon size={19} weight="fill" className="text-accent-ink" />
                 </span>
 
-                <div className="min-w-0 flex-1">
+                <div className="min-w-44 flex-1">
                     {coordinates ? (
                         <>
                             <p className="truncate text-sm font-bold text-fg">
                                 {area ? `You're near ${area}` : "We've got your location"}
                             </p>
-                            <p className="text-xs text-fg-muted">Tap a shop to see how long it takes to reach you.</p>
+                            <p className="text-xs text-fg-muted">Tap a branch to see how long it takes to reach you.</p>
                         </>
                     ) : (
                         <>
                             <p className="text-sm font-bold text-fg">
                                 {denied ? 'Location is switched off' : 'Where should we cook for you?'}
                             </p>
-                            <p className="text-xs text-fg-muted">
+                            <p className="text-xs leading-relaxed text-fg-muted">
                                 {denied
-                                    ? 'Turn it back on in your browser settings to see which kitchen is closest.'
+                                    ? 'The switch is in your phone or browser settings, not on this page.'
                                     : error ?? 'Share your location and we will show you which kitchen is closest.'}
                             </p>
                         </>
@@ -193,9 +204,21 @@ export default function NearbyBranches() {
                     <button
                         onClick={ask}
                         disabled={asking}
-                        className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg bg-primary-fill px-4 text-sm font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95 disabled:opacity-60"
+                        className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-primary-fill px-4 text-sm font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95 disabled:opacity-60 sm:w-auto"
                     >
                         {asking ? <><SpinnerGapIcon size={15} className="animate-spin" /> Finding</> : 'Use my location'}
+                    </button>
+                )}
+
+                {/* Refused. The steps are device-specific and already written
+                    once, in the location sheet, so this opens that rather than
+                    keeping a second copy of them here. */}
+                {denied && (
+                    <button
+                        onClick={openLocationModal}
+                        className="inline-flex h-11 w-full shrink-0 items-center justify-center rounded-lg border border-hairline-strong px-4 text-sm font-bold text-fg transition-colors duration-150 ease-out hover:bg-surface-sunken sm:w-auto"
+                    >
+                        How to turn it on
                     </button>
                 )}
             </div>

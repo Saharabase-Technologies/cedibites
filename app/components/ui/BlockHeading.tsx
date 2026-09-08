@@ -11,6 +11,8 @@ const TONE: Record<Tone, string> = {
 const SIZE = {
     sm: 'text-xl md:text-2xl',
     md: 'text-2xl md:text-3xl',
+    /** Menu sections. Loud enough to find while thumbing past, short of the hero. */
+    section: 'text-3xl md:text-4xl',
     lg: 'text-3xl md:text-5xl',
 };
 

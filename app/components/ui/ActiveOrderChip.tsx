@@ -1,10 +1,10 @@
 'use client';
 
-import { useOrderByNumber } from '@/lib/api/hooks/useOrders';
+import { useOrderByNumber, useOrders } from '@/lib/api/hooks/useOrders';
 import { clearLastOrder, readLastOrder, type LastOrder } from '@/lib/orders/lastOrder';
 import { ArrowRightIcon } from '@phosphor-icons/react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 /**
  * The order you are waiting on, on the first screen you see.
@@ -59,16 +59,42 @@ export default function ActiveOrderChip() {
     const [last, setLast] = useState<LastOrder | null>(null);
     useEffect(() => { setLast(readLastOrder()); }, []);
 
-    const { order } = useOrderByNumber(last?.number ?? '', last?.token);
+    const { order: deviceOrder } = useOrderByNumber(last?.number ?? '', last?.token);
+
+    /**
+     * The same order, seen from any other phone they are signed in on.
+     *
+     * `lastOrder` lives in localStorage, which is one browser on one device and
+     * nothing else. That is right for a guest — the phone that placed the order
+     * is the phone they are holding, and there is no account to hang it on. But
+     * it is why somebody who ordered on their phone and then opened the site on
+     * a laptop saw no chip at all: the record was never theirs, it was the
+     * other browser's.
+     *
+     * An account is the thing that does cross a device, so a signed-in customer
+     * also gets their live order off `/orders`. The query only runs when a
+     * token is present, so this costs a guest nothing.
+     */
+    const { orders } = useOrders({ per_page: 8 });
+    const accountOrder = useMemo(
+        () => orders.find(o => !DONE.includes(o.status) && LABEL[o.status] !== undefined) ?? null,
+        [orders],
+    );
+
+    // The device's own record wins when both point somewhere, because it is the
+    // one carrying the tracking token and therefore the address.
+    const order = deviceOrder && !DONE.includes(deviceOrder.status) ? deviceOrder : accountOrder;
 
     // Delivered, collected or cancelled. Take it off the screen and stop asking
     // about it on every visit.
     useEffect(() => {
-        if (order && DONE.includes(order.status)) clearLastOrder();
-    }, [order]);
+        if (deviceOrder && DONE.includes(deviceOrder.status)) clearLastOrder();
+    }, [deviceOrder]);
 
-    if (!last || !order || DONE.includes(order.status)) return null;
+    if (!order || DONE.includes(order.status)) return null;
 
+    // Only the device that placed it holds the token.
+    const token = order === deviceOrder ? last?.token : undefined;
     const tone = TONE[order.status] ?? 'bg-fg-subtle';
 
     return (
@@ -82,10 +108,10 @@ export default function ActiveOrderChip() {
              * the person who placed the order that the address was only on the
              * SMS — while they were looking at it on the device that placed it.
              */
-            href={last.token
-                ? `/orders/${order.order_number}?t=${encodeURIComponent(last.token)}`
+            href={token
+                ? `/orders/${order.order_number}?t=${encodeURIComponent(token)}`
                 : `/orders/${order.order_number}`}
-            className="group ml-auto inline-flex shrink-0 items-center gap-2 rounded-lg bg-surface-sunken py-1.5 pl-2.5 pr-2 transition-colors duration-150 ease-out hover:bg-hairline"
+            className="group mt-1 inline-flex shrink-0 items-center gap-2 rounded-lg bg-surface-sunken py-1.5 pl-2.5 pr-2 transition-colors duration-150 ease-out hover:bg-hairline"
         >
             {/* A square, like the Open mark directly below it. Nothing in the
                 brand's artwork is a circle, and a round dot beside a square one

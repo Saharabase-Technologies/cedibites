@@ -43,35 +43,32 @@ export default function GreetingBar() {
         // lands on the same vertical as the red block inside the photograph
         // below it. Both are display type; lining them up is what makes the top
         // of the screen read as one thing rather than two.
-        <div className="flex flex-col gap-1 px-4 sm:px-6">
-            {/* The greeting and the order share a row. Somebody with food on
-                the way opens the app to find out where it is, so the answer
-                sits on the same line as their name rather than a screen away.
-                It wraps under on a narrow phone rather than squeezing the
-                greeting, which is display type and does not shrink well.
-
-                The chip carries `ml-auto` and lands on the hero's own right
-                inset below it, so the top of the screen has one thing on the
-                left and one on the right rather than two crowded together with
-                a third of the width empty. */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex items-start justify-between gap-4 px-4 sm:px-6">
+            {/* The greeting and whether the kitchen is cooking are one thing,
+                so they stack together on the left. The order chip is a separate
+                thing, so it sits opposite. It used to share a wrapping row with
+                the greeting while "Open now" sat on a third line below, which
+                put three items on three lines with a third of the width empty
+                between them. */}
+            <div className="min-w-0">
                 <h1 className="font-brand text-4xl leading-none tracking-wide text-fg md:text-5xl">
                     {greeting ?? 'Welcome'}{firstName ? `, ${firstName}` : ''}
                 </h1>
-                <ActiveOrderChip />
+
+                {selectedBranch && typeof isOpen === 'boolean' && (
+                    <p className="mt-2 flex items-center gap-2 text-sm">
+                        <span
+                            aria-hidden
+                            className={`h-2 w-2 shrink-0 rounded-xs ${isOpen ? 'bg-success' : 'bg-danger'}`}
+                        />
+                        <span className={`font-bold ${isOpen ? 'text-success-ink' : 'text-danger-ink'}`}>
+                            {isOpen ? 'Open now' : 'Closed'}
+                        </span>
+                    </p>
+                )}
             </div>
 
-            {selectedBranch && typeof isOpen === 'boolean' && (
-                <p className="flex items-center gap-2 text-sm">
-                    <span
-                        aria-hidden
-                        className={`h-2 w-2 shrink-0 rounded-xs ${isOpen ? 'bg-success' : 'bg-danger'}`}
-                    />
-                    <span className={`font-bold ${isOpen ? 'text-success-ink' : 'text-danger-ink'}`}>
-                        {isOpen ? 'Open now' : 'Closed'}
-                    </span>
-                </p>
-            )}
+            <ActiveOrderChip />
         </div>
     );
 }

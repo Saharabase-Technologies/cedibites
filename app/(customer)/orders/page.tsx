@@ -9,15 +9,13 @@ import { useRouter } from 'next/navigation';
 import { useModal } from '../../components/providers/ModalProvider';
 import { useAuth } from '../../components/providers/AuthProvider';
 import { useOrders } from '@/lib/api/hooks/useOrders';
+import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
+import { branchTitle } from '@/lib/utils/branchName';
 import { useCart } from '@/lib/api/hooks/useCart';
 import { toast } from '@/lib/utils/toast';
 import {
     MagnifyingGlassIcon,
     XIcon,
-    PackageIcon,
-    CalendarIcon,
-    MapPinIcon,
-    ArrowRightIcon,
     ArrowsClockwiseIcon,
     SpinnerGapIcon,
 } from '@phosphor-icons/react';
@@ -244,27 +242,54 @@ export default function OrderHistoryPage() {
                                 )}
                             </div>
                         ) : (
-                            <ul className="divide-y divide-hairline border-y border-hairline">
+                            /*
+                             * Rows with room to breathe, and a basket listed
+                             * rather than run together.
+                             *
+                             * These sat 16px apart on a hairline and put the
+                             * whole order into one wrapping sentence: "2 x
+                             * Drumsticks, 2 x Fried Rice, Assorted Fried Rice /
+                             * Jollof / Noodles + Full Chicken + Kokoo, 2 x ..."
+                             * Five dishes in one paragraph with nothing to show
+                             * where one ended and the next began. An order is a
+                             * receipt, so it is set out like one.
+                             */
+                            <ul className="flex flex-col gap-4">
                                 {filteredOrders.map((order) => {
                                     const cfg = STATUS_CONFIG[order.status];
                                     const isCompleted = ['delivered', 'completed'].includes(order.status);
                                     const where = order.order_type === 'delivery'
-                                        ? order.delivery_address?.split(',')[0]
-                                        : order.branch?.name;
+                                        ? order.delivery_address
+                                        : branchTitle(order.branch?.name);
+
+                                    const lines = (order.items ?? []).map(i => ({
+                                        qty: i.quantity ?? 1,
+                                        label: getOrderItemLineLabel({
+                                            name: i.menu_item_snapshot?.name ?? i.menu_item?.name ?? 'Item',
+                                            sizeLabel: i.menu_item_option_snapshot?.display_name
+                                                ?? i.menu_item_option?.display_name
+                                                ?? i.menu_item_option_snapshot?.option_label
+                                                ?? i.menu_item_option?.option_label
+                                                ?? '',
+                                        }),
+                                    }));
 
                                     return (
-                                        <li key={order.id} className="py-4">
-                                            {/* The row is a link and the reorder is a
-                                                button beside it. They used to be a
-                                                button inside a button, which no browser
-                                                is obliged to make sense of. */}
-                                            <Link
-                                                href={`/orders/${order.order_number}`}
-                                                className="group flex items-start gap-4"
-                                            >
-                                                <div className="min-w-0 flex-1">
+                                        <li
+                                            key={order.id}
+                                            className="rounded-2xl border border-hairline bg-surface p-4 sm:p-5"
+                                        >
+                                            {/* The card is a link and the reorder is a
+                                                button under it. They used to be a button
+                                                inside a button, which no browser is
+                                                obliged to make sense of. */}
+                                            <Link href={`/orders/${order.order_number}`} className="group block">
+                                                {/* The money stays at the top, opposite the
+                                                    code, where somebody scanning a list of
+                                                    receipts looks for it. */}
+                                                <div className="flex items-start justify-between gap-3">
                                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                                                        <span className="font-brand text-xl uppercase leading-none tracking-[0.01em] text-fg">
+                                                        <span className="font-brand text-2xl uppercase leading-none tracking-[0.01em] text-fg">
                                                             {order.order_number}
                                                         </span>
                                                         <span className={`rounded-md px-2 py-1 text-[11px] font-bold uppercase leading-none tracking-[0.04em] ${TONE_CLASS[cfg.tone]}`}>
@@ -272,45 +297,54 @@ export default function OrderHistoryPage() {
                                                         </span>
                                                     </div>
 
-                                                    <p className="mt-2 truncate text-sm text-fg-muted">
-                                                        {timeAgo(order.created_at)}
-                                                        {where ? ` \u00b7 ${where}` : ''}
-                                                    </p>
-
-                                                    {/* Wraps rather than cuts. The receipt name
-                                                        is the whole point of the line. */}
-                                                    <p className="mt-1 text-sm leading-snug break-words text-fg">
-                                                        {order.items
-                                                            .map(i => (i.quantity > 1 ? `${i.quantity} \u00d7 ` : '') + (i.menu_item_snapshot?.name ?? i.menu_item?.name ?? 'Item'))
-                                                            .join(', ')}
-                                                    </p>
-                                                </div>
-
-                                                <div className="flex shrink-0 items-center gap-3">
-                                                    <span className="text-base font-bold tabular-nums text-fg">
+                                                    <span className="shrink-0 text-lg font-bold tabular-nums text-fg">
                                                         {formatPrice(order.total_amount ?? order.total)}
                                                     </span>
-                                                    <ArrowRightIcon
-                                                        size={16}
-                                                        weight="bold"
-                                                        className="text-fg-subtle transition-colors duration-150 ease-out group-hover:text-fg"
-                                                    />
                                                 </div>
+
+                                                <p className="mt-1.5 text-[13px] text-fg-muted">
+                                                    {timeAgo(order.created_at)}
+                                                </p>
+
+                                                {/* Where it went, in full. The address used
+                                                    to be cut at its first comma, so "12 Nii
+                                                    Tetteh Amui Street, Tema" arrived without
+                                                    the town. */}
+                                                {where && (
+                                                    <p className="mt-0.5 text-[13px] leading-relaxed break-words text-fg-muted">
+                                                        {order.order_type === 'delivery' ? 'To ' : 'From '}{where}
+                                                    </p>
+                                                )}
+
+                                                {lines.length > 0 && (
+                                                    <ul className="mt-3.5 flex flex-col gap-1.5 border-t border-hairline pt-3.5">
+                                                        {lines.map((line, i) => (
+                                                            <li key={i} className="flex gap-2.5 text-sm leading-snug">
+                                                                <span className="shrink-0 font-bold tabular-nums text-fg-muted">
+                                                                    {line.qty}×
+                                                                </span>
+                                                                <span className="min-w-0 break-words text-fg">{line.label}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
                                             </Link>
 
                                             {isCompleted && (
-                                                <button
-                                                    onClick={(e) => handleReorder(e, order)}
-                                                    disabled={reordering === order.id}
-                                                    className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-surface-sunken px-4 text-sm font-bold text-fg transition-opacity duration-150 ease-out hover:opacity-80 disabled:opacity-60"
-                                                >
-                                                    <ArrowsClockwiseIcon
-                                                        size={15}
-                                                        weight="bold"
-                                                        className={reordering === order.id ? 'animate-spin' : ''}
-                                                    />
-                                                    {reordering === order.id ? 'Adding it back' : 'Order this again'}
-                                                </button>
+                                                <div className="mt-4 flex justify-end">
+                                                    <button
+                                                        onClick={(e) => handleReorder(e, order)}
+                                                        disabled={reordering === order.id}
+                                                        className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-surface-sunken px-4 text-sm font-bold text-fg transition-opacity duration-150 ease-out hover:opacity-80 disabled:opacity-60"
+                                                    >
+                                                        <ArrowsClockwiseIcon
+                                                            size={15}
+                                                            weight="bold"
+                                                            className={reordering === order.id ? 'animate-spin' : ''}
+                                                        />
+                                                        {reordering === order.id ? 'Adding it back' : 'Order this again'}
+                                                    </button>
+                                                </div>
                                             )}
                                         </li>
                                     );

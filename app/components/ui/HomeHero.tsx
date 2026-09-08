@@ -8,7 +8,7 @@ import { useAuth } from '../providers/AuthProvider';
 import { useMenuDiscovery, type SearchableItem } from '../providers/MenuDiscoveryProvider';
 import { useOrders } from '@/lib/api/hooks/useOrders';
 import { useReorder } from '@/lib/hooks/useReorder';
-import { BRANCH_PHOTOS, matchMenuItem, photoForMenuItem } from '@/lib/constants/branchPhotos';
+import { BRANCH_PHOTOS, matchMenuItem } from '@/lib/constants/branchPhotos';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { serverNow } from '@/lib/utils/serverClock';
 import BlockHeading from './BlockHeading';
@@ -33,30 +33,97 @@ function whenText(iso: string): string {
 }
 
 /**
- * What was in the basket, in the names a receipt would print.
+ * Every line of the basket, in the names a receipt would print.
  *
- * This read the raw menu item name, which is written for somebody standing at
- * the board: "Assorted Fried Rice / Jollof / Noodles + 7 Drums + Kɔkɔɔ" offers
- * three dishes and names none of them. `getOrderItemLineLabel` is the same
- * helper the receipt, the tracking page and the till all use.
- *
- * Two lines are joined; beyond that the first is named and the rest counted,
- * because this sits over a photograph and has one line to say it in.
+ * This used to be one comma-joined sentence built from the raw menu item name,
+ * so it read "Assorted Fried Rice / Jollof / Noodles + 7 Drums + Kɔkɔɔ and
+ * Drumsticks" — three dishes offered and none of them named. It is a list now,
+ * and it goes through `getOrderItemLineLabel`, the helper the receipt, the till
+ * and the tracking page all share.
  */
-function basketLine(order: ApiOrder): string {
-    const names = (order.items ?? []).map(i => getOrderItemLineLabel({
-        name: i.menu_item_snapshot?.name ?? i.menu_item?.name ?? 'Item',
-        sizeLabel: i.menu_item_option_snapshot?.display_name
-            ?? i.menu_item_option?.display_name
-            ?? i.menu_item_option_snapshot?.option_label
-            ?? i.menu_item_option?.option_label
-            ?? '',
+function basketLines(order: ApiOrder): { qty: number; label: string }[] {
+    return (order.items ?? []).map(i => ({
+        qty: i.quantity ?? 1,
+        label: getOrderItemLineLabel({
+            name: i.menu_item_snapshot?.name ?? i.menu_item?.name ?? 'Item',
+            sizeLabel: i.menu_item_option_snapshot?.display_name
+                ?? i.menu_item_option?.display_name
+                ?? i.menu_item_option_snapshot?.option_label
+                ?? i.menu_item_option?.option_label
+                ?? '',
+        }),
     }));
+}
 
-    if (names.length === 0) return 'Your order';
-    if (names.length === 1) return names[0];
-    if (names.length === 2) return `${names[0]} and ${names[1]}`;
-    return `${names[0]} and ${names.length - 1} more`;
+/**
+ * The last order, shaped like the receipt it is.
+ *
+ * It used to be the photo banner with different words in it: same frame, same
+ * red block, same red button, so the two hero slides were one design shown
+ * twice. Nothing about "buy this again" wants a full-bleed photograph — the
+ * question is what was in it and what it cost, which is a list and a total.
+ *
+ * So this is a light panel against the photograph's dark one: a receipt, on the
+ * page ground, with the lines set out and the total at the foot. The contrast
+ * between the two slides is the point.
+ */
+function ReorderSlide({ order, busy, onAdd }: {
+    order: ApiOrder;
+    busy: boolean;
+    onAdd: () => void;
+}) {
+    const lines = basketLines(order);
+    const shown = lines.slice(0, 3);
+    const rest = lines.length - shown.length;
+
+    return (
+        <div className="flex h-full flex-col rounded-2xl border border-hairline bg-surface p-5 sm:p-6">
+            <div className="flex items-baseline justify-between gap-3">
+                <h1 className="font-brand text-3xl uppercase leading-none tracking-[0.01em] text-fg sm:text-4xl">
+                    Order it again
+                </h1>
+                <span className="shrink-0 text-[13px] font-semibold text-fg-muted">
+                    {whenText(order.created_at)}
+                </span>
+            </div>
+
+            <p className="mt-1 font-brand text-lg uppercase leading-none tracking-[0.04em] text-fg-muted">
+                {order.order_number}
+            </p>
+
+            <ul className="mt-4 flex flex-col gap-2 border-t border-hairline pt-4">
+                {shown.map((line, i) => (
+                    <li key={i} className="flex gap-2.5 text-sm leading-snug">
+                        <span className="shrink-0 font-bold tabular-nums text-fg-muted">{line.qty}×</span>
+                        <span className="min-w-0 font-semibold text-balance break-words text-fg">{line.label}</span>
+                    </li>
+                ))}
+                {rest > 0 && (
+                    <li className="text-sm font-semibold text-fg-muted">and {rest} more</li>
+                )}
+            </ul>
+
+            <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-4">
+                <span className="font-brand text-3xl leading-none tabular-nums text-fg">
+                    {/* `total` does not exist on an order. It read undefined,
+                        which formatted as ₵0.00 and told every returning
+                        customer their last order had been free. */}
+                    {formatPrice(order.total_amount)}
+                </span>
+                <button
+                    onClick={onAdd}
+                    disabled={busy}
+                    className="inline-flex h-12 items-center gap-2 rounded-lg bg-primary-fill px-5 text-sm font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95 disabled:opacity-60"
+                >
+                    {busy ? (
+                        <><SpinnerGapIcon size={16} className="animate-spin" /> Adding to cart</>
+                    ) : (
+                        <>Add it to my cart <ArrowRightIcon size={15} weight="bold" /></>
+                    )}
+                </button>
+            </div>
+        </div>
+    );
 }
 
 /**
@@ -104,8 +171,10 @@ function Frame({
         <div className="flex h-full min-h-55 flex-col justify-end bg-fg p-5 sm:p-6">{children}</div>
     );
 
+    // With a photograph the aspect sets the height, so `h-full` is left off:
+    // the two would fight, and the deck takes its height from this slide.
     const cls = hasPhoto
-        ? 'relative block h-full w-full overflow-hidden rounded-2xl aspect-square sm:aspect-[16/7] text-left'
+        ? 'relative block w-full overflow-hidden rounded-2xl aspect-square sm:aspect-[16/7] text-left'
         : 'relative block h-full w-full overflow-hidden rounded-2xl text-left';
 
     if (href) return <Link href={href} className={cls}>{body}</Link>;
@@ -149,7 +218,7 @@ function Deck({ children }: { children: React.ReactNode[] }) {
             <div
                 ref={track}
                 onScroll={onScroll}
-                className="no-scrollbar flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+                className="no-scrollbar flex snap-x snap-mandatory items-stretch overflow-x-auto overscroll-x-contain"
             >
                 {slides.map((slide, i) => (
                     <div key={i} className="w-full shrink-0 snap-start">{slide}</div>
@@ -196,33 +265,6 @@ export default function HomeHero() {
         [orders],
     );
 
-    /**
-     * The photograph for a reorder slide.
-     *
-     * The menu item's own shot first. Most menu rows have none, which is why
-     * this slide was rendering as a black rectangle, so it falls back to the
-     * branch photograph that is honestly a picture of that dish — the same
-     * `photoForMenuItem` mapping the tracking page and the receipt use, which
-     * refuses to guess rather than attaching a plate of rice to a whole
-     * chicken. If neither exists the slide becomes the ink panel, which is a
-     * shape rather than a failure.
-     */
-    const basketImage = useMemo(() => {
-        if (!lastBasket) return undefined;
-        const lines = lastBasket.items ?? [];
-
-        for (const line of lines) {
-            const found = allItems.find(i => i.id === String(line.menu_item_id));
-            if (found?.image) return found.image;
-        }
-        for (const line of lines) {
-            const name = line.menu_item_snapshot?.name ?? line.menu_item?.name;
-            const photo = name ? photoForMenuItem(name) : null;
-            if (photo) return photo.src;
-        }
-        return undefined;
-    }, [lastBasket, allItems]);
-
     // The lead photograph is a real shot from the branch counter. Where the menu
     // has a dish it is honestly a picture of, the slide becomes that dish: real
     // name, real price, opens its sheet. Where it does not, it stays a caption
@@ -239,27 +281,12 @@ export default function HomeHero() {
     const busy = lastBasket ? reorderingId === lastBasket.id : false;
 
     const reorderSlide = lastBasket ? (
-        <Frame key="reorder" image={basketImage} onClick={() => !busy && reorder(lastBasket)}>
-            <BlockHeading tone="red" size="lg" as="h1">Order it again</BlockHeading>
-
-            <p className="mt-3 max-w-lg text-sm font-semibold leading-snug text-balance text-white sm:text-base">
-                {basketLine(lastBasket)}
-            </p>
-            <p className="mt-1 text-sm tabular-nums text-white/70">
-                {/* `total` does not exist on an order. It read undefined, which
-                    formatted as ₵0.00 and told every returning customer their
-                    last order had been free. The field is `total_amount`. */}
-                {formatPrice(lastBasket.total_amount)} · {whenText(lastBasket.created_at)}
-            </p>
-
-            <span className="mt-4 inline-flex h-12 items-center gap-2 rounded-lg bg-primary-fill px-5 text-sm font-bold text-white">
-                {busy ? (
-                    <><SpinnerGapIcon size={16} className="animate-spin" /> Adding to cart</>
-                ) : (
-                    <>Add it to my cart <ArrowRightIcon size={15} weight="bold" /></>
-                )}
-            </span>
-        </Frame>
+        <ReorderSlide
+            key="reorder"
+            order={lastBasket}
+            busy={busy}
+            onAdd={() => !busy && reorder(lastBasket)}
+        />
     ) : null;
 
     const dishSlide = (
@@ -290,17 +317,6 @@ export default function HomeHero() {
             {/* The order they are most likely to want first, the kitchen's own
                 dish behind it. A guest gets one slide and no dots. */}
             <Deck>{[reorderSlide, dishSlide]}</Deck>
-
-            {lastBasket && (
-                <div className="mt-2 flex justify-end">
-                    <Link
-                        href="/orders"
-                        className="text-sm font-bold text-primary-ink transition-opacity duration-150 ease-out hover:opacity-70"
-                    >
-                        All my orders
-                    </Link>
-                </div>
-            )}
 
             <ItemDetailModal item={detailItem} onClose={() => setDetailItem(null)} />
         </section>

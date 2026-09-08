@@ -61,7 +61,7 @@ const QUICK_LINKS = [
  * Search, so a column repeating them is a second navigation that agrees with
  * the first, and every branch is already on the map directly above this. What a
  * customer on a phone genuinely cannot get anywhere else is a person: nothing
- * in the whole customer app offers a way to call the shop unless you already
+ * in the whole customer app offers a way to call the kitchen unless you already
  * have an order in flight.
  *
  * So the phone gets three things in falling order of use. When we are cooking,
@@ -107,7 +107,7 @@ export default function Footer({ className = '' }: { className?: string }) {
                     Talk to us
                 </h2>
                 <p className="mt-2.5 text-sm leading-relaxed text-white/55">
-                    Somebody is at the shop every day, {hoursDisplay}.
+                    Somebody is at the kitchen every day, {hoursDisplay}.
                 </p>
 
                 {/* Calling is the loud one. WhatsApp sits beside it at its own
@@ -119,7 +119,7 @@ export default function Footer({ className = '' }: { className?: string }) {
                         className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-primary-fill px-4 text-sm font-bold text-white transition-[filter] duration-150 ease-out active:brightness-90"
                     >
                         <PhoneIcon weight="fill" size={16} />
-                        Call the shop
+                        Call the kitchen
                     </a>
                     <a
                         href={`https://wa.me/${WHATSAPP_NUMBER}`}

@@ -125,10 +125,12 @@ export default function CheckoutPage() {
         apiClient.get('/checkout-config').then((res: unknown) => {
             const d = (res as { data?: { service_charge_enabled?: boolean; service_charge_percent?: number; service_charge_cap?: number; delivery_fee_enabled?: boolean } })?.data;
             if (d) {
+                // Absent means absent. Falling back to 1% here was the second
+                // place a charge could appear that nobody had configured.
                 setScConfig({
-                    enabled: d.service_charge_enabled ?? true,
-                    percent: d.service_charge_percent ?? 1,
-                    cap: d.service_charge_cap ?? 5,
+                    enabled: d.service_charge_enabled ?? false,
+                    percent: d.service_charge_percent ?? 0,
+                    cap: d.service_charge_cap ?? 0,
                 });
                 setDeliveryFeeEnabled(d.delivery_fee_enabled ?? false);
             }

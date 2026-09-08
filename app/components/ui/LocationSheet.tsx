@@ -105,15 +105,15 @@ function AskPane({ onPickManually }: { onPickManually: () => void }) {
                     </p>
                     <ol className="mt-3 flex flex-col gap-3">
                         {recovery.steps.map((step, i) => (
-                            <li key={step} className="flex gap-3">
-                                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-lg bg-fg text-[11px] font-bold tabular-nums text-surface">
+                            <li key={step} className="flex gap-2.5">
+                                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-lg bg-fg text-[11px] font-bold tabular-nums text-surface">
                                     {i + 1}
                                 </span>
-                                <span className="text-sm leading-relaxed text-fg">{step}</span>
+                                <span className="min-w-0 text-sm leading-relaxed text-balance text-fg">{step}</span>
                             </li>
                         ))}
                     </ol>
-                    <p className="mt-3 pl-8 text-[13px] font-semibold text-fg-muted">{recovery.after}</p>
+                    <p className="mt-3 pl-7.5 text-[13px] font-semibold text-fg-muted">{recovery.after}</p>
                 </div>
 
                 <div className="flex flex-col gap-2.5">
@@ -192,8 +192,8 @@ function NearestBranch({ branch, haveFix, onSelect }: {
             <span className="inline-block rounded-lg bg-accent px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.06em] text-on-accent">
                 Nearest to you
             </span>
-            <span className="mt-2.5 flex items-center gap-2">
-                <span className="font-brand text-[26px] uppercase leading-none tracking-[0.01em] text-fg">
+            <span className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                <span className="font-brand text-[22px] uppercase leading-none tracking-[0.01em] text-fg sm:text-[26px]">
                     {branchTitle(branch.name)}
                 </span>
                 <OpenPill branch={branch} />
@@ -224,13 +224,13 @@ function BranchRow({ branch, haveFix, isCurrent, onSelect }: {
             </span>
             <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-sm font-bold text-fg">{branchTitle(branch.name)}</span>
+                    <span className="min-w-0 break-words text-sm font-bold text-fg">{branchTitle(branch.name)}</span>
                     {isCurrent
                         ? <span className="rounded-lg bg-primary-fill px-1.5 py-0.5 text-[11px] font-bold text-white">You are here</span>
                         : <OpenPill branch={branch} />}
                 </span>
                 <span className="mt-0.5 block truncate text-[13px] text-fg-muted">{branch.address}</span>
-                {line && <span className="mt-0.5 block text-[13px] tabular-nums text-fg-subtle">{line}</span>}
+                {line && <span className="mt-0.5 block truncate text-[13px] tabular-nums text-fg-subtle">{line}</span>}
             </span>
             {!shut && <CaretRightIcon size={15} weight="bold" className="shrink-0 text-fg-subtle" />}
         </button>
