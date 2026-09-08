@@ -37,6 +37,33 @@ export function pushSupported(): boolean {
         && 'PushManager' in window;
 }
 
+/**
+ * An iPhone that could support push, but only once the site is installed.
+ *
+ * Safari implements the Push API **only for a site added to the Home Screen**.
+ * In a normal Safari tab `Notification` and `PushManager` simply are not on
+ * `window`, so `pushSupported()` is false and the whole opt-in disappears. That
+ * is why the button shows on a laptop and not on the phone: nothing is broken,
+ * Apple gates the API on installation.
+ *
+ * Detected rather than assumed: iOS if it looks like one, and not already
+ * running standalone. `navigator.standalone` is Apple's own flag; the media
+ * query catches the installed case on every other platform.
+ */
+export function pushNeedsHomeScreen(): boolean {
+    if (typeof window === 'undefined' || pushSupported()) return false;
+
+    const ua = navigator.userAgent.toLowerCase();
+    const ios = /iphone|ipad|ipod/.test(ua)
+        || (/macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    if (!ios) return false;
+
+    const standalone = (navigator as Navigator & { standalone?: boolean }).standalone === true
+        || window.matchMedia('(display-mode: standalone)').matches;
+
+    return !standalone;
+}
+
 /** Byte-for-byte, so a subscription minted under an older VAPID key is caught. */
 function sameKey(a: ArrayBuffer | null | undefined, b: Uint8Array): boolean {
     if (!a) return false;

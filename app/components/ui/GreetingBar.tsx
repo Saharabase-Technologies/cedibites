@@ -43,20 +43,25 @@ export default function GreetingBar() {
         // lands on the same vertical as the red block inside the photograph
         // below it. Both are display type; lining them up is what makes the top
         // of the screen read as one thing rather than two.
-        <div className="flex items-start justify-between gap-4 px-4 sm:px-6">
-            {/* The greeting and whether the kitchen is cooking are one thing,
-                so they stack together on the left. The order chip is a separate
-                thing, so it sits opposite. It used to share a wrapping row with
-                the greeting while "Open now" sat on a third line below, which
-                put three items on three lines with a third of the width empty
-                between them. */}
-            <div className="min-w-0">
-                <h1 className="font-brand text-4xl leading-none tracking-wide text-fg md:text-5xl">
-                    {greeting ?? 'Welcome'}{firstName ? `, ${firstName}` : ''}
-                </h1>
+        <div className="flex flex-col gap-2 px-4 sm:px-6">
+            {/*
+              * Two rows, not one.
+              *
+              * The greeting is display type at 36px and a name makes it long:
+              * "GOOD MORNING, KWABENA" beside a chip forced the heading to wrap
+              * mid-phrase on a phone, so the top of the screen read as four
+              * ragged lines. It gets the full width to itself, and the two small
+              * things — whether the kitchen is open, and the order on its way —
+              * share the row underneath, where they are the same size and belong
+              * together anyway.
+              */}
+            <h1 className="font-brand text-4xl leading-none tracking-wide text-balance text-fg md:text-5xl">
+                {greeting ?? 'Welcome'}{firstName ? `, ${firstName}` : ''}
+            </h1>
 
-                {selectedBranch && typeof isOpen === 'boolean' && (
-                    <p className="mt-2 flex items-center gap-2 text-sm">
+            <div className="flex items-center justify-between gap-3">
+                {selectedBranch && typeof isOpen === 'boolean' ? (
+                    <p className="flex items-center gap-2 text-sm">
                         <span
                             aria-hidden
                             className={`h-2 w-2 shrink-0 rounded-xs ${isOpen ? 'bg-success' : 'bg-danger'}`}
@@ -65,10 +70,10 @@ export default function GreetingBar() {
                             {isOpen ? 'Open now' : 'Closed'}
                         </span>
                     </p>
-                )}
-            </div>
+                ) : <span />}
 
-            <ActiveOrderChip />
+                <ActiveOrderChip />
+            </div>
         </div>
     );
 }

@@ -57,11 +57,12 @@ export const DELIVERY_FEE = 0;
 /**
  * Off until the server says otherwise.
  *
- * This opened `enabled: true`, so a charge appeared on the payment step before
- * `/checkout-config` had answered, and stayed if the call failed. A client
- * should never invent money owed: if we cannot reach the server to ask, the
- * honest figure is nothing. Turning it on is a setting, and settings come from
- * the server.
+ * This opened `enabled: true, percent: 1`, so a charge appeared on the payment
+ * step before `/checkout-config` had answered, and stayed if the call failed. A
+ * client should never invent money owed: if we cannot reach the server to ask,
+ * the honest figure is nothing. Whether there is a charge at all is a setting,
+ * and settings come from the server — see `calcServiceCharge` for the other
+ * half of the rule, which is that cash never carries one.
  */
 export const DEFAULT_SC_CONFIG: ServiceChargeConfig = { enabled: false, percent: 0, cap: 0 };
 export const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = {

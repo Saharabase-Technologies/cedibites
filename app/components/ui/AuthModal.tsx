@@ -93,7 +93,6 @@ function CodeBoxes({ value, onChange, disabled, invalid }: {
     invalid?: boolean;
 }) {
     const inputs = useRef<(HTMLInputElement | null)[]>([]);
-    const [clip, setClip] = useState<string | null>(null);
 
     useEffect(() => {
         const t = setTimeout(() => inputs.current[0]?.focus(), 60);
@@ -133,26 +132,6 @@ function CodeBoxes({ value, onChange, disabled, invalid }: {
         return () => ac.abort();
     }, [fill]);
 
-    /**
-     * The clipboard, on a tap.
-     *
-     * Read only from a gesture. Reading it on mount raises a permission prompt
-     * on Safari the moment the sheet opens, over a question the customer has not
-     * been asked yet, and silently lifting whatever somebody had copied is not
-     * a thing to do behind their back. So the button offers what it found and
-     * they decide.
-     */
-    const offerClipboard = useCallback(async () => {
-        try {
-            const text = await navigator.clipboard.readText();
-            const six = sixDigits(text);
-            if (six) { fill(six); setClip(null); }
-            else setClip('none');
-        } catch {
-            setClip('none');
-        }
-    }, [fill]);
-
     const handleKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Backspace' && !value[i] && i > 0) inputs.current[i - 1]?.focus();
     };
@@ -177,6 +156,14 @@ function CodeBoxes({ value, onChange, disabled, invalid }: {
         if (digits && i < 5) inputs.current[i + 1]?.focus();
     };
 
+    /**
+     * Cmd-V, or a long-press paste.
+     *
+     * There is deliberately no "paste the code" button beside the boxes. Reading
+     * the clipboard needs a gesture anyway, and a control that offers to look at
+     * what you have copied is a strange thing to put under a login. The OS
+     * keyboard already offers the code above these fields on both platforms.
+     */
     const handlePaste = (e: React.ClipboardEvent) => {
         const pasted = e.clipboardData.getData('text');
         const six = sixDigits(pasted) ?? pasted.replace(/\D/g, '').slice(0, 6);
@@ -214,15 +201,6 @@ function CodeBoxes({ value, onChange, disabled, invalid }: {
                 ))}
             </div>
 
-            {value.length < 6 && (
-                <button
-                    onClick={offerClipboard}
-                    disabled={disabled}
-                    className="mt-3 text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70 disabled:opacity-50"
-                >
-                    {clip === 'none' ? 'No code on the clipboard' : 'Paste the code'}
-                </button>
-            )}
         </div>
     );
 }

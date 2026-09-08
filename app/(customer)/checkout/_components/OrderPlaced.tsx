@@ -5,7 +5,7 @@ import { useBranch } from '@/app/components/providers/BranchProvider';
 import { ArrowRightIcon, CheckIcon } from '@phosphor-icons/react';
 import { BellIcon } from '@phosphor-icons/react';
 import Link from 'next/link';
-import { pushSupported, subscribeToOrderUpdates } from '@/lib/orders/orderPush';
+import { pushNeedsHomeScreen, pushSupported, subscribeToOrderUpdates } from '@/lib/orders/orderPush';
 import { useEffect, useState } from 'react';
 import { controlClass } from './Field';
 import type { ContactDetails, OrderType } from './types';
@@ -34,6 +34,11 @@ export default function OrderPlaced({ orderNumber, orderType, contact, trackingT
     // addresses with it, so it goes through an OTP rather than trusting that
     // whoever typed the number owns it.
     const [push, setPush] = useState<'offer' | 'asking' | 'on' | 'blocked' | 'failed'>('offer');
+
+    // After mount: this reads the user agent and the display mode, and a server
+    // pass knows neither.
+    const [needsHomeScreen, setNeedsHomeScreen] = useState(false);
+    useEffect(() => { setNeedsHomeScreen(pushNeedsHomeScreen()); }, []);
 
     const [state, setState] = useState<'idle' | 'sending' | 'code' | 'verifying' | 'saved'>(
         isLoggedIn ? 'saved' : 'idle',
@@ -113,6 +118,27 @@ export default function OrderPlaced({ orderNumber, orderType, contact, trackingT
             </div>
 
             {/* ── Being told when it moves ─────────────────────────────────── */}
+            {/*
+              * On an iPhone in a Safari tab there is no Push API at all, so the
+              * block below renders nothing and the customer is left wondering
+              * why the option exists on their laptop. Apple gates it on the site
+              * being added to the Home Screen, so that is what this says.
+              */}
+            {trackingToken && needsHomeScreen && (
+                <div className="mt-10 border-t border-hairline pt-6">
+                    <h2 className="font-brand text-2xl uppercase leading-none tracking-[0.01em] text-fg">
+                        Know the moment it moves
+                    </h2>
+                    <p className="mt-3 text-sm leading-relaxed text-fg">
+                        Your iPhone will only buzz for a site kept on the Home Screen. Tap the share
+                        button below, choose Add to Home Screen, then open CediBites from there.
+                    </p>
+                    <p className="mt-2.5 text-[13px] leading-relaxed text-fg-muted">
+                        The SMS to {contact.phone} comes either way.
+                    </p>
+                </div>
+            )}
+
             {trackingToken && pushSupported() && push !== 'blocked' && (
                 <div className="mt-10 border-t border-hairline pt-6">
                     {push === 'on' ? (
@@ -126,8 +152,7 @@ export default function OrderPlaced({ orderNumber, orderType, contact, trackingT
                                 Know the moment it moves
                             </h2>
                             <p className="mt-3 text-sm leading-relaxed text-fg">
-                                A buzz when the kitchen starts, and another when the rider leaves. No app to
-                                install.
+                                A buzz when the kitchen starts, and another when the rider leaves.
                             </p>
                             {push === 'failed' && (
                                 <p className="mt-2.5 text-[13px] font-semibold text-danger-ink">

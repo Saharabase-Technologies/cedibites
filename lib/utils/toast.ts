@@ -1,72 +1,175 @@
 /**
- * Simple toast notification utility
- * Can be replaced with a library like react-hot-toast or sonner
+ * The app's own toast.
+ *
+ * What this replaces was a stub that had been left in place: `bg-green-600`,
+ * `bg-red-600`, `bg-blue-600`, `bg-yellow-600` straight off Tailwind's default
+ * palette, pinned to the top right, with a comment saying it could be swapped
+ * for react-hot-toast one day. Four colours the brand does not contain, in the
+ * one corner of a phone a thumb cannot reach, over the header.
+ *
+ * Two constraints shaped what replaced it.
+ *
+ * **It is appended to `document.body`, which is outside `.cb-customer`.** The
+ * role tokens are declared on that wrapper, so `bg-surface` here would resolve
+ * to the staff foundation on a customer screen and quietly be the wrong colour.
+ * Everything below is therefore literal rather than tokenised. That is the
+ * exception, and this comment is the reason for it.
+ *
+ * **It is shared.** Sixty-odd call sites across the POS, the kitchen, inventory,
+ * admin and the customer app. So it is the one thing both worlds already agree
+ * on: dark chrome with white type, which is what the tab bar and the brand's own
+ * artwork run on. It reads as deliberate on a warm staff screen and on the
+ * customer's mono ground.
+ *
+ * Bottom centre, clear of the tab bar and the home indicator, because that is
+ * where a thumb is and because the top of the screen is where the branch chip,
+ * the cart and the notch already are.
  */
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 interface ToastOptions {
   duration?: number;
-  position?: 'top-right' | 'top-center' | 'top-left' | 'bottom-right' | 'bottom-center' | 'bottom-left';
 }
+
+/** The one accent per type. Green confirms, red is a failure, yellow warns. */
+const ACCENT: Record<ToastType, string> = {
+  success: '#8fa84e',
+  error: '#e5484d',
+  warning: '#efa52e',
+  info: '#ffffff',
+};
+
+const SURFACE = '#17181a';
+const ANIMATION_MS = 180;
 
 class ToastManager {
   private container: HTMLDivElement | null = null;
 
+  private reducedMotion(): boolean {
+    return typeof window !== 'undefined'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
   private getContainer(): HTMLDivElement {
-    if (!this.container) {
-      this.container = document.createElement('div');
-      this.container.className = 'fixed top-4 right-4 z-[9999] flex flex-col gap-2';
-      // Cart writes report failures through here now — "could not add that",
-      // "could not remove that" — so the message has to reach a screen reader
-      // as well as the screen. Polite rather than assertive: it should not cut
-      // across whatever is being read, it just needs to arrive.
-      this.container.setAttribute('role', 'status');
-      this.container.setAttribute('aria-live', 'polite');
-      document.body.appendChild(this.container);
-    }
-    return this.container;
+    if (this.container && this.container.isConnected) return this.container;
+
+    const el = document.createElement('div');
+    el.style.cssText = [
+      'position:fixed',
+      'left:50%',
+      'transform:translateX(-50%)',
+      // Above the tab bar where there is one, above the home indicator where
+      // there is not. `env()` is 0px on a device without either.
+      'bottom:calc(var(--tabbar-h, 0px) + env(safe-area-inset-bottom, 0px) + 16px)',
+      'z-index:9999',
+      'display:flex',
+      'flex-direction:column',
+      'gap:8px',
+      'align-items:center',
+      'width:calc(100% - 32px)',
+      'max-width:26rem',
+      // The stack must never swallow taps meant for the page underneath it.
+      // Each toast turns pointer events back on for itself.
+      'pointer-events:none',
+    ].join(';');
+
+    // Cart writes report failures through here — "could not add that", "could
+    // not remove that" — so the message has to reach a screen reader as well as
+    // the screen. Polite rather than assertive: it should not cut across
+    // whatever is being read, it just needs to arrive.
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+
+    document.body.appendChild(el);
+    this.container = el;
+    return el;
   }
 
   private show(message: string, type: ToastType, options: ToastOptions = {}) {
-    const { duration = 3000 } = options;
+    if (typeof document === 'undefined') return;
+
+    const { duration = 3600 } = options;
     const container = this.getContainer();
+    const instant = this.reducedMotion();
 
     const toast = document.createElement('div');
-    toast.className = `
-      px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium
-      transform transition-all duration-300 ease-in-out
-      translate-x-0 opacity-100
-      ${type === 'success' ? 'bg-green-600' : ''}
-      ${type === 'error' ? 'bg-red-600' : ''}
-      ${type === 'info' ? 'bg-blue-600' : ''}
-      ${type === 'warning' ? 'bg-yellow-600' : ''}
-      max-w-sm
-    `;
-    toast.textContent = message;
+    toast.style.cssText = [
+      'display:flex',
+      'align-items:flex-start',
+      'gap:10px',
+      'width:100%',
+      'box-sizing:border-box',
+      'padding:12px 14px',
+      'border-radius:10px',
+      `background:${SURFACE}`,
+      'color:#ffffff',
+      'font-size:14px',
+      'font-weight:600',
+      'line-height:1.45',
+      'text-align:left',
+      'box-shadow:0 8px 24px -6px rgb(0 0 0 / 0.4)',
+      'pointer-events:auto',
+      'cursor:pointer',
+      instant ? 'opacity:1' : 'opacity:0',
+      instant ? 'transform:none' : 'transform:translateY(10px)',
+      instant ? '' : `transition:opacity ${ANIMATION_MS}ms ease-out, transform ${ANIMATION_MS}ms ease-out`,
+    ].filter(Boolean).join(';');
 
+    // A square, not a dot. Nothing in the brand's artwork is a circle, and the
+    // open/closed marks and the live order dot are squares already.
+    const mark = document.createElement('span');
+    mark.setAttribute('aria-hidden', 'true');
+    mark.style.cssText = [
+      'flex:0 0 auto',
+      'width:8px',
+      'height:8px',
+      'margin-top:6px',
+      'border-radius:2px',
+      `background:${ACCENT[type]}`,
+    ].join(';');
+
+    const text = document.createElement('span');
+    text.style.cssText = 'min-width:0;flex:1 1 auto;overflow-wrap:anywhere';
+    // textContent, never innerHTML: these strings carry API error messages.
+    text.textContent = message;
+
+    toast.append(mark, text);
     container.appendChild(toast);
 
-    // Animate in
-    setTimeout(() => {
-      toast.style.transform = 'translateX(0)';
-      toast.style.opacity = '1';
-    }, 10);
+    let done = false;
+    const dismiss = () => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(timer);
 
-    // Remove after duration
-    setTimeout(() => {
-      toast.style.transform = 'translateX(100%)';
-      toast.style.opacity = '0';
-      setTimeout(() => {
+      const remove = () => {
+        toast.remove();
         // Two toasts expiring together used to race here: the second removeChild
         // threw because the first had already torn the container off the body.
-        toast.remove();
         if (container.children.length === 0) {
           container.remove();
           if (this.container === container) this.container = null;
         }
-      }, 300);
-    }, duration);
+      };
+
+      if (instant) { remove(); return; }
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      window.setTimeout(remove, ANIMATION_MS);
+    };
+
+    // Tap to get rid of it. A message that will not go away is an obstacle.
+    toast.addEventListener('click', dismiss);
+
+    if (!instant) {
+      requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+      });
+    }
+
+    const timer = window.setTimeout(dismiss, duration);
   }
 
   success(message: string, options?: ToastOptions) {

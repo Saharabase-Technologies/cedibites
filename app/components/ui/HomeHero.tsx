@@ -3,17 +3,13 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRightIcon, SpinnerGapIcon } from '@phosphor-icons/react';
+import { ArrowRightIcon } from '@phosphor-icons/react';
 import { useAuth } from '../providers/AuthProvider';
 import { useMenuDiscovery, type SearchableItem } from '../providers/MenuDiscoveryProvider';
 import { useOrders } from '@/lib/api/hooks/useOrders';
-import { useReorder } from '@/lib/hooks/useReorder';
 import { BRANCH_PHOTOS, matchMenuItem } from '@/lib/constants/branchPhotos';
-import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
-import { serverNow } from '@/lib/utils/serverClock';
 import BlockHeading from './BlockHeading';
 import ItemDetailModal from './ItemDetailModal';
-import type { Order as ApiOrder } from '@/types/api';
 
 const REPEATABLE = new Set(['completed', 'delivered']);
 
@@ -22,109 +18,6 @@ const formatPrice = (p: number | string | null | undefined) => {
     return `₵${Number.isNaN(n) ? '0.00' : n.toFixed(2)}`;
 };
 
-function whenText(iso: string): string {
-    const days = Math.floor((serverNow().getTime() - new Date(iso).getTime()) / 86_400_000);
-    if (days <= 0) return 'today';
-    if (days === 1) return 'yesterday';
-    if (days < 7) return `${days} days ago`;
-    if (days < 14) return 'last week';
-    if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
-    return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-}
-
-/**
- * Every line of the basket, in the names a receipt would print.
- *
- * This used to be one comma-joined sentence built from the raw menu item name,
- * so it read "Assorted Fried Rice / Jollof / Noodles + 7 Drums + Kɔkɔɔ and
- * Drumsticks" — three dishes offered and none of them named. It is a list now,
- * and it goes through `getOrderItemLineLabel`, the helper the receipt, the till
- * and the tracking page all share.
- */
-function basketLines(order: ApiOrder): { qty: number; label: string }[] {
-    return (order.items ?? []).map(i => ({
-        qty: i.quantity ?? 1,
-        label: getOrderItemLineLabel({
-            name: i.menu_item_snapshot?.name ?? i.menu_item?.name ?? 'Item',
-            sizeLabel: i.menu_item_option_snapshot?.display_name
-                ?? i.menu_item_option?.display_name
-                ?? i.menu_item_option_snapshot?.option_label
-                ?? i.menu_item_option?.option_label
-                ?? '',
-        }),
-    }));
-}
-
-/**
- * The last order, shaped like the receipt it is.
- *
- * It used to be the photo banner with different words in it: same frame, same
- * red block, same red button, so the two hero slides were one design shown
- * twice. Nothing about "buy this again" wants a full-bleed photograph — the
- * question is what was in it and what it cost, which is a list and a total.
- *
- * So this is a light panel against the photograph's dark one: a receipt, on the
- * page ground, with the lines set out and the total at the foot. The contrast
- * between the two slides is the point.
- */
-function ReorderSlide({ order, busy, onAdd }: {
-    order: ApiOrder;
-    busy: boolean;
-    onAdd: () => void;
-}) {
-    const lines = basketLines(order);
-    const shown = lines.slice(0, 3);
-    const rest = lines.length - shown.length;
-
-    return (
-        <div className="flex h-full flex-col rounded-2xl border border-hairline bg-surface p-5 sm:p-6">
-            <div className="flex items-baseline justify-between gap-3">
-                <h1 className="font-brand text-3xl uppercase leading-none tracking-[0.01em] text-fg sm:text-4xl">
-                    Order it again
-                </h1>
-                <span className="shrink-0 text-[13px] font-semibold text-fg-muted">
-                    {whenText(order.created_at)}
-                </span>
-            </div>
-
-            <p className="mt-1 font-brand text-lg uppercase leading-none tracking-[0.04em] text-fg-muted">
-                {order.order_number}
-            </p>
-
-            <ul className="mt-4 flex flex-col gap-2 border-t border-hairline pt-4">
-                {shown.map((line, i) => (
-                    <li key={i} className="flex gap-2.5 text-sm leading-snug">
-                        <span className="shrink-0 font-bold tabular-nums text-fg-muted">{line.qty}×</span>
-                        <span className="min-w-0 font-semibold text-balance break-words text-fg">{line.label}</span>
-                    </li>
-                ))}
-                {rest > 0 && (
-                    <li className="text-sm font-semibold text-fg-muted">and {rest} more</li>
-                )}
-            </ul>
-
-            <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-4">
-                <span className="font-brand text-3xl leading-none tabular-nums text-fg">
-                    {/* `total` does not exist on an order. It read undefined,
-                        which formatted as ₵0.00 and told every returning
-                        customer their last order had been free. */}
-                    {formatPrice(order.total_amount)}
-                </span>
-                <button
-                    onClick={onAdd}
-                    disabled={busy}
-                    className="inline-flex h-12 items-center gap-2 rounded-lg bg-primary-fill px-5 text-sm font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95 disabled:opacity-60"
-                >
-                    {busy ? (
-                        <><SpinnerGapIcon size={16} className="animate-spin" /> Adding to cart</>
-                    ) : (
-                        <>Add it to my cart <ArrowRightIcon size={15} weight="bold" /></>
-                    )}
-                </button>
-            </div>
-        </div>
-    );
-}
 
 /**
  * One slide. The photograph is the dish's own, never a stock shot.
@@ -256,7 +149,6 @@ function Deck({ children }: { children: React.ReactNode[] }) {
 export default function HomeHero() {
     const { isLoggedIn } = useAuth();
     const { orders, isLoading: ordersLoading } = useOrders({ per_page: 12 });
-    const { reorder, reorderingId } = useReorder();
     const { allItems, isSearching } = useMenuDiscovery();
     const [detailItem, setDetailItem] = useState<SearchableItem | null>(null);
 
@@ -278,17 +170,6 @@ export default function HomeHero() {
     if (isLoggedIn && !lastBasket && isSearching && allItems.length === 0) return <Skeleton />;
 
     const price = photoItem ? (photoItem.sizes?.[0]?.price ?? photoItem.price ?? 0) : null;
-    const busy = lastBasket ? reorderingId === lastBasket.id : false;
-
-    const reorderSlide = lastBasket ? (
-        <ReorderSlide
-            key="reorder"
-            order={lastBasket}
-            busy={busy}
-            onAdd={() => !busy && reorder(lastBasket)}
-        />
-    ) : null;
-
     const dishSlide = (
         <Frame
             key="dish"
@@ -314,9 +195,10 @@ export default function HomeHero() {
 
     return (
         <section className="page-x">
-            {/* The order they are most likely to want first, the kitchen's own
-                dish behind it. A guest gets one slide and no dots. */}
-            <Deck>{[reorderSlide, dishSlide]}</Deck>
+            {/* One slide for now. The reorder card that sat in front of this is
+                being redesigned rather than dropped, so the deck stays: with a
+                single slide it renders as a plain block with no dots. */}
+            <Deck>{[dishSlide]}</Deck>
 
             <ItemDetailModal item={detailItem} onClose={() => setDetailItem(null)} />
         </section>
