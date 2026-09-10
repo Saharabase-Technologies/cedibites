@@ -2,9 +2,10 @@
 
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { isValidGhanaPhone } from '@/app/lib/phone';
-import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
+import { ArrowCounterClockwiseIcon, MapPinIcon } from '@phosphor-icons/react';
 import React, { useState } from 'react';
 import AddressSearchField from './AddressSearchField';
+import { useAddresses } from '@/lib/api/hooks/useAddresses';
 import { Field, Reveal, StepHeading, controlClass } from './Field';
 import MomoField, { type MomoCheck } from './MomoField';
 import { Money } from './OrderPanel';
@@ -193,6 +194,9 @@ export default function CheckoutForm({
     onChangeBranch: () => void;
 }) {
     const { selectedBranch } = useBranch();
+    // Cached by react-query, so this costs nothing beyond the account page's
+    // own fetch. Empty for a guest: the query only runs with a customer token.
+    const { addresses } = useAddresses();
     const [noteOpen, setNoteOpen] = useState(Boolean(contact.note));
     const [phoneTouched, setPhoneTouched] = useState(false);
 
@@ -271,7 +275,43 @@ export default function CheckoutForm({
                                             />
                                         </Field>
 
-                                        {canRecallAddress && (
+                                        {/*
+                                          * The places they have told us they order to.
+                                          *
+                                          * The account list first, because it follows
+                                          * them between devices and they named these
+                                          * themselves. The device's last address is the
+                                          * fallback underneath, for a guest and for
+                                          * anybody who has not saved one yet — showing
+                                          * both would offer the same street twice.
+                                          */}
+                                        {addresses.length > 0 ? (
+                                            <div className="-mt-2 flex flex-wrap gap-2">
+                                                {addresses.map(a => {
+                                                    const chosen = contact.address.trim() === a.full_address.trim();
+                                                    return (
+                                                        <button
+                                                            key={a.id}
+                                                            onClick={() => set('address')(a.full_address)}
+                                                            className={`flex min-w-0 max-w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors duration-150 ease-out ${
+                                                                chosen
+                                                                    ? 'bg-fg text-white'
+                                                                    : 'bg-surface-sunken text-fg hover:opacity-80'
+                                                            }`}
+                                                        >
+                                                            <MapPinIcon
+                                                                size={13}
+                                                                weight="fill"
+                                                                className={`shrink-0 ${chosen ? 'text-white' : 'text-fg-muted'}`}
+                                                            />
+                                                            <span className="min-w-0 truncate text-[13px] font-semibold">
+                                                                {a.label || a.full_address}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : canRecallAddress && (
                                             <button
                                                 onClick={() => set('address')(recalled.address)}
                                                 className="-mt-2 flex min-w-0 items-center gap-2 self-start rounded-lg bg-surface-sunken px-3 py-2 text-left transition-opacity duration-150 ease-out hover:opacity-80"

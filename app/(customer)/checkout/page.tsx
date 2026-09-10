@@ -25,6 +25,7 @@ import { stageBlocker, enabledOrderTypes, enabledPaymentMethods } from './_compo
 import { computeTotals } from './_components/pricing';
 import { readRecalled, writeRecalled, type RecalledDetails } from './_components/recall';
 import { writeLastOrder } from '@/lib/orders/lastOrder';
+import { useAddresses } from '@/lib/api/hooks/useAddresses';
 import { DEFAULT_SC_CONFIG, STAGES, nextStage, stageIsBefore } from './_components/types';
 import type { ContactDetails, OrderType, PaymentMethod, Phase, ServiceChargeConfig, Stage } from './_components/types';
 
@@ -36,6 +37,9 @@ export default function CheckoutPage() {
     const { selectedBranch, branches } = useBranch();
     const { coordinates } = useLocation();
     const { user, isLoggedIn } = useAuth();
+    // Empty for a guest: the query only runs when there is a customer token.
+    // The list itself is rendered by CheckoutForm, off the same cached query.
+    const { defaultAddress, saveAddress } = useAddresses();
     const createSession = useCreateCheckoutSession();
 
     const [phase, setPhase] = useState<Phase>('form');
@@ -116,9 +120,13 @@ export default function CheckoutPage() {
             ...c,
             name: c.name || (isLoggedIn ? user?.name ?? '' : '') || saved.name,
             phone: c.phone || (isLoggedIn ? user?.phone ?? '' : '') || saved.phone,
-            address: c.address || saved.address,
+            // The account's default address outranks this device's last one:
+            // it is the place they told us they usually order to, and it
+            // follows them between a phone and a laptop. `readRecalled` is the
+            // guest's fallback and the signed-in customer's until they save one.
+            address: c.address || defaultAddress?.full_address || saved.address,
         }));
-    }, [isLoggedIn, user?.name, user?.phone]);
+    }, [isLoggedIn, user?.name, user?.phone, defaultAddress?.full_address]);
 
     // ── Charges ──────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -204,6 +212,20 @@ export default function CheckoutPage() {
         // a payment that fails is exactly when nobody wants to type it again.
         writeRecalled({ name: contact.name.trim(), phone, address: contact.address.trim() });
 
+        /**
+         * And onto the account, where it survives this browser.
+         *
+         * Only for a delivery — a pickup has no address to keep — and only for
+         * somebody signed in. The endpoint matches on the address text and
+         * updates the row that is already there, so ordering to the same door
+         * every week does not collect a row per order. Deliberately not awaited
+         * and deliberately silent: nothing about placing an order should wait
+         * on, or fail because of, an address book.
+         */
+        if (isLoggedIn && orderType === 'delivery' && contact.address.trim().length >= 4) {
+            void saveAddress({ full_address: contact.address.trim() }).catch(() => { /* not worth a word */ });
+        }
+
         try {
             const session = await createSession.mutateAsync({
                 branch_id: Number(effectiveBranch.id),
@@ -250,7 +272,7 @@ export default function CheckoutPage() {
         } finally {
             setPlacing(false);
         }
-    }, [effectiveBranch, paymentMethod, orderType, contact, momoNumber, coordinates, createSession, clearCart]);
+    }, [effectiveBranch, paymentMethod, orderType, contact, momoNumber, coordinates, createSession, clearCart, isLoggedIn, saveAddress]);
 
     const handlePaid = useCallback((num: string, token?: string) => {
         clearCart();
