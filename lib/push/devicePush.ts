@@ -60,8 +60,20 @@ export async function enableDevicePush(): Promise<PushState> {
     if (!pushSupported()) return 'unsupported';
 
     try {
-        const keyRes = await apiClient.get('/push/vapid-key') as { public_key?: string };
-        const vapid = keyRes?.public_key;
+        /**
+         * `/push/public-key`, not `/push/vapid-key`.
+         *
+         * There are two endpoints for the same key and they answer in different
+         * shapes: the authenticated one wraps it as `{ data: { public_key } }`
+         * and the public one is flat. Reading `public_key` off the wrapped one
+         * gave `undefined`, so this bailed before it ever asked for permission
+         * and the switch reported "That did not take" every time.
+         *
+         * The flat one is used here and in orderPush, so both paths read the
+         * same response. Both return the same key.
+         */
+        const keyRes = await apiClient.get('/push/public-key') as { public_key?: string; data?: { public_key?: string } };
+        const vapid = keyRes?.public_key ?? keyRes?.data?.public_key;
         if (!vapid) return 'off';
 
         const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });

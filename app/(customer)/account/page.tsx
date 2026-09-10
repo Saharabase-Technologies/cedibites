@@ -14,6 +14,7 @@ import type { SavedAddress } from '@/lib/api/services/address.service';
 import { disableDevicePush, enableDevicePush, readPushState, type PushState } from '@/lib/push/devicePush';
 import { pushNeedsHomeScreen } from '@/lib/orders/orderPush';
 import { toast } from '@/lib/utils/toast';
+import AddressSearchField from '@/app/(customer)/checkout/_components/AddressSearchField';
 
 /**
  * The account.
@@ -54,6 +55,15 @@ function Section({ label, action, children, className = '' }: {
             <div className="mt-4">{children}</div>
         </section>
     );
+}
+
+interface AddressDraft {
+    id?: number;
+    label: string;
+    full_address: string;
+    note: string;
+    latitude: number | null;
+    longitude: number | null;
 }
 
 /** The one control style on this page. Every input here looks like this. */
@@ -151,13 +161,28 @@ function EditableRow({ label, value, placeholder, type = 'text', onSave }: {
 
 function AddressForm({ initial, onDone, onCancel }: {
     initial?: SavedAddress;
-    onDone: (payload: { id?: number; label: string; full_address: string; note: string }) => Promise<void>;
+    onDone: (payload: AddressDraft) => Promise<void>;
     onCancel: () => void;
 }) {
     const [label, setLabel] = useState(initial?.label ?? '');
     const [fullAddress, setFullAddress] = useState(initial?.full_address ?? '');
     const [note, setNote] = useState(initial?.note ?? '');
     const [busy, setBusy] = useState(false);
+
+    /**
+     * Only ever a position we actually measured.
+     *
+     * `AddressSearchField` reports one when the box was filled from the phone's
+     * own fix, and null the moment anything else edits it. We do not look up a
+     * typed address, so storing a coordinate for one would be inventing a pin,
+     * and a rider following a wrong pin is worse off than one following only
+     * the text.
+     */
+    const [position, setPosition] = useState<{ latitude: number; longitude: number } | null>(
+        initial?.latitude != null && initial?.longitude != null
+            ? { latitude: initial.latitude, longitude: initial.longitude }
+            : null,
+    );
 
     const valid = fullAddress.trim().length >= 4;
 
@@ -170,6 +195,8 @@ function AddressForm({ initial, onDone, onCancel }: {
                 label: label.trim(),
                 full_address: fullAddress.trim(),
                 note: note.trim(),
+                latitude: position?.latitude ?? null,
+                longitude: position?.longitude ?? null,
             });
         } finally {
             setBusy(false);
@@ -178,12 +205,14 @@ function AddressForm({ initial, onDone, onCancel }: {
 
     return (
         <div className="flex flex-col gap-2.5 rounded-2xl bg-surface-sunken p-3.5">
-            <input
+            {/* The checkout field, not a plain input: it brings the address
+                autocomplete and the "use where I am now" button with it, so an
+                address is typed the same way in both places. */}
+            <AddressSearchField
                 value={fullAddress}
-                onChange={e => setFullAddress(e.target.value)}
+                onChange={setFullAddress}
+                onDeviceFix={setPosition}
                 placeholder="The address a rider can find"
-                autoFocus
-                className={`${FIELD} font-semibold`}
             />
             <input
                 value={label}
@@ -431,15 +460,21 @@ export default function AccountPage() {
         ? new Date(user.createdAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
         : '';
 
-    const submitAddress = async ({ id, label, full_address, note }: {
-        id?: number; label: string; full_address: string; note: string;
-    }) => {
+    const submitAddress = async ({ id, label, full_address, note, latitude, longitude }: AddressDraft) => {
         try {
+            const payload = {
+                label: label || null,
+                full_address,
+                note: note || null,
+                latitude,
+                longitude,
+            };
+
             if (id) {
-                await updateAddress({ id, label: label || null, full_address, note: note || null });
+                await updateAddress({ id, ...payload });
                 toast.success('Address updated');
             } else {
-                await saveAddress({ label: label || null, full_address, note: note || null });
+                await saveAddress(payload);
                 toast.success('Address saved');
             }
             setAdding(false);

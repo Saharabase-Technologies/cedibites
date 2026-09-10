@@ -22,10 +22,20 @@ interface AddressSuggestion { id: string; mainText: string; secondaryText: strin
  * heading directly above it, and a second copy of that inside the box was one
  * of the four places this screen used to explain itself twice.
  */
-export default function AddressSearchField({ value, onChange, placeholder }: {
+export default function AddressSearchField({ value, onChange, placeholder, onDeviceFix }: {
     value: string;
     onChange: (v: string) => void;
     placeholder: string;
+    /**
+     * Fires with a position only when the box was filled from the phone's own
+     * fix, and with null the moment somebody edits or picks something else.
+     *
+     * Deliberately not fired for a typed address or a chosen suggestion: we do
+     * not look those up, so we would be storing a coordinate we cannot stand
+     * behind. A rider following a wrong pin is worse off than one following
+     * only the text.
+     */
+    onDeviceFix?: (position: { latitude: number; longitude: number } | null) => void;
 }) {
     const { coordinates, permissionStatus, error, isSupported, deniedWithoutPrompt, requestLocation } = useLocation();
     const [query, setQuery] = useState(value);
@@ -121,6 +131,7 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const v = e.target.value;
         setQuery(v); onChange(v); setShowSuggestions(true);
+        onDeviceFix?.(null);
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(
             () => (googleReady && autocompleteRef.current ? fetchGoogle(v) : fetchNominatim(v)),
@@ -145,14 +156,18 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
                 a.city ?? a.town ?? a.village,
             ].filter(Boolean);
             const addr = parts.length > 0 ? parts.join(', ') : data.display_name;
-            if (addr) { setQuery(addr); onChange(addr); }
+            if (addr) {
+                setQuery(addr);
+                onChange(addr);
+                onDeviceFix?.({ latitude: lat, longitude: lon });
+            }
             else setLocationError('Could not name that spot. Type the address instead.');
         } catch {
             setLocationError('Could not reach the map. Type the address instead.');
         } finally {
             setLocating(false);
         }
-    }, [onChange]);
+    }, [onChange, onDeviceFix]);
 
     const handleUseMyLocation = () => {
         setLocationError('');
@@ -321,6 +336,7 @@ export default function AddressSearchField({ value, onChange, placeholder }: {
                                     <button
                                         onClick={() => {
                                             setQuery(s.fullAddress); onChange(s.fullAddress);
+                                            onDeviceFix?.(null);
                                             setSuggestions([]); setShowSuggestions(false);
                                         }}
                                         className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-surface-sunken"
