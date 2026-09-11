@@ -211,14 +211,14 @@ invisible — an outline rather than a border so nothing shifts by a pixel.
 
 ## 7. Home
 
-Four things, in order of how much they matter, on a flat ground.
+Five things, in falling order of how much they matter, on a flat ground:
+greeting, hero, deals, staples, where we are.
 
-1. **Greeting** plus the live-order pill, which renders nothing unless something
-   is actually cooking.
-2. **Hero**, full width. The last order for a returning customer; otherwise a
-   branch photograph with the block heading over it.
-3. **Deals**, a rail you push. Photo on top, light panel beneath, yellow button.
-4. **Staples**, then **Where we are**.
+**The section by section record, with what decides each one's content, is now
+`docs/HOME.md`.** Read that before changing home. Rebuilt 2026-09-11: the hero
+is the dish the branch has actually sold most of, with room for hand-designed
+banners behind it, and the deals rail reads every price off the live menu
+instead of carrying figures typed into the file.
 
 ### The staple tiles
 

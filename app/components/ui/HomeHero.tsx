@@ -4,33 +4,28 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRightIcon } from '@phosphor-icons/react';
-import { useAuth } from '../providers/AuthProvider';
+import { useBranch } from '../providers/BranchProvider';
 import { useMenuDiscovery, type SearchableItem } from '../providers/MenuDiscoveryProvider';
-import { useOrders } from '@/lib/api/hooks/useOrders';
-import { BRANCH_PHOTOS, matchMenuItem } from '@/lib/constants/branchPhotos';
+import { useSmartCategories } from '@/lib/api/hooks/useSmartCategories';
+import { BRANCH_PHOTOS, photoForMenuItem } from '@/lib/constants/branchPhotos';
+import { HERO_BANNERS, type HeroBanner } from '@/lib/constants/heroBanners';
+import { cheapestPrice } from '@/lib/utils/itemPrice';
+import { formatGHS } from '@/lib/utils/currency';
 import BlockHeading from './BlockHeading';
 import ItemDetailModal from './ItemDetailModal';
-
-const REPEATABLE = new Set(['completed', 'delivered']);
-
-const formatPrice = (p: number | string | null | undefined) => {
-    const n = typeof p === 'number' ? p : Number(p);
-    return `₵${Number.isNaN(n) ? '0.00' : n.toFixed(2)}`;
-};
-
 
 /**
  * One slide. The photograph is the dish's own, never a stock shot.
  *
  * The two states are deliberately different shapes. With a photograph it is a
- * tall frame with a scrim and the type sitting in the bottom of it. Without
- * one it is a short ink panel with the type in normal flow.
+ * frame with the type sitting in the bottom of it. Without one it is a short ink
+ * panel with the type in normal flow.
  *
  * That second state used to be the first one with `bg-fg` behind it, which
  * produced a square black rectangle with a caption in the bottom eighth and
- * seven eighths of nothing. The standing rule is that a card which looks like
- * a broken image is broken, whatever the reasoning behind it. A panel that is
- * only as tall as the words it holds reads as a decision.
+ * seven eighths of nothing. The standing rule is that a card which looks like a
+ * broken image is broken, whatever the reasoning behind it. A panel that is only
+ * as tall as the words it holds reads as a decision.
  */
 function Frame({
     image, alt = '', children, onClick, href,
@@ -55,9 +50,15 @@ function Frame({
                 priority
                 onError={() => setImgError(true)}
             />
-            {/* A scrim, not decoration: the caps have to survive whatever is
-                behind them, and these photographs are bright. */}
-            <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/35 to-black/5" />
+            {/*
+              * Held to the bottom half.
+              *
+              * It used to wash the whole frame from 85% black at the foot to 5%
+              * at the head, which dimmed the food to carry type that only sits
+              * in the last third. The type still gets its 85%; the plate keeps
+              * its own light.
+              */}
+            <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/20 via-55% to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6">{children}</div>
         </>
     ) : (
@@ -72,6 +73,107 @@ function Frame({
 
     if (href) return <Link href={href} className={cls}>{body}</Link>;
     return <button onClick={onClick} className={cls}>{body}</button>;
+}
+
+/**
+ * The small yellow control at the foot of a slide.
+ *
+ * Yellow, not red. The red block heading is already in this corner, and two
+ * reds in one corner is one note. Black on #ffdd0b is 12.9:1, the strongest
+ * pairing in the palette, and it holds over a photograph where white on red
+ * would not.
+ *
+ * Small on purpose. The 48px price slab that used to sit here read as the point
+ * of the slide; the photograph and the dish are the point.
+ */
+function SlideAction({ children }: { children: React.ReactNode }) {
+    return (
+        <span className="mt-3.5 inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-[13px] font-bold text-on-accent">
+            {children}
+            <ArrowRightIcon size={13} weight="bold" aria-hidden />
+        </span>
+    );
+}
+
+/**
+ * The dish this branch has sold most of.
+ *
+ * The red block carries the claim and the dish carries its own name underneath,
+ * in the body face. American Captain does not set item names: "ASSORTED FRIED
+ * RICE / JOLLOF / NOODLES + FULL CHICKEN + KƆKƆƆ" in condensed caps is a wall.
+ *
+ * The price is the cheapest way to buy it, said as "From" whenever the dish has
+ * more than one size, which nearly all of them do.
+ */
+function MostOrderedSlide({ item, onOpen }: { item: SearchableItem; onOpen: () => void }) {
+    const photo = photoForMenuItem(item.name);
+    const price = cheapestPrice(item);
+
+    return (
+        <Frame image={photo?.src} alt={photo?.alt ?? ''} onClick={onOpen}>
+            <BlockHeading tone="red" size="md" as="h1">Most ordered</BlockHeading>
+
+            <p className="mt-2.5 max-w-md text-[17px] font-bold leading-snug text-white sm:text-xl">
+                {item.name}
+            </p>
+
+            {price && (
+                <SlideAction>
+                    {price.from ? `From ${formatGHS(price.amount)}` : formatGHS(price.amount)}
+                </SlideAction>
+            )}
+        </Frame>
+    );
+}
+
+/**
+ * What a branch with no sales yet opens on.
+ *
+ * A new branch, or one whose last thirty days hold no paid order, has no most
+ * ordered dish, and inventing one is not an option. This is a photograph of real
+ * food with the kitchen's own words on it, and it claims nothing but the menu.
+ */
+function PhotoSlide() {
+    const photo = BRANCH_PHOTOS.drumsticks;
+
+    return (
+        <Frame image={photo.src} alt={photo.alt} href="/menu">
+            <BlockHeading tone="red" size="md" as="h1">{photo.title}</BlockHeading>
+
+            <p className="mt-2.5 max-w-md text-sm leading-snug text-white/85 sm:text-base">
+                {photo.line}
+            </p>
+
+            <SlideAction>See the menu</SlideAction>
+        </Frame>
+    );
+}
+
+/** Artwork, whole. See `lib/constants/heroBanners.ts`. */
+function BannerSlide({ banner }: { banner: HeroBanner }) {
+    const phone = banner.srcPhone ?? banner.src;
+
+    return (
+        <Link
+            href={banner.href}
+            className="relative block aspect-square w-full overflow-hidden rounded-2xl sm:aspect-[16/7]"
+        >
+            <Image
+                src={phone}
+                alt={banner.alt}
+                fill
+                sizes="100vw"
+                className="object-cover sm:hidden"
+            />
+            <Image
+                src={banner.src}
+                alt={banner.alt}
+                fill
+                sizes="1100px"
+                className="hidden object-cover sm:block"
+            />
+        </Link>
+    );
 }
 
 /**
@@ -138,67 +240,57 @@ function Deck({ children }: { children: React.ReactNode[] }) {
 /**
  * One thing, first, at full width.
  *
- * Home used to open with a greeting, a row of ten-plus category chips, a
- * reorder rail, a rotating promo and fourteen menu cards, all at the same
- * weight. This is the one element that is allowed to be loud.
+ * Home used to open with a greeting, a row of ten-plus category chips, a reorder
+ * rail, a rotating promo and fourteen menu cards, all at the same weight. This is
+ * the one element that is allowed to be loud.
  *
- * For somebody who has eaten here it is their last order, one tap from being
- * back in the cart. For everybody else it is the dish the kitchen actually
- * sells most of, photographed, with the headline block over it.
+ * What it shows is now decided by what the branch sells. `most-popular` is a
+ * public smart category the API computes from paid orders of the last thirty
+ * days, ranked by units, so the first id in it is the dish this kitchen sells
+ * most of. The slide before this was a photograph of drumsticks with a comment
+ * claiming it was the best seller, chosen by hand, the same for every branch and
+ * every customer.
+ *
+ * The hand-designed banners follow the dish. The customer's own last order is
+ * deliberately not here: this page no longer asks the API for anybody's orders,
+ * and the chip beside the greeting is what carries a live one.
  */
 export default function HomeHero() {
-    const { isLoggedIn } = useAuth();
-    const { orders, isLoading: ordersLoading } = useOrders({ per_page: 12 });
+    const { selectedBranch } = useBranch();
     const { allItems, isSearching } = useMenuDiscovery();
     const [detailItem, setDetailItem] = useState<SearchableItem | null>(null);
 
-    const lastBasket = useMemo(
-        () => orders.find(o => REPEATABLE.has(o.status) && (o.items?.length ?? 0) > 0) ?? null,
-        [orders],
+    /*
+     * The same query key the menu provider uses, so this costs no second
+     * request. It is read here rather than through the provider because the
+     * hero needs to know whether the answer has landed yet: an empty list means
+     * "this branch has sold nothing" and must not be confused with "not asked
+     * yet", or the hero paints the fallback photograph and then swaps it.
+     */
+    const branchId = selectedBranch ? parseInt(selectedBranch.id, 10) : undefined;
+    const { smartCategories, isLoading: popularLoading } = useSmartCategories(
+        Number.isFinite(branchId) ? branchId : undefined,
     );
 
-    // The lead photograph is a real shot from the branch counter. Where the menu
-    // has a dish it is honestly a picture of, the slide becomes that dish: real
-    // name, real price, opens its sheet. Where it does not, it stays a caption
-    // and sends you to the menu rather than claiming something is orderable.
-    const photo = BRANCH_PHOTOS.drumsticks;
-    const photoItem = useMemo(() => matchMenuItem(photo, allItems), [photo, allItems]);
+    const mostOrdered = useMemo(() => {
+        const popular = smartCategories.find(c => c.slug === 'most-popular');
+        const topId = popular?.item_ids?.[0];
+        if (topId === undefined) return null;
+        return allItems.find(item => item.id === String(topId)) ?? null;
+    }, [smartCategories, allItems]);
 
-    if (isLoggedIn && ordersLoading) return <Skeleton />;
-    // The photograph does not need the menu, so a cold visit with no branch
-    // chosen yet still opens on something rather than on nothing.
-    if (isLoggedIn && !lastBasket && isSearching && allItems.length === 0) return <Skeleton />;
-
-    const price = photoItem ? (photoItem.sizes?.[0]?.price ?? photoItem.price ?? 0) : null;
-    const dishSlide = (
-        <Frame
-            key="dish"
-            image={photo.src}
-            alt={photo.alt}
-            href={photoItem ? undefined : '/menu'}
-            onClick={photoItem ? () => setDetailItem(photoItem) : undefined}
-        >
-            <BlockHeading tone="red" size="lg" as={lastBasket ? 'h2' : 'h1'}>
-                {photoItem?.name ?? photo.title}
-            </BlockHeading>
-
-            <p className="mt-3 max-w-md text-sm leading-snug text-white/80 sm:text-base">
-                {photo.line}
-            </p>
-
-            <span className="mt-4 inline-flex h-12 items-center gap-2 rounded-lg bg-primary-fill px-5 text-sm font-bold text-white">
-                {price !== null ? formatPrice(price) : 'See the menu'}
-                <ArrowRightIcon size={15} weight="bold" />
-            </span>
-        </Frame>
-    );
+    if (isSearching || popularLoading) return <Skeleton />;
 
     return (
         <section className="page-x">
-            {/* One slide for now. The reorder card that sat in front of this is
-                being redesigned rather than dropped, so the deck stays: with a
-                single slide it renders as a plain block with no dots. */}
-            <Deck>{[dishSlide]}</Deck>
+            <Deck>
+                {[
+                    mostOrdered
+                        ? <MostOrderedSlide key="most-ordered" item={mostOrdered} onOpen={() => setDetailItem(mostOrdered)} />
+                        : <PhotoSlide key="photo" />,
+                    ...HERO_BANNERS.map(banner => <BannerSlide key={banner.src} banner={banner} />),
+                ]}
+            </Deck>
 
             <ItemDetailModal item={detailItem} onClose={() => setDetailItem(null)} />
         </section>

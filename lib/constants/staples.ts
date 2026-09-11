@@ -34,12 +34,19 @@ export const STAPLES: Staple[] = [
 ];
 
 /**
- * A staple only earns a tile if the branch actually sells something matching it.
- * Without this, a tile opens search and lands on "nothing matches", which is a
- * worse outcome than the tile never being there.
+ * A staple only earns a tile if the branch can actually make something matching
+ * it today. Without this, a tile opens search and lands on "nothing matches",
+ * which is a worse outcome than the tile never being there.
+ *
+ * Sold out counts as cannot make. The kitchen running out of noodles by eight in
+ * the evening is the same dead end as never selling them, and the stock map that
+ * decides it is already on the page for the menu.
  */
-export function availableStaples<T extends { name: string }>(items: T[]): Staple[] {
+export function availableStaples<T extends { name: string }>(
+    items: T[],
+    isSoldOut: (item: T) => boolean = () => false,
+): Staple[] {
     if (items.length === 0) return [];
-    const names = items.map(i => i.name.toLowerCase());
+    const names = items.filter(i => !isSoldOut(i)).map(i => i.name.toLowerCase());
     return STAPLES.filter(s => names.some(n => n.includes(s.term)));
 }

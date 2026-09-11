@@ -34,14 +34,16 @@ import { availableStaples } from '@/lib/constants/staples';
  * page edge on load. Same defect the deals strip had.
  */
 export default function StapleGrid() {
-    const { allItems, setSearchQuery, isSearching } = useMenuDiscovery();
+    const { allItems, setSearchQuery, isSearching, isItemSoldOut } = useMenuDiscovery();
     const { openSearch } = useModal();
 
     const railRef = useRef<HTMLDivElement>(null);
     const [atStart, setAtStart] = useState(true);
     const [atEnd, setAtEnd] = useState(false);
 
-    const staples = useMemo(() => availableStaples(allItems), [allItems]);
+    // A tile for what the kitchen can make now. Sold out is the same dead end
+    // as not on the menu, so the tile goes rather than leading to a grey list.
+    const staples = useMemo(() => availableStaples(allItems, isItemSoldOut), [allItems, isItemSoldOut]);
 
     const readEdges = useCallback(() => {
         const el = railRef.current;
