@@ -66,12 +66,23 @@ uses, so the hero costs no second request.
 
 **An empty answer means something.** A branch with no paid order in the last
 thirty days has no such category at all, and then the hero falls back to a
-photograph of real food that claims nothing but the menu. Beta's Ashaiman
-returns nothing today; the local database returns nine items. The fallback is
-not an edge case, it is a new branch's first month.
+photograph of real food that claims nothing but the menu. The fallback is not an
+edge case, it is a new branch's first month.
+
+Where each environment stood on 2026-09-11: production ranks a dish first at
+Ashaiman and Lakeside, ranks water first at East Legon, and has no ranking at
+all for Test Branch. Beta's only branch has no ranking, so **beta shows the
+photograph** and production shows real dishes. Judge the section on production.
 
 ### Decisions
 
+- **It walks the ranking to the first real dish.** Units sold is the ranking, and
+  a bottle of water outsells food: East Legon's most ordered item is Bel Aqua at
+  ₵7, and Extra Sea Food is filed beside the drumsticks. Drinks, anything named
+  "Extra", anything sold out, and anything the branch has stopped serving since
+  the ranking was computed are all walked past. East Legon lands on the ₵90
+  combo, which is its most ordered dish. If nothing in the ranking qualifies, the
+  photograph takes over.
 - **The claim is in the display face, the dish name is not.** The red block says
   "Most ordered" and the dish's own name sits under it in Montserrat. American
   Captain does not set item names: "ASSORTED FRIED RICE / JOLLOF / NOODLES +

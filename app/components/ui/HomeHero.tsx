@@ -255,9 +255,27 @@ function Deck({ children }: { children: React.ReactNode[] }) {
  * deliberately not here: this page no longer asks the API for anybody's orders,
  * and the chip beside the greeting is what carries a live one.
  */
+/**
+ * Whether this is the kind of thing a hero can open on.
+ *
+ * `most-popular` ranks by units sold, and a bottle of water outsells food:
+ * East Legon's most ordered item on production is Bel Aqua at ₵7, and Extra Sea
+ * Food is filed beside the drumsticks. Neither is what the kitchen is known
+ * for, and neither has a photograph. So the hero walks the ranking and takes
+ * the first real dish, which keeps the claim true and still opens on food.
+ *
+ * Sold out is skipped for the same reason the staple tiles skip it: featuring a
+ * dish nobody can buy this afternoon is worse than featuring the next one down.
+ */
+function isHeroDish(item: SearchableItem, soldOut: (item: SearchableItem) => boolean): boolean {
+    if (/drink|beverage/i.test(item.category)) return false;
+    if (/^(extra|water)\b/i.test(item.name.trim())) return false;
+    return !soldOut(item);
+}
+
 export default function HomeHero() {
     const { selectedBranch } = useBranch();
-    const { allItems, isSearching } = useMenuDiscovery();
+    const { allItems, isSearching, isItemSoldOut } = useMenuDiscovery();
     const [detailItem, setDetailItem] = useState<SearchableItem | null>(null);
 
     /*
@@ -274,10 +292,17 @@ export default function HomeHero() {
 
     const mostOrdered = useMemo(() => {
         const popular = smartCategories.find(c => c.slug === 'most-popular');
-        const topId = popular?.item_ids?.[0];
-        if (topId === undefined) return null;
-        return allItems.find(item => item.id === String(topId)) ?? null;
-    }, [smartCategories, allItems]);
+
+        // In rank order. An id missing from `allItems` is a dish this branch
+        // has stopped serving since the ranking was computed, so it is walked
+        // past like a drink.
+        for (const id of popular?.item_ids ?? []) {
+            const item = allItems.find(i => i.id === String(id));
+            if (item && isHeroDish(item, isItemSoldOut)) return item;
+        }
+
+        return null;
+    }, [smartCategories, allItems, isItemSoldOut]);
 
     if (isSearching || popularLoading) return <Skeleton />;
 
