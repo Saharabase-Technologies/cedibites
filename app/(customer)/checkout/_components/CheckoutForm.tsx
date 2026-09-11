@@ -41,7 +41,22 @@ export default function CheckoutForm({
     const name = contact.name.trim();
     const phone = contact.phone.trim();
     const who = [name, phone && formatGhanaPhone(phone)].filter(Boolean).join(', ');
-    const note = contact.note.trim() ? `“${contact.note.trim()}”` : '';
+    const kitchenNote = contact.kitchenNote.trim();
+    // A rider note written before somebody switched to pickup is not sent, so
+    // it is not shown here either.
+    const riderNote = orderType === 'delivery' ? contact.riderNote.trim() : '';
+
+    /** Both notes, labelled the way the ticket will carry them. */
+    const notes = kitchenNote || riderNote
+        ? (
+            <>
+                {kitchenNote && <span className="block">For the kitchen: {kitchenNote}</span>}
+                {riderNote && (
+                    <span className={kitchenNote ? 'mt-1 block' : 'block'}>For the rider: {riderNote}</span>
+                )}
+            </>
+        )
+        : undefined;
 
     const momo = momoNumber.trim();
 
@@ -53,7 +68,7 @@ export default function CheckoutForm({
                         caption={saved?.label ? `Delivery to ${saved.label}` : 'Delivery to'}
                         value={address}
                         placeholder="No address yet"
-                        sub={note || undefined}
+                        sub={notes}
                         action={address ? 'Change' : 'Add'}
                         onPress={() => onChange('where')}
                     />
@@ -63,8 +78,8 @@ export default function CheckoutForm({
                         value={branch?.name}
                         placeholder="No branch yet"
                         badge={<BranchStateBadge branch={branch} />}
-                        sub={branch?.address || note
-                            ? <>{branch?.address}{note && <span className="mt-1 block">{note}</span>}</>
+                        sub={branch?.address || notes
+                            ? <>{branch?.address}{notes && <span className="mt-1 block">{notes}</span>}</>
                             : undefined}
                         action="Change"
                         onPress={() => onChange('where')}

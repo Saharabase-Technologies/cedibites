@@ -371,7 +371,9 @@ const RECEIPT_CSS = `  * { margin: 0; padding: 0; box-sizing: border-box; }
   .customer-table td { padding: 2px 0; vertical-align: top; }
   .customer-table .label { white-space: nowrap; padding-right: 6px; }
   .customer-table td:last-child { font-weight: 700; }
-  .note { font-size: 11px; padding-top: 3px; }
+  /* pre-line: a customer note arrives as a labelled line for the kitchen and
+     another for the rider, and both have to survive onto the slip. */
+  .note { font-size: 11px; padding-top: 3px; white-space: pre-line; }
   .thank-you { font-size: 12px; font-weight: 700; text-align: center; margin: 8px 0 5px; }
   .order-code-num { font-size: 30px; font-weight: 700; text-align: center; letter-spacing: 3px; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
   .order-code-label { font-size: 9.5px; text-align: center; letter-spacing: 2px; word-spacing: 6px; margin-bottom: 4px; }

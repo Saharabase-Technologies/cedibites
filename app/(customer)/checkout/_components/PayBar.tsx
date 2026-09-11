@@ -28,8 +28,10 @@ export interface BarAction {
     note?: string;
 }
 
+// 60px and 16px, the same as the cart sheet's button. This is the control the
+// whole flow ends on, and it was the same height as a text field.
 const BASE =
-    'flex min-h-13 w-full items-center gap-3 rounded-xl px-5 text-[15px] font-bold ' +
+    'flex min-h-15 w-full items-center gap-3 rounded-xl px-5 text-base font-bold ' +
     'transition-[filter] duration-150 ease-out';
 
 function ActionButton({ label, onPress, figure, arrow, busy }: BarAction) {
@@ -89,7 +91,7 @@ export function PayBar(action: BarAction) {
  * costs nothing. Stopping short of it hides the total under a fixed bar.
  */
 export function PayBarSpacer() {
-    return <div aria-hidden className="h-32 pb-safe lg:hidden" />;
+    return <div aria-hidden className="h-36 pb-safe lg:hidden" />;
 }
 
 /** The same button on a screen wide enough to put it under the content. */

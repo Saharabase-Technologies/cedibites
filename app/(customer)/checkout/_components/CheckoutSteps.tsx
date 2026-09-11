@@ -128,11 +128,16 @@ export function WhereStep({
         : '';
 
     /*
-     * The note is one tap away rather than a box on the screen. Most orders
-     * carry none, and an empty text area makes a light question look like a
+     * Both notes are a tap away rather than boxes on the screen. Most orders
+     * carry neither, and two empty text areas make a light question look like a
      * form to fill in.
+     *
+     * The kitchen one is offered on a delivery as well as a pickup. Somebody
+     * allergic to shrimp has to be able to say so whoever brings the food, and
+     * before this they could only write to the rider.
      */
-    const [noteOpen, setNoteOpen] = useState(() => Boolean(contact.note.trim()));
+    const [kitchenOpen, setKitchenOpen] = useState(() => Boolean(contact.kitchenNote.trim()));
+    const [riderOpen, setRiderOpen] = useState(() => Boolean(contact.riderNote.trim()));
 
     return (
         <Group>
@@ -191,21 +196,41 @@ export function WhereStep({
                 />
             )}
 
-            {noteOpen ? (
-                <Field label={forRider ? 'Note for the rider' : 'Note for the kitchen'}>
+            {kitchenOpen && (
+                <Field label="Note for the kitchen">
                     <textarea
                         rows={2}
-                        autoFocus={!contact.note.trim()}
-                        placeholder={forRider ? 'Call me when you reach the gate.' : 'I will collect it myself.'}
-                        value={contact.note}
-                        onChange={e => setContact(c => ({ ...c, note: e.target.value }))}
+                        autoFocus={!contact.kitchenNote.trim()}
+                        placeholder="No pepper, or an allergy we should know about."
+                        value={contact.kitchenNote}
+                        onChange={e => setContact(c => ({ ...c, kitchenNote: e.target.value }))}
                         className={`${controlClass} resize-none py-3 leading-relaxed`}
                     />
                 </Field>
-            ) : (
-                <SmallAction onClick={() => setNoteOpen(true)} className="self-start">
-                    {forRider ? 'Add a note for the rider' : 'Add a note for the kitchen'}
-                </SmallAction>
+            )}
+
+            {forRider && riderOpen && (
+                <Field label="Note for the rider">
+                    <textarea
+                        rows={2}
+                        autoFocus={!contact.riderNote.trim()}
+                        placeholder="Call me when you reach the gate."
+                        value={contact.riderNote}
+                        onChange={e => setContact(c => ({ ...c, riderNote: e.target.value }))}
+                        className={`${controlClass} resize-none py-3 leading-relaxed`}
+                    />
+                </Field>
+            )}
+
+            {(!kitchenOpen || (forRider && !riderOpen)) && (
+                <div className="flex flex-wrap gap-2">
+                    {!kitchenOpen && (
+                        <SmallAction onClick={() => setKitchenOpen(true)}>Add a note for the kitchen</SmallAction>
+                    )}
+                    {forRider && !riderOpen && (
+                        <SmallAction onClick={() => setRiderOpen(true)}>Add a note for the rider</SmallAction>
+                    )}
+                </div>
             )}
         </Group>
     );

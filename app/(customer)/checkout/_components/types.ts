@@ -38,7 +38,26 @@ export interface ContactDetails {
     name: string;
     phone: string;
     address: string;
-    note: string;
+    /** What changes the food: no pepper, an allergy. Asked on every order. */
+    kitchenNote: string;
+    /** What changes the drop: the gate, the landmark. Delivery only. */
+    riderNote: string;
+}
+
+/**
+ * The two notes as one, the way the ticket will carry them.
+ *
+ * An order has a single note field and it reaches the kitchen ticket, the
+ * Order Manager and the printed slip. Asking two questions and sending one
+ * line each, labelled, means whoever reads the slip knows which of them it is
+ * for. The kitchen line goes first: an allergy is why this exists, and it is
+ * the note that changes what is cooked rather than where it is dropped.
+ */
+export function composeNote(kitchen: string, rider: string): string | undefined {
+    const lines: string[] = [];
+    if (kitchen.trim()) lines.push(`Kitchen: ${kitchen.trim()}`);
+    if (rider.trim()) lines.push(`Rider: ${rider.trim()}`);
+    return lines.length > 0 ? lines.join('\n') : undefined;
 }
 
 export interface ServiceChargeConfig {

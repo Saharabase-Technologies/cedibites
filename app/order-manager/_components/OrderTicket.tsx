@@ -242,7 +242,9 @@ function OrderTicketBase({
         {order.contact.notes && (
           <p className="flex gap-1.5 rounded-lg bg-[#fdf3e2] px-2 py-1.5 font-body text-[11px] leading-snug text-[#8a5a12]">
             <NoteIcon weight="fill" className="mt-px h-3.5 w-3.5 shrink-0" />
-            <span className="min-w-0">{order.contact.notes}</span>
+            {/* pre-line, because a customer note now arrives as a labelled
+                line for the kitchen and another for the rider. */}
+            <span className="min-w-0 whitespace-pre-line">{order.contact.notes}</span>
           </p>
         )}
 

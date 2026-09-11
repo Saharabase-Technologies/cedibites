@@ -27,7 +27,7 @@ import { computeTotals, formatPrice } from './_components/pricing';
 import { readRecalled, writeRecalled, type RecalledDetails } from './_components/recall';
 import { writeLastOrder } from '@/lib/orders/lastOrder';
 import { useAddresses } from '@/lib/api/hooks/useAddresses';
-import { DEFAULT_SC_CONFIG, QUESTIONS, STEPS, stepIndex } from './_components/types';
+import { DEFAULT_SC_CONFIG, QUESTIONS, STEPS, composeNote, stepIndex } from './_components/types';
 import type { ContactDetails, OrderType, PaymentMethod, Phase, Question, ServiceChargeConfig, Step } from './_components/types';
 
 const NO_RECALL: RecalledDetails = { name: '', phone: '', address: '' };
@@ -69,7 +69,9 @@ export default function CheckoutPage() {
     const [orderNumber, setOrderNumber] = useState('');
     const [trackingToken, setTrackingToken] = useState<string | undefined>();
     const [sessionToken, setSessionToken] = useState<string | null>(null);
-    const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });
+    const [contact, setContact] = useState<ContactDetails>({
+        name: '', phone: '', address: '', kitchenNote: '', riderNote: '',
+    });
 
     const [scConfig, setScConfig] = useState<ServiceChargeConfig>(DEFAULT_SC_CONFIG);
     const [deliveryFeeEnabled, setDeliveryFeeEnabled] = useState(false);
@@ -255,7 +257,13 @@ export default function CheckoutPage() {
                 delivery_address: orderType === 'delivery' ? contact.address : undefined,
                 delivery_latitude: orderType === 'delivery' && coordinates ? coordinates.latitude : undefined,
                 delivery_longitude: orderType === 'delivery' && coordinates ? coordinates.longitude : undefined,
-                special_instructions: contact.note || undefined,
+                // One field on the order carries both notes, a labelled line
+                // each. A rider note means nothing on a pickup, so it is
+                // dropped rather than sent to a kitchen that has no rider.
+                special_instructions: composeNote(
+                    contact.kitchenNote,
+                    orderType === 'delivery' ? contact.riderNote : '',
+                ),
                 payment_method: paymentMethod,
                 momo_number: paymentMethod === 'mobile_money'
                     ? normalizeGhanaPhone(momoNumber)

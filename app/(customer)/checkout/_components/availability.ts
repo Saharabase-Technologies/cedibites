@@ -40,10 +40,10 @@ export function enabledPaymentMethods(branch: Branch | null): PaymentMethod[] {
     return ALL_PAYMENT_METHODS.filter(m => branch.paymentMethods[PAYMENT_KEYS[m]]?.is_enabled !== false);
 }
 
-/** A payment method as the screen names it. Cash says where it changes hands. */
+/** A payment method as the screen names it. Cash says when it changes hands. */
 export function methodLabel(method: PaymentMethod, orderType: OrderType): string {
     if (method === 'mobile_money') return 'Mobile Money';
-    return orderType === 'delivery' ? 'Cash at the door' : 'Cash at the counter';
+    return orderType === 'delivery' ? 'Cash on delivery' : 'Cash at pickup';
 }
 
 /** Everything the button needs to know about the order so far. */
