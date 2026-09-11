@@ -1,11 +1,16 @@
 /**
  * What a checkout is made of.
  *
- * One screen that shows the whole order: where it goes, who it is for, how it
- * is paid for, and what it costs. Each of the first three is a row you tap to
- * change in a sheet. Beyond that there are only the wait for Hubtel and the
- * receipt, and those are states rather than places, which is why neither of
- * them has a back arrow.
+ * Three questions asked one at a time, then one page that puts every answer
+ * together with the order and its money, where the customer checks it and pays.
+ *
+ * It spent a day as a single screen with sheets. The look of that version
+ * stayed and the flow did not. On a phone a question with nothing else around
+ * it is easier to answer, and the items and the total only matter at the moment
+ * somebody agrees to them, so the review is the only place they appear.
+ *
+ * Beyond the review there are only the wait for Hubtel and the receipt. Those
+ * are states rather than places, which is why neither has a back arrow.
  */
 
 export type OrderType = 'delivery' | 'pickup';
@@ -13,15 +18,21 @@ export type PaymentMethod = 'mobile_money' | 'cash';
 export type Phase = 'form' | 'paying' | 'placed';
 
 /**
- * The three things a customer opens to change.
+ * Where the customer is in the form.
  *
- * These used to be three steps walked in order, with each answer folding into a
- * line above the next question. By the payment step the answers had pushed the
- * question 40% down the screen and the number box sat under the pay bar. A
- * returning customer already has all three answered, so the screen shows them
- * and a sheet opens only for the one being changed.
+ * Delivery or pickup travels with "where", because choosing pickup changes what
+ * "where" means, and asking them apart would let the second answer contradict
+ * the first.
  */
-export type SheetName = 'where' | 'who' | 'pay';
+export type Step = 'where' | 'who' | 'pay' | 'review';
+export type Question = Exclude<Step, 'review'>;
+
+export const STEPS: Step[] = ['where', 'who', 'pay', 'review'];
+export const QUESTIONS: Question[] = ['where', 'who', 'pay'];
+
+export function stepIndex(step: Step): number {
+    return STEPS.indexOf(step);
+}
 
 export interface ContactDetails {
     name: string;

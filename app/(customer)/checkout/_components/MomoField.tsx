@@ -38,10 +38,10 @@ export const UNCHECKED: MomoCheck = { registered: null, name: null, network: nul
 /**
  * Answers Hubtel has already given, for as long as the tab is open.
  *
- * The check runs when checkout opens now, so the payment row can say whose
- * wallet it is without anybody opening the sheet. Every call that reaches Hubtel
- * is a paid one, and switching to cash and back should not buy the same answer
- * twice. Only a definite yes or no is kept. "Could not ask" is asked again.
+ * Every call that reaches Hubtel is a paid one. Going back from the review to
+ * the payment question, or switching to cash and back, should not buy the same
+ * answer twice. Only a definite yes or no is kept. "Could not ask" is asked
+ * again.
  */
 const answers = new Map<string, MomoCheck>();
 

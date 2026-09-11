@@ -1,7 +1,8 @@
 import type { Branch } from '@/app/components/providers/BranchProvider';
 import { isValidGhanaPhone } from '@/app/lib/phone';
 import { nextOpening } from '@/lib/utils/branchHours';
-import type { ContactDetails, OrderType, PaymentMethod, SheetName } from './types';
+import { QUESTIONS } from './types';
+import type { ContactDetails, OrderType, PaymentMethod, Question, Step } from './types';
 
 /**
  * What this branch will actually accept, and whether the order is ready to go.
@@ -11,7 +12,8 @@ import type { ContactDetails, OrderType, PaymentMethod, SheetName } from './type
  * payment methods to show and whether Place Order was pressable. Neither knew
  * what the other had settled, and the page that owned the button knew neither.
  *
- * One screen means one button, so it has to be derived in one place.
+ * One button at the foot of every screen means it has to be derived in one
+ * place.
  */
 
 /** The database calls them momo and cash_on_delivery. The UI never has to. */
@@ -44,29 +46,8 @@ export function methodLabel(method: PaymentMethod, orderType: OrderType): string
     return orderType === 'delivery' ? 'Cash at the door' : 'Cash at the counter';
 }
 
-/** What stands between the order and the pay button, and what fixes it. */
-export interface Blocker {
-    /** Said on the button in place of Pay. What to do, never what went wrong. */
-    action: string;
-    /**
-     * Said above the button, and only when the action alone would leave
-     * somebody asking why. "Choose another branch" needs "Ashaiman opens at
-     * 10:00 am". "Add where it goes" needs nothing.
-     */
-    reason?: string;
-    /** What pressing the button opens. */
-    opens: SheetName | 'branch';
-}
-
-/**
- * The next thing to sort out, in the order a person would sort it.
- *
- * The branch first, because nothing else matters for an order that cannot be
- * cooked. Then where, who and how, which is the order the rows sit on screen,
- * so a guest with nothing saved is walked down the page one sheet at a time.
- * Returns undefined when the order can be paid for.
- */
-export function checkoutBlocker({ branch, orderType, contact, orderTypes, methods, paymentMethod, momoNumber, momoRegistered }: {
+/** Everything the button needs to know about the order so far. */
+export interface CheckoutState {
     branch: Branch | null;
     orderType: OrderType;
     contact: ContactDetails;
@@ -77,7 +58,33 @@ export function checkoutBlocker({ branch, orderType, contact, orderTypes, method
     momoNumber: string;
     /** False only when Hubtel has said so. Null means it could not be asked. */
     momoRegistered: boolean | null;
-}): Blocker | undefined {
+}
+
+/** What stands between the customer and moving on, and what the button does about it. */
+export interface Blocker {
+    /** Said on the button. */
+    action: string;
+    /**
+     * Said above the button, and only when the label alone would leave
+     * somebody asking why. "Choose another branch" needs "Ashaiman opens at
+     * 10:00 am". "Add where it goes" needs nothing.
+     */
+    reason?: string;
+    /**
+     * Where pressing the button goes. Absent means the button waits, because
+     * the answer it is waiting for is already on the screen.
+     */
+    opens?: Step | 'branch';
+}
+
+/**
+ * A branch that cannot take the order stops every screen.
+ *
+ * There is no point letting somebody answer three questions for an order that
+ * cannot be cooked, so this is asked on the first question as well as at the
+ * review.
+ */
+function branchBlocker({ branch, orderTypes, methods }: CheckoutState): Blocker | undefined {
     if (!branch) return { action: 'Choose a branch', opens: 'branch' };
 
     if (!branch.isActive) {
@@ -97,30 +104,57 @@ export function checkoutBlocker({ branch, orderType, contact, orderTypes, method
         return { action: 'Choose another branch', reason: `${branch.name} is not taking orders right now.`, opens: 'branch' };
     }
 
-    if (orderType === 'delivery' && !contact.address.trim()) return { action: 'Add where it goes', opens: 'where' };
-
-    if (!contact.name.trim()) return { action: 'Add your name', opens: 'who' };
-    if (!contact.phone.trim()) return { action: 'Add your phone number', opens: 'who' };
-    if (!isValidGhanaPhone(contact.phone)) {
-        return { action: 'Fix your phone number', reason: 'That phone number is not a Ghana number.', opens: 'who' };
-    }
-
     if (methods.length === 0) {
         return { action: 'Choose another branch', reason: `${branch.name} has no way to take payment right now.`, opens: 'branch' };
     }
 
-    if (paymentMethod === 'mobile_money') {
-        if (!momoNumber.trim()) return { action: 'Add the number to charge', opens: 'pay' };
-        if (!isValidGhanaPhone(momoNumber)) {
-            return { action: 'Fix the number to charge', reason: 'That is not a Ghana mobile money number.', opens: 'pay' };
-        }
+    return undefined;
+}
 
-        // Only when Hubtel has actually said no. Null means the check could not
-        // be made, and not being able to check is no reason to stop somebody
-        // ordering: the prompt still goes out and either lands or does not.
-        // No reason line: the payment row already says it, in red.
-        if (momoRegistered === false) return { action: 'Use another number', opens: 'pay' };
+/** What is still missing from one question, in the words the review's button would use. */
+function gapIn(question: Question, s: CheckoutState): Blocker | undefined {
+    if (question === 'where') {
+        return s.orderType === 'delivery' && !s.contact.address.trim()
+            ? { action: 'Add where it goes', opens: 'where' }
+            : undefined;
     }
 
+    if (question === 'who') {
+        if (!s.contact.name.trim()) return { action: 'Add your name', opens: 'who' };
+        if (!s.contact.phone.trim()) return { action: 'Add your phone number', opens: 'who' };
+        if (!isValidGhanaPhone(s.contact.phone)) return { action: 'Fix your phone number', opens: 'who' };
+        return undefined;
+    }
+
+    if (s.paymentMethod !== 'mobile_money') return undefined;
+    if (!s.momoNumber.trim()) return { action: 'Add the number to charge', opens: 'pay' };
+    if (!isValidGhanaPhone(s.momoNumber)) return { action: 'Fix the number to charge', opens: 'pay' };
+
+    // Only when Hubtel has actually said no. Null means the check could not
+    // be made, and not being able to check is no reason to stop somebody
+    // ordering: the prompt still goes out and either lands or does not.
+    if (s.momoRegistered === false) return { action: 'Use another number', opens: 'pay' };
+
     return undefined;
+}
+
+/**
+ * Whether one question is answered well enough to move on.
+ *
+ * The button waits rather than explaining. The field it is waiting for is the
+ * only thing on the screen, and that field's own error line says what is wrong.
+ */
+export function questionBlocker(question: Question, state: CheckoutState): Blocker | undefined {
+    return branchBlocker(state) ?? (gapIn(question, state) ? { action: 'Continue' } : undefined);
+}
+
+/**
+ * The first thing to sort out before paying, in the order the questions were asked.
+ *
+ * Normally nothing, because every question had to be answered to get here. It
+ * still matters for the number Hubtel says has no wallet, which can only be
+ * known after they have moved past the payment question.
+ */
+export function reviewBlocker(state: CheckoutState): Blocker | undefined {
+    return branchBlocker(state) ?? QUESTIONS.map(q => gapIn(q, state)).find(Boolean);
 }

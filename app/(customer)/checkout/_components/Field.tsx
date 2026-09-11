@@ -6,10 +6,11 @@ import React from 'react';
 /**
  * The small parts the checkout is built from.
  *
- * The screen is grouped blocks on a grey ground: where and who, how it is paid
- * for, and the order with its money. Inside a block, rows are separated by air
- * alone. The stepped version drew a hairline under every row, so nothing read as
- * a group and the page became a stack of strips at the same weight.
+ * Every screen is white blocks on a grey ground. A question is one block. The
+ * review is three: where and who, how it is paid for, and the order with its
+ * money. Inside a block, rows are separated by air alone. The first stepped
+ * version drew a hairline under every row, so nothing read as a group and the
+ * page became a stack of strips at the same weight.
  */
 
 /** A labelled control. The label is the only description it gets. */
