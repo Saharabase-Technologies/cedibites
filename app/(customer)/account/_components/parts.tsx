@@ -2,14 +2,12 @@
 
 import { controlClass } from '@/app/(customer)/checkout/_components/Field';
 import { smallActionLook } from '@/app/components/ui/QuietControls';
-import { SpinnerGapIcon } from '@phosphor-icons/react';
+import type { SavedAddress } from '@/lib/api/services/address.service';
+import { CheckIcon } from '@phosphor-icons/react';
 import React from 'react';
 
 /**
- * The pieces the account blocks share.
- *
- * Rows, blocks and the small grey buttons come from checkout. What checkout
- * never needed is a way to save something where it sits, and that lives here.
+ * Small pieces more than one account screen uses.
  */
 
 /**
@@ -21,45 +19,45 @@ import React from 'react';
 export const FIELD = controlClass.replace('min-h-13', 'min-h-12');
 
 /**
- * The small grey button with the danger ink on its label, for Remove and Sign
- * out. Danger is red-700 and never the brand red, so neither reads as the button
+ * The small grey button with the danger ink on its label, for removing things.
+ * Danger is red-700 and never the brand red, so it never reads as the button
  * that places an order.
  */
 export const dangerActionLook = smallActionLook.replace('text-fg', 'text-danger-ink');
 
-/**
- * Save, while something is being changed in place.
- *
- * The one red button, at the foot of whatever is being edited. Full width on a
- * phone, where the thumb reaches for it. Its own width from the small
- * breakpoint up, where a bar of red the width of the column would outshout the
- * page it sits on.
- *
- * Grey while there is nothing valid to save, the same tint of ink the checkout
- * button waits in. Red with a spinner while it saves.
- */
-export function SaveButton({ busy, disabled, onClick, children }: {
-    busy: boolean;
-    disabled?: boolean;
-    /** Left off inside a form, where the button submits it. */
-    onClick?: () => void;
-    children: React.ReactNode;
-}) {
-    const waiting = disabled && !busy;
+/** The street under a name, and the rider's note under that. */
+export function placeLines(address: SavedAddress): React.ReactNode {
+    // Without a name the street is already the title.
+    const street = address.label ? address.full_address : '';
+    if (!street && !address.note) return undefined;
 
     return (
+        <>
+            {street && <span className="block">{street}</span>}
+            {address.note && (
+                <span className={street ? 'mt-0.5 block' : 'block'}>For the rider: {address.note}</span>
+            )}
+        </>
+    );
+}
+
+export function DefaultCheck({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+    return (
         <button
-            type={onClick ? 'button' : 'submit'}
-            onClick={onClick}
-            disabled={disabled || busy}
-            className={`inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 text-[15px] font-bold whitespace-nowrap transition-[filter] duration-150 ease-out sm:flex-none ${
-                waiting
-                    ? 'bg-fg/10 text-fg-muted'
-                    : 'bg-primary-fill text-white hover:brightness-95 disabled:opacity-80 disabled:hover:brightness-100'
-            }`}
+            type="button"
+            role="checkbox"
+            aria-checked={checked}
+            onClick={() => onChange(!checked)}
+            className="flex min-h-11 items-center gap-3 self-start text-left"
         >
-            {busy && <SpinnerGapIcon size={16} className="animate-spin" />}
-            {children}
+            {/* Square, like the payment choice's ring is round: a box is what a
+                tick goes in, and nothing in the brand is a pill. */}
+            <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 transition-colors duration-150 ease-out ${
+                checked ? 'border-fg bg-fg text-surface' : 'border-hairline-strong bg-surface'
+            }`}>
+                {checked && <CheckIcon size={12} weight="bold" />}
+            </span>
+            <span className="text-[15px] font-semibold text-fg">Make this the default</span>
         </button>
     );
 }

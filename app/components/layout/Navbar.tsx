@@ -12,7 +12,7 @@ import { useBranch } from '../providers/BranchProvider';
 import { useModal } from '../providers/ModalProvider';
 import { useCart } from '../providers/CartProvider';
 import { useAuth } from '../providers/AuthProvider';
-import { CUSTOMER_NAV, isNavActive, isFullScreenRoute } from '@/lib/constants/nav';
+import { CUSTOMER_NAV, isNavActive, isFullScreenRoute, isSubscreenRoute } from '@/lib/constants/nav';
 
 /**
  * Which branch you are ordering from is the one thing worth a permanent slot in
@@ -106,6 +106,10 @@ export default function Navbar() {
     // Checkout carries its own header and its own way back.
     if (isFullScreenRoute(pathname)) return null;
 
+    // A screen opened from the account hub carries its own bar below lg, and
+    // keeps this header from lg up, where it sits beside the account's column.
+    const subscreen = isSubscreenRoute(pathname);
+
     const initials = user?.name ? user.name.charAt(0).toUpperCase() : null;
 
     return (
@@ -114,7 +118,7 @@ export default function Navbar() {
                 scrolled
                     ? 'border-transparent shadow-[0_2px_10px_-4px_rgba(0,0,0,0.18)]'
                     : 'border-hairline shadow-none'
-            }`}
+            } ${subscreen ? 'max-lg:hidden' : ''}`}
         >
             {/* ── Mobile: 56px. Brand on the left, branch on the right. ─────── */}
             <div className="flex h-14 items-center gap-2 px-4 md:hidden">
@@ -269,5 +273,7 @@ export default function Navbar() {
 export function NavbarSpacer() {
     const pathname = usePathname();
     if (isFullScreenRoute(pathname)) return null;
+    // The header is hidden below lg on a hub's screens, so the space is too.
+    if (isSubscreenRoute(pathname)) return <div aria-hidden className="hidden h-(--nav-h) shrink-0 lg:block" />;
     return <div aria-hidden className="h-(--nav-h) shrink-0" />;
 }

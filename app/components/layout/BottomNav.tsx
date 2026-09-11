@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { ShoppingBagIcon } from '@phosphor-icons/react';
 import { useCart } from '../providers/CartProvider';
 import { useModal } from '../providers/ModalProvider';
-import { CUSTOMER_NAV, isNavActive, isFullScreenRoute } from '@/lib/constants/nav';
+import { CUSTOMER_NAV, isNavActive, isFullScreenRoute, isSubscreenRoute } from '@/lib/constants/nav';
 
 /**
  * Floating chrome: a dark tab pill with a white lozenge on the live tab, and
@@ -17,13 +17,16 @@ import { CUSTOMER_NAV, isNavActive, isFullScreenRoute } from '@/lib/constants/na
  *
  * The lozenge is white rather than red because red is the action colour on this
  * side of the product, and the cart is the action. Which tab you are on is not.
+ *
+ * Not on a hub's screens either. Those have a button of their own at the foot,
+ * and the pill floating over an address form covered its second field.
  */
 export default function BottomNav() {
     const pathname = usePathname();
     const { totalItems } = useCart();
     const { openCart, openSearch } = useModal();
 
-    if (isFullScreenRoute(pathname)) return null;
+    if (isFullScreenRoute(pathname) || isSubscreenRoute(pathname)) return null;
 
     return (
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 select-none pb-safe md:hidden">
@@ -98,6 +101,6 @@ export default function BottomNav() {
  */
 export function BottomNavSpacer() {
     const pathname = usePathname();
-    if (isFullScreenRoute(pathname)) return null;
+    if (isFullScreenRoute(pathname) || isSubscreenRoute(pathname)) return null;
     return <div aria-hidden className="h-19 shrink-0 pb-safe md:hidden" />;
 }

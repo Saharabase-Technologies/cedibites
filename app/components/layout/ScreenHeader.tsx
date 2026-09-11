@@ -12,6 +12,8 @@ export interface ScreenHeaderProps {
     right?: React.ReactNode;
     /** 0 to 1. Drawn as a line across the foot of the bar. Omit for none. */
     progress?: number;
+    /** For a screen that owns the whole screen at some widths only, like the account's. */
+    className?: string;
 }
 
 /**
@@ -29,9 +31,9 @@ export interface ScreenHeaderProps {
  * Sticky rather than fixed, so it cannot cover the first field, and padded for
  * the status bar on a notched phone.
  */
-export default function ScreenHeader({ title, onBack, backLabel, right, progress }: ScreenHeaderProps) {
+export default function ScreenHeader({ title, onBack, backLabel, right, progress, className = '' }: ScreenHeaderProps) {
     return (
-        <header className="sticky top-0 z-30 border-b border-hairline bg-surface pt-safe">
+        <header className={`sticky top-0 z-30 border-b border-hairline bg-surface pt-safe ${className}`}>
             <div className="flex h-14 items-center gap-1 px-2 md:h-16 md:px-4">
                 {onBack && (
                     <button

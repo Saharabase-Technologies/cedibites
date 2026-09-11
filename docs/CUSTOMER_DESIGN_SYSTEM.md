@@ -332,66 +332,100 @@ Added 2026-09-11, from rebuilding the cart and checkout. The full reasoning is i
 12. **A light screen is one block.** No recap of earlier answers and no running
     total on a question. Gather everything where the customer agrees to it.
 
-Added 2026-09-11, from rebuilding the account page. The reasoning is in
+Added 2026-09-11, from rebuilding the account page twice. The reasoning is in
 section 11.
 
 13. **A page on the grey marks itself.** `data-ground="sunken"` on the page's
     root, and a `:has()` rule in `app/globals.css` carries the grey to every
     edge. Painting only the page's own wrapper left the tab bar's spacer on the
     lighter ground, a pale band at the foot.
-14. **Edit in place when the field drops a list.** `AddressSearchField` shows
-    its suggestions below itself, and a sheet's scrolling body cuts them off.
-    Sheets are for short notes and choices.
-15. **Text on the grey is `fg-muted`.** `fg-subtle` is 4.5:1 on white and 4.1:1
+14. **No column of controls down one edge.** A grey Change beside every value,
+    five of them down the right of a phone screen, is what the client rejected
+    on sight: "still messy the buttons to the side dont work". A row that leads
+    somewhere is the whole row, with a caret as a mark rather than a second
+    button.
+15. **A task gets a screen of its own.** Not a sheet: `AddressSearchField`
+    drops its suggestions below itself and a sheet's scrolling body cuts them
+    off. Not a slot inside a list either: on a phone the floating tab bar sat
+    over the form's second field. A screen also gives the phone's back gesture
+    something to step back through, which state cannot.
+16. **Text on the grey is `fg-muted`.** `fg-subtle` is 4.5:1 on white and 4.1:1
     on the sunken grey, which fails at 13px.
 
 ---
 
-## 11. The account page
+## 11. The account
 
-`app/(customer)/account`, rebuilt 2026-09-11 from the checkout's parts. The page
-composes three blocks from its `_components` folder: `DetailsBlock`,
-`AddressesBlock` and `DeviceBlock`.
+`app/(customer)/account`. Rebuilt twice on 2026-09-11. The first rebuild put
+every value on one page with a grey Change beside each, five of them down the
+right edge of a phone screen, and the client rejected that column on sight:
+"still messy the buttons to the side dont work".
 
-### Phone: one column
+The shape now comes from two account screens the client sent: a name at the top,
+one big card, rows that each open a screen of their own, and signing out last.
+Their look did not come with it. The brand has no round photographs, no pills and
+no gradients, and there is no wallet, no loyalty scheme and no games to put on a
+card.
 
-Who you are, your details, where the food goes, then this device. Three white
-blocks on the grey, which is the most the checkout rules allow on one screen.
+### The hub, on a phone
 
-### Desk: two columns, split by reach
+1. **Who you are.** The red square with your initials, the name in the display
+   face, and the number by its last four digits, the way both references show it.
+2. **Where your food goes**, on one ink card. It is the only part of the account
+   that changes the next order, so it is the one loud block. Ink rather than red,
+   because large red chrome is the one thing the brand rules forbid, and
+   near-black under white type is what the tab bar and the flyers already run on.
+   The name of a place is set in the display face: the customer chose it and it
+   is short. A street is neither, so an unnamed place takes the body face.
+3. **Four rows**: Your details, Order history, Notifications, Contact us. Each
+   opens a screen. Notifications carries its state as the row's second line.
+4. **Sign out**, apart from the rows, at the foot.
 
-The left column is you and the device in hand. The notification switch and Sign
-out both act on this browser alone. The column is sticky, so it stays in view
-while the right column scrolls. The right column is what follows the customer to
-any phone they sign in on: details and addresses.
+### The screens
 
-The version before was the phone column stretched across a laptop. This layout
-was chosen over a profile band across the top with the addresses beneath it.
+`/account/details`, `/account/addresses`, `/account/addresses/new`,
+`/account/addresses/[id]`, `/account/notifications`, `/account/contact`.
+
+Every one is a route rather than a state, so the phone's own back gesture steps
+back one screen. Below lg each owns the whole screen: `isSubscreenRoute` in
+`lib/constants/nav.ts` hides the site header and the tab bar, `ScreenHeader`
+draws the back arrow, and `FootAction` pins one red button to the bottom.
+
+`goUp` in the account layout keeps the history honest. When the screen behind
+this one is the one the arrow points at, the arrow is the browser's Back, so the
+arrow and the back gesture agree afterwards. Always pushing the parent stacked
+the hub, the list and the hub again.
+
+### On a desk
+
+The hub becomes a column on the left that stays in view with the current screen
+marked in it, and the screen sits beside it. `/account` shows the addresses
+there: a desk has room for both, and the addresses are what people come to
+change. The ink card is a phone device, so the column carries a Your addresses
+row in its place. The foot button takes its own width in a pane, not the pane's.
 
 ### Decisions
 
-- **The device block is drawn twice**, once per column, with one hidden. Moving
-  a single copy with CSS `order` would have put Sign out ahead of the addresses
-  for a screen reader on a phone. `useDevicePush` holds the switch's state once,
-  so the two copies cannot disagree.
-- **Every change opens in place.** Change turns the row into its field, with a
-  red Save at the foot and a grey Cancel. Save is full width on a phone and its
-  own width from `sm` up.
-- **One Change per address.** Edit, Use by default and Remove used to be three
-  underlined links on every row. Remove and "Make this the default" live inside
-  the form, and a hairline above and below marks where the form starts and ends.
+- **Remove and "Make this the default" live on the address's own screen.** They
+  were two of three underlined links on every row. Remove asks once more before
+  it goes, because a whole screen now stands between a mistap and the list.
 - **`is_default` is only ever sent as true.** The update route accepts false,
   clears the flag and promotes nothing, so checkout would have no address to
   fill in. The store route cannot unset a default either way.
-- **The phone row has no Change.** The number is the account, and moving it
-  needs a code sent to the new number, which is not built. "You sign in with
-  this number." says so once.
+- **The phone number is a field that cannot be typed into**, sunken with no
+  border, with "You sign in with this number." beneath it. Moving it needs a code
+  sent to the new number, which is not built.
+- **Notifications are per browser.** Turning them on is the red button at the
+  foot. Turning them off is a small grey button in the block, because nobody
+  should do it by accident. The copy says "this device" and must keep saying it.
+- **Contact us is the first way to reach a person** anywhere in the app without
+  an order in flight. The number, the WhatsApp line and the address come from
+  `lib/constants/contact.ts`, which the footer reads too.
 - **Signing out goes home without the sign-in sheet.** The guest redirect used
   to open it for everybody, including the person who had just signed out.
-- **Removed:** the Verified badge (signing in is what verified the number), the
-  link to your orders (the tab bar and the header carry one on every screen),
-  and the list of features that are not built. The line about closing an account
-  stays.
+- **Gone:** the Verified badge, because signing in is what verified the number,
+  and the list of features that are not built. Closing an account is a line on
+  Contact us now, beside the number to call.
 
 ---
 

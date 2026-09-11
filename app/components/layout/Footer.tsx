@@ -15,20 +15,8 @@ import {
 import { useBranches } from '@/lib/api/hooks/useBranches';
 import apiClient from '@/lib/api/client';
 import { serverNow } from '@/lib/utils/serverClock';
-
-/**
- * How to reach us, in one place.
- *
- * The number printed here used to be +233 24 123 4567, which is a placeholder
- * somebody left behind. Anyone who tapped it reached nobody. The real numbers
- * are the ones in the Restaurant structured data on app/(customer)/layout.tsx,
- * which is what Google reads and shows beside a search result, so the footer had
- * better agree with them.
- */
-const PHONE_DISPLAY = '+233 54 816 2282';
-const PHONE_DIAL = '+233548162282';
-const WHATSAPP_NUMBER = '233548162282';
-const EMAIL = 'hello@cedibites.com';
+// How to reach us, shared with the account's Contact us screen.
+import { EMAIL, PHONE_DIAL, PHONE_DISPLAY, WHATSAPP_NUMBER } from '@/lib/constants/contact';
 
 function formatTime12h(time24: string): string {
     const [h, m] = time24.split(':').map(Number);

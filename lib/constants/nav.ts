@@ -78,3 +78,18 @@ export const FULL_SCREEN_ROUTES = ['/checkout'];
 export function isFullScreenRoute(pathname: string): boolean {
     return FULL_SCREEN_ROUTES.some(p => pathname === p || pathname.startsWith(p + '/'));
 }
+
+/**
+ * Hubs whose screens own the whole screen below the desktop breakpoint.
+ *
+ * On a phone or a tablet, changing your details or an address is a task with
+ * its own back arrow and its own button at the foot. The site header above it
+ * is a second way out, and the floating tab bar sat over the address form's
+ * second field. From lg up the same routes keep the site header and sit beside
+ * the account's own column. The hub itself is not included, only its screens.
+ */
+export const SUBSCREEN_HUBS = ['/account'];
+
+export function isSubscreenRoute(pathname: string): boolean {
+    return SUBSCREEN_HUBS.some(p => pathname.startsWith(p + '/'));
+}
