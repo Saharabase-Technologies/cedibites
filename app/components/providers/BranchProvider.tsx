@@ -7,6 +7,7 @@ import { calculateDistance, estimateDeliveryTime } from '@/lib/utils/distance';
 import { useBranches } from '@/lib/api/hooks/useBranches';
 import { getEcho } from '@/lib/echo';
 import type { Branch as ApiBranch } from '@/types/api';
+import type { WeekHours } from '@/lib/utils/branchHours';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,8 @@ export interface Branch {
     coordinates: { latitude: number; longitude: number };
     deliveryRadius: number;
     operatingHours: string;
+    /** The week, per day, for saying when a closed branch opens. Absent when the API sends none. */
+    hours?: WeekHours;
     deliveryFee: number;
     baseDeliveryFee: number;
     isOpen: boolean;
@@ -85,6 +88,21 @@ function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
             .join(', ')
         : 'Hours not available';
 
+    // The same week, kept as data. The string above cannot answer "when does it
+    // open", which is the one thing a customer at a closed branch wants to know.
+    const hours: WeekHours | undefined = apiBranch.operating_hours
+        ? Object.fromEntries(
+            Object.entries(apiBranch.operating_hours).map(([day, h]) => [day.toLowerCase(), {
+                isOpen: Boolean(h.is_open),
+                openTime: h.open_time ?? null,
+                closeTime: h.close_time ?? null,
+                // Not on the type, but sent when somebody opened or shut the
+                // branch by hand, and then the timetable cannot be trusted.
+                overrideOpen: (h as { manual_override_open?: boolean | null }).manual_override_open ?? null,
+            }]),
+        )
+        : undefined;
+
     return {
         id: String(apiBranch.id),
         name: apiBranch.name,
@@ -99,6 +117,7 @@ function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
         deliveryFee,
         baseDeliveryFee,
         operatingHours,
+        hours,
         isOpen: apiBranch.is_open ?? apiBranch.is_active,
         isActive: apiBranch.is_active,
         extendedStaffAccess: apiBranch.extended_staff_access ?? false,
@@ -116,7 +135,8 @@ function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
 const CHOSEN_KEY = 'selected-branch-chosen';
 
 export function BranchProvider({ children }: { children: ReactNode }) {
-    const [selectedBranch, setSelectedBranchState] = useState<Branch | null>(null);
+    /** The branch as it was when picked. Read `selectedBranch` below, never this. */
+    const [pickedBranch, setSelectedBranchState] = useState<Branch | null>(null);
     const { coordinates } = useLocation();
     const previousCoordinatesRef = useRef<{ latitude: number; longitude: number } | null>(null);
 
@@ -147,12 +167,12 @@ export function BranchProvider({ children }: { children: ReactNode }) {
 
     // Listen for real-time branch access updates via Reverb
     useEffect(() => {
-        if (!selectedBranch) return;
+        if (!pickedBranch) return;
 
         const echo = getEcho();
         if (!echo) return;
 
-        const channel = echo.private(`orders.branch.${selectedBranch.id}`);
+        const channel = echo.private(`orders.branch.${pickedBranch.id}`);
 
         channel.listen('.branch.access.updated', () => {
             queryClient.invalidateQueries({ queryKey: ['branches'] });
@@ -163,12 +183,27 @@ export function BranchProvider({ children }: { children: ReactNode }) {
             // (other listeners like useOrderChannel may still be active)
             channel.stopListening('.branch.access.updated');
         };
-    }, [selectedBranch?.id, queryClient]);
+    }, [pickedBranch?.id, queryClient]);
 
     // Convert API branches to local format
     const branches = useMemo(() => {
         return apiBranches.map(mapApiBranchToLocal);
     }, [apiBranches]);
+
+    /**
+     * The chosen branch, as the server last described it.
+     *
+     * The state holds a copy of the branch taken at the moment it was picked,
+     * and nothing ever replaced that copy. The branch list refetches on focus
+     * and on every `branch.access.updated` above, but the cart and checkout read
+     * this, so a branch that opened or closed while the app was open never
+     * changed on the two screens that decide whether you can order from it.
+     * Matching on id against the live list is what lets it reach them.
+     */
+    const selectedBranch = useMemo(
+        () => (pickedBranch ? branches.find(b => b.id === pickedBranch.id) ?? pickedBranch : null),
+        [branches, pickedBranch],
+    );
 
     const getBranchesWithDistance = useCallback((lat: number, lon: number): BranchWithDistance[] => {
         return branches.map((branch: any) => {
@@ -279,9 +314,10 @@ export function BranchProvider({ children }: { children: ReactNode }) {
         if (branch) setSelectedBranchState(branch);
     }, [branches, selectedBranch]);
 
+    const selectedId = selectedBranch?.id;
     useEffect(() => {
-        if (selectedBranch) localStorage.setItem('selected-branch-id', selectedBranch.id);
-    }, [selectedBranch]);
+        if (selectedId) localStorage.setItem('selected-branch-id', selectedId);
+    }, [selectedId]);
 
     return (
         <BranchContext.Provider value={{
