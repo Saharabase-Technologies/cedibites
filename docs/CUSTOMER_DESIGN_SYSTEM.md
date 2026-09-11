@@ -332,9 +332,70 @@ Added 2026-09-11, from rebuilding the cart and checkout. The full reasoning is i
 12. **A light screen is one block.** No recap of earlier answers and no running
     total on a question. Gather everything where the customer agrees to it.
 
+Added 2026-09-11, from rebuilding the account page. The reasoning is in
+section 11.
+
+13. **A page on the grey marks itself.** `data-ground="sunken"` on the page's
+    root, and a `:has()` rule in `app/globals.css` carries the grey to every
+    edge. Painting only the page's own wrapper left the tab bar's spacer on the
+    lighter ground, a pale band at the foot.
+14. **Edit in place when the field drops a list.** `AddressSearchField` shows
+    its suggestions below itself, and a sheet's scrolling body cuts them off.
+    Sheets are for short notes and choices.
+15. **Text on the grey is `fg-muted`.** `fg-subtle` is 4.5:1 on white and 4.1:1
+    on the sunken grey, which fails at 13px.
+
 ---
 
-## 11. Still open
+## 11. The account page
+
+`app/(customer)/account`, rebuilt 2026-09-11 from the checkout's parts. The page
+composes three blocks from its `_components` folder: `DetailsBlock`,
+`AddressesBlock` and `DeviceBlock`.
+
+### Phone: one column
+
+Who you are, your details, where the food goes, then this device. Three white
+blocks on the grey, which is the most the checkout rules allow on one screen.
+
+### Desk: two columns, split by reach
+
+The left column is you and the device in hand. The notification switch and Sign
+out both act on this browser alone. The column is sticky, so it stays in view
+while the right column scrolls. The right column is what follows the customer to
+any phone they sign in on: details and addresses.
+
+The version before was the phone column stretched across a laptop. This layout
+was chosen over a profile band across the top with the addresses beneath it.
+
+### Decisions
+
+- **The device block is drawn twice**, once per column, with one hidden. Moving
+  a single copy with CSS `order` would have put Sign out ahead of the addresses
+  for a screen reader on a phone. `useDevicePush` holds the switch's state once,
+  so the two copies cannot disagree.
+- **Every change opens in place.** Change turns the row into its field, with a
+  red Save at the foot and a grey Cancel. Save is full width on a phone and its
+  own width from `sm` up.
+- **One Change per address.** Edit, Use by default and Remove used to be three
+  underlined links on every row. Remove and "Make this the default" live inside
+  the form, and a hairline above and below marks where the form starts and ends.
+- **`is_default` is only ever sent as true.** The update route accepts false,
+  clears the flag and promotes nothing, so checkout would have no address to
+  fill in. The store route cannot unset a default either way.
+- **The phone row has no Change.** The number is the account, and moving it
+  needs a code sent to the new number, which is not built. "You sign in with
+  this number." says so once.
+- **Signing out goes home without the sign-in sheet.** The guest redirect used
+  to open it for everybody, including the person who had just signed out.
+- **Removed:** the Verified badge (signing in is what verified the number), the
+  link to your orders (the tab bar and the header carry one on every screen),
+  and the list of features that are not built. The line about closing an account
+  stays.
+
+---
+
+## 12. Still open
 
 - **Photography.** Three of the eight shots are unplaced (a close crop of fried
   rice and drumsticks, plain fried rice with sauces, noodles). No full-chicken
@@ -351,5 +412,5 @@ Added 2026-09-11, from rebuilding the cart and checkout. The full reasoning is i
   character energy nkoaaaaaa" — and the app does not. That gap is deliberate:
   the voice is the client's to set.
 - **Phases 3 and 4** of the original plan: consolidating `/orders`,
-  `/order-history` and `/orders/[code]` into one Orders tab, and the sheet /
-  skeleton / Account pass.
+  `/order-history` and `/orders/[code]` into one Orders tab, and the sheet and
+  skeleton pass. The Account part is done, see section 11.

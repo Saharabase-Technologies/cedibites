@@ -461,6 +461,22 @@ html.dark:has(.cb-customer) body {
   background-color: var(--cb-mono-950);
 }
 
+/* A screen built from white blocks sits on the sunken grey, the way checkout
+   does. Checkout owns the whole screen, so its own wrapper paints the grey. A
+   page inside the shell cannot: the tab bar's spacer and the strip under a short
+   page sit outside it, and the lighter ground would show as a band at the foot.
+   Such a page marks itself data-ground="sunken" and the grey reaches every edge.
+
+   html and body take the primitive, because the customer roles are only
+   declared inside .cb-customer and would resolve to the staff value up there. */
+html:has([data-ground='sunken']),
+html:has([data-ground='sunken']) body {
+  background-color: var(--cb-mono-100);
+}
+.cb-customer:has([data-ground='sunken']) {
+  background-color: var(--cb-surface-sunken);
+}
+
 /* Rubber-band scrolling past the top or bottom of the page reveals the browser
    behind it, which is the single loudest reminder that this is not an app.
    Has to sit on the scrolling elements themselves, not on the wrapper. */

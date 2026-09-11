@@ -11,6 +11,9 @@ import React from 'react';
  * money. Inside a block, rows are separated by air alone. The first stepped
  * version drew a hairline under every row, so nothing read as a group and the
  * page became a stack of strips at the same weight.
+ *
+ * The account page is built from these too, so somebody who has been through
+ * checkout already knows how to read it.
  */
 
 /** A labelled control. The label is the only description it gets. */
@@ -43,9 +46,13 @@ export const controlClass =
     'placeholder:text-fg-subtle focus:border-fg';
 
 /** One block of related rows, white on the page's grey. */
-export function Group({ children }: { children: React.ReactNode }) {
+export function Group({ children, className = '' }: {
+    children: React.ReactNode;
+    /** Room to grow on a wide screen. The block keeps its own shape. */
+    className?: string;
+}) {
     return (
-        <section className="flex flex-col gap-5 rounded-2xl bg-surface p-4">
+        <section className={`flex flex-col gap-5 rounded-2xl bg-surface p-4 ${className}`}>
             {children}
         </section>
     );
@@ -64,7 +71,11 @@ export function Group({ children }: { children: React.ReactNode }) {
  * one is exactly when somebody needed to check it.
  */
 export function ReviewRow({ caption, value, placeholder, badge, sub, action, onPress }: {
-    caption: string;
+    /**
+     * Left off when the value names itself. A saved place with no name is its
+     * street, and a caption above it would have to invent one.
+     */
+    caption?: string;
     value?: string;
     /** Said in place of the value when there is none yet. */
     placeholder: string;
@@ -76,8 +87,8 @@ export function ReviewRow({ caption, value, placeholder, badge, sub, action, onP
     const body = (
         <>
             <span className="min-w-0 flex-1">
-                <span className="block text-[13px] text-fg-muted">{caption}</span>
-                <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                {caption && <span className="block text-[13px] text-fg-muted">{caption}</span>}
+                <span className={`flex flex-wrap items-center gap-x-2 gap-y-1 ${caption ? 'mt-0.5' : ''}`}>
                     {value
                         ? <span className="min-w-0 text-[15px] font-bold leading-snug break-words text-fg">{value}</span>
                         : <span className="text-[15px] font-semibold leading-snug text-fg-subtle">{placeholder}</span>}
