@@ -5,11 +5,12 @@ import { BranchStateBadge, SmallAction } from '@/app/components/ui/QuietControls
 import { isValidGhanaPhone } from '@/app/lib/phone';
 import { useAddresses } from '@/lib/api/hooks/useAddresses';
 import { ArrowCounterClockwiseIcon, CheckIcon, MapPinIcon } from '@phosphor-icons/react';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import AddressSearchField from './AddressSearchField';
 import { methodLabel } from './availability';
 import { Field, Group, ReviewRow, controlClass } from './Field';
 import { MomoNumberField, type MomoCheck } from './MomoField';
+import NoteSheet from './NoteSheet';
 import type { ContactDetails, OrderType, PaymentMethod } from './types';
 
 /**
@@ -71,7 +72,8 @@ function Segmented<T extends string>({ value, onChange, options }: {
 function PlaceRow({ icon, title, line, chosen, onPick }: {
     icon: React.ReactNode;
     title: string;
-    line: string;
+    /** Left off when the title is the address itself. */
+    line?: string;
     chosen: boolean;
     onPick: () => void;
 }) {
@@ -85,8 +87,10 @@ function PlaceRow({ icon, title, line, chosen, onPick }: {
             >
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-fg/5 text-fg">{icon}</span>
                 <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-bold leading-snug text-fg">{title}</span>
-                    <span className="mt-0.5 block text-[13px] leading-snug break-words text-fg-muted">{line}</span>
+                    <span className="block text-[15px] font-bold leading-snug break-words text-fg">{title}</span>
+                    {line && (
+                        <span className="mt-0.5 block text-[13px] leading-snug break-words text-fg-muted">{line}</span>
+                    )}
                 </span>
                 {chosen && <CheckIcon size={18} weight="bold" className="shrink-0 text-fg" />}
             </button>
@@ -128,16 +132,22 @@ export function WhereStep({
         : '';
 
     /*
-     * Both notes are a tap away rather than boxes on the screen. Most orders
-     * carry neither, and two empty text areas make a light question look like a
-     * form to fill in.
+     * One button for anything they want to say, and a sheet that holds who it
+     * is for. Both notes as buttons on this screen put two of the same control
+     * side by side on the lightest question in the flow.
      *
-     * The kitchen one is offered on a delivery as well as a pickup. Somebody
-     * allergic to shrimp has to be able to say so whoever brings the food, and
-     * before this they could only write to the rider.
+     * Written, they read back here as lines rather than boxes, because most of
+     * the time there is nothing to change.
      */
-    const [kitchenOpen, setKitchenOpen] = useState(() => Boolean(contact.kitchenNote.trim()));
-    const [riderOpen, setRiderOpen] = useState(() => Boolean(contact.riderNote.trim()));
+    const [noteSheet, setNoteSheet] = useState(false);
+    const closeNoteSheet = useCallback(() => setNoteSheet(false), []);
+
+    // A rider note written before somebody switched to pickup is not sent, so
+    // it is not shown either.
+    const notes = [
+        contact.kitchenNote.trim() && { who: 'For the kitchen', text: contact.kitchenNote.trim() },
+        forRider && contact.riderNote.trim() && { who: 'For the rider', text: contact.riderNote.trim() },
+    ].filter(Boolean) as { who: string; text: string }[];
 
     return (
         <Group>
@@ -162,12 +172,17 @@ export function WhereStep({
 
                     {(addresses.length > 0 || recall) && (
                         <ul className="flex flex-col">
+                            {/* A name only when they gave one. An address saved
+                                on its own at the end of an order has none, and
+                                calling it "Saved address" next to Home and
+                                Office invents a name for it. The street is the
+                                better title in that case. */}
                             {addresses.map(a => (
                                 <PlaceRow
                                     key={a.id}
                                     icon={<MapPinIcon size={16} weight="fill" />}
-                                    title={a.label || 'Saved address'}
-                                    line={a.full_address}
+                                    title={a.label || a.full_address}
+                                    line={a.label ? a.full_address : undefined}
                                     chosen={address === a.full_address.trim()}
                                     onPick={() => setAddress(a.full_address)}
                                 />
@@ -196,42 +211,32 @@ export function WhereStep({
                 />
             )}
 
-            {kitchenOpen && (
-                <Field label="Note for the kitchen">
-                    <textarea
-                        rows={2}
-                        autoFocus={!contact.kitchenNote.trim()}
-                        placeholder="No pepper, or an allergy we should know about."
-                        value={contact.kitchenNote}
-                        onChange={e => setContact(c => ({ ...c, kitchenNote: e.target.value }))}
-                        className={`${controlClass} resize-none py-3 leading-relaxed`}
-                    />
-                </Field>
-            )}
-
-            {forRider && riderOpen && (
-                <Field label="Note for the rider">
-                    <textarea
-                        rows={2}
-                        autoFocus={!contact.riderNote.trim()}
-                        placeholder="Call me when you reach the gate."
-                        value={contact.riderNote}
-                        onChange={e => setContact(c => ({ ...c, riderNote: e.target.value }))}
-                        className={`${controlClass} resize-none py-3 leading-relaxed`}
-                    />
-                </Field>
-            )}
-
-            {(!kitchenOpen || (forRider && !riderOpen)) && (
-                <div className="flex flex-wrap gap-2">
-                    {!kitchenOpen && (
-                        <SmallAction onClick={() => setKitchenOpen(true)}>Add a note for the kitchen</SmallAction>
-                    )}
-                    {forRider && !riderOpen && (
-                        <SmallAction onClick={() => setRiderOpen(true)}>Add a note for the rider</SmallAction>
-                    )}
+            {notes.length > 0 ? (
+                <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[13px] text-fg-muted">Note</p>
+                        <div className="mt-0.5 flex flex-col gap-1">
+                            {notes.map(n => (
+                                <p key={n.who} className="text-[15px] leading-snug break-words text-fg">
+                                    <span className="text-fg-muted">{n.who}: </span>
+                                    <span className="font-semibold">{n.text}</span>
+                                </p>
+                            ))}
+                        </div>
+                    </div>
+                    <SmallAction onClick={() => setNoteSheet(true)}>Change</SmallAction>
                 </div>
+            ) : (
+                <SmallAction onClick={() => setNoteSheet(true)} className="self-start">Add a note</SmallAction>
             )}
+
+            <NoteSheet
+                open={noteSheet}
+                onClose={closeNoteSheet}
+                orderType={orderType}
+                contact={contact}
+                setContact={setContact}
+            />
         </Group>
     );
 }

@@ -313,6 +313,25 @@ radius the honest answer is that it will not.
 7. Every `rounded-*`, gutter and shadow comes from the token layer. If you are
    typing a pixel value, it probably belongs there instead.
 
+Added 2026-09-11, from rebuilding the cart and checkout. The full reasoning is in
+`docs/CHECKOUT.md`.
+
+8. **Two kinds of button.** One red button at the foot of a screen, and a small
+   grey `SmallAction` (`app/components/ui/QuietControls.tsx`) for everything
+   else. No bold underlined text as the secondary style: eight of those across
+   five screens all shouted at the same volume and none looked pressable.
+9. **A caption over a value, and the row is the button.** `ReviewRow` in the
+   checkout's `Field.tsx`: grey caption, bold answer, "Change" on the right. The
+   same grammar on every row, so the eye does not relearn each line.
+10. **One entry point for related actions.** Two parallel buttons on a light
+    screen read as a toolbar. Give them one control and put the choice inside
+    what it opens.
+11. **Never invent a name.** An address the customer never named shows its
+    street, not "Saved address". A made-up label beside Home and Office reads as
+    something they chose.
+12. **A light screen is one block.** No recap of earlier answers and no running
+    total on a question. Gather everything where the customer agrees to it.
+
 ---
 
 ## 11. Still open

@@ -257,7 +257,9 @@ function AddressRow({ address, onEdit, onMakeDefault, onDelete, busy }: {
     return (
         <div className="py-4">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <p className="text-[15px] font-bold text-fg">{address.label || 'Saved address'}</p>
+                {/* The street itself when they never named it. "Saved address"
+                    is a name we made up, and it sat in a list beside Home. */}
+                <p className="text-[15px] font-bold break-words text-fg">{address.label || address.full_address}</p>
                 {address.is_default && (
                     /* Yellow is attention, and which address we will use is the
                        one thing worth pointing at in this list. */
@@ -267,7 +269,10 @@ function AddressRow({ address, onEdit, onMakeDefault, onDelete, busy }: {
                 )}
             </div>
 
-            <p className="mt-1 text-sm leading-relaxed break-words text-fg-muted">{address.full_address}</p>
+            {/* Only under a name. Without one the street is already the title. */}
+            {address.label && (
+                <p className="mt-1 text-sm leading-relaxed break-words text-fg-muted">{address.full_address}</p>
+            )}
             {address.note && (
                 <p className="mt-0.5 text-[13px] leading-relaxed break-words text-fg-subtle">{address.note}</p>
             )}

@@ -53,6 +53,20 @@ Four rules from it are worth repeating here because breaking them is expensive:
   (`--radius-*`, `--page-gutter`, `.card-lift`). If you are typing a pixel value
   into a customer component, it probably belongs in `app/globals.css`.
 
+**Checkout has its own record: `docs/CHECKOUT.md`.** Read it before changing the
+checkout or the cart sheet. It went through four versions in a week, and the
+file holds what each one taught, the reason behind every rule, and the traps.
+Three of them cost real time:
+
+- **The look and the flow are separate decisions.** The client kept one
+  version's look and rejected its flow. When feedback arrives, work out which of
+  the two it is about before touching either.
+- **An order carries one note field.** Kitchen and rider notes travel in it as
+  labelled lines, and every place that shows or prints the note needs
+  `white-space: pre-line` or the lines run together.
+- **`BottomSheet` needs a stable `onClose`.** A new function each render re-runs
+  its focus effect and pulls focus out of the field being typed in.
+
 **Light mode only, on purpose.** `ThemeProvider` uses `forcedTheme="light"` and
 the root sets `color-scheme: light`. Nothing ever writes `.dark`, so every
 `dark:` utility is inert. The dark token blocks are kept so bringing it back is
