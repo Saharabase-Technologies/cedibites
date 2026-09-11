@@ -1,6 +1,7 @@
 import type { Branch } from '@/app/components/providers/BranchProvider';
 import { isValidGhanaPhone } from '@/app/lib/phone';
-import type { ContactDetails, OrderType, PaymentMethod, Stage } from './types';
+import { nextOpening } from '@/lib/utils/branchHours';
+import type { ContactDetails, OrderType, PaymentMethod, SheetName } from './types';
 
 /**
  * What this branch will actually accept, and whether the order is ready to go.
@@ -37,54 +38,88 @@ export function enabledPaymentMethods(branch: Branch | null): PaymentMethod[] {
     return ALL_PAYMENT_METHODS.filter(m => branch.paymentMethods[PAYMENT_KEYS[m]]?.is_enabled !== false);
 }
 
+/** A payment method as the screen names it. Cash says where it changes hands. */
+export function methodLabel(method: PaymentMethod, orderType: OrderType): string {
+    if (method === 'mobile_money') return 'Mobile Money';
+    return orderType === 'delivery' ? 'Cash at the door' : 'Cash at the counter';
+}
+
+/** What stands between the order and the pay button, and what fixes it. */
+export interface Blocker {
+    /** Said on the button in place of Pay. What to do, never what went wrong. */
+    action: string;
+    /**
+     * Said above the button, and only when the action alone would leave
+     * somebody asking why. "Choose another branch" needs "Ashaiman opens at
+     * 10:00 am". "Add where it goes" needs nothing.
+     */
+    reason?: string;
+    /** What pressing the button opens. */
+    opens: SheetName | 'branch';
+}
+
 /**
- * Why the button at the foot is dead, in the words shown beside it.
+ * The next thing to sort out, in the order a person would sort it.
  *
- * Asked per stage, because the form only ever shows one question and it would
- * be nonsense to refuse to continue past the address over a phone number
- * nobody has been asked for yet. Returns undefined when this stage is answered.
+ * The branch first, because nothing else matters for an order that cannot be
+ * cooked. Then where, who and how, which is the order the rows sit on screen,
+ * so a guest with nothing saved is walked down the page one sheet at a time.
+ * Returns undefined when the order can be paid for.
  */
-export function stageBlocker(stage: Stage, { branch, orderType, contact, orderTypes, methods, paymentMethod, momoNumber, momoRegistered }: {
+export function checkoutBlocker({ branch, orderType, contact, orderTypes, methods, paymentMethod, momoNumber, momoRegistered }: {
     branch: Branch | null;
     orderType: OrderType;
     contact: ContactDetails;
     orderTypes: OrderType[];
     methods: PaymentMethod[];
     paymentMethod: PaymentMethod;
-    /** The number the prompt will go to. Empty is fine until they pick MoMo. */
+    /** The number the prompt will go to. */
     momoNumber: string;
     /** False only when Hubtel has said so. Null means it could not be asked. */
     momoRegistered: boolean | null;
-}): string | undefined {
-    // A shut branch stops everything, at every stage. There is no point letting
-    // somebody fill in three answers for an order that cannot be cooked.
-    if (!branch) return 'Choose a branch to order from.';
-    if (!branch.isActive) return `${branch.name} is not taking orders.`;
-    if (!branch.isOpen) return `${branch.name} is closed.`;
-    if (orderTypes.length === 0) return `${branch.name} is not taking orders right now.`;
+}): Blocker | undefined {
+    if (!branch) return { action: 'Choose a branch', opens: 'branch' };
 
-    if (stage === 'where') {
-        if (orderType === 'delivery' && !contact.address.trim()) return 'Add the address it goes to.';
-        return undefined;
+    if (!branch.isActive) {
+        return { action: 'Choose another branch', reason: `${branch.name} is not taking orders.`, opens: 'branch' };
     }
 
-    if (stage === 'who') {
-        if (!contact.name.trim()) return 'Add the name for the order.';
-        if (!contact.phone.trim()) return 'Add a phone number.';
-        if (!isValidGhanaPhone(contact.phone)) return 'That phone number is not a Ghana number.';
-        return undefined;
+    if (!branch.isOpen) {
+        const when = nextOpening(branch.hours);
+        return {
+            action: 'Choose another branch',
+            reason: when ? `${branch.name} opens ${when}.` : `${branch.name} is closed.`,
+            opens: 'branch',
+        };
     }
 
-    if (methods.length === 0) return `${branch.name} has no way to take payment right now.`;
+    if (orderTypes.length === 0) {
+        return { action: 'Choose another branch', reason: `${branch.name} is not taking orders right now.`, opens: 'branch' };
+    }
+
+    if (orderType === 'delivery' && !contact.address.trim()) return { action: 'Add where it goes', opens: 'where' };
+
+    if (!contact.name.trim()) return { action: 'Add your name', opens: 'who' };
+    if (!contact.phone.trim()) return { action: 'Add your phone number', opens: 'who' };
+    if (!isValidGhanaPhone(contact.phone)) {
+        return { action: 'Fix your phone number', reason: 'That phone number is not a Ghana number.', opens: 'who' };
+    }
+
+    if (methods.length === 0) {
+        return { action: 'Choose another branch', reason: `${branch.name} has no way to take payment right now.`, opens: 'branch' };
+    }
 
     if (paymentMethod === 'mobile_money') {
-        if (!momoNumber.trim()) return 'Add the number to charge.';
-        if (!isValidGhanaPhone(momoNumber)) return 'That is not a Ghana mobile money number.';
+        if (!momoNumber.trim()) return { action: 'Add the number to charge', opens: 'pay' };
+        if (!isValidGhanaPhone(momoNumber)) {
+            return { action: 'Fix the number to charge', reason: 'That is not a Ghana mobile money number.', opens: 'pay' };
+        }
 
         // Only when Hubtel has actually said no. Null means the check could not
         // be made, and not being able to check is no reason to stop somebody
         // ordering: the prompt still goes out and either lands or does not.
-        if (momoRegistered === false) return 'No mobile money account on that number.';
+        // No reason line: the payment row already says it, in red.
+        if (momoRegistered === false) return { action: 'Use another number', opens: 'pay' };
     }
 
     return undefined;

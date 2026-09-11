@@ -15,19 +15,20 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import BranchSelectorSheet from './_components/BranchSelectorSheet';
 import CheckoutForm from './_components/CheckoutForm';
-import { UNCHECKED, type MomoCheck } from './_components/MomoField';
+import CheckoutSheet from './_components/CheckoutSheet';
+import { useMomoCheck } from './_components/MomoField';
 import EmptyCartGuard from './_components/EmptyCartGuard';
 import OrderPlaced from './_components/OrderPlaced';
 import PaymentWait from './_components/PaymentWait';
-import { OrderPanel, OrderRecap } from './_components/OrderPanel';
+import { OrderSummary } from './_components/OrderPanel';
 import { PayBar, PayBarSpacer, PayAction } from './_components/PayBar';
-import { stageBlocker, enabledOrderTypes, enabledPaymentMethods } from './_components/availability';
+import { checkoutBlocker, enabledOrderTypes, enabledPaymentMethods } from './_components/availability';
 import { computeTotals } from './_components/pricing';
 import { readRecalled, writeRecalled, type RecalledDetails } from './_components/recall';
 import { writeLastOrder } from '@/lib/orders/lastOrder';
 import { useAddresses } from '@/lib/api/hooks/useAddresses';
-import { DEFAULT_SC_CONFIG, STAGES, nextStage, stageIsBefore } from './_components/types';
-import type { ContactDetails, OrderType, PaymentMethod, Phase, ServiceChargeConfig, Stage } from './_components/types';
+import { DEFAULT_SC_CONFIG } from './_components/types';
+import type { ContactDetails, OrderType, PaymentMethod, Phase, ServiceChargeConfig, SheetName } from './_components/types';
 
 const NO_RECALL: RecalledDetails = { name: '', phone: '', address: '' };
 
@@ -38,22 +39,25 @@ export default function CheckoutPage() {
     const { coordinates } = useLocation();
     const { user, isLoggedIn } = useAuth();
     // Empty for a guest: the query only runs when there is a customer token.
-    // The list itself is rendered by CheckoutForm, off the same cached query.
+    // The list itself is rendered by the rows and the address sheet, off the
+    // same cached query.
     const { defaultAddress, saveAddress } = useAddresses();
     const createSession = useCreateCheckoutSession();
 
     const [phase, setPhase] = useState<Phase>('form');
 
     /**
-     * The question on screen, and the furthest one reached.
+     * The sheet on screen, and whether the pay button sent them there.
      *
-     * `furthest` is what makes Change cheap. Tap it on the address while
-     * standing at payment and you are taken back one question, but Continue
-     * returns you straight to payment rather than walking you through the name
-     * and number you had already given.
+     * Pressing the button while something is missing opens the sheet that fixes
+     * it and sets `guided`. Finishing that sheet then opens the next thing still
+     * missing, so a guest with nothing saved answers one question at a time, top
+     * to bottom, without hunting for each row. Opening a row by hand, or closing
+     * a sheet any way other than its button, ends the walk.
      */
-    const [stage, setStage] = useState<Stage>('where');
-    const [furthest, setFurthest] = useState<Stage>('where');
+    const [sheet, setSheet] = useState<SheetName | null>(null);
+    const [guided, setGuided] = useState(false);
+
     const [orderType, setOrderType] = useState<OrderType>('delivery');
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mobile_money');
     const [placing, setPlacing] = useState(false);
@@ -73,6 +77,16 @@ export default function CheckoutPage() {
     const [recalled, setRecalled] = useState<RecalledDetails>(NO_RECALL);
 
     /**
+     * One branch sheet for the whole screen.
+     *
+     * The pickup row, the order block and the pay button can all open it, and
+     * separate components cannot each hold their own copy of the same sheet
+     * without one of them opening behind the other.
+     */
+    const [branchSheet, setBranchSheet] = useState(false);
+    const closeBranchSheet = useCallback(() => setBranchSheet(false), []);
+
+    /**
      * The number the Mobile Money prompt goes to.
      *
      * Null means nobody has changed it, and it follows the number they gave for
@@ -80,20 +94,9 @@ export default function CheckoutPage() {
      * takes it off that leash for good: somebody paying from a different wallet
      * should not have it snatched back when they correct their contact number.
      */
-    /**
-     * One branch sheet for the whole screen.
-     *
-     * The form used to own it, which was fine while the only way to change
-     * branch was a line inside the delivery question. Now the order summary
-     * offers it too, and two components cannot each hold their own copy of the
-     * same sheet without one of them opening behind the other.
-     */
-    const [branchSheet, setBranchSheet] = useState(false);
-    const openBranchSheet = useCallback(() => setBranchSheet(true), []);
-
     const [momoOverride, setMomoOverride] = useState<string | null>(null);
-    const [momoCheck, setMomoCheck] = useState<MomoCheck>(UNCHECKED);
     const momoNumber = momoOverride ?? contact.phone;
+    const { check: momoCheck, checking: momoChecking } = useMomoCheck(momoNumber, paymentMethod === 'mobile_money');
 
     /**
      * Whether the browser has had a turn yet.
@@ -108,6 +111,7 @@ export default function CheckoutPage() {
     useEffect(() => { setMounted(true); }, []);
 
     const effectiveBranch = selectedBranch ?? branches.find(b => b.isOpen) ?? branches[0] ?? null;
+    const branchId = effectiveBranch?.id;
 
     // ── What this phone and this account already know ────────────────────────
     // localStorage cannot be read while rendering without the server and the
@@ -147,20 +151,25 @@ export default function CheckoutPage() {
     }, []);
 
     // ── The best promo this order qualifies for ──────────────────────────────
+    // Keyed on which dishes and which branch, not on the objects carrying them.
+    // The cart and the branch list both refetch on focus and hand back fresh
+    // copies of the same things, and every fresh copy blanked the totals to
+    // grey bars and asked all over again.
+    const itemIdsKey = items.map(ci => String(ci.item.id)).join(',');
     useEffect(() => {
-        if (!effectiveBranch || items.length === 0) {
+        const itemIds = itemIdsKey ? itemIdsKey.split(',') : [];
+        if (!branchId || itemIds.length === 0) {
             setPromo(null); setPromoDiscount(0); setPromoReady(true);
             return;
         }
         setPromoReady(false);
-        const itemIds = items.map(ci => String(ci.item.id));
-        getPromoService().resolvePromo(itemIds, String(effectiveBranch.id), subtotal).then(p => {
+        getPromoService().resolvePromo(itemIds, String(branchId), subtotal).then(p => {
             setPromo(p ?? null);
             setPromoDiscount(p ? getPromoService().calculateDiscount(p, subtotal) : 0);
         }).catch(() => {
             setPromo(null); setPromoDiscount(0);
         }).finally(() => setPromoReady(true));
-    }, [items, effectiveBranch, subtotal]);
+    }, [itemIdsKey, branchId, subtotal]);
 
     // ── What the branch will take ────────────────────────────────────────────
     const orderTypes = useMemo(() => enabledOrderTypes(effectiveBranch), [effectiveBranch]);
@@ -175,7 +184,7 @@ export default function CheckoutPage() {
         if (methods.length > 0 && !methods.includes(paymentMethod)) setPaymentMethod(methods[0]);
     }, [methods, paymentMethod]);
 
-    // ── The money, worked out once for the bar and the panel ─────────────────
+    // ── The money, worked out once for the block and the button ──────────────
     const totals = useMemo(() => computeTotals({
         subtotal,
         orderType,
@@ -191,13 +200,13 @@ export default function CheckoutPage() {
      * The figures are only true once the server has said what it charges and
      * whether this order has a promo on it. Before that the screen would be
      * showing a total built from the fallbacks, then quietly changing it. The
-     * bar holds the button until both have landed.
+     * button holds until both have landed.
      */
     const moneyReady = configReady && promoReady;
 
     const serviceLabel = scConfig.percent > 0 ? `Service charge, ${scConfig.percent}%` : 'Service charge';
 
-    const blocked = stageBlocker(stage, {
+    const blocker = checkoutBlocker({
         branch: effectiveBranch, orderType, contact, orderTypes, methods,
         paymentMethod, momoNumber, momoRegistered: momoCheck.registered,
     });
@@ -215,7 +224,7 @@ export default function CheckoutPage() {
         /**
          * And onto the account, where it survives this browser.
          *
-         * Only for a delivery — a pickup has no address to keep — and only for
+         * Only for a delivery (a pickup has no address to keep) and only for
          * somebody signed in. The endpoint matches on the address text and
          * updates the row that is already there, so ordering to the same door
          * every week does not collect a row per order. Deliberately not awaited
@@ -287,38 +296,39 @@ export default function CheckoutPage() {
         setSessionToken(null);
     }, []);
 
-    /**
-     * The one button at the foot. It moves you on, or on the last question it
-     * takes the money.
-     */
-    const handleAdvance = useCallback(() => {
-        if (stage === 'pay') { handlePlace(); return; }
+    // ── Sheets ───────────────────────────────────────────────────────────────
+    const open = useCallback((target: SheetName | 'branch', walk: boolean) => {
+        setGuided(walk && target !== 'branch');
+        if (target === 'branch') setBranchSheet(true);
+        else setSheet(target);
+    }, []);
 
-        // Standing behind where they had already got to means they came back
-        // through Change. Send them forward to where they were, not through
-        // answers they have already given.
-        const next = stageIsBefore(stage, furthest) ? furthest : nextStage(stage);
-        if (!next) return;
+    const openRow = useCallback((target: SheetName | 'branch') => open(target, false), [open]);
+    const openFix = useCallback((target: SheetName | 'branch') => open(target, true), [open]);
 
-        setStage(next);
-        setFurthest(f => (stageIsBefore(f, next) ? next : f));
-    }, [stage, furthest, handlePlace]);
+    // Stable on purpose. See `onClose` on CheckoutSheet.
+    const closeSheet = useCallback(() => { setSheet(null); setGuided(false); }, []);
+
+    /** Where the sheet's button goes: the next thing missing, if the pay button started the walk. */
+    const nextSheet = guided && blocker && blocker.opens !== 'branch' && blocker.opens !== sheet
+        ? blocker.opens
+        : null;
+
+    const finishSheet = () => {
+        if (nextSheet) setSheet(nextSheet);
+        else closeSheet();
+    };
 
     // ── What is on screen ────────────────────────────────────────────────────
     const title = phase === 'placed' ? 'Order placed' : phase === 'paying' ? 'Payment' : 'Checkout';
 
     /**
-     * Back is one question, then out.
+     * Back leaves checkout.
      *
      * There is nothing useful behind a payment being confirmed and nothing to
      * undo once it has been, so the arrow is gone on those two screens.
      */
-    const stageIndex = STAGES.indexOf(stage);
-    const goBack = phase !== 'form'
-        ? undefined
-        : stageIndex > 0
-            ? () => setStage(STAGES[stageIndex - 1])
-            : () => router.back();
+    const goBack = phase === 'form' ? () => router.back() : undefined;
 
     if (phase === 'form' && items.length === 0) {
         return (
@@ -331,19 +341,33 @@ export default function CheckoutPage() {
         );
     }
 
-    return (
-        <div className="min-h-dvh bg-bg">
-            <ScreenHeader
-                title={title}
-                onBack={goBack}
-                backLabel={stageIndex > 0 ? 'Back to the last question' : 'Leave checkout'}
-                progress={phase === 'form' ? (stageIndex + 1) / STAGES.length : undefined}
-            />
+    const showForm = phase === 'form' || (phase === 'paying' && !sessionToken);
 
-            <div className="page-x mx-auto max-w-5xl">
+    const payProps = {
+        totals,
+        method: paymentMethod,
+        placing,
+        ready: moneyReady,
+        blocker,
+        onPay: handlePlace,
+        onFix: openFix,
+    };
+
+    return (
+        // The form sits on the grey so its white blocks read as groups. The
+        // page ground is #fafafa, which is too close to white to separate anything.
+        <div className={`min-h-dvh ${showForm ? 'bg-surface-sunken' : 'bg-bg'}`}>
+            <ScreenHeader title={title} onBack={goBack} backLabel="Leave checkout" />
+
+            {/* The width cap sits inside the gutter rather than on it. `.page-x`
+                carries its own max-width of 80rem, which quietly beat the
+                max-w-5xl that used to share this element, so on a laptop the
+                form ran the full width of the screen. */}
+            <div className="page-x">
+            <div className="mx-auto max-w-5xl">
                 {phase === 'placed' ? (
                     <OrderPlaced orderNumber={orderNumber} orderType={orderType} contact={contact} trackingToken={trackingToken} />
-                ) : phase === 'paying' && sessionToken ? (
+                ) : !showForm && sessionToken ? (
                     <PaymentWait
                         sessionToken={sessionToken}
                         onSuccess={handlePaid}
@@ -352,9 +376,7 @@ export default function CheckoutPage() {
                     />
                 ) : (
                     <>
-                        <OrderRecap totals={totals} serviceLabel={serviceLabel} ready={moneyReady} onChangeBranch={openBranchSheet} />
-
-                        <div className="grid items-start gap-10 py-7 lg:grid-cols-[1fr_340px] lg:py-9">
+                        <div className="grid items-start gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-8 lg:py-9">
                             {/* min-w-0, or the column refuses to go narrower
                                 than its widest line. A grid item is auto-width
                                 by default, so a long address pushed the whole
@@ -362,58 +384,58 @@ export default function CheckoutPage() {
                                 wrapping inside it. */}
                             <div className="min-w-0">
                                 <CheckoutForm
-                                    stage={stage}
-                                    onJumpTo={setStage}
+                                    branch={effectiveBranch}
                                     orderType={orderType}
                                     setOrderType={setOrderType}
                                     orderTypes={orderTypes}
                                     paymentMethod={paymentMethod}
-                                    setPaymentMethod={setPaymentMethod}
                                     methods={methods}
                                     contact={contact}
-                                    setContact={setContact}
-                                    recalled={recalled}
                                     momoNumber={momoNumber}
-                                    setMomoNumber={setMomoOverride}
-                                    onMomoChecked={setMomoCheck}
-                                    totals={totals}
-                                    serviceLabel={serviceLabel}
-                                    moneyReady={moneyReady}
-                                    onChangeBranch={openBranchSheet}
+                                    momoCheck={momoCheck}
+                                    momoChecking={momoChecking}
+                                    onOpen={openRow}
                                 />
-
-                                {/* Under the question, not beside it. On a
-                                    phone this is hidden and the pinned bar at
-                                    the foot of the screen carries it. */}
-                                <div className="mt-9">
-                                    <PayAction
-                                        stage={stage}
-                                        method={paymentMethod}
-                                        placing={placing}
-                                        ready={moneyReady}
-                                        blockedBecause={blocked}
-                                        onAdvance={handleAdvance}
-                                    />
-                                </div>
                             </div>
 
-                            <OrderPanel totals={totals} serviceLabel={serviceLabel} ready={moneyReady} onChangeBranch={openBranchSheet} />
+                            <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24">
+                                <OrderSummary
+                                    branch={effectiveBranch}
+                                    showBranch={orderType === 'delivery'}
+                                    totals={totals}
+                                    serviceLabel={serviceLabel}
+                                    ready={moneyReady}
+                                />
+                                <PayAction {...payProps} />
+                            </div>
                         </div>
 
                         <PayBarSpacer />
-                        <BranchSelectorSheet isOpen={branchSheet} onClose={() => setBranchSheet(false)} />
 
-                        <PayBar
-                            totals={totals}
-                            stage={stage}
-                            method={paymentMethod}
-                            placing={placing}
-                            ready={moneyReady}
-                            blockedBecause={blocked}
-                            onAdvance={handleAdvance}
+                        <BranchSelectorSheet isOpen={branchSheet} onClose={closeBranchSheet} />
+
+                        <CheckoutSheet
+                            sheet={sheet}
+                            onClose={closeSheet}
+                            onDone={finishSheet}
+                            doneLabel={nextSheet ? 'Next' : 'Done'}
+                            orderType={orderType}
+                            contact={contact}
+                            setContact={setContact}
+                            recalledAddress={recalled.address}
+                            methods={methods}
+                            paymentMethod={paymentMethod}
+                            setPaymentMethod={setPaymentMethod}
+                            momoNumber={momoNumber}
+                            setMomoNumber={setMomoOverride}
+                            momoCheck={momoCheck}
+                            momoChecking={momoChecking}
                         />
+
+                        <PayBar {...payProps} />
                     </>
                 )}
+            </div>
             </div>
         </div>
     );

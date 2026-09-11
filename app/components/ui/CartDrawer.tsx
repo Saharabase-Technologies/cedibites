@@ -11,14 +11,11 @@ import { useModal } from '@/app/components/providers/ModalProvider';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useBranchSwitch, BranchList, BranchConflictPanel } from './BranchSwitch';
 import BottomSheet from './BottomSheet';
+import { AttentionBadge, BranchStateBadge, SmallAction } from './QuietControls';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { photoForMenuItem } from '@/lib/constants/branchPhotos';
-
-const formatPrice = (p: number | string | null | undefined) => {
-    const n = typeof p === 'number' ? p : Number(p);
-    if (!Number.isFinite(n)) return '₵0';
-    return `₵${Number.isInteger(n) ? n : n.toFixed(2)}`;
-};
+import { formatGHS } from '@/lib/utils/currency';
+import { nextOpening } from '@/lib/utils/branchHours';
 
 type DrawerView = 'cart' | 'branch-select';
 
@@ -30,19 +27,17 @@ type DrawerView = 'cart' | 'branch-select';
  * does. That consistency is the point: two sheets in one app that behave
  * differently is worse than either behaving badly.
  *
- * The look follows the menu. Every line used to be a card with its own tinted
- * ground, the branch sat in a red-tinted bordered box, both warnings had their
- * own coloured boxes, "Add more items" was a dashed rectangle and the totals
- * had a red figure over a bordered panel. That is six containers and four reds
- * on a panel whose whole job is a short list and one button.
- *
- * Rows on hairlines, warnings on the quiet ground, and one red: the button that
- * takes you to checkout.
+ * A closed branch used to be said four times: a Change link beside the branch
+ * name, a grey box explaining what closed means, a link inside that box to
+ * order from another branch, and a button at the foot that also changed branch.
+ * It is one row now, the branch with a Closed badge and the time it opens, and
+ * the button at the foot is the way out. A dish this kitchen cannot make gets a
+ * badge on its own line, where the customer is looking for it.
  */
 export default function CartDrawer() {
     const { isCartOpen, closeCart } = useModal();
     const {
-        displayItems: items, removeFromCart, updateQuantity, totalItems, subtotal,
+        displayItems: items, removeFromCart, updateQuantity, subtotal,
         validateCartForBranch, removeUnavailableItems,
     } = useCart();
     const { selectedBranch } = useBranch();
@@ -73,18 +68,14 @@ export default function CartDrawer() {
     }, [isCartOpen, reset]);
 
     const unavailable = branchCheck?.unavailable ?? [];
+    const unavailableIds = new Set(unavailable.map(ci => ci.cartItemId));
     const branchShut = Boolean(selectedBranch && (!selectedBranch.isActive || !selectedBranch.isOpen));
-    const blocked = branchShut || unavailable.length > 0;
+    const opensWhen = selectedBranch?.isActive && !selectedBranch.isOpen ? nextOpening(selectedBranch.hours) : null;
 
     const header = (
         <div className="flex items-center gap-2 px-5 pb-4 pt-1 md:pt-5">
             {view === 'cart' ? (
-                <h2 className="flex-1 text-lg font-bold text-fg">
-                    Your order
-                    {totalItems > 0 && (
-                        <span className="ml-2 text-sm font-semibold tabular-nums text-fg-muted">{totalItems}</span>
-                    )}
-                </h2>
+                <h2 className="flex-1 text-lg font-bold text-fg">Your order</h2>
             ) : (
                 <>
                     <button
@@ -110,32 +101,32 @@ export default function CartDrawer() {
         </div>
     );
 
+    const bigButton =
+        'mt-4 flex min-h-15 w-full items-center justify-center gap-2 rounded-2xl bg-primary-fill px-5 text-center ' +
+        'text-base font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95';
+
     const footer = view === 'cart' && items.length > 0 ? (
         <div className="px-5 pb-5 pt-4">
             <div className="flex items-baseline justify-between">
                 <span className="text-sm text-fg-muted">Subtotal</span>
-                <span className="text-lg font-bold tabular-nums text-fg">{formatPrice(subtotal)}</span>
+                <span className="text-lg font-bold tabular-nums text-fg">{formatGHS(subtotal)}</span>
             </div>
-            <p className="mt-1 text-xs text-fg-muted">Delivery, if you choose it, is added at checkout.</p>
 
-            {blocked ? (
+            {branchShut ? (
+                <button onClick={() => setView('branch-select')} className={bigButton}>
+                    Choose another branch
+                </button>
+            ) : unavailable.length > 0 ? (
                 <button
-                    onClick={() => setView('branch-select')}
-                    className="mt-4 flex min-h-15 w-full items-center justify-center rounded-2xl bg-primary-fill px-5 text-base font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95"
+                    onClick={() => removeUnavailableItems(unavailable.map(i => i.cartItemId))}
+                    className={bigButton}
                 >
-                    Change branch to carry on
+                    Take out what {selectedBranch?.name} can&apos;t make
                 </button>
             ) : (
-                <Link
-                    href="/checkout"
-                    onClick={closeCart}
-                    className="mt-4 flex min-h-15 w-full items-center justify-between rounded-2xl bg-primary-fill px-5 text-base font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95"
-                >
-                    <span>Go to checkout</span>
-                    <span className="flex items-center gap-2 tabular-nums">
-                        {formatPrice(subtotal)}
-                        <ArrowRightIcon size={18} weight="bold" />
-                    </span>
+                <Link href="/checkout" onClick={closeCart} className={bigButton}>
+                    Go to checkout
+                    <ArrowRightIcon size={18} weight="bold" />
                 </Link>
             )}
         </div>
@@ -168,49 +159,31 @@ export default function CartDrawer() {
             ) : (
                 <>
                     {selectedBranch && (
-                        <div className="flex items-center gap-3 px-5 pb-3">
-                            <p className="min-w-0 flex-1 truncate text-sm text-fg-muted">
-                                From <span className="font-bold text-fg">{selectedBranch.name}</span>
-                            </p>
-                            <button
-                                onClick={() => setView('branch-select')}
-                                className="shrink-0 text-sm font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70"
-                            >
-                                Change
-                            </button>
+                        <div className="flex items-start gap-3 px-5 pb-3">
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[13px] text-fg-muted">From</p>
+                                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span className="text-[15px] font-bold leading-snug text-fg">{selectedBranch.name}</span>
+                                    <BranchStateBadge branch={selectedBranch} />
+                                </p>
+                                {opensWhen && (
+                                    <p className="mt-0.5 text-[13px] text-fg-muted">Opens {opensWhen}</p>
+                                )}
+                            </div>
+                            {/* When it is shut, the button at the foot is the way
+                                out, and a second control here would say it again. */}
+                            {!branchShut && (
+                                <SmallAction onClick={() => setView('branch-select')}>Change</SmallAction>
+                            )}
                         </div>
                     )}
 
-                    {branchShut && (
-                        <Notice
-                            title={selectedBranch?.isActive === false ? 'This branch is not taking orders' : `${selectedBranch?.name} is closed`}
-                            body={selectedBranch?.isActive === false
-                                ? 'Nothing can be sent from here at the moment.'
-                                : 'Nothing leaves the kitchen until it opens again.'}
-                            action="Order from another branch"
-                            onAction={() => setView('branch-select')}
-                        />
-                    )}
-
-                    {unavailable.length > 0 && (
-                        <Notice
-                            title={`${unavailable.length} ${unavailable.length === 1 ? 'thing is' : 'things are'} not on this menu`}
-                            body={`${unavailable
-                                .map(ci => getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel }))
-                                .join(', ')} cannot be made at ${selectedBranch?.name}.`}
-                            action={`Take ${unavailable.length === 1 ? 'it' : 'them'} out`}
-                            onAction={() => removeUnavailableItems(unavailable.map(i => i.cartItemId))}
-                            secondary="Change branch instead"
-                            onSecondary={() => setView('branch-select')}
-                        />
-                    )}
-
-                    <ul className="mt-1">
+                    <ul className="flex flex-col px-5 pb-3">
                         {items.map(ci => (
                             <CartLine
                                 key={ci.cartItemId}
                                 cartItem={ci}
-                                onRemove={() => removeFromCart(ci.cartItemId)}
+                                notAt={unavailableIds.has(ci.cartItemId) ? selectedBranch?.name : undefined}
                                 onIncrease={() => updateQuantity(ci.cartItemId, ci.quantity + 1)}
                                 onDecrease={() => {
                                     if (ci.quantity <= 1) removeFromCart(ci.cartItemId);
@@ -219,15 +192,6 @@ export default function CartDrawer() {
                             />
                         ))}
                     </ul>
-
-                    <div className="px-5 py-4">
-                        <button
-                            onClick={closeCart}
-                            className="text-sm font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70"
-                        >
-                            Add something else
-                        </button>
-                    </div>
                 </>
             )}
         </BottomSheet>
@@ -235,54 +199,23 @@ export default function CartDrawer() {
 }
 
 /**
- * Something worth stopping for, without a coloured box around it.
+ * One line of the order: the dish, what the line costs, and how many.
  *
- * Both of these used to be tinted, bordered panels, one red and one amber, on a
- * surface that already had a red branch box above it. The words are what carry
- * the weight; the ground is the same quiet grey the rest of the sheet uses.
+ * The count is the only control. Minus turns into a bin at one, so a separate
+ * bin beside it was a second way to do the same thing. The line total is the
+ * figure shown, because it is the one that adds up to the subtotal underneath.
  */
-function Notice({ title, body, action, onAction, secondary, onSecondary }: {
-    title: string;
-    body: string;
-    action: string;
-    onAction: () => void;
-    secondary?: string;
-    onSecondary?: () => void;
-}) {
-    return (
-        <div className="mx-5 mb-3 rounded-xl bg-surface-sunken px-4 py-3.5">
-            <p className="text-sm font-bold text-fg">{title}</p>
-            <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">{body}</p>
-            <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-2">
-                <button
-                    onClick={onAction}
-                    className="text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70"
-                >
-                    {action}
-                </button>
-                {secondary && onSecondary && (
-                    <button
-                        onClick={onSecondary}
-                        className="text-[13px] font-bold text-fg-muted underline underline-offset-4 transition-colors duration-150 ease-out hover:text-fg"
-                    >
-                        {secondary}
-                    </button>
-                )}
-            </div>
-        </div>
-    );
-}
-
-/** One line of the order. No card: a hairline is enough to separate two rows. */
-function CartLine({ cartItem, onRemove, onIncrease, onDecrease }: {
+function CartLine({ cartItem, notAt, onIncrease, onDecrease }: {
     cartItem: CartItem;
-    onRemove: () => void;
+    /** The branch name, when this dish is not on its menu. */
+    notAt?: string;
     onIncrease: () => void;
     onDecrease: () => void;
 }) {
     const [imgError, setImgError] = useState(false);
     const image = cartItem.item.thumbnail ?? cartItem.item.image ?? photoForMenuItem(cartItem.item.name)?.src;
     const hasPhoto = Boolean(image) && !imgError;
+    const last = cartItem.quantity <= 1;
 
     return (
         /* No dimming and no disabling while the write is in flight.
@@ -290,7 +223,7 @@ function CartLine({ cartItem, onRemove, onIncrease, onDecrease }: {
            request leaves, and it returns early for a line the server has not
            given an id yet, so a fast thumb cannot duplicate anything. Greying
            the row out was inventing a wait that was not happening. */
-        <li className="flex items-center gap-3.5 border-t border-hairline px-5 py-3.5">
+        <li className="flex gap-3.5 py-3">
             <span className="relative grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-lg bg-surface-sunken">
                 {hasPhoto ? (
                     <Image
@@ -310,42 +243,36 @@ function CartLine({ cartItem, onRemove, onIncrease, onDecrease }: {
                 <p className="text-sm font-semibold leading-snug text-fg">
                     {getOrderItemLineLabel({ name: cartItem.item.name, sizeLabel: cartItem.sizeLabel })}
                 </p>
-                <p className="mt-0.5 text-[13px] tabular-nums text-fg-muted">
-                    {formatPrice(cartItem.price)} each
-                </p>
+                {notAt && (
+                    <p className="mt-1">
+                        <AttentionBadge>Not at {notAt}</AttentionBadge>
+                    </p>
+                )}
 
-                <div className="mt-2 flex items-center gap-3">
+                <div className="mt-2 flex items-center justify-between gap-3">
+                    <span className="text-sm font-bold tabular-nums text-fg">
+                        {formatGHS(cartItem.price * cartItem.quantity)}
+                    </span>
+
                     <div className="flex items-center gap-0.5 rounded-lg bg-surface-sunken p-0.5">
                         <button
                             onClick={onDecrease}
-                            aria-label={cartItem.quantity <= 1 ? 'Remove from the order' : 'One fewer'}
-                            className="grid h-8 w-8 place-items-center rounded-md text-fg transition-colors duration-150 ease-out hover:bg-bg"
+                            aria-label={last ? `Remove ${cartItem.item.name} from the order` : 'One fewer'}
+                            className="grid h-9 w-9 place-items-center rounded-md text-fg transition-colors duration-150 ease-out hover:bg-bg"
                         >
-                            <MinusIcon weight="bold" size={12} />
+                            {last ? <TrashIcon weight="bold" size={14} /> : <MinusIcon weight="bold" size={12} />}
                         </button>
-                        <span aria-live="polite" className="min-w-5 text-center text-sm font-bold tabular-nums text-fg">
+                        <span aria-live="polite" className="min-w-6 text-center text-sm font-bold tabular-nums text-fg">
                             {cartItem.quantity}
                         </span>
                         <button
                             onClick={onIncrease}
                             aria-label="One more"
-                            className="grid h-8 w-8 place-items-center rounded-md text-fg transition-colors duration-150 ease-out hover:bg-bg"
+                            className="grid h-9 w-9 place-items-center rounded-md text-fg transition-colors duration-150 ease-out hover:bg-bg"
                         >
                             <PlusIcon weight="bold" size={12} />
                         </button>
                     </div>
-
-                    <span className="ml-auto text-sm font-bold tabular-nums text-fg">
-                        {formatPrice(cartItem.price * cartItem.quantity)}
-                    </span>
-
-                    <button
-                        onClick={onRemove}
-                        aria-label={`Remove ${cartItem.item.name} from the order`}
-                        className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-fg-subtle transition-colors duration-150 ease-out hover:bg-surface-sunken hover:text-fg"
-                    >
-                        <TrashIcon weight="bold" size={14} />
-                    </button>
                 </div>
             </div>
         </li>

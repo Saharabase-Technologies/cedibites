@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocation } from '@/app/components/providers/LocationProvider';
+import { SmallAction } from '@/app/components/ui/QuietControls';
 import { locationRecovery, type PermissionRecovery } from '@/lib/utils/locationPermission';
 import { CaretDownIcon, MagnifyingGlassIcon, MapPinIcon, NavigationArrowIcon, SpinnerGapIcon, XIcon } from '@phosphor-icons/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -247,16 +248,23 @@ export default function AddressSearchField({ value, onChange, placeholder, onDev
               * saw the one control that would have saved them typing an address
               * on a phone. Pressing it is what asks for permission now.
               */}
+            {/* A row, the same shape as the saved places listed under it at
+                checkout, rather than an underlined link sitting on its own. */}
             {permissionStatus !== 'denied' && isSupported && (
                 <button
+                    type="button"
                     onClick={handleUseMyLocation}
                     disabled={locating || permissionStatus === 'loading'}
-                    className="mt-2 flex items-center gap-1.5 text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70 disabled:opacity-50"
+                    className="mt-2 flex min-h-12 w-full items-center gap-3 py-2 text-left transition-opacity duration-150 ease-out hover:opacity-80 disabled:opacity-60"
                 >
-                    {locating
-                        ? <SpinnerGapIcon size={13} className="animate-spin" />
-                        : <NavigationArrowIcon size={13} weight="fill" />}
-                    {locating ? 'Finding you' : 'Use where I am now'}
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-fg/5 text-fg">
+                        {locating
+                            ? <SpinnerGapIcon size={16} className="animate-spin" />
+                            : <NavigationArrowIcon size={16} weight="fill" />}
+                    </span>
+                    <span className="text-[15px] font-bold text-fg">
+                        {locating ? 'Finding you' : 'Use where I am now'}
+                    </span>
                 </button>
             )}
 
@@ -308,12 +316,9 @@ export default function AddressSearchField({ value, onChange, placeholder, onDev
                                     </li>
                                 ))}
                             </ol>
-                            <button
-                                onClick={handleUseMyLocation}
-                                className="mt-3 text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70"
-                            >
+                            <SmallAction onClick={handleUseMyLocation} className="mt-3">
                                 I have changed it, try again
-                            </button>
+                            </SmallAction>
                         </div>
                     ) : (
                         <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">

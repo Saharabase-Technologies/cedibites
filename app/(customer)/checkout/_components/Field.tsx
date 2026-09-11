@@ -1,46 +1,16 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { smallActionLook } from '@/app/components/ui/QuietControls';
+import React from 'react';
 
 /**
- * The small parts the checkout form is built from.
+ * The small parts the checkout is built from.
  *
- * The old page put every group in a white card, and every input inside that
- * card in its own bordered box. Six containers on a screen that asks four
- * questions. A heading and the space above it separate two groups perfectly
- * well, which is what the cart sheet had already worked out.
+ * The screen is grouped blocks on a grey ground: where and who, how it is paid
+ * for, and the order with its money. Inside a block, rows are separated by air
+ * alone. The stepped version drew a hairline under every row, so nothing read as
+ * a group and the page became a stack of strips at the same weight.
  */
-
-/**
- * The question being asked, set as display type.
- *
- * American Captain is condensed and all caps. That is what makes it right for a
- * heading somebody reads at a glance and wrong for anything small: at the 15px
- * this used to be set at, the counters close up and it stops being legible on a
- * phone. The form asks one question at a time now, so the question can have the
- * size the face actually needs.
- */
-export function StepHeading({ children }: { children: React.ReactNode }) {
-    return (
-        <h2 className="font-brand text-[32px] uppercase leading-[0.92] tracking-[0.01em] text-fg md:text-[40px]">
-            {children}
-        </h2>
-    );
-}
-
-/** A group under a heading. */
-export function Section({ title, children, className = '' }: {
-    title: string;
-    children: React.ReactNode;
-    className?: string;
-}) {
-    return (
-        <section className={className}>
-            <StepHeading>{title}</StepHeading>
-            <div className="mt-6">{children}</div>
-        </section>
-    );
-}
 
 /** A labelled control. The label is the only description it gets. */
 export function Field({ label, error, hint, children }: {
@@ -71,33 +41,58 @@ export const controlClass =
     'outline-none transition-colors duration-150 ease-out ' +
     'placeholder:text-fg-subtle focus:border-fg';
 
-/**
- * One question arriving.
- *
- * Give it a `key` that changes with the question and each one fades up as the
- * last is taken away. 180ms and ease out, then it stops: this is telling you
- * something moved on, not performing.
- *
- * Anybody who has asked their phone to stop animating gets the same change with
- * no travel, which is the whole point of asking.
- */
-export function Reveal({ children }: { children: React.ReactNode }) {
-    const [shown, setShown] = useState(false);
+/** One block of related rows, white on the page's grey. */
+export function Group({ children }: { children: React.ReactNode }) {
+    return (
+        <section className="flex flex-col gap-5 rounded-2xl bg-surface p-4">
+            {children}
+        </section>
+    );
+}
 
-    useEffect(() => {
-        const raf = requestAnimationFrame(() => setShown(true));
-        return () => cancelAnimationFrame(raf);
-    }, []);
+/**
+ * One answer on the review screen, and the way to change it.
+ *
+ * A small grey label over the answer in bold, on every row. The stepped recap
+ * used three grammars in three lines ("Delivery to **X**", "**Somda**, +233…",
+ * "2 things from Ashaiman"), so the eye had to learn each line again.
+ *
+ * The whole row is the button. The word on the right is there so it looks like
+ * one: a row that answers a tap but looks like text is only found by accident.
+ * It wraps rather than truncates, because a Ghanaian address is long and a cut
+ * one is exactly when somebody needed to check it.
+ */
+export function ReviewRow({ caption, value, placeholder, badge, sub, action, onPress }: {
+    caption: string;
+    value?: string;
+    /** Said in place of the value when there is none yet. */
+    placeholder: string;
+    badge?: React.ReactNode;
+    sub?: React.ReactNode;
+    action?: string;
+    onPress?: () => void;
+}) {
+    const body = (
+        <>
+            <span className="min-w-0 flex-1">
+                <span className="block text-[13px] text-fg-muted">{caption}</span>
+                <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {value
+                        ? <span className="min-w-0 text-[15px] font-bold leading-snug break-words text-fg">{value}</span>
+                        : <span className="text-[15px] font-semibold leading-snug text-fg-subtle">{placeholder}</span>}
+                    {badge}
+                </span>
+                {sub && <span className="mt-1 block text-[13px] leading-snug break-words text-fg-muted">{sub}</span>}
+            </span>
+            {action && <span className={`${smallActionLook} group-hover:bg-fg/10`}>{action}</span>}
+        </>
+    );
+
+    if (!onPress) return <div className="flex items-start gap-3">{body}</div>;
 
     return (
-        <div
-            className={
-                'transition-[opacity,transform] duration-200 ease-out ' +
-                'motion-reduce:transition-none motion-reduce:translate-y-0 ' +
-                (shown ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0')
-            }
-        >
-            {children}
-        </div>
+        <button type="button" onClick={onPress} className="group flex w-full items-start gap-3 text-left">
+            {body}
+        </button>
     );
 }

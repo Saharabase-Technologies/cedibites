@@ -1,11 +1,11 @@
 /**
  * What a checkout is made of.
  *
- * There are no steps any more. Choosing delivery, saying where it goes, saying
- * who it is for and picking how to pay all happen on one screen, so the only
- * thing left to name is which of the three screens you are on: the form, the
- * wait for Hubtel, or the receipt. The wait and the receipt are states, not
- * steps, which is why neither of them has a back arrow.
+ * One screen that shows the whole order: where it goes, who it is for, how it
+ * is paid for, and what it costs. Each of the first three is a row you tap to
+ * change in a sheet. Beyond that there are only the wait for Hubtel and the
+ * receipt, and those are states rather than places, which is why neither of
+ * them has a back arrow.
  */
 
 export type OrderType = 'delivery' | 'pickup';
@@ -13,25 +13,15 @@ export type PaymentMethod = 'mobile_money' | 'cash';
 export type Phase = 'form' | 'paying' | 'placed';
 
 /**
- * The form asks one thing at a time.
+ * The three things a customer opens to change.
  *
- * Where it goes carries the delivery or pickup choice with it, because picking
- * pickup changes what "where" even means. The two cannot be asked separately
- * without the second question contradicting the first.
+ * These used to be three steps walked in order, with each answer folding into a
+ * line above the next question. By the payment step the answers had pushed the
+ * question 40% down the screen and the number box sat under the pay bar. A
+ * returning customer already has all three answered, so the screen shows them
+ * and a sheet opens only for the one being changed.
  */
-export type Stage = 'where' | 'who' | 'pay';
-
-export const STAGES: Stage[] = ['where', 'who', 'pay'];
-
-export function nextStage(stage: Stage): Stage | null {
-    const i = STAGES.indexOf(stage);
-    return i >= 0 && i < STAGES.length - 1 ? STAGES[i + 1] : null;
-}
-
-/** Whether `a` comes before `b`, used to decide what is already answered. */
-export function stageIsBefore(a: Stage, b: Stage): boolean {
-    return STAGES.indexOf(a) < STAGES.indexOf(b);
-}
+export type SheetName = 'where' | 'who' | 'pay';
 
 export interface ContactDetails {
     name: string;
@@ -61,7 +51,7 @@ export const DELIVERY_FEE = 0;
  * step before `/checkout-config` had answered, and stayed if the call failed. A
  * client should never invent money owed: if we cannot reach the server to ask,
  * the honest figure is nothing. Whether there is a charge at all is a setting,
- * and settings come from the server — see `calcServiceCharge` for the other
+ * and settings come from the server. See `calcServiceCharge` for the other
  * half of the rule, which is that cash never carries one.
  */
 export const DEFAULT_SC_CONFIG: ServiceChargeConfig = { enabled: false, percent: 0, cap: 0 };

@@ -1,82 +1,29 @@
 'use client';
 
-import { useBranch } from '@/app/components/providers/BranchProvider';
-import { isValidGhanaPhone } from '@/app/lib/phone';
-import { ArrowCounterClockwiseIcon, MapPinIcon } from '@phosphor-icons/react';
-import React, { useState } from 'react';
-import AddressSearchField from './AddressSearchField';
+import type { Branch } from '@/app/components/providers/BranchProvider';
+import { BranchStateBadge } from '@/app/components/ui/QuietControls';
+import { formatGhanaPhone } from '@/app/lib/phone';
 import { useAddresses } from '@/lib/api/hooks/useAddresses';
-import { Field, Reveal, StepHeading, controlClass } from './Field';
-import MomoField, { type MomoCheck } from './MomoField';
-import { Money } from './OrderPanel';
-import type { Totals } from './pricing';
-import type { RecalledDetails } from './recall';
-import { STAGES, stageIsBefore } from './types';
-import type { ContactDetails, OrderType, PaymentMethod, Stage } from './types';
+import React from 'react';
+import { methodLabel } from './availability';
+import { Group, ReviewRow } from './Field';
+import { MomoStatus, type MomoCheck } from './MomoField';
+import type { ContactDetails, OrderType, PaymentMethod, SheetName } from './types';
 
 /**
- * The checkout, one question at a time.
+ * The checkout, as one screen you read down and then pay.
  *
- * Everything used to be on screen at once: the delivery choice, the branch, an
- * address, a name, a number, a payment method and a note, seven answers stacked
- * down a phone. Nothing told you where to start and nothing told you when you
- * were done.
+ * It was seven answers stacked down a phone, then three questions asked one at
+ * a time. The stepped version fixed "where do I start", but every answer folded
+ * into a line above the next question, so by the payment step three recap rows
+ * sat on top of it, and a signed-in customer walked three screens to confirm
+ * things we already knew.
  *
- * Now one question is asked, answered, and folded into a line you can tap to
- * change. The next arrives in its place. Delivery or pickup travels with the
- * address, because choosing pickup changes what "where" means, and asking them
- * apart would let the second answer contradict the first.
+ * Now every answer is on the screen at once, each one a row that opens a sheet.
+ * A returning customer checks three rows and pays. Somebody with nothing saved
+ * presses the button, which says what is missing and opens that sheet, and is
+ * walked down the rows one sheet at a time.
  */
-
-// ─── Small parts ──────────────────────────────────────────────────────────────
-
-/** A quiet text button. The one link style this side of the product uses. */
-function TextButton({ onClick, children, className = '' }: {
-    onClick: () => void;
-    children: React.ReactNode;
-    className?: string;
-}) {
-    return (
-        <button
-            onClick={onClick}
-            className={`text-[13px] font-bold text-fg underline underline-offset-4 transition-opacity duration-150 ease-out hover:opacity-70 ${className}`}
-        >
-            {children}
-        </button>
-    );
-}
-
-/**
- * A question already answered.
- *
- * The answer, not the question. "Delivery to Alhaji Sulley Road" says what was
- * asked and what was said in one line, where "Where it goes: Alhaji Sulley
- * Road" would spend half the row repeating a heading nobody needs twice.
- *
- * The lead carries no weight and the answer does, so the eye lands on the part
- * that changes. No tracking on either: this is a line to be read, not a label
- * to be admired, and letter-spaced body text is neither.
- *
- * It wraps rather than truncates. A Ghanaian address is long, and cutting one
- * off is exactly the moment somebody needed to check it.
- */
-function Answered({ lead, value, tail, onChange }: {
-    lead?: string;
-    value: string;
-    tail?: string;
-    onChange: () => void;
-}) {
-    return (
-        <div className="flex items-start gap-4 border-b border-hairline py-3.5">
-            <p className="min-w-0 flex-1 text-sm leading-snug text-fg">
-                {lead && <span className="text-fg-muted">{lead} </span>}
-                <span className="font-bold break-words">{value}</span>
-                {tail && <span className="tabular-nums text-fg-muted">, {tail}</span>}
-            </p>
-            <TextButton onClick={onChange} className="shrink-0 pt-px">Change</TextButton>
-        </div>
-    );
-}
 
 /**
  * Two mutually exclusive answers.
@@ -101,10 +48,11 @@ function Segmented<T extends string>({ value, onChange, options }: {
                 return (
                     <button
                         key={o.value}
+                        type="button"
                         role="radio"
                         aria-checked={on}
                         onClick={() => onChange(o.value)}
-                        className={`min-h-12 rounded-lg text-[15px] font-bold transition-colors duration-150 ease-out ${
+                        className={`min-h-11 rounded-lg text-[15px] font-bold transition-colors duration-150 ease-out ${
                             on ? 'bg-surface text-fg' : 'text-fg-muted hover:text-fg'
                         }`}
                     >
@@ -116,318 +64,103 @@ function Segmented<T extends string>({ value, onChange, options }: {
     );
 }
 
-/** One choice in a list of them. A dot, a name, and what it means. */
-function ChoiceRow({ on, title, sub, onSelect }: {
-    on: boolean;
-    title: string;
-    sub: string;
-    onSelect: () => void;
-}) {
-    return (
-        <button
-            role="radio"
-            aria-checked={on}
-            onClick={onSelect}
-            className="flex w-full items-center gap-4 py-4 text-left"
-        >
-            <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 transition-colors duration-150 ease-out ${
-                on ? 'border-fg' : 'border-hairline-strong'
-            }`}>
-                {on && <span className="h-2.5 w-2.5 rounded-full bg-fg" />}
-            </span>
-            <span className="min-w-0">
-                <span className="block text-[15px] font-bold text-fg">{title}</span>
-                <span className="mt-0.5 block text-[13px] text-fg-muted">{sub}</span>
-            </span>
-        </button>
-    );
-}
-
-/**
- * Something worth stopping for, without a coloured box around it.
- *
- * Same shape as the cart sheet's, deliberately. A closed branch reads the same
- * on both screens because it is the same problem with the same way out.
- */
-function Notice({ title, body, action, onAction }: {
-    title: string;
-    body: string;
-    action: string;
-    onAction: () => void;
-}) {
-    return (
-        <div className="rounded-xl bg-surface-sunken px-4 py-3.5">
-            <p className="text-sm font-bold text-fg">{title}</p>
-            <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">{body}</p>
-            <TextButton onClick={onAction} className="mt-2.5 inline-block">{action}</TextButton>
-        </div>
-    );
-}
-
-// ─── The form ─────────────────────────────────────────────────────────────────
-
 export default function CheckoutForm({
-    stage, onJumpTo,
+    branch,
     orderType, setOrderType, orderTypes,
-    paymentMethod, setPaymentMethod, methods,
-    contact, setContact, recalled,
-    momoNumber, setMomoNumber, onMomoChecked,
-    totals, serviceLabel, moneyReady, onChangeBranch,
+    paymentMethod, methods,
+    contact, momoNumber, momoCheck, momoChecking,
+    onOpen,
 }: {
-    stage: Stage;
-    onJumpTo: (s: Stage) => void;
+    branch: Branch | null;
     orderType: OrderType;
     setOrderType: (t: OrderType) => void;
     orderTypes: OrderType[];
     paymentMethod: PaymentMethod;
-    setPaymentMethod: (m: PaymentMethod) => void;
     methods: PaymentMethod[];
     contact: ContactDetails;
-    setContact: React.Dispatch<React.SetStateAction<ContactDetails>>;
-    recalled: RecalledDetails;
     momoNumber: string;
-    setMomoNumber: (v: string) => void;
-    onMomoChecked: (c: MomoCheck) => void;
-    totals: Totals;
-    serviceLabel: string;
-    moneyReady: boolean;
-    onChangeBranch: () => void;
+    momoCheck: MomoCheck;
+    momoChecking: boolean;
+    onOpen: (target: SheetName | 'branch') => void;
 }) {
-    const { selectedBranch } = useBranch();
     // Cached by react-query, so this costs nothing beyond the account page's
-    // own fetch. Empty for a guest: the query only runs with a customer token.
+    // own fetch. Empty for a guest.
     const { addresses } = useAddresses();
-    const [noteOpen, setNoteOpen] = useState(Boolean(contact.note));
-    const [phoneTouched, setPhoneTouched] = useState(false);
 
-    const set = (field: keyof ContactDetails) => (v: string) =>
-        setContact(c => ({ ...c, [field]: v }));
+    const address = contact.address.trim();
+    const saved = address ? addresses.find(a => a.full_address.trim() === address) : undefined;
 
-    const phoneError = phoneTouched && contact.phone.trim() && !isValidGhanaPhone(contact.phone)
-        ? 'A Ghana number, like 0241234567.'
-        : '';
+    const name = contact.name.trim();
+    const phone = contact.phone.trim();
+    const who = [name, phone && formatGhanaPhone(phone)].filter(Boolean).join(', ');
+    const note = contact.note.trim();
 
-    const branchShut = Boolean(selectedBranch && (!selectedBranch.isActive || !selectedBranch.isOpen));
-    const canRecallAddress = orderType === 'delivery'
-        && Boolean(recalled.address)
-        && recalled.address !== contact.address;
-
-    /** What a finished question reads as once it is folded away. */
-    const answerFor = (s: Stage): { lead?: string; value: string; tail?: string } => {
-        if (s === 'where') {
-            return orderType === 'delivery'
-                ? { lead: 'Delivery to', value: contact.address || 'an address' }
-                : { lead: 'Pickup at', value: selectedBranch?.name ?? 'the branch' };
-        }
-        if (s === 'who') return { value: contact.name, tail: contact.phone };
-        if (paymentMethod === 'cash') return { lead: 'Paying by', value: 'Cash' };
-        return { lead: 'Mobile Money on', value: momoNumber };
-    };
+    const momo = momoNumber.trim();
+    const canChangePayment = methods.length > 1 || paymentMethod === 'mobile_money';
 
     return (
-        <div className="flex flex-col">
-
-                {branchShut && selectedBranch && (
-                    <div className="mb-7">
-                        <Notice
-                            title={selectedBranch.isActive === false
-                                ? `${selectedBranch.name} is not taking orders`
-                                : `${selectedBranch.name} is closed`}
-                            body={selectedBranch.isActive === false
-                                ? 'Nothing can be sent from here at the moment.'
-                                : 'Nothing leaves the kitchen until it opens again.'}
-                            action="Order from another branch"
-                            onAction={() => onChangeBranch()}
-                        />
-                    </div>
+        <div className="flex flex-col gap-4">
+            <Group>
+                {/* Delivery or pickup sits with the address, because choosing
+                    pickup changes what "where" means. */}
+                {orderTypes.length > 1 && (
+                    <Segmented
+                        value={orderType}
+                        onChange={setOrderType}
+                        options={orderTypes.map(t => ({
+                            value: t,
+                            label: t === 'delivery' ? 'Delivery' : 'Pickup',
+                        }))}
+                    />
                 )}
 
-                {/* Everything already settled, folded into a line each. */}
-                {STAGES.filter(s => stageIsBefore(s, stage)).map(s => (
-                    <Answered key={s} {...answerFor(s)} onChange={() => onJumpTo(s)} />
-                ))}
+                {orderType === 'delivery' ? (
+                    <ReviewRow
+                        caption={saved?.label ? `Delivery to ${saved.label}` : 'Delivery to'}
+                        value={address}
+                        placeholder="No address yet"
+                        sub={note ? `“${note}”` : undefined}
+                        action={address ? 'Change' : 'Add'}
+                        onPress={() => onOpen('where')}
+                    />
+                ) : (
+                    <ReviewRow
+                        caption="Pickup at"
+                        value={branch?.name}
+                        placeholder="No branch yet"
+                        badge={<BranchStateBadge branch={branch} />}
+                        sub={branch?.address}
+                        action={branch ? 'Change' : 'Choose'}
+                        onPress={() => onOpen('branch')}
+                    />
+                )}
 
-                {/* The question being asked. */}
-                <div className="pt-7">
-                    <Reveal key={stage}>
-                        {stage === 'where' && (
-                            <div className="flex flex-col gap-6">
-                                <StepHeading>How you want it</StepHeading>
+                <ReviewRow
+                    caption="Order for"
+                    value={who}
+                    placeholder="No name or number yet"
+                    sub={orderType === 'pickup' && note ? `“${note}”` : undefined}
+                    action={name && phone ? 'Change' : 'Add'}
+                    onPress={() => onOpen('who')}
+                />
+            </Group>
 
-                                {orderTypes.length > 1 && (
-                                    <Segmented
-                                        value={orderType}
-                                        onChange={setOrderType}
-                                        options={orderTypes.map(t => ({
-                                            value: t,
-                                            label: t === 'delivery' ? 'Delivery' : 'Pickup',
-                                        }))}
-                                    />
-                                )}
-
-                                {orderType === 'delivery' ? (
-                                    <>
-                                        <Field label="Where it goes">
-                                            <AddressSearchField
-                                                value={contact.address}
-                                                onChange={set('address')}
-                                                placeholder="Street, area or landmark"
-                                            />
-                                        </Field>
-
-                                        {/*
-                                          * The places they have told us they order to.
-                                          *
-                                          * The account list first, because it follows
-                                          * them between devices and they named these
-                                          * themselves. The device's last address is the
-                                          * fallback underneath, for a guest and for
-                                          * anybody who has not saved one yet — showing
-                                          * both would offer the same street twice.
-                                          */}
-                                        {addresses.length > 0 ? (
-                                            <div className="-mt-2 flex flex-wrap gap-2">
-                                                {addresses.map(a => {
-                                                    const chosen = contact.address.trim() === a.full_address.trim();
-                                                    return (
-                                                        <button
-                                                            key={a.id}
-                                                            onClick={() => set('address')(a.full_address)}
-                                                            className={`flex min-w-0 max-w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors duration-150 ease-out ${
-                                                                chosen
-                                                                    ? 'bg-fg text-white'
-                                                                    : 'bg-surface-sunken text-fg hover:opacity-80'
-                                                            }`}
-                                                        >
-                                                            <MapPinIcon
-                                                                size={13}
-                                                                weight="fill"
-                                                                className={`shrink-0 ${chosen ? 'text-white' : 'text-fg-muted'}`}
-                                                            />
-                                                            <span className="min-w-0 truncate text-[13px] font-semibold">
-                                                                {a.label || a.full_address}
-                                                            </span>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        ) : canRecallAddress && (
-                                            <button
-                                                onClick={() => set('address')(recalled.address)}
-                                                className="-mt-2 flex min-w-0 items-center gap-2 self-start rounded-lg bg-surface-sunken px-3 py-2 text-left transition-opacity duration-150 ease-out hover:opacity-80"
-                                            >
-                                                <ArrowCounterClockwiseIcon size={13} weight="bold" className="shrink-0 text-fg-muted" />
-                                                <span className="truncate text-[13px] font-semibold text-fg">{recalled.address}</span>
-                                            </button>
-                                        )}
-                                    </>
-                                ) : selectedBranch ? (
-                                    <div className="flex items-start gap-4">
-                                        <div className="min-w-0 flex-1">
-                                            <p className="text-[15px] font-bold text-fg">{selectedBranch.name}</p>
-                                            <p className="mt-1 text-sm leading-relaxed text-fg-muted">{selectedBranch.address}</p>
-                                            <p className="mt-0.5 text-sm tabular-nums text-fg-muted">{selectedBranch.phone}</p>
-                                        </div>
-                                        <TextButton onClick={() => onChangeBranch()} className="shrink-0">Change</TextButton>
-                                    </div>
-                                ) : (
-                                    <TextButton onClick={() => onChangeBranch()}>Pick a branch</TextButton>
-                                )}
-                            </div>
-                        )}
-
-                        {stage === 'who' && (
-                            <div className="flex flex-col gap-6">
-                                <StepHeading>Who it is for</StepHeading>
-
-                                <div className="flex flex-col gap-5 sm:flex-row">
-                                    <div className="flex-1">
-                                        <Field label="Name">
-                                            <input
-                                                type="text"
-                                                autoComplete="name"
-                                                placeholder="Kwame Mensah"
-                                                value={contact.name}
-                                                onChange={e => set('name')(e.target.value)}
-                                                className={controlClass}
-                                            />
-                                        </Field>
-                                    </div>
-                                    <div className="flex-1">
-                                        <Field label="Phone" error={phoneError}>
-                                            <input
-                                                type="tel"
-                                                inputMode="tel"
-                                                autoComplete="tel"
-                                                placeholder="0241234567"
-                                                value={contact.phone}
-                                                onChange={e => set('phone')(e.target.value)}
-                                                onBlur={() => setPhoneTouched(true)}
-                                                className={`${controlClass} tabular-nums`}
-                                            />
-                                        </Field>
-                                    </div>
-                                </div>
-
-                            </div>
-                        )}
-
-                        {stage === 'pay' && (
-                            <div className="flex flex-col gap-6">
-                                <StepHeading>How you pay</StepHeading>
-
-                                {methods.length > 0 && (
-                                    <div role="radiogroup" className="divide-y divide-hairline border-y border-hairline">
-                                        {methods.map(m => (
-                                            <ChoiceRow
-                                                key={m}
-                                                on={paymentMethod === m}
-                                                onSelect={() => setPaymentMethod(m)}
-                                                title={m === 'mobile_money' ? 'Mobile Money' : 'Cash'}
-                                                sub={m === 'mobile_money'
-                                                    ? 'MTN, Telecel or AirtelTigo'
-                                                    : orderType === 'delivery' ? 'Pay the rider at the door' : 'Pay at the counter'}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-
-                                {paymentMethod === 'mobile_money' && (
-                                    <MomoField
-                                        value={momoNumber}
-                                        onChange={setMomoNumber}
-                                        onChecked={onMomoChecked}
-                                    />
-                                )}
-
-                                {/* What they are agreeing to, itemised, on the
-                                    question where they agree to it. */}
-                                <div className="border-t border-hairline pt-5">
-                                    <Money totals={totals} serviceLabel={serviceLabel} ready={moneyReady} />
-                                </div>
-
-                                {noteOpen ? (
-                                    <Field label={orderType === 'delivery' ? 'Note for the rider' : 'Note for the kitchen'}>
-                                        <textarea
-                                            rows={3}
-                                            autoFocus
-                                            placeholder={orderType === 'delivery'
-                                                ? 'Call me when you reach the gate.'
-                                                : 'I will collect it myself.'}
-                                            value={contact.note}
-                                            onChange={e => set('note')(e.target.value)}
-                                            className={`${controlClass} resize-none py-3 leading-relaxed`}
-                                        />
-                                    </Field>
-                                ) : (
-                                    <TextButton onClick={() => setNoteOpen(true)} className="self-start">
-                                        {orderType === 'delivery' ? 'Add a note for the rider' : 'Add a note for the kitchen'}
-                                    </TextButton>
-                                )}
-                            </div>
-                        )}
-                    </Reveal>
-                </div>
+            {methods.length > 0 && (
+                <Group>
+                    <ReviewRow
+                        caption="Pay with"
+                        value={paymentMethod === 'mobile_money' && momo
+                            ? `Mobile Money, ${formatGhanaPhone(momo)}`
+                            : methodLabel(paymentMethod, orderType)}
+                        placeholder=""
+                        sub={paymentMethod === 'mobile_money'
+                            ? (momo ? <MomoStatus check={momoCheck} checking={momoChecking} /> : 'No number to charge yet')
+                            : undefined}
+                        action={canChangePayment ? 'Change' : undefined}
+                        onPress={canChangePayment ? () => onOpen('pay') : undefined}
+                    />
+                </Group>
+            )}
         </div>
     );
 }

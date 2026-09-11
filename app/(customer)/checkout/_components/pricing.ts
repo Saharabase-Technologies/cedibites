@@ -1,3 +1,4 @@
+import { formatGHS } from '@/lib/utils/currency';
 import type { OrderType, PaymentMethod, ServiceChargeConfig } from './types';
 import { DELIVERY_FEE } from './types';
 
@@ -26,7 +27,8 @@ export function calcServiceCharge(
     return cfg.cap > 0 && raw > cfg.cap ? cfg.cap : raw;
 }
 
-export const formatPrice = (p: number) => `₵${p.toFixed(2)}`;
+/** The same writing of money the cart sheet uses. See `formatGHS`. */
+export const formatPrice = (p: number) => formatGHS(p);
 
 export interface Totals {
     subtotal: number;
