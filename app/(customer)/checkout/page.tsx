@@ -270,7 +270,7 @@ export default function CheckoutPage() {
                     message: `${o.promo?.name ?? 'The offer already on this order'} takes more off, so ${code} is not needed.`,
                 };
             }
-            const taken = o.promo?.code ?? code;
+            const taken = o.appliedCode ?? o.promo?.code ?? code;
             answeredFor.current = `${branchId}|${linesKey}|${subtotal}|${taken}|${offerPhone}`;
             setPromo(o.promo);
             setPromoDiscount(o.discount);

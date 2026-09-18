@@ -1,10 +1,11 @@
 import apiClient from '@/lib/api/client';
-import type { Promo, PromoOffer, PromoOfferInput, PromoService } from './promo.service';
+import type { GenerateCodesInput, Promo, PromoCodeRow, PromoOffer, PromoOfferInput, PromoRedemption, PromoService } from './promo.service';
 
 interface ApiPromo {
   id: string;
   name: string;
   code?: string | null;
+  redemption?: PromoRedemption;
   type: 'percentage' | 'fixed_amount';
   value: number;
   scope: 'global' | 'branch';
@@ -18,6 +19,8 @@ interface ApiPromo {
   maxUsesPerCustomer?: number | null;
   firstOrderOnly?: boolean;
   timesUsed?: number;
+  codesCount?: number;
+  codesUsed?: number;
   startDate: string;
   endDate: string;
   isActive: boolean;
@@ -34,6 +37,8 @@ function toPromo(raw: ApiPromo): Promo {
     id: String(raw.id),
     name: raw.name,
     code: raw.code ?? undefined,
+    // A promo from before `redemption` existed reads the way it behaved.
+    redemption: raw.redemption ?? (raw.code ? 'shared_code' : 'automatic'),
     type: raw.type,
     value: Number(raw.value) || 0,
     scope: raw.scope,
@@ -47,6 +52,8 @@ function toPromo(raw: ApiPromo): Promo {
     maxUsesPerCustomer: raw.maxUsesPerCustomer != null ? Number(raw.maxUsesPerCustomer) : undefined,
     firstOrderOnly: Boolean(raw.firstOrderOnly),
     timesUsed: raw.timesUsed != null ? Number(raw.timesUsed) : undefined,
+    codesCount: raw.codesCount != null ? Number(raw.codesCount) : undefined,
+    codesUsed: raw.codesUsed != null ? Number(raw.codesUsed) : undefined,
     startDate: raw.startDate,
     endDate: raw.endDate,
     isActive: Boolean(raw.isActive),
@@ -63,19 +70,28 @@ function toApiBody(p: Partial<Promo>): Record<string, unknown> {
   if (p.branchIds != null) body.branch_ids = p.branchIds;
   if (p.appliesTo != null) body.applies_to = p.appliesTo;
   if (p.itemIds != null) body.item_ids = p.itemIds;
-  if (p.minOrderValue != null) body.min_order_value = p.minOrderValue;
-  if (p.maxOrderValue != null) body.max_order_value = p.maxOrderValue;
-  if (p.maxDiscount != null) body.max_discount = p.maxDiscount;
   if (p.startDate != null) body.start_date = p.startDate;
   if (p.endDate != null) body.end_date = p.endDate;
   if (p.isActive != null) body.is_active = p.isActive;
-  if (p.accountingCode != null) body.accounting_code = p.accountingCode;
-  // These four can be cleared, so an empty value is sent as null rather than
-  // left out. Leaving it out would keep the old limit on an edited promo.
-  if (p.code !== undefined) body.code = p.code || null;
-  if (p.maxUses !== undefined) body.max_uses = p.maxUses ?? null;
-  if (p.maxUsesPerCustomer !== undefined) body.max_uses_per_customer = p.maxUsesPerCustomer ?? null;
-  if (p.firstOrderOnly !== undefined) body.first_order_only = p.firstOrderOnly;
+  if (p.redemption != null) body.redemption = p.redemption;
+  if (p.firstOrderOnly != null) body.first_order_only = p.firstOrderOnly;
+
+  // Fields that can be emptied. A key present in the patch is sent, and empty
+  // goes as null. Checking the value instead of the key left an emptied field
+  // out of the request, so clearing a cap or a limit on an edited promo kept
+  // the old one without a word.
+  const clearable: [keyof Promo, string][] = [
+    ['minOrderValue', 'min_order_value'],
+    ['maxOrderValue', 'max_order_value'],
+    ['maxDiscount', 'max_discount'],
+    ['maxUses', 'max_uses'],
+    ['maxUsesPerCustomer', 'max_uses_per_customer'],
+    ['accountingCode', 'accounting_code'],
+    ['code', 'code'],
+  ];
+  for (const [key, field] of clearable) {
+    if (key in p) body[field] = p[key] === '' || p[key] === undefined ? null : p[key];
+  }
   return body;
 }
 
@@ -128,11 +144,32 @@ export class ApiPromoService implements PromoService {
       code: input.code || undefined,
       phone: input.phone || undefined,
     });
-    const raw = extractData<{ promo: ApiPromo | null; discount: number; code_beaten: boolean }>(response);
+    const raw = extractData<{ promo: ApiPromo | null; discount: number; code_beaten: boolean; applied_code?: string | null }>(response);
     return {
       promo: raw?.promo?.id ? toPromo(raw.promo) : null,
       discount: Number(raw?.discount) || 0,
       codeBeaten: Boolean(raw?.code_beaten),
+      appliedCode: raw?.applied_code ?? null,
     };
+  }
+
+  async listCodes(promoId: string): Promise<PromoCodeRow[]> {
+    const response = await apiClient.get(`/promos/${promoId}/codes`);
+    const rows = extractData<PromoCodeRow[]>(response);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async generateCodes(promoId: string, input: GenerateCodesInput): Promise<PromoCodeRow[]> {
+    const response = await apiClient.post(`/promos/${promoId}/codes`, {
+      count: input.count,
+      prefix: input.prefix || undefined,
+      batch: input.batch || undefined,
+    });
+    const rows = extractData<PromoCodeRow[]>(response);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async deleteCode(promoId: string, codeId: string): Promise<void> {
+    await apiClient.delete(`/promos/${promoId}/codes/${codeId}`);
   }
 }

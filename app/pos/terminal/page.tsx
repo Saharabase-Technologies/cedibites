@@ -352,7 +352,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
         setCodeMessage({ tone: 'info', text: `${o.promo?.name ?? 'The offer on this order'} takes more off, so ${code} is not needed.` });
         return;
       }
-      setPromoCode(o.promo?.code ?? code);
+      setPromoCode(o.appliedCode ?? o.promo?.code ?? code);
       setActivePromo(o.promo);
       setPromoDiscount(o.discount);
       setCodeInput('');

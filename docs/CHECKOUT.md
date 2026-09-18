@@ -168,9 +168,18 @@ The client asked for a code the customer can type when ordering, and the
 cashier can type at the till. Both ask the same server question,
 `POST /promos/offer`, and the server asks it again when the order goes in.
 
-- **A promo with a code waits to be asked for. One without applies by
-  itself**, as every promo always has. Existing promos have no code, so they
-  kept working unchanged.
+- **Three kinds, by `promos.redemption`**: `automatic` applies by itself, as
+  every promo always has; `shared_code` has one code anybody can type;
+  `single_use` has a batch of one-off codes in `promo_codes`, each good for one
+  order. The kind is its own column, because a one-off promo with no codes made
+  yet looks exactly like an automatic one and would otherwise have gone to
+  every order.
+- **One-off codes** are made in batches on the promo's admin page, look like
+  `JOLLOF-K7Q2MX` (no 0, O, 1, I or L), and match without their dash or case.
+  A code is spent when an order that is not cancelled carries it
+  (`orders.promo_code_id`), and held while somebody else's Mobile Money
+  checkout with it is still live, so it cannot be spent twice. A cancelled
+  order gives it back.
 - **One discount per order, and the bigger one wins.** A code that gives less
   than the automatic offer already on the order is not used, and the sheet says
   so. Typing a code can never cost anybody money.
