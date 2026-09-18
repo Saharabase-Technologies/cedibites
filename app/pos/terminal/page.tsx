@@ -65,6 +65,7 @@ import { useStockGate } from '@/lib/api/hooks/useStockGate';
 import type { StockShortfall } from '@/lib/api/services/stockGate.service';
 import { printReceipt } from '@/lib/utils/printReceipt';
 import { getPromoService, promoRefusal, type Promo, type PromoLine } from '@/lib/services/promos/promo.service';
+import { receiptName } from '@/lib/utils/receiptName.mjs';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
@@ -91,7 +92,9 @@ function getItemOptions(item: DisplayMenuItem): ItemOption[] {
     return item.sizes.map(size => ({
       key: `${item.id}|${size.key}`,
       label: size.label,
-      name: size.displayName || `${size.label} ${item.name}`,
+      // The receipt name rule (lib/utils/receiptName.mjs): the option on its own,
+      // the dish only when there is no real option. Never "Standard Coca Cola".
+      name: receiptName(item.name, size.displayName || size.label),
       price: size.price,
       menuItemId: item.id,
       sizeId: size.id,

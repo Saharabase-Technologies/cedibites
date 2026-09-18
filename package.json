@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "lint:hooks": "node scripts/lint-hooks.mjs"
+    "lint:hooks": "node scripts/lint-hooks.mjs && node scripts/check-receipt-names.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

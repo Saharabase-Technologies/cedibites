@@ -23,6 +23,18 @@ never come from our own formatting.
 `new Date()` is still fine for anything the machine alone cares about: a
 countdown, an animation, a debounce, how long a ticket has been on screen.
 
+**A line on an order is named by the option bought, on its own.** The menu
+item's name is used only for a dish with no real option ("Standard"). Never
+the two joined: "Fried Rice / Jollof Rice / Noodles + 3 pieces of Chicken,
+Jollof Rice + 3 pieces of Chicken" is the receipt that got this ruled on, by
+the owner, 2026-09-18. It holds on receipts and reprints, Order Manager
+tickets, the till, order history, tracking and analytics. The rule lives in
+`lib/utils/receiptName.mjs` and every screen goes through
+`getOrderItemLineLabel`; never name a line by hand. `npm run lint:hooks` (the
+deploy gate) runs `scripts/check-receipt-names.mjs` and fails if it breaks. An
+option showing a bare pill like "Assorted" needs a receipt name
+(`display_name`), not the item name joined back on.
+
 **Anything printed or handed over gets logged, with who and when.** A receipt
 is the document somebody brings back when there is a dispute. `receipt_printed_at`
 holds only the first print and `receipt_print_count` is a bare total, which is
