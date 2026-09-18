@@ -5,10 +5,10 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: ['/', '/menu', '/orders'],
+        allow: ['/', '/menu', '/track'],
         disallow: [
           '/checkout',
-          '/order-history',
+          '/orders',
           '/orders/',
           '/staff/',
           '/admin/',

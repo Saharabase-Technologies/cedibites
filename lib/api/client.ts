@@ -189,8 +189,10 @@ apiClient.interceptors.response.use(
       if (typeof window !== 'undefined') {
         const pathname = window.location.pathname;
         const staffToken = localStorage.getItem('cedibites_staff_token');
+        const customerToken = localStorage.getItem('cedibites_auth_token');
         const requestAuth = (error.config?.headers?.Authorization as string | undefined) ?? '';
         const usedStaffToken = !!staffToken && requestAuth === `Bearer ${staffToken}`;
+        const usedCustomerToken = !!customerToken && requestAuth === `Bearer ${customerToken}`;
 
         const isStaffRoute = pathname.startsWith('/staff') ||
           pathname.startsWith('/admin') ||
@@ -211,7 +213,21 @@ apiClient.interceptors.response.use(
             localStorage.removeItem('cedibites-staff-session');
             navigateTo('/staff/login');
           }
-        } else if (!isStaffRoute) {
+        } else if (!isStaffRoute && usedCustomerToken) {
+          /**
+           * Only when the request actually carried the customer's token.
+           *
+           * This used to fire on any 401 from any customer screen, and a guest
+           * has no token to expire. One endpoint that turned out to be behind
+           * auth was enough to sign somebody out of a session they did not
+           * have and send them to the home page: a guest at checkout got a 401
+           * from the promo lookup, and the order they had spent five minutes
+           * building disappeared in front of them.
+           *
+           * A 401 on a request that sent no credential is the server saying
+           * this endpoint needs one. It says nothing about the caller, so
+           * nothing is cleared and nobody is moved.
+           */
           localStorage.removeItem('cedibites_auth_token');
           localStorage.removeItem('cedibites-auth-user');
           if (pathname !== '/') {

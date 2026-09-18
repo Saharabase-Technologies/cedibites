@@ -75,6 +75,16 @@ export interface AlertOrder {
    * the alarm; everything else can at most reach `caution`.
    */
   awaitingAccept: boolean;
+  /**
+   * True while the ticket is work the kitchen has not started.
+   *
+   * This is what the arrival bell announces, and it is deliberately wider than
+   * `awaitingAccept`. A sale rung up at the till opens already accepted, so a
+   * bell keyed on acceptance would leave almost every order arriving in
+   * silence. Responsibility and arrival are two different facts: the cashier
+   * has taken the order, and the kitchen has still not been told.
+   */
+  awaitingKitchen: boolean;
 }
 
 export interface OrderAlertsOptions {
@@ -129,7 +139,7 @@ export function useOrderAlerts({
   }, [resetKey]);
 
   const arrivalKey = orders
-    .filter((o) => o.awaitingAccept)
+    .filter((o) => o.awaitingKitchen)
     .map((o) => o.id)
     .join(',');
 
@@ -143,8 +153,8 @@ export function useOrderAlerts({
     const seen = seenRef.current;
     const arrived = ids.filter((id) => !seen.has(id));
 
-    // Drop ids that have left the waiting list, so an order that is accepted and
-    // then reverted is heard again.
+    // Drop ids that have left the waiting list, so an order that starts cooking
+    // and is then pushed back is heard again.
     const live = new Set(ids);
     for (const id of Array.from(seen)) {
       if (!live.has(id)) seen.delete(id);

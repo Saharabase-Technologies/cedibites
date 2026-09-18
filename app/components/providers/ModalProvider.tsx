@@ -22,7 +22,14 @@ interface ModalContextType {
     isAuthOpen: boolean;
     openAuth: () => void;
     closeAuth: () => void;
+
+    // Search Sheet
+    isSearchOpen: boolean;
+    openSearch: () => void;
+    closeSearch: () => void;
 }
+
+import { lockScroll, unlockScroll } from '@/lib/utils/scrollLock';
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
 
@@ -31,13 +38,22 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isAuthOpen, setIsAuthOpen] = useState(false);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-    // ── Single scroll lock ──
+    /**
+      * The shared, counted lock rather than this file's own.
+      *
+      * Writing `body.style.overflow` here meant closing a drawer cleared the
+      * lock for anything else that was still open, and `overflow: hidden` does
+      * not stop touch scrolling on iOS at all. See lib/utils/scrollLock.ts.
+      */
     useEffect(() => {
-        const anyOpen = isBranchSelectorOpen || isLocationModalOpen || isCartOpen || isAuthOpen;
-        document.body.style.overflow = anyOpen ? 'hidden' : '';
-        return () => { document.body.style.overflow = ''; };
-    }, [isBranchSelectorOpen, isLocationModalOpen, isCartOpen, isAuthOpen]);
+        const anyOpen = isBranchSelectorOpen || isLocationModalOpen || isCartOpen || isAuthOpen || isSearchOpen;
+        if (!anyOpen) return;
+
+        lockScroll();
+        return unlockScroll;
+    }, [isBranchSelectorOpen, isLocationModalOpen, isCartOpen, isAuthOpen, isSearchOpen]);
 
     // Branch Selector
     const openBranchSelector = () => { setIsBranchSelectorOpen(true); setIsLocationModalOpen(false); };
@@ -60,12 +76,22 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     };
     const closeAuth = () => setIsAuthOpen(false);
 
+    // Search Sheet — takes the whole screen, so nothing else stays open under it
+    const openSearch = () => {
+        setIsSearchOpen(true);
+        setIsCartOpen(false);
+        setIsBranchSelectorOpen(false);
+        setIsLocationModalOpen(false);
+    };
+    const closeSearch = () => setIsSearchOpen(false);
+
     return (
         <ModalContext.Provider value={{
             isBranchSelectorOpen, openBranchSelector, closeBranchSelector,
             isLocationModalOpen, openLocationModal, closeLocationModal,
             isCartOpen, openCart, closeCart,
             isAuthOpen, openAuth, closeAuth,
+            isSearchOpen, openSearch, closeSearch,
         }}>
             {children}
         </ModalContext.Provider>

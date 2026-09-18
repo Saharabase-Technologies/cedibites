@@ -159,7 +159,7 @@ export function OrderDetailSheet({
             <h3 className="mb-2 mt-4 font-body text-[11px] font-bold uppercase tracking-wide text-neutral-gray">
               Note
             </h3>
-            <p className="rounded-xl bg-[#fdf3e2] p-3 font-body text-sm text-[#8a5a12]">
+            <p className="whitespace-pre-line rounded-xl bg-[#fdf3e2] p-3 font-body text-sm text-[#8a5a12]">
               {order.contact.notes}
             </p>
           </>

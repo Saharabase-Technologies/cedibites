@@ -32,17 +32,17 @@ export default function PaymentSuccessPage({ params }: { params: Promise<{ order
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-neutral-light dark:bg-brand-darker flex items-center justify-center">
+            <div className="min-h-[calc(100svh-var(--nav-h))] bg-neutral-light dark:bg-brand-darker flex items-center justify-center">
                 <SpinnerGapIcon size={40} className="animate-spin text-primary" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-neutral-light dark:bg-brand-darker flex items-center justify-center px-4 pt-20 pb-12">
+        <div className="min-h-[calc(100svh-var(--nav-h))] bg-neutral-light dark:bg-brand-darker flex items-center justify-center px-4 pt-10 pb-12">
             <div className="w-full max-w-md">
                 <div className="bg-white dark:bg-brand-dark rounded-3xl p-8 shadow-sm text-center flex flex-col items-center gap-5">
-                    <div className="w-20 h-20 rounded-full bg-secondary/10 flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-lg bg-secondary/10 flex items-center justify-center">
                         <CheckCircleIcon weight="fill" size={48} className="text-secondary" />
                     </div>
 

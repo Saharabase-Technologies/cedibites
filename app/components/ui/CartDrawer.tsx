@@ -1,418 +1,297 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
-    XIcon, TrashIcon, PlusIcon, MinusIcon, ShoppingBagIcon,
-    ArrowRightIcon, TagIcon, MapPinIcon, CaretRightIcon,
-    WarningCircleIcon, CheckCircleIcon, StorefrontIcon
+    ArrowLeftIcon, ArrowRightIcon, MinusIcon, PlusIcon, TrashIcon, XIcon,
 } from '@phosphor-icons/react';
-import { useCart, CartItem } from '@/app/components/providers/CartProvider';
+import { useCart, type CartItem } from '@/app/components/providers/CartProvider';
 import { useModal } from '@/app/components/providers/ModalProvider';
-import { useBranch, Branch, BranchWithDistance } from '@/app/components/providers/BranchProvider';
-import { useLocation } from '@/app/components/providers/LocationProvider';
-import { useAuth } from '../providers/AuthProvider';
+import { useBranch } from '@/app/components/providers/BranchProvider';
+import { useBranchSwitch, BranchList, BranchConflictPanel } from './BranchSwitch';
+import BottomSheet from './BottomSheet';
+import { AttentionBadge, BranchStateBadge, SmallAction } from './QuietControls';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
+import { photoForMenuItem } from '@/lib/constants/branchPhotos';
+import { formatGHS } from '@/lib/utils/currency';
+import { nextOpening } from '@/lib/utils/branchHours';
 
-const formatPrice = (p: number | string | null | undefined) => {
-    const n = typeof p === 'number' ? p : Number(p);
-    return `₵${Number.isNaN(n) ? '0.00' : n.toFixed(2)}`;
-};
+type DrawerView = 'cart' | 'branch-select';
 
-type DrawerView = 'cart' | 'branch-select' | 'branch-conflict';
-
+/**
+ * The order, before you pay for it.
+ *
+ * Rebuilt on the shared sheet, so it drags, locks the page, keeps its action
+ * bar clear of the home indicator and traps focus exactly like the item sheet
+ * does. That consistency is the point: two sheets in one app that behave
+ * differently is worse than either behaving badly.
+ *
+ * A closed branch used to be said four times: a Change link beside the branch
+ * name, a grey box explaining what closed means, a link inside that box to
+ * order from another branch, and a button at the foot that also changed branch.
+ * It is one row now, the branch with a Closed badge and the time it opens, and
+ * the button at the foot is the way out. A dish this kitchen cannot make gets a
+ * badge on its own line, where the customer is looking for it.
+ */
 export default function CartDrawer() {
     const { isCartOpen, closeCart } = useModal();
-    const { displayItems: items, removeFromCart, updateQuantity, totalItems, subtotal,
-        validateCartForBranch, removeUnavailableItems } = useCart();
-    const { selectedBranch, setSelectedBranch, branches, getBranchesWithDistance } = useBranch();
-    const { coordinates } = useLocation();
+    const {
+        displayItems: items, removeFromCart, updateQuantity, subtotal,
+        validateCartForBranch, removeUnavailableItems,
+    } = useCart();
+    const { selectedBranch } = useBranch();
 
     const [view, setView] = useState<DrawerView>('cart');
-    const [pendingBranch, setPendingBranch] = useState<Branch | null>(null);
-    const [conflictResult, setConflictResult] = useState<{ available: CartItem[]; unavailable: CartItem[] } | null>(null);
 
-    const total = subtotal;
+    // The list, the conflict panel and the decision about what happens to the
+    // cart are shared with the checkout page's branch sheet.
+    const { conflict, removing, selectBranch, removeAndSwitch, keepCurrentBranch, reset } =
+        useBranchSwitch({ onSettled: () => setView('cart') });
 
-    // Reset to cart view when drawer closes
-    useEffect(() => {
-        if (!isCartOpen) setTimeout(() => setView('cart'), 300);
-    }, [isCartOpen]);
+    // Leaving the branch views drops any unresolved conflict with them. Without
+    // this, backing out and coming back re-opened the conflict panel for a
+    // branch the customer had already walked away from.
+    const backToCart = useCallback(() => { reset(); setView('cart'); }, [reset]);
 
-    // Close on Escape
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeCart(); };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [closeCart]);
-
-    // Branches sorted by distance (or unsorted if no coords)
-    const sortedBranches: BranchWithDistance[] = coordinates
-        ? getBranchesWithDistance(coordinates.latitude, coordinates.longitude)
-        : branches.map(b => ({ ...b, distance: 0, deliveryTime: '–', isWithinRadius: true }));
-
-    const handleBranchSelect = useCallback((branch: Branch) => {
-        if (branch.id === selectedBranch?.id) { setView('cart'); return; }
-
-        if (items.length === 0) {
-            setSelectedBranch(branch);
-            setView('cart');
-            return;
-        }
-
-        const result = validateCartForBranch(branch.menuItemIds);
-        if (result.unavailable.length === 0) {
-            setSelectedBranch(branch);
-            setView('cart');
-        } else {
-            setPendingBranch(branch);
-            setConflictResult(result);
-            setView('branch-conflict');
-        }
-    }, [selectedBranch, items, validateCartForBranch, setSelectedBranch]);
-
-    const handleRemoveUnavailableAndSwitch = useCallback(() => {
-        if (!pendingBranch || !conflictResult) return;
-        removeUnavailableItems(conflictResult.unavailable.map(i => i.cartItemId));
-        setSelectedBranch(pendingBranch);
-        setPendingBranch(null);
-        setConflictResult(null);
-        setView('cart');
-    }, [pendingBranch, conflictResult, removeUnavailableItems, setSelectedBranch]);
-
-    const handleKeepCurrentBranch = useCallback(() => {
-        setPendingBranch(null);
-        setConflictResult(null);
-        setView('cart');
-    }, []);
-
-    return (
-        <>
-            {/* Backdrop */}
-            <div
-                className={`fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-300
-                    ${isCartOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-                onClick={closeCart}
-            />
-
-            {/* Drawer */}
-            <div
-                className={`fixed z-50 bg-neutral-light dark:bg-brand-darker flex flex-col transition-transform duration-300 ease-out shadow-2xl
-                    bottom-0 left-0 right-0 rounded-t-3xl max-h-[92dvh]
-                    md:bottom-auto md:top-0 md:left-auto md:right-0 md:h-full md:w-105 md:rounded-none md:rounded-l-3xl md:max-h-full
-                    ${isCartOpen ? 'translate-y-0 md:translate-x-0' : 'translate-y-full md:translate-y-0 md:translate-x-full'}`}
-            >
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-neutral-gray/10 shrink-0">
-                    <div className="flex items-center gap-3">
-                        {view !== 'cart' ? (
-                            <button onClick={() => setView('cart')} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-gray/15 transition-colors">
-                                <ArrowRightIcon size={16} weight="bold" className="text-text-dark dark:text-text-light rotate-180" />
-                            </button>
-                        ) : (
-                            '')}
-                        <h2 className="text-lg font-bold text-text-dark dark:text-text-light">
-                            {view === 'cart' && 'Your Order'}
-                            {view === 'branch-select' && 'Change Branch'}
-                            {view === 'branch-conflict' && 'Heads Up!'}
-                        </h2>
-                        {view === 'cart' && totalItems > 0 && (
-                            <span className="text-base font-bold text-text-dark  rounded-full dark:text-white">({totalItems})
-                            </span>
-                        )}
-                    </div>
-                    <button onClick={closeCart} className="w-9 cursor-pointer h-9 flex items-center justify-center rounded-full hover:bg-neutral-gray/15 transition-colors">
-                        <XIcon size={20} weight="bold" className="text-text-dark dark:text-text-light" />
-                    </button>
-                </div>
-
-                {/* ── CART VIEW ── */}
-                {view === 'cart' && (
-                    <>
-                        {selectedBranch && (
-                            <button
-                                onClick={() => setView('branch-select')}
-                                className="mx-5 mt-4 flex items-center gap-3 bg-primary/8 border border-primary/20 rounded-2xl p-3 hover:bg-primary/12 transition-colors group"
-                            >
-                                <MapPinIcon weight="fill" size={16} className="text-primary shrink-0" />
-                                <div className="flex-1 text-left min-w-0">
-                                    <p className="text-xs text-neutral-gray">Ordering from</p>
-                                    <p className="text-sm font-bold text-text-dark dark:text-text-light truncate">{selectedBranch.name} Branch</p>
-                                </div>
-                                <span className="text-xs font-semibold text-primary group-hover:underline shrink-0">Change</span>
-                                <CaretRightIcon size={14} className="text-primary shrink-0" />
-                            </button>
-                        )}
-
-                        {/* Branch unavailable warning */}
-                        {selectedBranch && (!selectedBranch.isActive || !selectedBranch.isOpen) && (
-                            <div className="mx-5 mt-3 flex items-start gap-3 bg-error/5 border border-error/20 rounded-2xl p-3.5">
-                                <WarningCircleIcon weight="fill" size={18} className="text-error shrink-0 mt-0.5" />
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-error">
-                                        {!selectedBranch.isActive ? 'Branch is inactive' : 'Branch is closed'}
-                                    </p>
-                                    <p className="text-xs text-error/70 mt-0.5">
-                                        {!selectedBranch.isActive
-                                            ? 'This branch is not accepting orders right now.'
-                                            : 'This branch is currently closed. Check back during operating hours.'}
-                                    </p>
-                                    <button
-                                        onClick={() => setView('branch-select')}
-                                        className="mt-2 text-xs font-bold text-primary hover:underline"
-                                    >
-                                        Switch to another branch →
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Unavailable items warning */}
-                        {selectedBranch && items.length > 0 && (() => {
-                            const result = validateCartForBranch(selectedBranch.menuItemIds);
-                            if (result.unavailable.length === 0) return null;
-                            return (
-                                <div className="mx-5 mt-3 flex items-start gap-3 bg-warning/5 border border-warning/20 rounded-2xl p-3.5">
-                                    <WarningCircleIcon weight="fill" size={18} className="text-warning shrink-0 mt-0.5" />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold text-text-dark dark:text-text-light">
-                                            {result.unavailable.length} item{result.unavailable.length !== 1 ? 's' : ''} unavailable here
-                                        </p>
-                                        <p className="text-xs text-neutral-gray mt-0.5">
-                                            {result.unavailable.map(ci => getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })).join(', ')}
-                                            {' '}{result.unavailable.length === 1 ? 'is' : 'are'} not on the {selectedBranch.name} menu.
-                                        </p>
-                                        <button
-                                            onClick={() => setView('branch-select')}
-                                            className="mt-2 text-xs font-bold text-primary hover:underline"
-                                        >
-                                            Switch branch for full availability →
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-
-                        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 flex flex-col gap-3">
-                            {items.length === 0 ? <EmptyCart /> : (
-                                <>
-                                    {items.map(ci => (
-                                        <CartItemRow key={ci.cartItemId} cartItem={ci}
-                                            onRemove={() => removeFromCart(ci.cartItemId)}
-                                            onIncrease={() => updateQuantity(ci.cartItemId, ci.quantity + 1)}
-                                            onDecrease={() => {
-                                                if (ci.quantity <= 1) removeFromCart(ci.cartItemId);
-                                                else updateQuantity(ci.cartItemId, ci.quantity - 1);
-                                            }}
-                                        />
-                                    ))}
-                                    <button onClick={closeCart} className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl border-2 border-dashed border-neutral-gray/25 text-neutral-gray hover:border-primary/40 hover:text-primary transition-colors text-sm font-medium">
-                                        <PlusIcon weight="bold" size={14} /> Add more items
-                                    </button>
-                                </>
-                            )}
-                        </div>
-
-                        {items.length > 0 && (() => {
-                            const branchUnavailable = selectedBranch && (!selectedBranch.isActive || !selectedBranch.isOpen);
-                            const hasUnavailableItems = selectedBranch && validateCartForBranch(selectedBranch.menuItemIds).unavailable.length > 0;
-                            const checkoutBlocked = branchUnavailable || hasUnavailableItems;
-
-                            return (
-                            <div className="shrink-0 px-5 pb-6 pt-4 border-t border-neutral-gray/10 flex flex-col gap-4">
-                                <div className="flex flex-col gap-2">
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-neutral-gray">Subtotal</span>
-                                        <span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(subtotal)}</span>
-                                    </div>
-                                    <div className="h-px bg-neutral-gray/15 my-1" />
-                                    <div className="flex items-center justify-between">
-                                        <span className="font-bold text-text-dark dark:text-text-light">Total</span>
-                                        <span className="text-xl font-bold text-primary">{formatPrice(total)}</span>
-                                    </div>
-                                </div>
-                                {checkoutBlocked ? (
-                                    <button
-                                        onClick={() => setView('branch-select')}
-                                        className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold px-6 py-4 rounded-2xl transition-all active:scale-[0.98]"
-                                    >
-                                        <StorefrontIcon weight="fill" size={18} />
-                                        <span>Switch Branch to Continue</span>
-                                    </button>
-                                ) : (
-                                <Link href="/checkout" onClick={closeCart} className="flex items-center justify-between bg-brown dark:bg-brand-dark hover:bg-brown-light text-white font-bold px-6 py-4 rounded-2xl transition-all active:scale-[0.98] group">
-                                    <span>Checkout</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-primary font-bold">{formatPrice(total)}</span>
-                                        <ArrowRightIcon weight="bold" size={18} className="group-hover:translate-x-1 transition-transform" />
-                                    </div>
-                                </Link>
-                                )}
-                            </div>
-                            );
-                        })()}
-                    </>
-                )}
-
-                {/* ── BRANCH SELECT VIEW ── */}
-                {view === 'branch-select' && (
-                    <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 flex flex-col gap-3">
-                        <p className="text-sm text-neutral-gray">Sorted by distance. Switching checks your cart for availability.</p>
-                        {sortedBranches.map(branch => {
-                            const isCurrent = branch.id === selectedBranch?.id;
-                            const isUnavailable = !branch.isOpen || !branch.isActive;
-                            return (
-                                <button key={branch.id} onClick={() => handleBranchSelect(branch)} disabled={isUnavailable}
-                                    className={`w-full flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all
-                                        ${isCurrent ? 'border-primary bg-primary/8' : 'border-neutral-gray/15 hover:border-primary/30'}
-                                        ${isUnavailable ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5
-                                        ${isCurrent ? 'bg-primary text-white' : 'bg-neutral-gray/15 text-neutral-gray'}`}>
-                                        <StorefrontIcon weight="fill" size={16} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <p className={`text-sm font-bold ${isCurrent ? 'text-primary' : 'text-text-dark dark:text-text-light'}`}>
-                                                {branch.name} Branch
-                                            </p>
-                                            {isCurrent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-white">Current</span>}
-                                            {!branch.isActive && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-error/15 text-error">Inactive</span>}
-                                            {branch.isActive && !branch.isOpen && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-gray/20 text-neutral-gray">Closed</span>}
-                                        </div>
-                                        <p className="text-xs text-neutral-gray mt-0.5 truncate">{branch.address}</p>
-                                        <div className="flex items-center gap-2 mt-1.5 text-xs text-neutral-gray flex-wrap">
-                                            {coordinates && <span>{branch.distance.toFixed(1)} km</span>}
-                                            <span>·</span>
-                                            <span>{branch.deliveryTime}</span>
-                                            <span>·</span>
-                                            <span>₵{branch.deliveryFee} delivery</span>
-                                        </div>
-                                    </div>
-                                    {!isCurrent && !isUnavailable && <CaretRightIcon size={16} className="text-neutral-gray shrink-0 mt-1" />}
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* ── BRANCH CONFLICT VIEW ── */}
-                {view === 'branch-conflict' && conflictResult && pendingBranch && (
-                    <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 flex flex-col gap-5">
-
-                        <div className="flex items-start gap-3 bg-warning/10 border border-warning/25 rounded-2xl p-4">
-                            <WarningCircleIcon weight="fill" size={20} className="text-warning shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-sm font-bold text-text-dark dark:text-text-light">
-                                    Some items aren't at {pendingBranch.name} Branch
-                                </p>
-                                <p className="text-xs text-neutral-gray mt-1">
-                                    {conflictResult.unavailable.length} item{conflictResult.unavailable.length !== 1 ? 's' : ''} won't be available there.
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Unavailable */}
-                        <div className="flex flex-col gap-2">
-                            <p className="text-xs font-semibold text-neutral-gray uppercase tracking-wide">Won't be available</p>
-                            {conflictResult.unavailable.map(ci => (
-                                <div key={ci.cartItemId} className="flex items-center gap-3 bg-error/5 border border-error/15 rounded-xl p-3">
-                                    <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-error/10 shrink-0">
-                                        {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
-                                        <p className="text-xs text-neutral-gray">Qty: {ci.quantity}</p>
-                                    </div>
-                                    <XIcon size={14} weight="bold" className="text-error shrink-0" />
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Available */}
-                        {conflictResult.available.length > 0 && (
-                            <div className="flex flex-col gap-2">
-                                <p className="text-xs font-semibold text-neutral-gray uppercase tracking-wide">Still available</p>
-                                {conflictResult.available.map(ci => (
-                                    <div key={ci.cartItemId} className="flex items-center gap-3 bg-secondary/5 border border-secondary/15 rounded-xl p-3">
-                                        <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-secondary/10 shrink-0">
-                                            {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
-                                            <p className="text-xs text-neutral-gray">Qty: {ci.quantity}</p>
-                                        </div>
-                                        <CheckCircleIcon size={14} weight="fill" className="text-secondary shrink-0" />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* 3 action options */}
-                        <div className="flex flex-col gap-3 pt-2">
-                            <button onClick={handleRemoveUnavailableAndSwitch} className="w-full flex items-center justify-between bg-primary hover:bg-primary-hover text-white font-bold px-5 py-4 rounded-2xl transition-all active:scale-[0.98]">
-                                <span>Remove {conflictResult.unavailable.length} item{conflictResult.unavailable.length !== 1 ? 's' : ''} & Switch</span>
-                                <ArrowRightIcon weight="bold" size={16} />
-                            </button>
-                            <button onClick={handleKeepCurrentBranch} className="w-full border-2 border-neutral-gray/20 text-text-dark dark:text-text-light font-bold px-5 py-3.5 rounded-2xl hover:border-primary/40 hover:text-primary transition-all">
-                                Keep {selectedBranch?.name} Branch
-                            </button>
-                            <button onClick={() => setView('branch-select')} className="w-full text-sm font-semibold text-neutral-gray hover:text-primary transition-colors py-2">
-                                Pick a different branch
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </>
+    // Computed once per render. This ran three separate times inline in the JSX
+    // below, over every line in the cart.
+    const branchCheck = useMemo(
+        () => (selectedBranch ? validateCartForBranch(selectedBranch.menuItemIds) : null),
+        [selectedBranch, validateCartForBranch],
     );
-}
 
-function CartItemRow({ cartItem, onRemove, onIncrease, onDecrease }: {
-    cartItem: CartItem; onRemove: () => void; onIncrease: () => void; onDecrease: () => void;
-}) {
-    const [imgError, setImgError] = React.useState(false);
-    return (
-        <div className="flex items-center gap-3 bg-white/60 dark:bg-white/5 rounded-2xl p-3">
-            <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-primary/10 shrink-0">
-                {cartItem.item.image && !imgError ? <Image src={cartItem.item.image} alt={cartItem.item.name} fill sizes="64px" className="object-cover" onError={() => setImgError(true)} /> : <div className="w-full h-full" />}
-            </div>
-            <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-text-dark dark:text-text-light leading-tight truncate">{getOrderItemLineLabel({ name: cartItem.item.name, sizeLabel: cartItem.sizeLabel })}</p>
-                <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-2 bg-neutral-gray/10 rounded-full px-1 py-0.5">
-                        <button onClick={onDecrease} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-primary/20 active:scale-90 transition-all">
-                            <MinusIcon weight="bold" size={10} className="text-text-dark dark:text-text-light" />
-                        </button>
-                        <span className="text-xs font-bold text-text-dark dark:text-text-light w-4 text-center tabular-nums">{cartItem.quantity}</span>
-                        <button onClick={onIncrease} className="w-6 h-6 flex items-center justify-center rounded-full bg-primary text-white active:scale-90 transition-all">
-                            <PlusIcon weight="bold" size={10} />
-                        </button>
-                    </div>
-                    <span className="text-sm font-bold text-primary">{formatPrice(cartItem.price * cartItem.quantity)}</span>
-                </div>
-            </div>
-            <button onClick={onRemove} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-error/15 text-neutral-gray hover:text-error transition-colors shrink-0">
-                <TrashIcon weight="bold" size={15} />
+    useEffect(() => {
+        if (isCartOpen) return;
+        const t = setTimeout(() => { reset(); setView('cart'); }, 300);
+        return () => clearTimeout(t);
+    }, [isCartOpen, reset]);
+
+    const unavailable = branchCheck?.unavailable ?? [];
+    const unavailableIds = new Set(unavailable.map(ci => ci.cartItemId));
+    const branchShut = Boolean(selectedBranch && (!selectedBranch.isActive || !selectedBranch.isOpen));
+    const opensWhen = selectedBranch?.isActive && !selectedBranch.isOpen ? nextOpening(selectedBranch.hours) : null;
+
+    const header = (
+        <div className="flex items-center gap-2 px-5 pb-4 pt-1 md:pt-5">
+            {view === 'cart' ? (
+                <h2 className="flex-1 text-lg font-bold text-fg">Your order</h2>
+            ) : (
+                <>
+                    <button
+                        onClick={backToCart}
+                        aria-label="Back to your order"
+                        className="-ml-2 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-fg transition-colors duration-150 ease-out hover:bg-surface-sunken"
+                    >
+                        <ArrowLeftIcon size={17} weight="bold" />
+                    </button>
+                    <h2 className="flex-1 text-lg font-bold text-fg">
+                        {conflict ? 'Not on that menu' : 'Change branch'}
+                    </h2>
+                </>
+            )}
+
+            <button
+                onClick={closeCart}
+                aria-label="Close"
+                className="-mr-2 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-fg-muted transition-colors duration-150 ease-out hover:bg-surface-sunken hover:text-fg"
+            >
+                <XIcon size={18} weight="bold" />
             </button>
         </div>
     );
+
+    const bigButton =
+        'mt-4 flex min-h-15 w-full items-center justify-center gap-2 rounded-2xl bg-primary-fill px-5 text-center ' +
+        'text-base font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95';
+
+    const footer = view === 'cart' && items.length > 0 ? (
+        <div className="px-5 pb-5 pt-4">
+            <div className="flex items-baseline justify-between">
+                <span className="text-sm text-fg-muted">Subtotal</span>
+                <span className="text-lg font-bold tabular-nums text-fg">{formatGHS(subtotal)}</span>
+            </div>
+
+            {branchShut ? (
+                <button onClick={() => setView('branch-select')} className={bigButton}>
+                    Choose another branch
+                </button>
+            ) : unavailable.length > 0 ? (
+                <button
+                    onClick={() => removeUnavailableItems(unavailable.map(i => i.cartItemId))}
+                    className={bigButton}
+                >
+                    Take out what {selectedBranch?.name} can&apos;t make
+                </button>
+            ) : (
+                <Link href="/checkout" onClick={closeCart} className={bigButton}>
+                    Go to checkout
+                    <ArrowRightIcon size={18} weight="bold" />
+                </Link>
+            )}
+        </div>
+    ) : null;
+
+    return (
+        <BottomSheet
+            open={isCartOpen}
+            onClose={closeCart}
+            label="Your order"
+            wide="drawer"
+            sheetUntil="(max-width: 767px)"
+            header={header}
+            footer={footer}
+        >
+            {view !== 'cart' ? (
+                <div className="px-5 pb-5">
+                    {conflict
+                        ? <BranchConflictPanel
+                            conflict={conflict}
+                            removing={removing}
+                            onRemoveAndSwitch={removeAndSwitch}
+                            onKeepCurrent={backToCart}
+                            onPickAnother={keepCurrentBranch}
+                        />
+                        : <BranchList onSelect={selectBranch} />}
+                </div>
+            ) : items.length === 0 ? (
+                <EmptyCart onBrowse={closeCart} />
+            ) : (
+                <>
+                    {selectedBranch && (
+                        <div className="flex items-start gap-3 px-5 pb-3">
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[13px] text-fg-muted">From</p>
+                                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span className="text-[15px] font-bold leading-snug text-fg">{selectedBranch.name}</span>
+                                    <BranchStateBadge branch={selectedBranch} />
+                                </p>
+                                {opensWhen && (
+                                    <p className="mt-0.5 text-[13px] text-fg-muted">Opens {opensWhen}</p>
+                                )}
+                            </div>
+                            {/* When it is shut, the button at the foot is the way
+                                out, and a second control here would say it again. */}
+                            {!branchShut && (
+                                <SmallAction onClick={() => setView('branch-select')}>Change</SmallAction>
+                            )}
+                        </div>
+                    )}
+
+                    <ul className="flex flex-col px-5 pb-3">
+                        {items.map(ci => (
+                            <CartLine
+                                key={ci.cartItemId}
+                                cartItem={ci}
+                                notAt={unavailableIds.has(ci.cartItemId) ? selectedBranch?.name : undefined}
+                                onIncrease={() => updateQuantity(ci.cartItemId, ci.quantity + 1)}
+                                onDecrease={() => {
+                                    if (ci.quantity <= 1) removeFromCart(ci.cartItemId);
+                                    else updateQuantity(ci.cartItemId, ci.quantity - 1);
+                                }}
+                            />
+                        ))}
+                    </ul>
+                </>
+            )}
+        </BottomSheet>
+    );
 }
 
-function EmptyCart() {
-    const { closeCart } = useModal();
+/**
+ * One line of the order: the dish, what the line costs, and how many.
+ *
+ * The count is the only control. Minus turns into a bin at one, so a separate
+ * bin beside it was a second way to do the same thing. The line total is the
+ * figure shown, because it is the one that adds up to the subtotal underneath.
+ */
+function CartLine({ cartItem, notAt, onIncrease, onDecrease }: {
+    cartItem: CartItem;
+    /** The branch name, when this dish is not on its menu. */
+    notAt?: string;
+    onIncrease: () => void;
+    onDecrease: () => void;
+}) {
+    const [imgError, setImgError] = useState(false);
+    const image = cartItem.item.thumbnail ?? cartItem.item.image ?? photoForMenuItem(cartItem.item.name)?.src;
+    const hasPhoto = Boolean(image) && !imgError;
+    const last = cartItem.quantity <= 1;
+
     return (
-        <div className="flex flex-col items-center justify-center flex-1 py-16 gap-4 text-center">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                <ShoppingBagIcon weight="fill" size={36} className="text-primary/40" />
+        /* No dimming and no disabling while the write is in flight.
+           `updateQuantity` is optimistic: the new count is on screen before the
+           request leaves, and it returns early for a line the server has not
+           given an id yet, so a fast thumb cannot duplicate anything. Greying
+           the row out was inventing a wait that was not happening. */
+        <li className="flex gap-3.5 py-3">
+            <span className="relative grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-lg bg-surface-sunken">
+                {hasPhoto ? (
+                    <Image
+                        src={image!}
+                        alt=""
+                        fill
+                        sizes="56px"
+                        className="object-cover"
+                        onError={() => setImgError(true)}
+                    />
+                ) : (
+                    <Image src="/logo/mark-black.webp" alt="" width={256} height={179} className="w-7 opacity-20" />
+                )}
+            </span>
+
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold leading-snug text-fg">
+                    {getOrderItemLineLabel({ name: cartItem.item.name, sizeLabel: cartItem.sizeLabel })}
+                </p>
+                {notAt && (
+                    <p className="mt-1">
+                        <AttentionBadge>Not at {notAt}</AttentionBadge>
+                    </p>
+                )}
+
+                <div className="mt-2 flex items-center justify-between gap-3">
+                    <span className="text-sm font-bold tabular-nums text-fg">
+                        {formatGHS(cartItem.price * cartItem.quantity)}
+                    </span>
+
+                    <div className="flex items-center gap-0.5 rounded-lg bg-surface-sunken p-0.5">
+                        <button
+                            onClick={onDecrease}
+                            aria-label={last ? `Remove ${cartItem.item.name} from the order` : 'One fewer'}
+                            className="grid h-9 w-9 place-items-center rounded-md text-fg transition-colors duration-150 ease-out hover:bg-bg"
+                        >
+                            {last ? <TrashIcon weight="bold" size={14} /> : <MinusIcon weight="bold" size={12} />}
+                        </button>
+                        <span aria-live="polite" className="min-w-6 text-center text-sm font-bold tabular-nums text-fg">
+                            {cartItem.quantity}
+                        </span>
+                        <button
+                            onClick={onIncrease}
+                            aria-label="One more"
+                            className="grid h-9 w-9 place-items-center rounded-md text-fg transition-colors duration-150 ease-out hover:bg-bg"
+                        >
+                            <PlusIcon weight="bold" size={12} />
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div>
-                <p className="font-bold text-text-dark dark:text-text-light">Your cart is empty</p>
-                <p className="text-sm text-neutral-gray mt-1">Add something delicious to get started</p>
-            </div>
-            <button onClick={closeCart} className="bg-primary text-white font-bold px-6 py-3 rounded-2xl hover:bg-primary-hover transition-all active:scale-95 text-sm">
-                Browse Menu
+        </li>
+    );
+}
+
+function EmptyCart({ onBrowse }: { onBrowse: () => void }) {
+    return (
+        <div className="flex flex-col items-center px-5 py-16 text-center">
+            <Image src="/logo/mark-black.webp" alt="" width={256} height={179} className="w-16 opacity-15" />
+            <p className="mt-5 text-base font-bold text-fg">Nothing here yet</p>
+            <p className="mt-1 max-w-64 text-sm leading-relaxed text-fg-muted">
+                Jollof, wraps, drumsticks and the rest are one tap away.
+            </p>
+            <button
+                onClick={onBrowse}
+                className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-primary-fill px-5 text-sm font-bold text-white transition-[filter] duration-150 ease-out hover:brightness-95"
+            >
+                Open the menu
             </button>
         </div>
     );

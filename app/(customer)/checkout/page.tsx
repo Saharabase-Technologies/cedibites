@@ -1,1120 +1,521 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
-import {
-    MapPinIcon, UserIcon, PhoneIcon,
-    NoteIcon, TruckIcon, BagIcon, DeviceMobileIcon,
-    MoneyIcon, CheckCircleIcon, ArrowRightIcon,
-    ArrowLeftIcon, ShoppingBagIcon, PencilSimpleIcon,
-    LockIcon, MagnifyingGlassIcon, XIcon, SpinnerGapIcon,
-    NavigationArrowIcon, StorefrontIcon, WarningCircleIcon,
-    CaretRightIcon, SparkleIcon, UserCircleIcon, TagIcon,
-} from '@phosphor-icons/react';
-import { getPromoService, type Promo } from '@/lib/services/promos/promo.service';
-import { useCart, CartItem } from '@/app/components/providers/CartProvider';
-import { useBranch, Branch, BranchWithDistance } from '@/app/components/providers/BranchProvider';
+import { useBranch } from '@/app/components/providers/BranchProvider';
+import { useCart } from '@/app/components/providers/CartProvider';
 import { useLocation } from '@/app/components/providers/LocationProvider';
 import { useAuth } from '@/app/components/providers/AuthProvider';
-import { useCreateCheckoutSession, useCheckoutSessionStatus, useAbandonCheckoutSession, useRetryPayment, useChangePaymentMethod } from '@/lib/api/hooks/useCheckoutSession';
-import PaymentRecoveryActions from '@/app/components/order/PaymentRecoveryActions';
-import type { PaymentMethod as UnifiedPaymentMethod, FulfillmentType } from '@/types/order';
-import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
+import ScreenHeader from '@/app/components/layout/ScreenHeader';
+import { normalizeGhanaPhone } from '@/app/lib/phone';
 import apiClient, { ApiError } from '@/lib/api/client';
+import { useCreateCheckoutSession } from '@/lib/api/hooks/useCheckoutSession';
+import { getPromoService } from '@/lib/services/promos/promo.service';
+import type { Promo } from '@/lib/services/promos/promo.service';
 import { toast } from '@/lib/utils/toast';
-import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import BranchSelectorSheet from './_components/BranchSelectorSheet';
+import CheckoutForm from './_components/CheckoutForm';
+import { PayStep, WhereStep, WhoStep } from './_components/CheckoutSteps';
+import { useMomoCheck } from './_components/MomoField';
+import EmptyCartGuard from './_components/EmptyCartGuard';
+import OrderPlaced from './_components/OrderPlaced';
+import PaymentWait from './_components/PaymentWait';
+import { OrderSummary } from './_components/OrderPanel';
+import { PayBar, PayBarSpacer, PayAction, type BarAction } from './_components/PayBar';
+import { enabledOrderTypes, enabledPaymentMethods, questionBlocker, reviewBlocker } from './_components/availability';
+import { computeTotals, formatPrice } from './_components/pricing';
+import { readRecalled, writeRecalled, type RecalledDetails } from './_components/recall';
+import { writeLastOrder } from '@/lib/orders/lastOrder';
+import { useAddresses } from '@/lib/api/hooks/useAddresses';
+import { DEFAULT_SC_CONFIG, QUESTIONS, STEPS, composeNote, stepIndex } from './_components/types';
+import type { ContactDetails, OrderType, PaymentMethod, Phase, Question, ServiceChargeConfig, Step } from './_components/types';
+
+const NO_RECALL: RecalledDetails = { name: '', phone: '', address: '' };
+
+/** Each question is the title of its own screen, so the screen needs no heading. */
+const QUESTION_TITLES: Record<Question, string> = {
+    where: 'Where it goes',
+    who: 'Who it is for',
+    pay: 'How you pay',
+};
 
-type OrderType = 'delivery' | 'pickup';
-type PaymentMethod = 'mobile_money' | 'cash';
-type Step = 1 | 2 | 3 | 4;
-type BranchSheetView = 'list' | 'conflict';
-
-interface ContactDetails { name: string; phone: string; address: string; note: string; }
-
-const DELIVERY_FEE = 0; // Delivery fees temporarily disabled
-
-interface ServiceChargeConfig { enabled: boolean; percent: number; cap: number; }
-interface CheckoutConfig { serviceCharge: ServiceChargeConfig; deliveryFeeEnabled: boolean; }
-const DEFAULT_SC_CONFIG: ServiceChargeConfig = { enabled: true, percent: 1, cap: 5 };
-const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = { serviceCharge: DEFAULT_SC_CONFIG, deliveryFeeEnabled: false };
-function calcServiceCharge(subtotal: number, cfg: ServiceChargeConfig): number {
-    if (!cfg.enabled || cfg.percent <= 0) return 0;
-    const raw = Math.round(subtotal * (cfg.percent / 100) * 100) / 100;
-    return cfg.cap > 0 && raw > cfg.cap ? cfg.cap : raw;
-}
-const formatPrice = (p: number) => `₵${p.toFixed(2)}`;
-
-// ─── Input Field ──────────────────────────────────────────────────────────────
-function InputField({ icon, label, required, children }: { icon: React.ReactNode; label: string; required?: boolean; children: React.ReactNode }) {
-    return (
-        <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-neutral-gray flex items-center gap-1.5">
-                {label}{required && <span className="text-error">*</span>}
-            </label>
-            <div className="relative flex items-center bg-neutral-light dark:bg-brand-dark border-2 border-neutral-gray/50 focus-within:border-primary rounded-xl transition-all overflow-hidden">
-                <span className="pl-3.5 text-neutral-gray shrink-0">{icon}</span>
-                <div className="flex-1 px-3 py-2.5 text-sm">{children}</div>
-            </div>
-        </div>
-    );
-}
-
-// ─── Address Search ───────────────────────────────────────────────────────────
-declare global { interface Window { google: any; initGooglePlaces: () => void; } }
-interface AddressSuggestion { id: string; mainText: string; secondaryText: string; fullAddress: string; }
-
-function AddressSearchField({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
-    const { coordinates } = useLocation();
-    const [query, setQuery] = useState(value);
-    const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
-    const [showSuggestions, setShowSuggestions] = useState(false);
-    const [locating, setLocating] = useState(false);
-    const [searching, setSearching] = useState(false);
-    const [googleReady, setGoogleReady] = useState(false);
-    const autocompleteRef = useRef<any>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    useEffect(() => {
-        if (window.google?.maps?.places) { setGoogleReady(true); return; }
-        const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-        if (!key) return;
-        window.initGooglePlaces = () => setGoogleReady(true);
-        if (!document.querySelector('script[data-google-places]')) {
-            const s = document.createElement('script');
-            s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&callback=initGooglePlaces`;
-            s.async = true; s.defer = true; s.dataset.googlePlaces = 'true';
-            document.head.appendChild(s);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (googleReady && !autocompleteRef.current)
-            autocompleteRef.current = new window.google.maps.places.AutocompleteService();
-    }, [googleReady]);
-
-    useEffect(() => {
-        const h = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node)) setShowSuggestions(false); };
-        document.addEventListener('mousedown', h);
-        return () => document.removeEventListener('mousedown', h);
-    }, []);
-
-    const fetchNominatim = useCallback(async (input: string) => {
-        if (input.length < 3) { setSuggestions([]); return; }
-        setSearching(true);
-        try {
-            let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(input + ', Ghana')}&format=json&limit=6&addressdetails=1`;
-            if (coordinates) url += `&viewbox=${coordinates.longitude - 0.3},${coordinates.latitude + 0.3},${coordinates.longitude + 0.3},${coordinates.latitude - 0.3}&bounded=0`;
-            const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-            const data: any[] = await res.json();
-            setSuggestions(data.map(r => ({
-                id: String(r.place_id),
-                mainText: r.address?.road ? [r.address.house_number, r.address.road].filter(Boolean).join(' ') : r.display_name.split(',')[0],
-                secondaryText: [r.address?.suburb, r.address?.city ?? r.address?.town ?? r.address?.village, r.address?.state].filter(Boolean).join(', '),
-                fullAddress: r.display_name,
-            })));
-        } catch { setSuggestions([]); } finally { setSearching(false); }
-    }, [coordinates]);
-
-    const fetchGoogle = useCallback((input: string) => {
-        if (!autocompleteRef.current || input.length < 3) { setSuggestions([]); return; }
-        setSearching(true);
-        const req: any = { input, componentRestrictions: { country: 'gh' }, types: ['geocode', 'establishment'] };
-        if (coordinates) req.locationBias = { center: { lat: coordinates.latitude, lng: coordinates.longitude }, radius: 20000 };
-        autocompleteRef.current.getPlacePredictions(req, (preds: any[], status: string) => {
-            setSearching(false);
-            if (status === 'OK' && preds) setSuggestions(preds.map(p => ({ id: p.place_id, mainText: p.structured_formatting?.main_text ?? p.description, secondaryText: p.structured_formatting?.secondary_text ?? '', fullAddress: p.description })));
-            else setSuggestions([]);
-        });
-    }, [coordinates]);
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const v = e.target.value; setQuery(v); onChange(v); setShowSuggestions(true);
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => googleReady && autocompleteRef.current ? fetchGoogle(v) : fetchNominatim(v), 300);
-    };
-
-    const handleUseMyLocation = async () => {
-        if (!coordinates) return;
-        setLocating(true);
-        try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${coordinates.latitude}&lon=${coordinates.longitude}&format=json`, { headers: { 'Accept-Language': 'en' } });
-            const data = await res.json();
-            const a = data.address ?? {};
-            const parts = [a.house_number && a.road ? `${a.house_number} ${a.road}` : a.road, a.suburb ?? a.neighbourhood, a.city ?? a.town ?? a.village].filter(Boolean);
-            const addr = parts.length > 0 ? parts.join(', ') : data.display_name;
-            setQuery(addr); onChange(addr);
-        } catch { } finally { setLocating(false); }
-    };
-
-    return (
-        <div ref={containerRef} className="relative">
-            <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-neutral-gray flex items-center gap-1.5">Delivery Address<span className="text-error">*</span></label>
-                <div className="relative flex items-center bg-neutral-light dark:bg-brand-dark border-2 border-neutral-gray/50 focus-within:border-primary rounded-xl transition-all overflow-hidden">
-                    <span className="pl-3.5 text-neutral-gray shrink-0"><MagnifyingGlassIcon size={15} weight="bold" /></span>
-                    <input type="text" value={query} onChange={handleChange} onFocus={() => query.length >= 3 && setShowSuggestions(true)} placeholder={placeholder}
-                        className="flex-1 px-3 py-3 text-sm bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/60" />
-                    {query && <button onClick={() => { setQuery(''); onChange(''); setSuggestions([]); }} className="pr-3 cursor-pointer text-neutral-gray hover:text-text-dark transition-colors"><XIcon size={14} weight="bold" /></button>}
-                </div>
-                {coordinates && (
-                    <button onClick={handleUseMyLocation} disabled={locating} className="flex items-center gap-2 text-xs font-semibold text-primary hover:text-primary-hover transition-colors w-fit mt-0.5 cursor-pointer">
-                        {locating ? <SpinnerGapIcon size={13} className="animate-spin" /> : <NavigationArrowIcon size={13} weight="fill" />}
-                        Use my current location
-                    </button>
-                )}
-            </div>
-            {showSuggestions && (searching || suggestions.length > 0) && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white dark:bg-brand-dark rounded-2xl shadow-xl border border-neutral-gray/15 overflow-hidden">
-                    {searching && suggestions.length === 0
-                        ? <div className="flex items-center gap-2 px-4 py-3 text-sm text-neutral-gray"><SpinnerGapIcon size={14} className="animate-spin text-primary" /> Searching addresses...</div>
-                        : suggestions.map((s, i) => (
-                            <button key={s.id} onClick={() => { setQuery(s.fullAddress); onChange(s.fullAddress); setSuggestions([]); setShowSuggestions(false); }}
-                                className={`w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-primary/5 transition-colors cursor-pointer ${i < suggestions.length - 1 ? 'border-b border-neutral-gray/8' : ''}`}>
-                                <MapPinIcon weight="fill" size={14} className="text-primary mt-0.5 shrink-0" />
-                                <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{s.mainText}</p>
-                                    {s.secondaryText && <p className="text-xs text-neutral-gray truncate">{s.secondaryText}</p>}
-                                </div>
-                            </button>
-                        ))
-                    }
-                </div>
-            )}
-        </div>
-    );
-}
-
-// ─── Branch Selector Sheet (inline, not CartDrawer) ───────────────────────────
-function BranchSelectorSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-    const { selectedBranch, setSelectedBranch, getBranchesWithDistance, branches } = useBranch();
-    const { coordinates } = useLocation();
-    const { validateCartForBranch, removeUnavailableItems, displayItems: items } = useCart();
-
-    const [sheetView, setSheetView] = useState<BranchSheetView>('list');
-    const [pendingBranch, setPendingBranch] = useState<Branch | null>(null);
-    const [conflict, setConflict] = useState<{ available: CartItem[]; unavailable: CartItem[] } | null>(null);
-
-    useEffect(() => { if (!isOpen) setTimeout(() => { setSheetView('list'); setPendingBranch(null); setConflict(null); }, 300); }, [isOpen]);
-
-    useEffect(() => {
-        document.body.style.overflow = isOpen ? 'hidden' : '';
-        return () => { document.body.style.overflow = ''; };
-    }, [isOpen]);
-
-    const sortedBranches: BranchWithDistance[] = coordinates
-        ? getBranchesWithDistance(coordinates.latitude, coordinates.longitude)
-        : branches.map(b => ({ ...b, distance: 0, deliveryTime: '–', isWithinRadius: true }));
-
-    const handleSelect = (branch: Branch) => {
-        if (branch.id === selectedBranch?.id) { onClose(); return; }
-        if (items.length === 0) { setSelectedBranch(branch); onClose(); return; }
-        const result = validateCartForBranch(branch.menuItemIds);
-        if (result.unavailable.length === 0) { setSelectedBranch(branch); onClose(); }
-        else { setPendingBranch(branch); setConflict(result); setSheetView('conflict'); }
-    };
-
-    const handleRemoveAndSwitch = () => {
-        if (!pendingBranch || !conflict) return;
-        removeUnavailableItems(conflict.unavailable.map(i => i.cartItemId));
-        setSelectedBranch(pendingBranch);
-        onClose();
-    };
-
-    return (
-        <>
-            <div className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={onClose} />
-            <div className={`fixed inset-x-0 bottom-0 z-50 bg-white dark:bg-brand-darker rounded-t-3xl shadow-2xl flex flex-col transition-transform duration-300 ease-out max-h-[88dvh]
-                md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-125 md:rounded-2xl md:max-h-[82vh]
-                ${isOpen ? 'translate-y-0' : 'translate-y-full md:opacity-0 md:scale-95 md:pointer-events-none'}`}>
-
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-neutral-gray/10 shrink-0">
-                    <div className="flex items-center gap-3">
-                        {sheetView === 'conflict' && (
-                            <button onClick={() => setSheetView('list')} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors cursor-pointer">
-                                <ArrowLeftIcon weight="bold" size={16} className="text-text-dark dark:text-text-light" />
-                            </button>
-                        )}
-                        <h3 className="font-bold text-text-dark dark:text-text-light">{sheetView === 'list' ? 'Change Branch' : 'Items Not Available'}</h3>
-                    </div>
-                    <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors cursor-pointer">
-                        <XIcon size={20} weight="bold" className="text-text-dark dark:text-text-light" />
-                    </button>
-                </div>
-
-                {/* Branch list */}
-                {sheetView === 'list' && (
-                    <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 flex flex-col gap-3">
-                        <p className="text-xs text-neutral-gray">Sorted by distance. Switching validates your cart automatically.</p>
-                        {sortedBranches.map(branch => {
-                            const isCurrent = branch.id === selectedBranch?.id;
-                            return (
-                                <button key={branch.id} onClick={() => handleSelect(branch)} disabled={!branch.isOpen}
-                                    className={`w-full flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all
-                                        ${isCurrent ? 'border-primary bg-primary/8' : 'border-neutral-gray/15 hover:border-primary/30'}
-                                        ${!branch.isOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isCurrent ? 'bg-primary text-white' : 'bg-neutral-gray/10 text-neutral-gray'}`}>
-                                        <StorefrontIcon weight="fill" size={16} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <p className={`text-sm font-bold ${isCurrent ? 'text-primary' : 'text-text-dark dark:text-text-light'}`}>{branch.name} Branch</p>
-                                            {isCurrent && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-white">Current</span>}
-                                            {!branch.isOpen && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-gray/20 text-neutral-gray">Closed</span>}
-                                        </div>
-                                        <p className="text-xs text-neutral-gray mt-0.5 truncate">{branch.address}</p>
-                                        <div className="flex items-center gap-2 mt-1.5 text-xs text-neutral-gray flex-wrap">
-                                            {coordinates && <span>{branch.distance.toFixed(1)} km away</span>}
-                                            <span>·</span><span>{branch.deliveryTime}</span><span>·</span><span>₵{branch.deliveryFee} delivery</span>
-                                        </div>
-                                    </div>
-                                    {!isCurrent && branch.isOpen && <CaretRightIcon size={16} className="text-neutral-gray shrink-0 mt-1" />}
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* Conflict view */}
-                {sheetView === 'conflict' && conflict && pendingBranch && (
-                    <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 flex flex-col gap-5">
-                        <div className="flex items-start gap-3 bg-warning/10 border border-warning/25 rounded-2xl p-4">
-                            <WarningCircleIcon weight="fill" size={20} className="text-warning shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-sm font-bold text-text-dark dark:text-text-light">
-                                    {conflict.unavailable.length} item{conflict.unavailable.length !== 1 ? 's' : ''} not available at {pendingBranch.name} Branch
-                                </p>
-                                <p className="text-xs text-neutral-gray mt-1">Remove them to switch, or stay at your current branch.</p>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                            <p className="text-xs font-semibold text-neutral-gray uppercase tracking-wide">Won't be available</p>
-                            {conflict.unavailable.map(ci => (
-                                <div key={ci.cartItemId} className="flex items-center gap-3 bg-error/5 border border-error/15 rounded-xl p-3">
-                                    <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-error/10 shrink-0">
-                                        {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
-                                        <p className="text-xs text-neutral-gray">Qty {ci.quantity}</p>
-                                    </div>
-                                    <XIcon size={14} weight="bold" className="text-error shrink-0" />
-                                </div>
-                            ))}
-                        </div>
-
-                        {conflict.available.length > 0 && (
-                            <div className="flex flex-col gap-2">
-                                <p className="text-xs font-semibold text-neutral-gray uppercase tracking-wide">Still available</p>
-                                {conflict.available.map(ci => (
-                                    <div key={ci.cartItemId} className="flex items-center gap-3 bg-secondary/5 border border-secondary/15 rounded-xl p-3">
-                                        <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-secondary/10 shrink-0">
-                                            {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="40px" className="object-cover" /> : <div className="w-full h-full" />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{getOrderItemLineLabel({ name: ci.item.name, sizeLabel: ci.sizeLabel })}</p>
-                                            <p className="text-xs text-neutral-gray">Qty {ci.quantity}</p>
-                                        </div>
-                                        <CheckCircleIcon size={14} weight="fill" className="text-secondary shrink-0" />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        <div className="flex flex-col gap-3 pt-1 pb-2">
-                            <button onClick={handleRemoveAndSwitch} className="w-full flex items-center justify-between bg-primary hover:bg-primary-hover text-white font-bold px-5 py-4 rounded-2xl transition-all active:scale-[0.98] cursor-pointer">
-                                <span>Remove {conflict.unavailable.length} item{conflict.unavailable.length !== 1 ? 's' : ''} & switch</span>
-                                <ArrowRightIcon weight="bold" size={16} />
-                            </button>
-                            <button onClick={onClose} className="w-full border-2 border-neutral-gray/20 text-text-dark dark:text-text-light font-bold px-5 py-3.5 rounded-2xl hover:border-primary/40 hover:text-primary transition-all cursor-pointer">
-                                Keep {selectedBranch?.name} Branch
-                            </button>
-                            <button onClick={() => setSheetView('list')} className="w-full text-sm font-semibold text-neutral-gray hover:text-primary transition-colors py-2 cursor-pointer">
-                                Pick a different branch
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </>
-    );
-}
-
-// ─── Step Indicator ───────────────────────────────────────────────────────────
-function StepIndicator({ current }: { current: Step }) {
-    const steps = [{ n: 1, label: 'Details' }, { n: 2, label: 'Payment' }, { n: 3, label: 'Processing' }, { n: 4, label: 'Done' }];
-    return (
-        <div className="flex items-center">
-            {steps.map((s, i) => {
-                const done = current > s.n; const active = current === s.n;
-                return (
-                    <React.Fragment key={s.n}>
-                        <div className="flex items-center gap-1.5">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${done ? 'bg-secondary text-white' : active ? 'bg-primary text-white' : 'bg-neutral-gray/20 text-neutral-gray'}`}>
-                                {done ? <CheckCircleIcon weight="fill" size={16} /> : s.n}
-                            </div>
-                            <span className={`text-sm font-semibold hidden sm:inline transition-colors ${active ? 'text-text-dark dark:text-text-light' : done ? 'text-secondary' : 'text-neutral-gray'}`}>{s.label}</span>
-                        </div>
-                        {i < steps.length - 1 && <div className={`h-px w-8 sm:w-12 mx-2 transition-colors ${current > s.n ? 'bg-secondary' : 'bg-neutral-gray/20'}`} />}
-                    </React.Fragment>
-                );
-            })}
-        </div>
-    );
-}
-
-// ─── Order Summary ────────────────────────────────────────────────────────────
-function OrderSummary({ orderType, scConfig, deliveryFeeEnabled, discount, promoName }: { orderType: OrderType; scConfig: ServiceChargeConfig; deliveryFeeEnabled: boolean; discount?: number; promoName?: string }) {
-    const { displayItems: items, subtotal } = useCart();
-    const { selectedBranch } = useBranch();
-    const showDelivery = deliveryFeeEnabled && orderType === 'delivery';
-    const delivery = showDelivery ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
-    const serviceCharge = calcServiceCharge(subtotal, scConfig);
-    const total = subtotal + delivery + serviceCharge - (discount ?? 0);
-    return (
-        <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
-            <div className="flex items-center justify-between">
-                <h3 className="font-bold text-text-dark dark:text-text-light">Order Summary</h3>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/15 text-primary">{items.length} item{items.length !== 1 ? 's' : ''}</span>
-            </div>
-            <div className="flex flex-col gap-3">
-                {items.map(ci => (
-                    <div key={ci.cartItemId} className="flex items-center gap-3">
-                        <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-primary/10 shrink-0">
-                            {ci.item.image ? <Image src={ci.item.image} alt={ci.item.name} fill sizes="48px" className="object-cover" /> : <div className="w-full h-full" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{ci.item.name}</p>
-                            <p className="text-xs text-neutral-gray">{ci.sizeLabel} · Qty: {ci.quantity}</p>
-                        </div>
-                        <span className="text-sm font-bold text-primary shrink-0">{formatPrice(ci.price * ci.quantity)}</span>
-                    </div>
-                ))}
-            </div>
-            <div className="h-px bg-neutral-gray/10" />
-            <div className="flex flex-col gap-2 text-sm">
-                <div className="flex justify-between"><span className="text-neutral-gray">Subtotal</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(subtotal)}</span></div>
-                {deliveryFeeEnabled && (
-                    <div className="flex justify-between">
-                        <span className="text-neutral-gray">Delivery Fee{showDelivery ? <span className="text-neutral-gray/70"> · paid to rider</span> : ''}</span>
-                        <span className="font-semibold text-text-dark dark:text-text-light">{showDelivery ? formatPrice(delivery) : <span className="text-secondary">Free</span>}</span>
-                    </div>
-                )}
-                <div className="flex justify-between"><span className="text-neutral-gray">Service Charge{scConfig.enabled ? ` (${scConfig.percent}%)` : ''}</span><span className="font-semibold text-text-dark dark:text-text-light">{formatPrice(serviceCharge)}</span></div>
-                {(discount ?? 0) > 0 && (
-                    <div className="flex justify-between items-center">
-                        <span className="flex items-center gap-1.5 text-secondary text-sm">
-                            <TagIcon size={14} weight="fill" />
-                            {promoName || 'Promo Discount'}
-                        </span>
-                        <span className="font-semibold text-secondary">-{formatPrice(discount!)}</span>
-                    </div>
-                )}
-            </div>
-            <div className="h-px bg-neutral-gray/10" />
-            <div className="flex justify-between items-center">
-                <span className="font-bold text-text-dark dark:text-text-light">Total</span>
-                <span className="text-2xl font-bold text-primary">{formatPrice(total)}</span>
-            </div>
-        </div>
-    );
-}
-
-// ─── Step 1 ───────────────────────────────────────────────────────────────────
-function StepDetails({ orderType, setOrderType, contact, setContact, onNext }: {
-    orderType: OrderType; setOrderType: (t: OrderType) => void;
-    contact: ContactDetails; setContact: (c: ContactDetails) => void; onNext: () => void;
-}) {
-    const { selectedBranch } = useBranch();
-    const [branchSheetOpen, setBranchSheetOpen] = useState(false);
-    const [phoneTouched, setPhoneTouched] = useState(false);
-    const update = (f: keyof ContactDetails) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setContact({ ...contact, [f]: e.target.value });
-    const phoneError = phoneTouched && contact.phone.trim() && !isValidGhanaPhone(contact.phone) ? 'Enter a valid Ghana number (e.g. 0241234567 or +233241234567)' : '';
-
-    // Filter order types by branch settings
-    const allOrderTypes = [
-        { type: 'delivery' as const, icon: <TruckIcon weight="fill" size={22} />, label: 'Delivery', sub: 'Delivered to you' },
-        { type: 'pickup' as const, icon: <BagIcon weight="fill" size={22} />, label: 'Pickup', sub: 'Pick up at branch' },
-    ];
-    const enabledOrderTypes = selectedBranch
-        ? allOrderTypes.filter(ot => selectedBranch.orderTypes[ot.type]?.is_enabled !== false)
-        : allOrderTypes;
-
-    // Auto-select order type if only one is available
-    useEffect(() => {
-        if (enabledOrderTypes.length === 1 && orderType !== enabledOrderTypes[0].type) {
-            setOrderType(enabledOrderTypes[0].type);
-        }
-    }, [enabledOrderTypes.length]);
-
-    const branchUnavailable = selectedBranch && (!selectedBranch.isActive || !selectedBranch.isOpen);
-    const canProceed = !branchUnavailable && enabledOrderTypes.length > 0 && contact.name.trim() && contact.phone.trim() && isValidGhanaPhone(contact.phone) && (orderType === 'pickup' || contact.address.trim());
-
-    return (
-        <>
-            <div className="flex flex-col gap-5">
-                <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
-                    <h2 className="font-bold text-text-dark dark:text-text-light">How do you want your order?</h2>
-                    {enabledOrderTypes.length === 0 ? (
-                        <div className="flex items-center gap-3 p-4 rounded-2xl bg-error/5 border border-error/20">
-                            <WarningCircleIcon weight="fill" size={20} className="text-error shrink-0" />
-                            <p className="text-sm text-error">No order types are currently available at this branch.</p>
-                        </div>
-                    ) : (
-                        <div className={`grid gap-3 ${enabledOrderTypes.length === 1 ? 'grid-cols-1 max-w-xs' : 'grid-cols-2'}`}>
-                            {enabledOrderTypes.map(({ type, icon, label, sub }) => (
-                                <button key={type} onClick={() => setOrderType(type)}
-                                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all duration-150 cursor-pointer
-                                        ${orderType === type ? 'border-primary bg-primary/8 text-primary' : 'border-neutral-gray/15 text-neutral-gray hover:border-primary/30'}`}>
-                                    <span className={orderType === type ? 'text-primary' : 'text-neutral-gray'}>{icon}</span>
-                                    <span className="text-sm font-bold">{label}</span>
-                                    <span className="text-xs opacity-70">{sub}</span>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {selectedBranch && (
-                    <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 shadow-sm flex flex-col gap-3">
-                        <div className="flex items-center justify-between cursor-pointer">
-                            <h2 className="font-bold text-text-dark dark:text-text-light">{orderType === 'delivery' ? 'Delivering From' : 'Pickup Location'}</h2>
-                            <button onClick={() => setBranchSheetOpen(true)} className="text-xs font-semibold text-primary flex items-center gap-1 hover:underline cursor-pointer">
-                                <PencilSimpleIcon size={12} /> Change Branch
-                            </button>
-                        </div>
-                        <div className="flex items-start gap-3 p-3 rounded-xl bg-neutral-light dark:bg-brown/30">
-                            <StorefrontIcon weight="fill" size={18} className="text-primary mt-0.5 shrink-0" />
-                            <div>
-                                <p className="text-sm font-semibold text-text-dark dark:text-text-light">{selectedBranch.name} Branch</p>
-                                <p className="text-xs text-neutral-gray mt-0.5">{selectedBranch.address}</p>
-                                <p className="text-xs text-neutral-gray mt-0.5">{selectedBranch.phone}</p>
-                            </div>
-                        </div>
-                        {orderType === 'delivery' && (
-                            <div className="flex items-center gap-2 text-sm text-neutral-gray">
-                                <span>Estimated: <strong className="text-text-dark dark:text-text-light">25-40 mins</strong></span>
-                                <span className="ml-auto text-xs font-semibold text-text-dark dark:text-text-light">₵{selectedBranch.deliveryFee} delivery fee</span>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 shadow-sm flex flex-col gap-4">
-                    <h2 className="font-bold text-text-dark dark:text-text-light">Your Details</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <InputField icon={<UserIcon weight="fill" size={15} />} label="Full Name" required>
-                            <input type="text" placeholder="e.g. Kwame Mensah" value={contact.name} onChange={update('name')} className="w-full bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/60" />
-                        </InputField>
-                        <div className="flex flex-col gap-1">
-                            <InputField icon={<PhoneIcon weight="fill" size={15} />} label="Phone Number" required>
-                                <input type="tel" placeholder="0241234567" value={contact.phone} onChange={update('phone')} onBlur={() => setPhoneTouched(true)} className="w-full bg-transparent outline-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/60" />
-                            </InputField>
-                            {phoneError && <p className="text-xs text-red-500 px-1">{phoneError}</p>}
-                        </div>
-                    </div>
-                    {orderType === 'delivery' && (
-                        <AddressSearchField value={contact.address} onChange={addr => setContact({ ...contact, address: addr })} placeholder="Search your delivery address..." />
-                    )}
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-semibold text-neutral-gray flex items-center gap-1.5"><NoteIcon weight="fill" size={13} /> Note to Rider (Optional)</label>
-                        <div className="bg-neutral-light dark:bg-brand-dark border-2 border-neutral-gray/50 focus-within:border-primary rounded-xl transition-all overflow-hidden">
-                            <textarea rows={2} placeholder="e.g. Call me when you reach the gate..." value={contact.note} onChange={update('note')}
-                                className="w-full px-3.5 py-3 text-sm bg-transparent outline-none resize-none text-text-dark dark:text-text-light placeholder:text-neutral-gray/60" />
-                        </div>
-                    </div>
-                </div>
-
-                <button onClick={onNext} disabled={!canProceed}
-                    className={`flex cursor-pointer items-center justify-center gap-2 w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-[0.98]
-                        ${canProceed ? 'bg-primary hover:bg-primary-hover text-white' : 'bg-neutral-gray/20 text-neutral-gray cursor-not-allowed'}`}>
-                    Continue to Payment <ArrowRightIcon weight="bold" size={18} />
-                </button>
-            </div>
-            <BranchSelectorSheet isOpen={branchSheetOpen} onClose={() => setBranchSheetOpen(false)} />
-        </>
-    );
-}
-
-// ─── Step 2 ───────────────────────────────────────────────────────────────────
-function StepPayment({ paymentMethod, setPaymentMethod, orderType, contact, onBack, onPlace, placing, scConfig }: {
-    paymentMethod: PaymentMethod; setPaymentMethod: (m: PaymentMethod) => void;
-    orderType: OrderType; contact: ContactDetails; onBack: () => void; onPlace: () => void; placing: boolean; scConfig: ServiceChargeConfig;
-}) {
-    const { subtotal } = useCart();
-    const { selectedBranch } = useBranch();
-    const [branchSheetOpen, setBranchSheetOpen] = useState(false);
-    const delivery = orderType === 'delivery' ? (selectedBranch?.deliveryFee ?? DELIVERY_FEE) : 0;
-    const serviceCharge = calcServiceCharge(subtotal, scConfig);
-    const total = subtotal + delivery + serviceCharge;
-
-    // Map frontend payment keys to backend DB keys for branch settings lookup
-    const paymentKeyMap: Record<string, string> = { mobile_money: 'momo', cash: 'cash_on_delivery' };
-
-    const allMethods = [
-        { id: 'mobile_money' as const, icon: <DeviceMobileIcon weight="fill" size={20} />, label: 'Mobile Money', sub: 'MTN MoMo · Telecel · AirtelTigo', color: 'text-warning' },
-        { id: 'cash' as const, icon: <MoneyIcon weight="fill" size={20} />, label: 'Cash on Delivery', sub: 'Pay when your order arrives', color: 'text-secondary' },
-    ];
-    const methods = selectedBranch
-        ? allMethods.filter(m => selectedBranch.paymentMethods[paymentKeyMap[m.id]]?.is_enabled !== false)
-        : allMethods;
-
-    // Auto-select payment method if only one is available
-    useEffect(() => {
-        if (methods.length === 1 && paymentMethod !== methods[0].id) {
-            setPaymentMethod(methods[0].id);
-        }
-    }, [methods.length]);
-
-    return (
-        <>
-            <div className="flex flex-col gap-5">
-                <div className="bg-white dark:bg-brand-dark rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-                            {orderType === 'delivery' ? <TruckIcon weight="fill" size={18} className="text-primary" /> : <BagIcon weight="fill" size={18} className="text-primary" />}
-                        </div>
-                        <div>
-                            <p className="text-sm font-bold text-text-dark dark:text-text-light">{orderType === 'delivery' ? 'Delivering to' : 'Pickup at'}</p>
-                            <p className="text-xs text-neutral-gray truncate max-w-50">{orderType === 'delivery' ? contact.address : selectedBranch?.name + ' Branch'}</p>
-                        </div>
-                    </div>
-                    <button onClick={onBack} className="text-xs cursor-pointer font-semibold text-primary hover:underline flex items-center gap-1 shrink-0"><PencilSimpleIcon size={12} /> Edit</button>
-                </div>
-
-                {selectedBranch && (
-                    <div className="bg-white dark:bg-brand-dark rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                            <StorefrontIcon weight="fill" size={18} className="text-primary shrink-0" />
-                            <div>
-                                <p className="text-sm font-bold text-text-dark dark:text-text-light">{selectedBranch.name} Branch</p>
-                                <p className="text-xs text-neutral-gray">{selectedBranch.address}</p>
-                            </div>
-                        </div>
-                        <button onClick={() => setBranchSheetOpen(true)} className="text-xs cursor-pointer font-semibold text-primary hover:underline shrink-0">Change</button>
-                    </div>
-                )}
-
-                <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 shadow-sm flex flex-col gap-3">
-                    <h2 className="font-bold text-text-dark dark:text-text-light">Payment Method</h2>
-                    {methods.length === 0 ? (
-                        <div className="flex items-center gap-3 p-4 rounded-2xl bg-error/5 border border-error/20">
-                            <WarningCircleIcon weight="fill" size={20} className="text-error shrink-0" />
-                            <p className="text-sm text-error">No payment methods are currently available at this branch.</p>
-                        </div>
-                    ) : methods.map(m => (
-                        <div key={m.id}>
-                            <button onClick={() => setPaymentMethod(m.id)}
-                                className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left cursor-pointer ${paymentMethod === m.id ? 'border-primary bg-primary/5' : 'border-neutral-gray/15 hover:border-primary/30'}`}>
-                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === m.id ? 'border-primary' : 'border-neutral-gray/40'}`}>
-                                    {paymentMethod === m.id && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
-                                </div>
-                                <span className={`${m.color} shrink-0`}>{m.icon}</span>
-                                <div className="flex-1">
-                                    <p className="text-sm font-semibold text-text-dark dark:text-text-light">{m.label}</p>
-                                    <p className="text-xs text-neutral-gray">{m.sub}</p>
-                                </div>
-                            </button>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="flex gap-3">
-                    <button onClick={onBack} className="flex cursor-pointer items-center gap-2 px-5 py-4 rounded-2xl border-2 border-neutral-gray/20 font-bold text-neutral-gray hover:border-primary/40 hover:text-primary transition-all">
-                        <ArrowLeftIcon weight="bold" size={16} /> Back
-                    </button>
-                    <button onClick={() => onPlace()} disabled={placing || methods.length === 0}
-                        className="flex-1 flex cursor-pointer items-center justify-between bg-brown dark:bg-brand-dark hover:bg-brown-light disabled:opacity-70 text-white font-bold px-6 py-4 rounded-2xl transition-all active:scale-[0.98] group">
-                        <span>{placing ? 'Placing Order...' : paymentMethod === 'mobile_money' ? 'Pay & Place Order' : 'Place Order'}</span>
-                        <div className="flex items-center gap-2">
-                            <span className="text-primary font-bold">{formatPrice(paymentMethod === 'mobile_money' ? total - delivery : total)}</span>
-                            <ArrowRightIcon weight="bold" size={18} className="group-hover:translate-x-1 transition-transform" />
-                        </div>
-                    </button>
-                </div>
-                {delivery > 0 && (
-                    <p className="text-xs text-center text-neutral-gray">
-                        {paymentMethod === 'mobile_money'
-                            ? `You pay ${formatPrice(total - delivery)} now for your order · ${formatPrice(delivery)} delivery is paid to the rider on delivery.`
-                            : `You'll pay ${formatPrice(total)} to the rider on delivery (incl. ${formatPrice(delivery)} delivery).`}
-                    </p>
-                )}
-                <p className="text-xs text-center text-neutral-gray flex items-center justify-center gap-1"><LockIcon size={11} /> Secured · Encrypted · Powered by Hubtel</p>
-            </div>
-            <BranchSelectorSheet isOpen={branchSheetOpen} onClose={() => setBranchSheetOpen(false)} />
-        </>
-    );
-}
-
-// ─── Step 3: Payment Processing (polls checkout session) ──────────────────────
-function StepProcessing({ sessionToken, onSuccess, onFail, onAbandon }: {
-    sessionToken: string;
-    onSuccess: (orderNumber: string) => void;
-    onFail: (message: string) => void;
-    onAbandon: () => void;
-}) {
-    const { session } = useCheckoutSessionStatus(sessionToken);
-    const abandon = useAbandonCheckoutSession();
-    const [showRecovery, setShowRecovery] = useState(false);
-
-    useEffect(() => {
-        if (!session) return;
-        if (session.status === 'confirmed' && session.order?.order_number) {
-            onSuccess(session.order.order_number);
-        } else if (session.status === 'failed' || session.status === 'expired') {
-            setShowRecovery(true);
-        }
-    }, [session, onSuccess, onFail]);
-
-    const handleAbandon = async () => {
-        try {
-            await abandon.mutateAsync(sessionToken);
-        } catch { /* ignore */ }
-        onAbandon();
-    };
-
-    // Show recovery UI when payment fails or expires
-    if (showRecovery && session) {
-        const isFailed = session.status === 'failed';
-        return (
-            <div className="flex flex-col items-center gap-5 py-10 text-center max-w-sm mx-auto">
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center ${isFailed ? 'bg-red-100 dark:bg-red-900/20' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
-                    <WarningCircleIcon weight="fill" size={40} className={isFailed ? 'text-red-500' : 'text-amber-500'} />
-                </div>
-                <div>
-                    <h2 className="text-xl font-bold text-text-dark dark:text-text-light">
-                        {isFailed ? 'Payment Failed' : 'Session Expired'}
-                    </h2>
-                    <p className="text-sm text-neutral-gray mt-2">
-                        {isFailed
-                            ? 'Your payment could not be completed. Choose an option below to try again.'
-                            : 'Your payment session has expired. You can retry or switch to cash.'}
-                    </p>
-                </div>
-
-                <PaymentRecoveryActions
-                    session={session}
-                    onOrderCreated={onSuccess}
-                    onAbandoned={onAbandon}
-                />
-            </div>
-        );
-    }
-
-    return (
-        <div className="flex flex-col items-center gap-6 py-12 text-center">
-            <div className="w-20 h-20 rounded-full bg-primary/15 flex items-center justify-center">
-                <SpinnerGapIcon size={40} className="text-primary animate-spin" />
-            </div>
-            <div>
-                <h2 className="text-xl font-bold text-text-dark dark:text-text-light">Awaiting Payment</h2>
-                <p className="text-sm text-neutral-gray mt-2">
-                    Complete the payment on the Hubtel page.<br />
-                    This page will update automatically once confirmed.
-                </p>
-            </div>
-            <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 w-full max-w-sm text-sm text-text-dark dark:text-text-light text-left flex items-start gap-3">
-                <DeviceMobileIcon weight="fill" size={18} className="text-primary shrink-0 mt-0.5" />
-                <span>If prompted on your phone, approve the Mobile Money payment to continue.</span>
-            </div>
-            <button onClick={handleAbandon} disabled={abandon.isPending}
-                className="text-sm font-semibold text-neutral-gray hover:text-error transition-colors cursor-pointer mt-2">
-                {abandon.isPending ? 'Cancelling...' : 'Cancel & go back'}
-            </button>
-        </div>
-    );
-}
-
-// ─── Step 4 ───────────────────────────────────────────────────────────────────
-function StepDone({ orderNumber, orderType, contact }: {
-    orderNumber: string; orderType: OrderType; contact: ContactDetails;
-}) {
-    const { isLoggedIn, requestCheckoutSaveOTP, confirmCheckoutSaveOTP } = useAuth();
-    const { selectedBranch } = useBranch();
-    // Saving the details means claiming the account behind this number, which
-    // carries its past orders and addresses — so it goes through an OTP rather
-    // than trusting that whoever typed the number owns it.
-    const [promptState, setPromptState] = useState<'idle' | 'sending' | 'code' | 'verifying' | 'saved' | 'dismissed'>(
-        isLoggedIn ? 'saved' : 'idle'
-    );
-    const [code, setCode] = useState('');
-    const [saveError, setSaveError] = useState<string | null>(null);
-    const [resendIn, setResendIn] = useState(0);
-
-    useEffect(() => {
-        if (resendIn <= 0) return;
-        const t = setTimeout(() => setResendIn(s => s - 1), 1000);
-        return () => clearTimeout(t);
-    }, [resendIn]);
-
-    const sendCode = async () => {
-        setPromptState('sending');
-        setSaveError(null);
-        const result = await requestCheckoutSaveOTP(contact.phone);
-        if (!result.success) {
-            setSaveError(result.error ?? 'Could not send the code. Please try again.');
-            setPromptState('idle');
-            return;
-        }
-        setCode('');
-        setResendIn(30);
-        setPromptState('code');
-    };
-
-    const submitCode = async () => {
-        if (code.length !== 6) return;
-        setPromptState('verifying');
-        setSaveError(null);
-        const result = await confirmCheckoutSaveOTP(contact.name, contact.phone, code);
-        if (!result.success) {
-            setSaveError(result.error ?? 'That code did not work. Please try again.');
-            setPromptState('code');
-            return;
-        }
-        setPromptState('saved');
-    };
-
-    return (
-        <div className="flex flex-col items-center gap-6 py-8 text-center">
-            {/* Success icon */}
-            <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-secondary/15 flex items-center justify-center">
-                    <CheckCircleIcon weight="fill" size={52} className="text-secondary" />
-                </div>
-                <div className="absolute -top-1 -right-1 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-                    <ShoppingBagIcon weight="fill" size={16} className="text-white" />
-                </div>
-            </div>
-
-            <div>
-                <h2 className="text-2xl font-bold text-text-dark dark:text-text-light">Order Placed!</h2>
-                <p className="text-neutral-gray mt-1">Your delicious food is being prepared</p>
-            </div>
-
-            {/* Order details card */}
-            <div className="bg-white dark:bg-brand-dark rounded-2xl p-5 w-full shadow-sm flex flex-col gap-3 text-left">
-                <div className="flex items-center justify-between">
-                    <span className="text-sm text-neutral-gray">Order Number</span>
-                    <span className="text-base font-bold text-primary font-mono">#{orderNumber}</span>
-                </div>
-                <div className="h-px bg-neutral-gray/10" />
-                <div className="flex items-center justify-between gap-4">
-                    <span className="text-sm text-neutral-gray shrink-0">{orderType === 'delivery' ? 'Delivering to' : 'Pickup at'}</span>
-                    <span className="text-sm font-semibold text-text-dark dark:text-text-light text-right truncate">
-                        {orderType === 'delivery' ? contact.address || 'Delivery address' : selectedBranch ? `${selectedBranch.name} Branch` : 'Branch'}
-                    </span>
-                </div>
-                <div className="flex items-center justify-between">
-                    <span className="text-sm text-neutral-gray">Estimated Time</span>
-                    <span className="text-sm font-semibold text-text-dark dark:text-text-light">
-                        {orderType === 'delivery' ? '25-40 mins' : '15-20 mins'}
-                    </span>
-                </div>
-            </div>
-
-            {/* SMS confirmation */}
-            <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 w-full text-sm text-text-dark dark:text-text-light text-left">
-                Confirmation SMS sent to <strong>{contact.phone}</strong> with your tracking link.
-            </div>
-
-            {/* ── Post-order save prompt ── */}
-            {promptState === 'idle' && (
-                <div className="w-full bg-white dark:bg-brand-dark rounded-2xl p-4 shadow-sm border border-primary/15 relative">
-                    <button onClick={() => setPromptState('dismissed')}
-                        className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors cursor-pointer">
-                        <XIcon size={13} weight="bold" className="text-neutral-gray" />
-                    </button>
-                    <div className="flex items-start gap-3 mb-4 text-left">
-                        <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center shrink-0 mt-0.5">
-                            <SparkleIcon weight="fill" size={18} className="text-primary" />
-                        </div>
-                        <div>
-                            <p className="text-sm font-bold text-text-dark dark:text-text-light">Save your info for next time?</p>
-                            <p className="text-xs text-neutral-gray mt-0.5">Faster checkout. Your name and number are filled in automatically.</p>
-                        </div>
-                    </div>
-                    {/* Pre-filled preview */}
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-light dark:bg-brown/30 mb-4">
-                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                            <UserCircleIcon weight="fill" size={22} className="text-primary" />
-                        </div>
-                        <div className="text-left min-w-0">
-                            <p className="text-sm font-semibold text-text-dark dark:text-text-light truncate">{contact.name}</p>
-                            <p className="text-xs text-neutral-gray">{contact.phone}</p>
-                        </div>
-                    </div>
-                    {saveError && (
-                        <p className="text-xs text-error mb-3 text-left">{saveError}</p>
-                    )}
-                    <button onClick={sendCode}
-                        className="w-full py-3 rounded-xl bg-secondary hover:bg-secondary/90 text-white font-bold text-sm transition-all active:scale-[0.98] cursor-pointer">
-                        Yes, save my info
-                    </button>
-                </div>
-            )}
-
-            {promptState === 'sending' && (
-                <div className="w-full bg-white dark:bg-brand-dark rounded-2xl p-4 shadow-sm flex items-center justify-center gap-2 text-sm text-neutral-gray">
-                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    Sending your code...
-                </div>
-            )}
-
-            {/* ── Code entry ── */}
-            {(promptState === 'code' || promptState === 'verifying') && (
-                <div className="w-full bg-white dark:bg-brand-dark rounded-2xl p-4 shadow-sm border border-primary/15 relative">
-                    <button onClick={() => setPromptState('dismissed')}
-                        className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full hover:bg-neutral-gray/10 transition-colors cursor-pointer">
-                        <XIcon size={13} weight="bold" className="text-neutral-gray" />
-                    </button>
-                    <div className="text-left mb-4">
-                        <p className="text-sm font-bold text-text-dark dark:text-text-light">Enter the code we sent</p>
-                        <p className="text-xs text-neutral-gray mt-0.5">
-                            Sent to <strong>{contact.phone}</strong>. This confirms the number is yours.
-                        </p>
-                    </div>
-
-                    <input
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        maxLength={6}
-                        value={code}
-                        disabled={promptState === 'verifying'}
-                        onChange={e => { setCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setSaveError(null); }}
-                        onKeyDown={e => { if (e.key === 'Enter') submitCode(); }}
-                        placeholder="------"
-                        className="w-full h-12 text-center tracking-[0.5em] font-mono text-lg rounded-xl bg-neutral-light dark:bg-brown/30 text-text-dark dark:text-text-light border border-neutral-gray/20 focus:border-primary/50 outline-none transition-colors disabled:opacity-60"
-                    />
-
-                    {saveError && (
-                        <p className="text-xs text-error mt-2 text-left">{saveError}</p>
-                    )}
-
-                    <button
-                        onClick={submitCode}
-                        disabled={code.length !== 6 || promptState === 'verifying'}
-                        className="w-full mt-4 py-3 rounded-xl bg-secondary hover:bg-secondary/90 disabled:bg-neutral-gray/30 disabled:cursor-not-allowed text-white font-bold text-sm transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
-                    >
-                        {promptState === 'verifying' && (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        )}
-                        {promptState === 'verifying' ? 'Confirming...' : 'Confirm'}
-                    </button>
-
-                    <button
-                        onClick={sendCode}
-                        disabled={resendIn > 0 || promptState === 'verifying'}
-                        className="w-full mt-2 py-2 text-xs font-semibold text-neutral-gray hover:text-primary disabled:hover:text-neutral-gray disabled:cursor-not-allowed transition-colors cursor-pointer"
-                    >
-                        {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
-                    </button>
-                </div>
-            )}
-
-            {(promptState === 'saved' || promptState === 'dismissed') && promptState === 'saved' && (
-                <div className="w-full bg-secondary/10 border border-secondary/20 rounded-2xl p-4 flex items-center gap-3 text-left">
-                    <CheckCircleIcon weight="fill" size={20} className="text-secondary shrink-0" />
-                    <div>
-                        <p className="text-sm font-bold text-text-dark dark:text-text-light">
-                            {isLoggedIn ? "You're already signed in" : "Saved, you're signed in"}
-                        </p>
-                        <p className="text-xs text-neutral-gray">
-                            {isLoggedIn ? 'Your info is pre-filled on every order.' : 'Your next checkout will be instant, and your order history is now yours.'}
-                        </p>
-                    </div>
-                </div>
-            )}
-
-            {/* CTA buttons */}
-            <div className="flex flex-col gap-3 w-full">
-                <Link href={`/orders/${orderNumber}`}
-                    className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold py-4 rounded-2xl transition-all active:scale-[0.98]">
-                    Track My Order <ArrowRightIcon weight="bold" size={16} />
-                </Link>
-                <Link href="/"
-                    className="flex items-center justify-center text-sm font-semibold text-neutral-gray hover:text-primary transition-colors py-2">
-                    Back to Menu
-                </Link>
-            </div>
-        </div>
-    );
-}
-
-// ─── Empty Cart Guard ─────────────────────────────────────────────────────────
-function EmptyCartGuard() {
-    return (
-        <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                <ShoppingBagIcon weight="fill" size={36} className="text-primary/40" />
-            </div>
-            <div className="text-center">
-                <h2 className="text-xl font-bold text-text-dark dark:text-text-light">Your cart is empty</h2>
-                <p className="text-neutral-gray mt-1">Add some items before checking out</p>
-            </div>
-            <Link href="/" className="bg-primary text-white font-bold px-8 py-3 rounded-2xl hover:bg-primary-hover transition-all">Browse Menu</Link>
-        </div>
-    );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CheckoutPage() {
-    const { displayItems: items, clearCart, subtotal } = useCart();
+    const router = useRouter();
+    const { displayItems: items, clearCart, subtotal, isLoading: cartLoading } = useCart();
     const { selectedBranch, branches } = useBranch();
     const { coordinates } = useLocation();
+    const { user, isLoggedIn } = useAuth();
+    // Empty for a guest: the query only runs when there is a customer token.
+    // The list itself is rendered by the address question and the review, off
+    // the same cached query.
+    const { defaultAddress, saveAddress } = useAddresses();
     const createSession = useCreateCheckoutSession();
-    const [step, setStep] = useState<Step>(1);
+
+    const [phase, setPhase] = useState<Phase>('form');
+
+    /**
+     * The screen on show, and the furthest one reached.
+     *
+     * `furthest` is what makes Change on the review cheap. It takes them back to
+     * one question, and Continue there returns them straight to the review
+     * rather than walking them through answers they have already given.
+     */
+    const [stage, setStage] = useState<Step>('where');
+    const [furthest, setFurthest] = useState<Step>('where');
+
     const [orderType, setOrderType] = useState<OrderType>('delivery');
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mobile_money');
     const [placing, setPlacing] = useState(false);
     const [orderNumber, setOrderNumber] = useState('');
+    const [trackingToken, setTrackingToken] = useState<string | undefined>();
     const [sessionToken, setSessionToken] = useState<string | null>(null);
-    const [contact, setContact] = useState<ContactDetails>({ name: '', phone: '', address: '', note: '' });
+    const [contact, setContact] = useState<ContactDetails>({
+        name: '', phone: '', address: '', kitchenNote: '', riderNote: '',
+    });
+
     const [scConfig, setScConfig] = useState<ServiceChargeConfig>(DEFAULT_SC_CONFIG);
     const [deliveryFeeEnabled, setDeliveryFeeEnabled] = useState(false);
-    const [activePromo, setActivePromo] = useState<Promo | null>(null);
-    const [promoDiscount, setPromoDiscount] = useState(0);
+    const [configReady, setConfigReady] = useState(false);
 
+    const [promo, setPromo] = useState<Promo | null>(null);
+    const [promoDiscount, setPromoDiscount] = useState(0);
+    const [promoReady, setPromoReady] = useState(false);
+
+    const [recalled, setRecalled] = useState<RecalledDetails>(NO_RECALL);
+
+    /**
+     * One branch sheet for the whole checkout.
+     *
+     * The pickup question, and the button on any screen when the branch cannot
+     * take the order, both open it. Two components cannot each hold their own
+     * copy of the same sheet without one of them opening behind the other.
+     */
+    const [branchSheet, setBranchSheet] = useState(false);
+    const openBranchSheet = useCallback(() => setBranchSheet(true), []);
+    const closeBranchSheet = useCallback(() => setBranchSheet(false), []);
+
+    /**
+     * The number the Mobile Money prompt goes to.
+     *
+     * Null means nobody has changed it, and it follows the number they gave for
+     * the order, because that is the one people pay from. Typing in the field
+     * takes it off that leash for good: somebody paying from a different wallet
+     * should not have it snatched back when they correct their contact number.
+     */
+    const [momoOverride, setMomoOverride] = useState<string | null>(null);
+    const momoNumber = momoOverride ?? contact.phone;
+
+    /*
+     * Hubtel is only asked whose wallet it is once they have reached the payment
+     * question. Every lookup is paid for, and somebody who opens checkout and
+     * leaves at the address has not told us how they mean to pay.
+     */
+    const reachedPay = stepIndex(furthest) >= stepIndex('pay');
+    const { check: momoCheck, checking: momoChecking } = useMomoCheck(
+        momoNumber,
+        paymentMethod === 'mobile_money' && reachedPay,
+    );
+
+    /**
+     * Whether the browser has had a turn yet.
+     *
+     * /checkout is prerendered at build time, and the cart lives behind a guest
+     * session id in localStorage that a build machine has never seen. React
+     * Query reports a disabled query as `isLoading: false`, so the static HTML
+     * for this route was the "nothing to pay for yet" screen. Every visit
+     * painted an empty cart first, whatever was actually in it.
+     */
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => { setMounted(true); }, []);
+
+    const effectiveBranch = selectedBranch ?? branches.find(b => b.isOpen) ?? branches[0] ?? null;
+    const branchId = effectiveBranch?.id;
+
+    // ── What this phone and this account already know ────────────────────────
+    // localStorage cannot be read while rendering without the server and the
+    // client disagreeing about what the first paint says, so it lands here and
+    // fills in only the fields still empty. Nobody's typing is ever overwritten.
+    useEffect(() => {
+        const saved = readRecalled();
+        setRecalled(saved);
+        setContact(c => ({
+            ...c,
+            name: c.name || (isLoggedIn ? user?.name ?? '' : '') || saved.name,
+            phone: c.phone || (isLoggedIn ? user?.phone ?? '' : '') || saved.phone,
+            // The account's default address outranks this device's last one:
+            // it is the place they told us they usually order to, and it
+            // follows them between a phone and a laptop. `readRecalled` is the
+            // guest's fallback and the signed-in customer's until they save one.
+            address: c.address || defaultAddress?.full_address || saved.address,
+        }));
+    }, [isLoggedIn, user?.name, user?.phone, defaultAddress?.full_address]);
+
+    // ── Charges ──────────────────────────────────────────────────────────────
     useEffect(() => {
         apiClient.get('/checkout-config').then((res: unknown) => {
             const d = (res as { data?: { service_charge_enabled?: boolean; service_charge_percent?: number; service_charge_cap?: number; delivery_fee_enabled?: boolean } })?.data;
             if (d) {
-                setScConfig({ enabled: d.service_charge_enabled ?? true, percent: d.service_charge_percent ?? 1, cap: d.service_charge_cap ?? 5 });
+                // Absent means absent. Falling back to 1% here was the second
+                // place a charge could appear that nobody had configured.
+                setScConfig({
+                    enabled: d.service_charge_enabled ?? false,
+                    percent: d.service_charge_percent ?? 0,
+                    cap: d.service_charge_cap ?? 0,
+                });
                 setDeliveryFeeEnabled(d.delivery_fee_enabled ?? false);
             }
-        }).catch(() => { /* fall back to defaults */ });
+        }).catch(() => { /* the defaults stand */ })
+            .finally(() => setConfigReady(true));
     }, []);
 
-    const effectiveBranch = selectedBranch ?? branches.find(b => b.isOpen) ?? branches[0] ?? null;
-
-    // Auto-resolve best applicable promo
+    // ── The best promo this order qualifies for ──────────────────────────────
+    // Keyed on which dishes and which branch, not on the objects carrying them.
+    // The cart and the branch list both refetch on focus and hand back fresh
+    // copies of the same things, and every fresh copy blanked the totals to
+    // grey bars and asked all over again.
+    const itemIdsKey = items.map(ci => String(ci.item.id)).join(',');
     useEffect(() => {
-        if (!effectiveBranch || items.length === 0) { setActivePromo(null); setPromoDiscount(0); return; }
-        const itemIds = items.map(ci => String(ci.item.id));
-        getPromoService().resolvePromo(itemIds, String(effectiveBranch.id), subtotal).then(p => {
-            if (!p) { setActivePromo(null); setPromoDiscount(0); return; }
-            setActivePromo(p);
-            setPromoDiscount(getPromoService().calculateDiscount(p, subtotal));
-        }).catch(() => { setActivePromo(null); setPromoDiscount(0); });
-    }, [items, effectiveBranch, subtotal]);
+        const itemIds = itemIdsKey ? itemIdsKey.split(',') : [];
+        if (!branchId || itemIds.length === 0) {
+            setPromo(null); setPromoDiscount(0); setPromoReady(true);
+            return;
+        }
+        setPromoReady(false);
+        getPromoService().resolvePromo(itemIds, String(branchId), subtotal).then(p => {
+            setPromo(p ?? null);
+            setPromoDiscount(p ? getPromoService().calculateDiscount(p, subtotal) : 0);
+        }).catch(() => {
+            setPromo(null); setPromoDiscount(0);
+        }).finally(() => setPromoReady(true));
+    }, [itemIdsKey, branchId, subtotal]);
 
-    const handlePlaceOrder = useCallback(async () => {
+    // ── What the branch will take ────────────────────────────────────────────
+    const orderTypes = useMemo(() => enabledOrderTypes(effectiveBranch), [effectiveBranch]);
+    const methods = useMemo(() => enabledPaymentMethods(effectiveBranch), [effectiveBranch]);
+
+    // A branch offering one of something has already made the choice.
+    useEffect(() => {
+        if (orderTypes.length > 0 && !orderTypes.includes(orderType)) setOrderType(orderTypes[0]);
+    }, [orderTypes, orderType]);
+
+    useEffect(() => {
+        if (methods.length > 0 && !methods.includes(paymentMethod)) setPaymentMethod(methods[0]);
+    }, [methods, paymentMethod]);
+
+    // ── The money, worked out once for the review ────────────────────────────
+    const totals = useMemo(() => computeTotals({
+        subtotal,
+        orderType,
+        scConfig,
+        deliveryFeeEnabled,
+        branchDeliveryFee: effectiveBranch?.deliveryFee,
+        discount: promoDiscount,
+        promoName: promo?.name,
+        paymentMethod,
+    }), [subtotal, orderType, scConfig, deliveryFeeEnabled, effectiveBranch?.deliveryFee, promoDiscount, promo?.name, paymentMethod]);
+
+    /**
+     * The figures are only true once the server has said what it charges and
+     * whether this order has a promo on it. Before that the review would show a
+     * total built from the fallbacks, then quietly change it. The pay button
+     * holds until both have landed.
+     */
+    const moneyReady = configReady && promoReady;
+
+    const serviceLabel = scConfig.percent > 0 ? `Service charge, ${scConfig.percent}%` : 'Service charge';
+
+    // ── Placing it ───────────────────────────────────────────────────────────
+    const handlePlace = useCallback(async () => {
         if (!effectiveBranch) return;
+        const phone = normalizeGhanaPhone(contact.phone);
         setPlacing(true);
+
+        // Written now rather than on confirmation. They typed it either way, and
+        // a payment that fails is exactly when nobody wants to type it again.
+        writeRecalled({ name: contact.name.trim(), phone, address: contact.address.trim() });
+
+        /**
+         * And onto the account, where it survives this browser.
+         *
+         * Only for a delivery (a pickup has no address to keep) and only for
+         * somebody signed in. The endpoint matches on the address text and
+         * updates the row that is already there, so ordering to the same door
+         * every week does not collect a row per order. Deliberately not awaited
+         * and deliberately silent: nothing about placing an order should wait
+         * on, or fail because of, an address book.
+         */
+        if (isLoggedIn && orderType === 'delivery' && contact.address.trim().length >= 4) {
+            void saveAddress({ full_address: contact.address.trim() }).catch(() => { /* not worth a word */ });
+        }
+
         try {
             const session = await createSession.mutateAsync({
                 branch_id: Number(effectiveBranch.id),
                 order_type: orderType,
                 customer_name: contact.name,
-                customer_phone: normalizeGhanaPhone(contact.phone),
+                customer_phone: phone,
                 delivery_address: orderType === 'delivery' ? contact.address : undefined,
                 delivery_latitude: orderType === 'delivery' && coordinates ? coordinates.latitude : undefined,
                 delivery_longitude: orderType === 'delivery' && coordinates ? coordinates.longitude : undefined,
-                special_instructions: contact.note || undefined,
+                // One field on the order carries both notes, a labelled line
+                // each. A rider note means nothing on a pickup, so it is
+                // dropped rather than sent to a kitchen that has no rider.
+                special_instructions: composeNote(
+                    contact.kitchenNote,
+                    orderType === 'delivery' ? contact.riderNote : '',
+                ),
                 payment_method: paymentMethod,
+                momo_number: paymentMethod === 'mobile_money'
+                    ? normalizeGhanaPhone(momoNumber)
+                    : undefined,
             });
 
             if (paymentMethod === 'mobile_money') {
-                // Redirect to Hubtel checkout if we have a URL
+                // The backend clears the cart when the order is created, so it is
+                // deliberately left alone here: a payment that fails leaves the
+                // customer with their order still in hand.
                 if (session.checkout_url) {
-                    // Don't clear cart here — backend clears it when order is created.
-                    // If payment fails, the customer can retry with their cart intact.
                     window.location.href = session.checkout_url;
                     return;
                 }
-                // Otherwise poll for status (e.g. if redirect didn't happen)
                 setSessionToken(session.session_token);
-                setStep(3);
+                setPhase('paying');
+                return;
+            }
+
+            if (session.status === 'confirmed' && session.order?.order_number) {
+                clearCart();
+                setOrderNumber(session.order.order_number);
+                setTrackingToken(session.tracking_token);
+                // So the home screen can carry it beside the greeting until it
+                // is delivered, whether or not they ever sign in.
+                writeLastOrder({ number: session.order.order_number, token: session.tracking_token });
+                setPhase('placed');
             } else {
-                // Cash: backend creates order immediately
-                if (session.status === 'confirmed' && session.order?.order_number) {
-                    clearCart();
-                    setOrderNumber(session.order.order_number);
-                    setStep(4);
-                } else {
-                    // Session still pending — poll for status
-                    setSessionToken(session.session_token);
-                    setStep(3);
-                }
+                setSessionToken(session.session_token);
+                setPhase('paying');
             }
         } catch (err: unknown) {
-            const msg = err instanceof ApiError ? err.message : 'Failed to place order. Please try again.';
-            toast.error(msg);
+            toast.error(err instanceof ApiError ? err.message : 'The order did not go through. Try again.');
         } finally {
             setPlacing(false);
         }
-    }, [effectiveBranch, paymentMethod, orderType, contact, coordinates, createSession, clearCart]);
+    }, [effectiveBranch, paymentMethod, orderType, contact, momoNumber, coordinates, createSession, clearCart, isLoggedIn, saveAddress]);
 
-    const handleProcessingSuccess = useCallback((num: string) => {
+    const handlePaid = useCallback((num: string, token?: string) => {
         clearCart();
         setOrderNumber(num);
-        setStep(4);
+        setTrackingToken(token);
+        writeLastOrder({ number: num, token });
+        setPhase('placed');
     }, [clearCart]);
 
-    const handleProcessingFail = useCallback((message: string) => {
-        toast.error(message);
-        setStep(2);
+    const handleGaveUp = useCallback(() => {
+        setPhase('form');
         setSessionToken(null);
     }, []);
 
-    const handleProcessingAbandon = useCallback(() => {
-        setStep(2);
-        setSessionToken(null);
+    // ── Moving between screens ───────────────────────────────────────────────
+    // Each screen opens at its top, not wherever the last one was scrolled to.
+    useEffect(() => { window.scrollTo({ top: 0 }); }, [stage]);
+
+    const goTo = useCallback((next: Step) => {
+        setStage(next);
+        setFurthest(f => (stepIndex(next) > stepIndex(f) ? next : f));
     }, []);
 
-    if (items.length === 0 && step !== 3 && step !== 4) return <EmptyCartGuard />;
+    const advance = () => {
+        if (stage === 'review') return;
+        goTo(furthest === 'review' ? 'review' : STEPS[stepIndex(stage) + 1]);
+    };
 
-    const branchClosed = effectiveBranch && !effectiveBranch.isOpen;
-    const branchInactive = effectiveBranch && !effectiveBranch.isActive;
-    const branchUnavailable = branchClosed || branchInactive;
+    const showForm = phase === 'form' || (phase === 'paying' && !sessionToken);
+
+    const title = phase === 'placed'
+        ? 'Order placed'
+        : !showForm
+            ? 'Payment'
+            : stage === 'review' ? 'Check your order' : QUESTION_TITLES[stage];
+
+    /**
+     * Back is one screen, then out.
+     *
+     * A question reached through Change on the review goes back to the review.
+     * There is nothing useful behind a payment being confirmed and nothing to
+     * undo once it has been, so the arrow is gone on those two screens.
+     */
+    const goBack = !showForm
+        ? undefined
+        : stage === 'review'
+            ? () => setStage('pay')
+            : furthest === 'review'
+                ? () => setStage('review')
+                : stage === 'where'
+                    ? () => router.back()
+                    : () => setStage(STEPS[stepIndex(stage) - 1]);
+
+    const leaving = showForm && stage === 'where' && furthest !== 'review';
+
+    // ── The button ───────────────────────────────────────────────────────────
+    const checkoutState = {
+        branch: effectiveBranch, orderType, contact, orderTypes, methods,
+        paymentMethod, momoNumber, momoRegistered: momoCheck.registered,
+    };
+    const blocker = stage === 'review' ? reviewBlocker(checkoutState) : questionBlocker(stage, checkoutState);
+    const verb = paymentMethod === 'mobile_money' ? 'Pay now' : 'Place order';
+
+    const action: BarAction = (() => {
+        if (blocker?.opens === 'branch') {
+            return { label: blocker.action, reason: blocker.reason, onPress: openBranchSheet };
+        }
+
+        if (stage !== 'review') {
+            return { label: 'Continue', arrow: true, onPress: blocker ? undefined : advance };
+        }
+
+        if (!moneyReady) return { label: verb };
+
+        if (blocker) {
+            // A branch blocker was answered above, so anything left points at
+            // one of the questions.
+            const to = blocker.opens;
+            return {
+                label: blocker.action,
+                reason: blocker.reason,
+                onPress: to ? () => setStage(to) : undefined,
+            };
+        }
+
+        return {
+            label: placing ? 'Sending it through' : verb,
+            // A delivery fee the rider collects at the door never reaches
+            // Hubtel, so a MoMo button shows what leaves the wallet now.
+            figure: formatPrice(totals.dueNow),
+            busy: placing,
+            onPress: handlePlace,
+            note: totals.delivery > 0
+                ? (paymentMethod === 'mobile_money'
+                    ? `The rider collects ${formatPrice(totals.delivery)} for delivery at the door.`
+                    : `Includes ${formatPrice(totals.delivery)} delivery, all of it paid to the rider.`)
+                : undefined,
+        };
+    })();
+
+    // ── What is on screen ────────────────────────────────────────────────────
+    if (phase === 'form' && items.length === 0) {
+        return (
+            <div className="min-h-dvh bg-bg">
+                <ScreenHeader title="Checkout" onBack={() => router.back()} backLabel="Leave checkout" />
+                {/* Nothing is claimed about an empty cart until this browser
+                    has actually looked in it. */}
+                {mounted && !cartLoading && <EmptyCartGuard />}
+            </div>
+        );
+    }
 
     return (
-        <div className="min-h-screen bg-neutral-light dark:bg-brand-darker pt-20 pb-12">
-            <div className="w-[95%] md:w-[85%] xl:w-[75%] max-w-5xl mx-auto">
-                <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-text-dark dark:text-text-light">{step === 4 ? 'Order Confirmed' : step === 3 ? 'Processing Payment' : 'Checkout'}</h1>
-                        {step <= 2 && <p className="text-sm text-neutral-gray mt-1">Complete your order details below</p>}
-                    </div>
-                    {step <= 3 && <StepIndicator current={step} />}
-                </div>
+        // The form sits on the grey so its white blocks read as groups. The
+        // page ground is #fafafa, which is too close to white to separate anything.
+        <div className={`min-h-dvh ${showForm ? 'bg-surface-sunken' : 'bg-bg'}`}>
+            <ScreenHeader
+                title={title}
+                onBack={goBack}
+                backLabel={leaving ? 'Leave checkout' : 'Back'}
+                right={showForm && stage !== 'review'
+                    ? (
+                        <span className="text-[13px] font-semibold tabular-nums text-fg-muted">
+                            {stepIndex(stage) + 1} of {QUESTIONS.length}
+                        </span>
+                    )
+                    : undefined}
+            />
 
-                {branchUnavailable && step <= 2 && (
-                    <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl bg-error/5 border border-error/20">
-                        <WarningCircleIcon weight="fill" size={22} className="text-error shrink-0 mt-0.5" />
-                        <div>
-                            <p className="text-sm font-bold text-error">
-                                {branchInactive ? 'This branch is currently inactive' : 'This branch is currently closed'}
-                            </p>
-                            <p className="text-xs text-error/80 mt-1">
-                                {branchInactive
-                                    ? 'This branch is not accepting orders at the moment. Please select a different branch or try again later.'
-                                    : 'This branch is closed right now. Please check back during operating hours or select a different branch.'}
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {step === 4 ? (
-                    <div className="max-w-md mx-auto">
-                        <StepDone orderNumber={orderNumber} orderType={orderType} contact={contact} />
-                    </div>
-                ) : step === 3 && sessionToken ? (
-                    <div className="max-w-md mx-auto">
-                        <StepProcessing sessionToken={sessionToken} onSuccess={handleProcessingSuccess} onFail={handleProcessingFail} onAbandon={handleProcessingAbandon} />
-                    </div>
+            {/* The width cap sits inside the gutter rather than on it. `.page-x`
+                carries its own max-width of 80rem, which quietly beat the
+                max-w-5xl that used to share this element, so on a laptop the
+                form ran the full width of the screen. */}
+            <div className="page-x">
+            <div className="mx-auto max-w-5xl">
+                {phase === 'placed' ? (
+                    <OrderPlaced orderNumber={orderNumber} orderType={orderType} contact={contact} trackingToken={trackingToken} />
+                ) : !showForm && sessionToken ? (
+                    <PaymentWait
+                        sessionToken={sessionToken}
+                        onSuccess={handlePaid}
+                        onFail={msg => { toast.error(msg); handleGaveUp(); }}
+                        onAbandon={handleGaveUp}
+                    />
                 ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
-                        <div>
-                            {step === 1 && <StepDetails orderType={orderType} setOrderType={setOrderType} contact={contact} setContact={setContact} onNext={() => { setContact(c => ({ ...c, phone: normalizeGhanaPhone(c.phone) })); setStep(2); }} />}
-                            {step === 2 && <StepPayment paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} orderType={orderType} contact={contact} onBack={() => setStep(1)} onPlace={handlePlaceOrder} placing={placing} scConfig={scConfig} />}
-                        </div>
-                        <div className="lg:sticky lg:top-24 h-fit"><OrderSummary orderType={orderType} scConfig={scConfig} deliveryFeeEnabled={deliveryFeeEnabled} discount={promoDiscount} promoName={activePromo?.name} /></div>
-                    </div>
+                    <>
+                        {stage === 'review' ? (
+                            <div className="grid items-start gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-8 lg:py-9">
+                                {/* min-w-0, or the column refuses to go narrower
+                                    than its widest line. A grid item is auto-width
+                                    by default, so a long address pushed the whole
+                                    page past the edge instead of wrapping inside it. */}
+                                <div className="min-w-0">
+                                    <CheckoutForm
+                                        branch={effectiveBranch}
+                                        orderType={orderType}
+                                        paymentMethod={paymentMethod}
+                                        contact={contact}
+                                        momoNumber={momoNumber}
+                                        momoCheck={momoCheck}
+                                        momoChecking={momoChecking}
+                                        onChange={setStage}
+                                    />
+                                </div>
+
+                                <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24">
+                                    <OrderSummary
+                                        branch={effectiveBranch}
+                                        showBranch={orderType === 'delivery'}
+                                        totals={totals}
+                                        serviceLabel={serviceLabel}
+                                        ready={moneyReady}
+                                    />
+                                    <PayAction {...action} />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="mx-auto min-w-0 max-w-xl py-4 lg:py-9">
+                                {stage === 'where' && (
+                                    <WhereStep
+                                        orderType={orderType}
+                                        setOrderType={setOrderType}
+                                        orderTypes={orderTypes}
+                                        branch={effectiveBranch}
+                                        onChangeBranch={openBranchSheet}
+                                        contact={contact}
+                                        setContact={setContact}
+                                        recalledAddress={recalled.address}
+                                    />
+                                )}
+                                {stage === 'who' && (
+                                    <WhoStep contact={contact} setContact={setContact} />
+                                )}
+                                {stage === 'pay' && (
+                                    <PayStep
+                                        methods={methods}
+                                        paymentMethod={paymentMethod}
+                                        setPaymentMethod={setPaymentMethod}
+                                        orderType={orderType}
+                                        momoNumber={momoNumber}
+                                        setMomoNumber={setMomoOverride}
+                                        momoCheck={momoCheck}
+                                        momoChecking={momoChecking}
+                                    />
+                                )}
+                                <PayAction {...action} className="mt-4" />
+                            </div>
+                        )}
+
+                        <PayBarSpacer />
+                        <BranchSelectorSheet isOpen={branchSheet} onClose={closeBranchSheet} />
+                        <PayBar {...action} />
+                    </>
                 )}
+            </div>
             </div>
         </div>
     );

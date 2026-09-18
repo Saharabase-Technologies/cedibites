@@ -107,6 +107,24 @@ export interface UpdateBranchPayload {
   }>;
 }
 
+/**
+ * The drive from a customer to a branch, down real roads.
+ *
+ * `available: false` is a normal answer, not a failure. The server returns it
+ * when routing is switched off, when Google refuses, and when the customer is
+ * further away than it is worth paying to route. The map draws its straight
+ * dotted line in every one of those cases.
+ */
+export interface BranchRoute {
+  available: boolean;
+  distance_km?: number;
+  duration_minutes?: number;
+  /** Google's encoded polyline. Decode with `decodePolyline`. */
+  polyline?: string;
+  /** Whether the minutes account for traffic as it is right now. */
+  in_traffic?: boolean;
+}
+
 function extractData<T>(response: unknown): T {
   const r = response as { data?: T };
   return (r?.data ?? response) as T;
@@ -121,6 +139,11 @@ export const branchService = {
   getBranch: async (id: number): Promise<Branch> => {
     const response = await apiClient.get(`/branches/${id}`);
     return extractData<Branch>(response);
+  },
+
+  getBranchRoute: async (id: string, lat: number, lng: number): Promise<BranchRoute> => {
+    const response = await apiClient.get(`/branches/${id}/route`, { params: { lat, lng } });
+    return extractData<BranchRoute>(response);
   },
 
   createBranch: async (payload: CreateBranchPayload): Promise<Branch> => {

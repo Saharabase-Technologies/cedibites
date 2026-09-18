@@ -251,6 +251,10 @@ export default function OrderManagerPage() {
           stage: order.status,
           since: stageSinceFor(order),
           awaitingAccept: order.status === 'received',
+          // The bell rings for anything the kitchen has not started, which
+          // includes a till sale that arrives already accepted.
+          awaitingKitchen:
+            order.status === 'received' || order.status === 'accepted',
         })),
     [orders, stageSinceFor],
   );
