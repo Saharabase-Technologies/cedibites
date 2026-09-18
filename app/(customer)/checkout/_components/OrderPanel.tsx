@@ -121,13 +121,18 @@ export function Money({ totals, serviceLabel, ready }: { totals: Totals; service
 
 // ─── The block ────────────────────────────────────────────────────────────────
 
-export function OrderSummary({ branch, showBranch, totals, serviceLabel, ready }: {
+export function OrderSummary({ branch, showBranch, totals, serviceLabel, ready, promoCode, promoNote, onPromoCode }: {
     branch: Branch | null;
     /** Off for a pickup, whose first row already names the branch. */
     showBranch: boolean;
     totals: Totals;
     serviceLabel: string;
     ready: boolean;
+    /** The code on the order, if one was typed and taken. */
+    promoCode: string | null;
+    /** Why a code is not on the order: refused when placing it, or beaten by a bigger offer. */
+    promoNote: string | null;
+    onPromoCode: () => void;
 }) {
     const { displayItems: items } = useCart();
 
@@ -152,6 +157,18 @@ export function OrderSummary({ branch, showBranch, totals, serviceLabel, ready }
             <ul className="flex flex-col gap-3 lg:max-h-[38vh] lg:overflow-y-auto lg:overscroll-contain">
                 {items.map(ci => <Line key={ci.cartItemId} cartItem={ci} />)}
             </ul>
+
+            {/* Beside the money it changes. What it took off shows in the
+                figures below, under the promo's own name, so this row only
+                says which code is on the order. */}
+            <ReviewRow
+                caption="Promo code"
+                value={promoCode ?? undefined}
+                placeholder="None"
+                sub={promoNote ?? undefined}
+                action={promoCode ? 'Change' : 'Add'}
+                onPress={onPromoCode}
+            />
 
             <Money totals={totals} serviceLabel={serviceLabel} ready={ready} />
         </Group>

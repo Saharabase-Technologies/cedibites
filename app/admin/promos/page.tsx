@@ -65,6 +65,10 @@ const EMPTY_FORM: Omit<Promo, 'id'> = {
     endDate: addDays(todayIso(), 7),
     isActive: true,
     accountingCode: '',
+    code: '',
+    maxUses: undefined,
+    maxUsesPerCustomer: undefined,
+    firstOrderOnly: false,
 };
 
 // ─── Condition summary for list view ──────────────────────────────────────────
@@ -79,6 +83,10 @@ function conditionLabel(promo: Promo): string {
         parts.push(`orders ≤ ₵${promo.maxOrderValue}`);
     }
     if (promo.maxDiscount != null) parts.push(`cap ₵${promo.maxDiscount}`);
+    if (promo.firstOrderOnly) parts.push('first order only');
+    if (promo.maxUsesPerCustomer != null) {
+        parts.push(promo.maxUsesPerCustomer === 1 ? 'once per phone number' : `${promo.maxUsesPerCustomer} times per phone number`);
+    }
     return parts.join(' · ');
 }
 
@@ -194,6 +202,26 @@ function PromoModal({
                             placeholder="e.g. Jollof Friday 20% Off"
                             className="w-full border border-[#f0e8d8] rounded-xl px-3 py-2.5 text-text-dark text-sm font-body bg-neutral-light focus:outline-none focus:border-primary"
                         />
+                    </div>
+
+                    {/* Code */}
+                    <div>
+                        <label className="block text-neutral-gray text-xs font-body uppercase tracking-wider mb-1.5">Promo Code <span className="text-neutral-gray/60 normal-case font-normal">(optional)</span></label>
+                        <input
+                            type="text"
+                            value={form.code ?? ''}
+                            onChange={e => patch({ code: e.target.value.replace(/\s+/g, '').toUpperCase() })}
+                            placeholder="e.g. CEDI20"
+                            maxLength={20}
+                            autoComplete="off"
+                            spellCheck={false}
+                            className="w-full border border-[#f0e8d8] rounded-xl px-3 py-2.5 text-text-dark text-sm font-body font-semibold tracking-wider bg-neutral-light focus:outline-none focus:border-primary placeholder:font-normal placeholder:tracking-normal"
+                        />
+                        <p className="text-neutral-gray/70 text-[11px] font-body mt-1.5">
+                            {form.code
+                                ? 'Applies only when a customer types it at checkout or a cashier types it at the till.'
+                                : 'Leave empty and the promo applies by itself to every order that qualifies.'}
+                        </p>
                     </div>
 
                     {/* Type + Value */}
@@ -373,6 +401,49 @@ function PromoModal({
                             )}
                         </div>
                     )}
+
+                    {/* Limits */}
+                    <div>
+                        <label className="block text-neutral-gray text-xs font-body uppercase tracking-wider mb-1.5">
+                            Limits <span className="text-neutral-gray/60 normal-case font-normal">(optional)</span>
+                        </label>
+                        <p className="text-neutral-gray/70 text-[11px] font-body mb-2.5">Blank means no limit. A cancelled order gives its use back.</p>
+                        <div className="flex gap-3">
+                            <div className="flex-1">
+                                <span className="block text-neutral-gray text-[11px] font-body font-medium mb-1">Uses in total</span>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    placeholder="e.g. 100"
+                                    value={numOpt(form.maxUses)}
+                                    onChange={e => patch({ maxUses: parseOpt(e.target.value) })}
+                                    className="w-full border border-[#f0e8d8] rounded-xl px-3 py-2.5 text-text-dark text-sm font-body tabular-nums bg-neutral-light focus:outline-none focus:border-primary"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <span className="block text-neutral-gray text-[11px] font-body font-medium mb-1">Uses per phone number</span>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    placeholder="e.g. 1"
+                                    value={numOpt(form.maxUsesPerCustomer)}
+                                    onChange={e => patch({ maxUsesPerCustomer: parseOpt(e.target.value) })}
+                                    className="w-full border border-[#f0e8d8] rounded-xl px-3 py-2.5 text-text-dark text-sm font-body tabular-nums bg-neutral-light focus:outline-none focus:border-primary"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-3">
+                            <span className="text-text-dark text-sm font-body">First order only</span>
+                            <button
+                                type="button"
+                                onClick={() => patch({ firstOrderOnly: !form.firstOrderOnly })}
+                                aria-pressed={!!form.firstOrderOnly}
+                                className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${form.firstOrderOnly ? 'bg-secondary' : 'bg-neutral-gray/30'}`}
+                            >
+                                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${form.firstOrderOnly ? 'right-0.5' : 'left-0.5'}`} />
+                            </button>
+                        </div>
+                    </div>
 
                     {/* Dates */}
                     <div className="flex gap-3">
@@ -560,6 +631,11 @@ export default function PromosPage() {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <p className="text-text-dark text-sm font-semibold font-body">{promo.name}</p>
+                                        {promo.code && (
+                                            <span className="text-[11px] font-bold font-body px-2 py-0.5 rounded-md bg-text-dark/5 text-text-dark tracking-wider">
+                                                {promo.code}
+                                            </span>
+                                        )}
                                         <span className={`text-[10px] font-bold font-body px-2 py-0.5 rounded-full ${active ? 'bg-secondary/10 text-secondary' : 'bg-neutral-light text-neutral-gray'}`}>
                                             {active ? 'Active' : promo.isActive ? 'Scheduled' : 'Inactive'}
                                         </span>
@@ -577,7 +653,15 @@ export default function PromosPage() {
                                         {promo.scope === 'global' ? 'All branches' : `${promo.branchIds?.length ?? 0} branch(es)`}
                                         {cond ? ` · ${cond}` : ''}
                                         {' · '}
-                                        {formatDate(promo.startDate)} - {formatDate(promo.endDate)}
+                                        {formatDate(promo.startDate)} to {formatDate(promo.endDate)}
+                                        {promo.timesUsed != null && (
+                                            <span className="tabular-nums">
+                                                {' · '}
+                                                {promo.maxUses != null
+                                                    ? `${promo.timesUsed} of ${promo.maxUses} used`
+                                                    : `used ${promo.timesUsed} time${promo.timesUsed === 1 ? '' : 's'}`}
+                                            </span>
+                                        )}
                                     </p>
                                 </div>
 

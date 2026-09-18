@@ -1,9 +1,10 @@
 import apiClient from '@/lib/api/client';
-import type { Promo, PromoService } from './promo.service';
+import type { Promo, PromoOffer, PromoOfferInput, PromoService } from './promo.service';
 
 interface ApiPromo {
   id: string;
   name: string;
+  code?: string | null;
   type: 'percentage' | 'fixed_amount';
   value: number;
   scope: 'global' | 'branch';
@@ -13,6 +14,10 @@ interface ApiPromo {
   minOrderValue?: number | null;
   maxOrderValue?: number | null;
   maxDiscount?: number | null;
+  maxUses?: number | null;
+  maxUsesPerCustomer?: number | null;
+  firstOrderOnly?: boolean;
+  timesUsed?: number;
   startDate: string;
   endDate: string;
   isActive: boolean;
@@ -28,6 +33,7 @@ function toPromo(raw: ApiPromo): Promo {
   return {
     id: String(raw.id),
     name: raw.name,
+    code: raw.code ?? undefined,
     type: raw.type,
     value: Number(raw.value) || 0,
     scope: raw.scope,
@@ -37,6 +43,10 @@ function toPromo(raw: ApiPromo): Promo {
     minOrderValue: raw.minOrderValue != null ? Number(raw.minOrderValue) : undefined,
     maxOrderValue: raw.maxOrderValue != null ? Number(raw.maxOrderValue) : undefined,
     maxDiscount: raw.maxDiscount != null ? Number(raw.maxDiscount) : undefined,
+    maxUses: raw.maxUses != null ? Number(raw.maxUses) : undefined,
+    maxUsesPerCustomer: raw.maxUsesPerCustomer != null ? Number(raw.maxUsesPerCustomer) : undefined,
+    firstOrderOnly: Boolean(raw.firstOrderOnly),
+    timesUsed: raw.timesUsed != null ? Number(raw.timesUsed) : undefined,
     startDate: raw.startDate,
     endDate: raw.endDate,
     isActive: Boolean(raw.isActive),
@@ -60,6 +70,12 @@ function toApiBody(p: Partial<Promo>): Record<string, unknown> {
   if (p.endDate != null) body.end_date = p.endDate;
   if (p.isActive != null) body.is_active = p.isActive;
   if (p.accountingCode != null) body.accounting_code = p.accountingCode;
+  // These four can be cleared, so an empty value is sent as null rather than
+  // left out. Leaving it out would keep the old limit on an edited promo.
+  if (p.code !== undefined) body.code = p.code || null;
+  if (p.maxUses !== undefined) body.max_uses = p.maxUses ?? null;
+  if (p.maxUsesPerCustomer !== undefined) body.max_uses_per_customer = p.maxUsesPerCustomer ?? null;
+  if (p.firstOrderOnly !== undefined) body.first_order_only = p.firstOrderOnly;
   return body;
 }
 
@@ -104,25 +120,19 @@ export class ApiPromoService implements PromoService {
     await apiClient.delete(`/promos/${id}`);
   }
 
-  async resolvePromo(itemIds: string[], branchId: string, subtotal?: number): Promise<Promo | null> {
-    const response = await apiClient.post('/promos/resolve', {
-      item_ids: itemIds.map((id) => parseInt(String(id), 10)).filter((n) => !Number.isNaN(n)),
-      branch_id: branchId,
-      subtotal: subtotal ?? 0,
+  async offer(input: PromoOfferInput): Promise<PromoOffer> {
+    const response = await apiClient.post('/promos/offer', {
+      branch_id: input.branchId,
+      lines: input.lines.map((l) => ({ menu_item_id: Number(l.menuItemId), amount: l.amount })),
+      subtotal: input.subtotal,
+      code: input.code || undefined,
+      phone: input.phone || undefined,
     });
-    const raw = extractData<ApiPromo | null>(response);
-    if (!raw?.id) return null;
-    return toPromo(raw);
-  }
-
-  calculateDiscount(promo: Promo, subtotal: number): number {
-    let discount: number;
-    if (promo.type === 'percentage') {
-      discount = Math.round((subtotal * promo.value) / 100 * 100) / 100;
-      if (promo.maxDiscount != null) discount = Math.min(discount, promo.maxDiscount);
-    } else {
-      discount = Math.min(promo.value, subtotal);
-    }
-    return discount;
+    const raw = extractData<{ promo: ApiPromo | null; discount: number; code_beaten: boolean }>(response);
+    return {
+      promo: raw?.promo?.id ? toPromo(raw.promo) : null,
+      discount: Number(raw?.discount) || 0,
+      codeBeaten: Boolean(raw?.code_beaten),
+    };
   }
 }

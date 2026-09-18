@@ -4,8 +4,8 @@ How the customer checkout and the cart sheet work, and why they are built this
 way. Read this before changing anything under `app/(customer)/checkout` or
 `app/components/ui/CartDrawer.tsx`.
 
-Written 2026-09-11 on `feat/customer-rebrand`. Everything here is on beta.
-Production has none of it.
+Written 2026-09-11 on `feat/customer-rebrand`, on production since
+2026-09-18. Promo codes (section 3) came after, on `feat/promo-codes`.
 
 The visual rules underneath (brand colours, radius, type) live in
 `docs/CUSTOMER_DESIGN_SYSTEM.md`. This file is about flow, copy and the traps.
@@ -162,6 +162,40 @@ A guest with no account list gets "Last time", this device's last address, from
 - No sub-line that repeats its label. "MTN, Telecel or AirtelTigo" under
   "Mobile Money" went.
 
+### Promo codes
+
+The client asked for a code the customer can type when ordering, and the
+cashier can type at the till. Both ask the same server question,
+`POST /promos/offer`, and the server asks it again when the order goes in.
+
+- **A promo with a code waits to be asked for. One without applies by
+  itself**, as every promo always has. Existing promos have no code, so they
+  kept working unchanged.
+- **One discount per order, and the bigger one wins.** A code that gives less
+  than the automatic offer already on the order is not used, and the sheet says
+  so. Typing a code can never cost anybody money.
+- **The server works out the discount; the page only shows it.** The browser
+  used to run its own copy of the sum. A promo on particular dishes now comes
+  off those dishes' lines and not the whole basket, which is why the request
+  carries each line's amount.
+- **Where it sits**: one "Promo code" row on "Check your order", between the
+  dishes and the money it changes, opening `PromoCodeSheet`. Same pattern as
+  "Add a note". The server's sentence is shown as it stands ("CEDI20 ended on
+  12 September"), because it tells somebody what to do next.
+- **Limits** are uses in total, uses per phone number, and first order only.
+  They count `orders.promo_id`, so a cancelled or deleted order gives its use
+  back. A limit that depends on who is ordering needs the phone number, which
+  is why the offer only carries the phone once the "Who it is for" question is
+  answered.
+- **A code refused as the order goes in** (say, the number has used it since)
+  refuses the whole order with a 422 rather than charging a figure nobody was
+  shown. The page takes the code off, puts the reason on the row, and the total
+  changes in front of them before they press pay again.
+- **At the till** the code sits in the strip above the total, beside Order
+  notes. A code that stops applying when a dish comes off stays typed with the
+  reason beside it, so putting the dish back restores it. It is only sent with
+  the sale while it applies.
+
 ### Hubtel lookups cost money
 
 `useMomoCheck` only runs once the customer has reached the payment question. It
@@ -202,6 +236,17 @@ When Hubtel cannot be reached the answer is null, and null means carry on.
   hand, or closed during its own hours. A missing time beats a wrong one.
 - **`ScreenHeader`'s `progress` line reads as a border** and gives no count. Use
   its `right` slot for "1 of 3".
+- **A bare `throttle:5,1` in Laravel counts per IP, not per route.** Every
+  throttled public route a customer touches shares one counter, so the offer
+  and Mobile Money checks made on the way to the review used up the five order
+  attempts, and "Place order" answered "Too Many Attempts." on a first order.
+  `checkout-sessions` and `promos/offer` carry a third argument now
+  (`throttle:5,1,checkout-session`), which gives each its own counter. Any new
+  throttle on a route the checkout calls needs one too.
+- **The promo effect remembers the basket it last answered** (`answeredFor`),
+  so applying a code does not ask twice. Returning early on that basket must
+  still mark the money ready, or a branch or cart refetch that flickers a value
+  and flicks it back leaves the totals as grey bars for good.
 
 ---
 

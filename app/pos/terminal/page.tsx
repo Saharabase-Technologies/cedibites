@@ -64,7 +64,7 @@ import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
 import { useStockGate } from '@/lib/api/hooks/useStockGate';
 import type { StockShortfall } from '@/lib/api/services/stockGate.service';
 import { printReceipt } from '@/lib/utils/printReceipt';
-import { getPromoService, type Promo } from '@/lib/services/promos/promo.service';
+import { getPromoService, promoRefusal, type Promo, type PromoLine } from '@/lib/services/promos/promo.service';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
@@ -240,6 +240,16 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   const [showCart, setShowCart] = useState(false);
   const [activePromo, setActivePromo] = useState<Promo | null>(null);
   const [promoDiscount, setPromoDiscount] = useState(0);
+
+  // A code the cashier typed, and what became of it. When a code stops
+  // applying, say because a dish came off and the order fell under its
+  // minimum, it stays typed with the server's reason beside it, so putting the
+  // dish back brings it back. It is only sent with the sale while it applies.
+  const [promoCode, setPromoCode] = useState<string | null>(null);
+  const [codeMessage, setCodeMessage] = useState<{ text: string; tone: 'error' | 'info' } | null>(null);
+  const [showCode, setShowCode] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [codeChecking, setCodeChecking] = useState(false);
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [isBranchSwitcherOpen, setIsBranchSwitcherOpen] = useState(false);
   const [isBranchMenuOpen, setIsBranchMenuOpen] = useState(false);
@@ -276,16 +286,92 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     }
   }, [isSessionLoaded, isSessionValid, isNeedsBranchSelection, router]);
 
-  // Resolve promo whenever cart changes
+  // ── What comes off this sale ──────────────────────────────────────────
+  // Asked of the server, which asks the same question again when the sale goes
+  // through, so the till shows the figure the order is written with. Keyed on
+  // dish and line amount, because a promo on one dish comes off that line only.
+  const cartLinesKey = cart.map(c => `${c.menuItemId}:${c.price * c.quantity}`).join(',');
+  // For a code held to one use per number, or to a first order.
+  const offerPhone = isValidGhanaPhone(customerPhone) ? normalizeGhanaPhone(customerPhone) : '';
+
+  const askOffer = useCallback((code: string | null) => getPromoService().offer({
+    branchId: String(session?.branchId ?? ''),
+    lines: cartLinesKey.split(',').map((l): PromoLine => {
+      const [menuItemId, amount] = l.split(':');
+      return { menuItemId, amount: Number(amount) };
+    }),
+    subtotal: cartTotal,
+    code: code ?? undefined,
+    phone: offerPhone || undefined,
+  }), [session?.branchId, cartLinesKey, cartTotal, offerPhone]);
+
   useEffect(() => {
-    if (!session?.branchId || cart.length === 0) { setActivePromo(null); setPromoDiscount(0); return; }
-    const itemIds = cart.map(c => c.menuItemId);
-    getPromoService().resolvePromo(itemIds, session.branchId, cartTotal).then(p => {
-      if (!p) { setActivePromo(null); setPromoDiscount(0); return; }
-      setActivePromo(p);
-      setPromoDiscount(getPromoService().calculateDiscount(p, cartTotal));
-    }).catch(() => { setActivePromo(null); setPromoDiscount(0); });
-  }, [cart, session?.branchId, cartTotal]);
+    if (!session?.branchId || !cartLinesKey) {
+      // An empty cart is the start of the next customer, and their code.
+      setActivePromo(null); setPromoDiscount(0);
+      setPromoCode(null); setCodeMessage(null);
+      return;
+    }
+
+    let live = true;
+    // A beat, because this runs on every tap of plus and every digit of the phone.
+    const t = setTimeout(() => {
+      askOffer(promoCode).then(o => {
+        if (!live) return;
+        setActivePromo(o.promo);
+        setPromoDiscount(o.discount);
+        setCodeMessage(promoCode && o.codeBeaten
+          ? { tone: 'info', text: `${o.promo?.name ?? 'The offer on this order'} takes more off, so ${promoCode} is not used.` }
+          : null);
+      }).catch(err => {
+        if (!live) return;
+        const refusal = promoRefusal(err);
+        if (refusal && promoCode) {
+          setCodeMessage({ tone: 'error', text: refusal });
+          setShowCode(true);
+          // The order still gets whatever applies by itself.
+          askOffer(null)
+            .then(o => { if (live) { setActivePromo(o.promo); setPromoDiscount(o.discount); } })
+            .catch(() => { if (live) { setActivePromo(null); setPromoDiscount(0); } });
+          return;
+        }
+        setActivePromo(null); setPromoDiscount(0);
+      });
+    }, 250);
+
+    return () => { live = false; clearTimeout(t); };
+  }, [session?.branchId, cartLinesKey, promoCode, askOffer]);
+
+  const applyCode = async () => {
+    const code = codeInput.replace(/\s+/g, '').toUpperCase();
+    if (!code || codeChecking || !cartLinesKey) return;
+    setCodeChecking(true);
+    try {
+      const o = await askOffer(code);
+      if (o.codeBeaten) {
+        setCodeMessage({ tone: 'info', text: `${o.promo?.name ?? 'The offer on this order'} takes more off, so ${code} is not needed.` });
+        return;
+      }
+      setPromoCode(o.promo?.code ?? code);
+      setActivePromo(o.promo);
+      setPromoDiscount(o.discount);
+      setCodeInput('');
+      setCodeMessage(null);
+    } catch (err) {
+      setCodeMessage({ tone: 'error', text: promoRefusal(err) ?? 'The code could not be checked. Try again.' });
+    } finally {
+      setCodeChecking(false);
+    }
+  };
+
+  const removeCode = () => {
+    setPromoCode(null);
+    setCodeMessage(null);
+  };
+
+  // Sent with the sale only while it applies. One the server has just refused
+  // would only be refused again.
+  const codeInForce = promoCode && codeMessage?.tone !== 'error' ? promoCode : undefined;
 
   // Background poll for dismissed MoMo sessions — detect when payment completes
   useEffect(() => {
@@ -447,7 +533,9 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   // Handle payment complete
   const handlePaymentComplete = async (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string }) => {
     try {
-      const order = await processPayment(method, amountPaid, momoNumber, promoDiscount > 0 ? promoDiscount : undefined, manualOpts);
+      const order = await processPayment(method, amountPaid, momoNumber, { code: codeInForce, discount: promoDiscount }, manualOpts);
+      setShowCode(false);
+      setCodeInput('');
       if (method === 'mobile_money' && order.paymentStatus === 'pending') {
         // RMP: show waiting UI — payment is pending customer USSD approval
         setPendingMomoOrder(order);
@@ -474,7 +562,14 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
       };
       console.error('[POS] Order creation failed:', { status: apiErr.status, message: apiErr.message, errors: apiErr.errors, err });
 
-      if (apiErr.code === 'branch_closed') {
+      const refusal = promoRefusal(err);
+      if (refusal) {
+        // Checked again as the sale went in, and it no longer applies. The
+        // reason goes beside the code, where the cashier will look for it.
+        setCodeMessage({ tone: 'error', text: refusal });
+        setShowCode(true);
+        toast.error(refusal);
+      } else if (apiErr.code === 'branch_closed') {
         setBranchClosedNotice(apiErr.message || 'This branch is currently closed and cannot accept orders.');
       } else if (body.error === 'insufficient_stock' || apiErr.code === 'insufficient_stock') {
         // A refusal at the counter needs reading, not a toast that slides away
@@ -1235,9 +1330,69 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
           )}
         </div>
 
-        {/* Notes (collapsible, kept minimal) */}
+        {/* Promo code and notes (collapsible, kept minimal) */}
         {cart.length > 0 && (
           <div className="shrink-0 px-4 py-2 border-t border-neutral-gray/15">
+            <button
+              onClick={() => setShowCode(!showCode)}
+              className="w-full flex items-center justify-between gap-2 py-1.5 text-neutral-gray hover:text-text-dark transition-colors text-sm"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                Promo code
+                {promoCode && (
+                  <span className={`truncate font-semibold tracking-wider ${codeInForce ? 'text-text-dark' : 'text-error line-through'}`}>
+                    {promoCode}
+                  </span>
+                )}
+              </span>
+              <CaretRightIcon className={`w-4 h-4 shrink-0 transition-transform ${showCode ? 'rotate-90' : ''}`} />
+            </button>
+            {showCode && (
+              <div className="pb-2 space-y-1.5">
+                {promoCode ? (
+                  <div className="flex items-center justify-between gap-2 h-10 pl-3 pr-1 rounded-lg bg-neutral-light border border-neutral-gray/20">
+                    <span className="flex min-w-0 items-center gap-2 text-sm">
+                      <TagIcon size={14} weight="fill" className="shrink-0 text-neutral-gray" />
+                      <span className="truncate font-semibold tracking-wider text-text-dark">{promoCode}</span>
+                    </span>
+                    <button
+                      onClick={removeCode}
+                      className="h-8 px-3 rounded-md text-xs font-semibold text-neutral-gray hover:text-error hover:bg-error/10 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={codeInput}
+                      onChange={e => { setCodeInput(e.target.value); setCodeMessage(null); }}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void applyCode(); } }}
+                      placeholder="Type the code"
+                      maxLength={24}
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      spellCheck={false}
+                      className="min-w-0 flex-1 h-10 px-3 rounded-lg bg-neutral-light text-text-dark font-semibold uppercase tracking-wider placeholder:normal-case placeholder:tracking-normal placeholder:font-normal placeholder:text-neutral-gray/60 border border-neutral-gray/20 focus:border-primary/50 outline-none text-sm transition-colors"
+                    />
+                    <button
+                      onClick={() => void applyCode()}
+                      disabled={!codeInput.trim() || codeChecking}
+                      className="shrink-0 h-10 px-4 rounded-lg bg-primary text-brown font-semibold text-sm hover:bg-primary-hover disabled:opacity-40 transition-colors"
+                    >
+                      {codeChecking ? 'Checking' : 'Apply'}
+                    </button>
+                  </div>
+                )}
+                {codeMessage && (
+                  <p className={`text-xs pl-1 leading-snug ${codeMessage.tone === 'error' ? 'text-error' : 'text-neutral-gray'}`}>
+                    {codeMessage.text}
+                  </p>
+                )}
+              </div>
+            )}
+
             <button
               onClick={() => setShowOrderDetails(!showOrderDetails)}
               className="w-full flex items-center justify-between py-1.5 text-neutral-gray hover:text-text-dark transition-colors text-sm"

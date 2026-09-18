@@ -8,11 +8,11 @@ import ScreenHeader from '@/app/components/layout/ScreenHeader';
 import { normalizeGhanaPhone } from '@/app/lib/phone';
 import apiClient, { ApiError } from '@/lib/api/client';
 import { useCreateCheckoutSession } from '@/lib/api/hooks/useCheckoutSession';
-import { getPromoService } from '@/lib/services/promos/promo.service';
-import type { Promo } from '@/lib/services/promos/promo.service';
+import { getPromoService, promoRefusal } from '@/lib/services/promos/promo.service';
+import type { Promo, PromoLine } from '@/lib/services/promos/promo.service';
 import { toast } from '@/lib/utils/toast';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BranchSelectorSheet from './_components/BranchSelectorSheet';
 import CheckoutForm from './_components/CheckoutForm';
 import { PayStep, WhereStep, WhoStep } from './_components/CheckoutSteps';
@@ -20,6 +20,7 @@ import { useMomoCheck } from './_components/MomoField';
 import EmptyCartGuard from './_components/EmptyCartGuard';
 import OrderPlaced from './_components/OrderPlaced';
 import PaymentWait from './_components/PaymentWait';
+import PromoCodeSheet, { type CodeResult } from './_components/PromoCodeSheet';
 import { OrderSummary } from './_components/OrderPanel';
 import { PayBar, PayBarSpacer, PayAction, type BarAction } from './_components/PayBar';
 import { enabledOrderTypes, enabledPaymentMethods, questionBlocker, reviewBlocker } from './_components/availability';
@@ -80,6 +81,14 @@ export default function CheckoutPage() {
     const [promo, setPromo] = useState<Promo | null>(null);
     const [promoDiscount, setPromoDiscount] = useState(0);
     const [promoReady, setPromoReady] = useState(false);
+
+    /** The code on the order, once the server has taken it. */
+    const [promoCode, setPromoCode] = useState<string | null>(null);
+    /** Why a code the customer typed is not on the order after all. */
+    const [promoNote, setPromoNote] = useState<string | null>(null);
+    const [codeSheet, setCodeSheet] = useState(false);
+    const openCodeSheet = useCallback(() => setCodeSheet(true), []);
+    const closeCodeSheet = useCallback(() => setCodeSheet(false), []);
 
     const [recalled, setRecalled] = useState<RecalledDetails>(NO_RECALL);
 
@@ -168,26 +177,119 @@ export default function CheckoutPage() {
             .finally(() => setConfigReady(true));
     }, []);
 
-    // ── The best promo this order qualifies for ──────────────────────────────
-    // Keyed on which dishes and which branch, not on the objects carrying them.
-    // The cart and the branch list both refetch on focus and hand back fresh
-    // copies of the same things, and every fresh copy blanked the totals to
-    // grey bars and asked all over again.
-    const itemIdsKey = items.map(ci => String(ci.item.id)).join(',');
+    // ── What comes off this order ────────────────────────────────────────────
+    // Keyed on which dishes at what amount and which branch, not on the objects
+    // carrying them. The cart and the branch list both refetch on focus and
+    // hand back fresh copies of the same things, and every fresh copy blanked
+    // the totals to grey bars and asked all over again.
+    //
+    // The amounts go too, because a promo on one dish comes off that dish's
+    // line and not the whole basket. The server works the discount out; this
+    // page only shows it.
+    const linesKey = items.map(ci => `${ci.item.id}:${ci.price * ci.quantity}`).join(',');
+
+    // Once they have said who it is for. A first-order code, or one held to a
+    // single use per number, depends on it.
+    const phoneKnown = stepIndex(furthest) > stepIndex('who');
+    const offerPhone = phoneKnown ? normalizeGhanaPhone(contact.phone) : '';
+
+    /**
+     * The basket the last answer was for. Applying a code asks the server
+     * itself, so the effect below would otherwise ask the same question a
+     * second time and flash the totals to grey bars in between.
+     */
+    const answeredFor = useRef('');
+
+    const offerFor = useCallback((code: string | null) => getPromoService().offer({
+        branchId: String(branchId),
+        lines: linesKey.split(',').map((l): PromoLine => {
+            const [menuItemId, amount] = l.split(':');
+            return { menuItemId, amount: Number(amount) };
+        }),
+        subtotal,
+        code: code ?? undefined,
+        phone: offerPhone || undefined,
+    }), [branchId, linesKey, subtotal, offerPhone]);
+
     useEffect(() => {
-        const itemIds = itemIdsKey ? itemIdsKey.split(',') : [];
-        if (!branchId || itemIds.length === 0) {
+        if (!branchId || !linesKey) {
             setPromo(null); setPromoDiscount(0); setPromoReady(true);
             return;
         }
+
+        const key = `${branchId}|${linesKey}|${subtotal}|${promoCode ?? ''}|${offerPhone}`;
+        if (key === answeredFor.current) {
+            // Back on a basket already answered, and the figures on screen are
+            // still that answer: nothing sets them until a request lands. This
+            // has to say so. A branch or cart refetch can flicker a value and
+            // flick it back before the request it started lands, and returning
+            // without this left the totals as grey bars for good.
+            setPromoReady(true);
+            return;
+        }
+
+        let live = true;
         setPromoReady(false);
-        getPromoService().resolvePromo(itemIds, String(branchId), subtotal).then(p => {
-            setPromo(p ?? null);
-            setPromoDiscount(p ? getPromoService().calculateDiscount(p, subtotal) : 0);
-        }).catch(() => {
-            setPromo(null); setPromoDiscount(0);
-        }).finally(() => setPromoReady(true));
-    }, [itemIdsKey, branchId, subtotal]);
+        // A beat, because going back to change the phone number asks again on
+        // every key.
+        const t = setTimeout(() => {
+            offerFor(promoCode).then(o => {
+                if (!live) return;
+                answeredFor.current = key;
+                setPromo(o.promo);
+                setPromoDiscount(o.discount);
+                if (o.codeBeaten && promoCode) {
+                    setPromoNote(`${promoCode} is not needed. ${o.promo?.name ?? 'The offer on this order'} takes more off.`);
+                    setPromoCode(null);
+                }
+            }).catch(err => {
+                if (!live) return;
+                // A code that stopped applying, say because the number they
+                // gave has used it before. It comes off, the reason stays on
+                // the row, and this runs again without it.
+                const refusal = promoRefusal(err);
+                if (refusal && promoCode) {
+                    setPromoNote(refusal);
+                    setPromoCode(null);
+                    return;
+                }
+                setPromo(null); setPromoDiscount(0);
+            }).finally(() => { if (live) setPromoReady(true); });
+        }, 250);
+
+        return () => { live = false; clearTimeout(t); };
+    }, [branchId, linesKey, subtotal, promoCode, offerPhone, offerFor]);
+
+    const applyCode = useCallback(async (code: string): Promise<CodeResult> => {
+        try {
+            const o = await offerFor(code);
+            if (o.codeBeaten) {
+                return {
+                    applied: false,
+                    tone: 'info',
+                    message: `${o.promo?.name ?? 'The offer already on this order'} takes more off, so ${code} is not needed.`,
+                };
+            }
+            const taken = o.promo?.code ?? code;
+            answeredFor.current = `${branchId}|${linesKey}|${subtotal}|${taken}|${offerPhone}`;
+            setPromo(o.promo);
+            setPromoDiscount(o.discount);
+            setPromoCode(taken);
+            setPromoNote(null);
+            return { applied: true };
+        } catch (err) {
+            return {
+                applied: false,
+                tone: 'error',
+                message: promoRefusal(err) ?? 'The code could not be checked. Try again.',
+            };
+        }
+    }, [offerFor, branchId, linesKey, subtotal, offerPhone]);
+
+    const removeCode = useCallback(() => {
+        setPromoCode(null);
+        setPromoNote(null);
+    }, []);
 
     // ── What the branch will take ────────────────────────────────────────────
     const orderTypes = useMemo(() => enabledOrderTypes(effectiveBranch), [effectiveBranch]);
@@ -268,6 +370,7 @@ export default function CheckoutPage() {
                 momo_number: paymentMethod === 'mobile_money'
                     ? normalizeGhanaPhone(momoNumber)
                     : undefined,
+                promo_code: promoCode ?? undefined,
             });
 
             if (paymentMethod === 'mobile_money') {
@@ -296,11 +399,22 @@ export default function CheckoutPage() {
                 setPhase('paying');
             }
         } catch (err: unknown) {
+            // The server checks the code again as the order goes in. If it no
+            // longer applies, the order is refused rather than charged at a
+            // figure nobody was shown. The code comes off, the total above
+            // changes in front of them, and they press pay again.
+            const refusal = promoRefusal(err);
+            if (refusal) {
+                setPromoNote(refusal);
+                setPromoCode(null);
+                toast.error(refusal);
+                return;
+            }
             toast.error(err instanceof ApiError ? err.message : 'The order did not go through. Try again.');
         } finally {
             setPlacing(false);
         }
-    }, [effectiveBranch, paymentMethod, orderType, contact, momoNumber, coordinates, createSession, clearCart, isLoggedIn, saveAddress]);
+    }, [effectiveBranch, paymentMethod, orderType, contact, momoNumber, coordinates, createSession, clearCart, isLoggedIn, saveAddress, promoCode]);
 
     const handlePaid = useCallback((num: string, token?: string) => {
         clearCart();
@@ -473,9 +587,19 @@ export default function CheckoutPage() {
                                         totals={totals}
                                         serviceLabel={serviceLabel}
                                         ready={moneyReady}
+                                        promoCode={promoCode}
+                                        promoNote={promoNote}
+                                        onPromoCode={openCodeSheet}
                                     />
                                     <PayAction {...action} />
                                 </div>
+                                <PromoCodeSheet
+                                    open={codeSheet}
+                                    onClose={closeCodeSheet}
+                                    applied={promoCode}
+                                    onApply={applyCode}
+                                    onRemove={removeCode}
+                                />
                             </div>
                         ) : (
                             <div className="mx-auto min-w-0 max-w-xl py-4 lg:py-9">

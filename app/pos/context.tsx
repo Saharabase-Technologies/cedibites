@@ -98,7 +98,12 @@ interface POSContextValue {
   isPaymentOpen: boolean;
   openPayment: () => void;
   closePayment: () => void;
-  processPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, discount?: number, manualOpts?: { recordedAt: string; momoReference?: string }) => Promise<Order>;
+  /**
+   * `promo.code` is what the cashier typed, if anything. The server works the
+   * discount out itself and checks the code again; `promo.discount` is only
+   * what the till was showing, kept as a fallback for the local copy.
+   */
+  processPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, promo?: { code?: string; discount: number }, manualOpts?: { recordedAt: string; momoReference?: string }) => Promise<Order>;
 
   // Manual entry mode
   isManualEntry: boolean;
@@ -383,9 +388,10 @@ export function POSProvider({ children }: POSProviderProps) {
     method: PaymentMethod,
     amountPaid?: number,
     momoNumber?: string,
-    discount?: number,
+    promo?: { code?: string; discount: number },
     manualOpts?: { recordedAt: string; momoReference?: string }
   ): Promise<Order> => {
+    const discount = promo?.discount ?? 0;
     const branch = branches.find(b => b.id === session?.branchId);
 
     // Delivery fee only applies to delivery orders
@@ -409,7 +415,7 @@ export function POSProvider({ children }: POSProviderProps) {
       is_manual_entry: isManualEntry || undefined,
       recorded_at: manualOpts?.recordedAt,
       customer_notes: orderNotes || undefined,
-      discount: discount && discount > 0 ? discount : undefined,
+      promo_code: promo?.code || undefined,
       delivery_fee: effectiveDeliveryFee > 0 ? effectiveDeliveryFee : undefined,
       // The channel, so the order is not filed as a walk-in at the counter.
       order_source: orderSource,
@@ -460,7 +466,9 @@ export function POSProvider({ children }: POSProviderProps) {
       })),
       subtotal: Number(csSession.subtotal ?? apiOrder?.subtotal ?? cart.reduce((sum, item) => sum + item.price * item.quantity, 0)),
       deliveryFee: Number(csSession.delivery_fee ?? apiOrder?.delivery_fee ?? effectiveDeliveryFee),
-      discount: Number(discount ?? 0),
+      // The server's figure, which is the one on the order. The till's own is
+      // only there if an older response carried no order.
+      discount: Number(apiOrder?.discount ?? discount),
       tax: 0,
       serviceCharge: Number(csSession.service_charge ?? apiOrder?.service_charge ?? 0),
       total: Number(csSession.total_amount ?? apiOrder?.total ?? cart.reduce((sum, item) => sum + item.price * item.quantity, 0) - (discount ?? 0) + effectiveDeliveryFee),

@@ -14,6 +14,8 @@ export interface CreateCheckoutSessionRequest {
   payment_method: PaymentMethod;
   momo_number?: string;
   momo_network?: string;
+  /** A code the customer typed. The server checks it again and refuses the order if it no longer applies. */
+  promo_code?: string;
 }
 
 export interface RetryPaymentRequest {
@@ -69,7 +71,10 @@ export const checkoutSessionService = {
     is_manual_entry?: boolean;
     recorded_at?: string;
     customer_notes?: string;
+    /** Ignored by the server since codes arrived; it works the discount out itself. */
     discount?: number;
+    /** A code the cashier typed. */
+    promo_code?: string;
     delivery_fee?: number;
     /** Channel the order came in on. Omitted means the till. */
     order_source?: string;
