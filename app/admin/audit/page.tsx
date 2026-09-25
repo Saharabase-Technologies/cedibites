@@ -62,6 +62,14 @@ const EVENT_LABELS: Record<string, string> = {
     password_viewed: 'Password Viewed',
     passcode_changed: 'Passcode Changed',
     passcode_failed: 'Passcode Failed',
+    tech_error_texted: 'Error Texted to Tech Admin',
+    tech_sign_in_roundup_texted: 'Failed Sign-ins Texted',
+    tech_error_cap_reached: 'Daily Error Text Limit Reached',
+
+    // Branches opened or shut by hand, for the rest of that business day
+    branch_opened_by_hand: 'Branch Opened by Hand',
+    branch_closed_by_hand: 'Branch Closed by Hand',
+    branch_override_cleared: 'Branch Back on Its Hours',
 
     // Generic Eloquent model events (User / Customer / Employee / Branch / Menu / Promo)
     // These fire automatically via Spatie ActivityLog whenever a tracked field changes.
@@ -152,7 +160,11 @@ const EVENT_GROUPS: { label: string; events: string[] }[] = [
     },
     {
         label: 'System',
-        events: ['job_retried', 'cache_cleared', 'maintenance_toggled', 'admin_created', 'admin_revoked', 'password_reset', 'passwords_viewed', 'password_viewed', 'passcode_changed', 'passcode_failed'],
+        events: ['job_retried', 'cache_cleared', 'maintenance_toggled', 'admin_created', 'admin_revoked', 'password_reset', 'passwords_viewed', 'password_viewed', 'passcode_changed', 'passcode_failed', 'tech_error_texted', 'tech_sign_in_roundup_texted', 'tech_error_cap_reached'],
+    },
+    {
+        label: 'Branches',
+        events: ['branch_opened_by_hand', 'branch_closed_by_hand', 'branch_override_cleared'],
     },
     {
         // Generic record-level audit events emitted by Spatie when a tracked
