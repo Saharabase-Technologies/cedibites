@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { loginUrlFor } from '@/lib/utils/loginRedirect';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -351,7 +352,7 @@ function InventoryLayoutInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_IMS_MOCK === 'true') return;
     if (!isLoading) {
-      if (!staffUser) { router.push('/staff/login'); return; }
+      if (!staffUser) { router.push(loginUrlFor()); return; }
       if (!staffUser.permissions?.includes('access_inventory_portal')) {
         router.push('/staff/login');
         return;

@@ -103,7 +103,7 @@ interface POSContextValue {
    * discount out itself and checks the code again; `promo.discount` is only
    * what the till was showing, kept as a fallback for the local copy.
    */
-  processPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, promo?: { code?: string; discount: number }, manualOpts?: { recordedAt: string; momoReference?: string }) => Promise<Order>;
+  processPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, promo?: { code?: string; discount: number }, manualOpts?: { recordedAt: string; momoReference?: string; reason: string }) => Promise<Order>;
 
   // Manual entry mode
   isManualEntry: boolean;
@@ -389,7 +389,7 @@ export function POSProvider({ children }: POSProviderProps) {
     amountPaid?: number,
     momoNumber?: string,
     promo?: { code?: string; discount: number },
-    manualOpts?: { recordedAt: string; momoReference?: string }
+    manualOpts?: { recordedAt: string; momoReference?: string; reason: string }
   ): Promise<Order> => {
     const discount = promo?.discount ?? 0;
     const branch = branches.find(b => b.id === session?.branchId);
@@ -414,6 +414,7 @@ export function POSProvider({ children }: POSProviderProps) {
       momo_number: momoNumber ? normalizeGhanaPhone(momoNumber) : undefined,
       is_manual_entry: isManualEntry || undefined,
       recorded_at: manualOpts?.recordedAt,
+      manual_entry_reason: manualOpts?.reason,
       customer_notes: orderNotes || undefined,
       promo_code: promo?.code || undefined,
       delivery_fee: effectiveDeliveryFee > 0 ? effectiveDeliveryFee : undefined,

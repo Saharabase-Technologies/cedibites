@@ -21,6 +21,7 @@ import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useOperableBranches } from '@/lib/hooks/useOperableBranches';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
+import { OpeningWaiting } from '@/app/components/opening/OpeningWaiting';
 import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import { useOrderBoard } from '@/lib/hooks/useOrderBoard';
 import { useOrderAlerts } from '@/lib/hooks/useOrderAlerts';
@@ -469,6 +470,56 @@ export default function OrderManagerPage() {
           onConfirm={logout}
         />
       </div>
+    );
+  }
+
+  // ── Not opened for today ──────────────────────────────────────────────────
+  // Nothing is handled until the manager has opened the branch with the
+  // checklist. An online order placed just after opening time waits here, and
+  // appears the moment the branch opens.
+
+  if (branchInfo && branchInfo.opening.required && !branchInfo.opening.opened) {
+    return (
+      <>
+        <OpeningWaiting
+          branchId={Number(branchInfo.id)}
+          branchName={branchInfo.name}
+          actions={
+            <>
+              {operableBranches.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setIsBranchSwitcherOpen(true)}
+                  className="flex min-h-11 items-center gap-2 rounded-xl border border-[#e3ddd0] bg-white px-4 font-body text-sm font-semibold text-text-dark hover:border-neutral-gray/50 cursor-pointer"
+                >
+                  <StorefrontIcon weight="fill" size={16} />
+                  Switch branch
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsSignOutOpen(true)}
+                className="flex min-h-11 items-center gap-2 px-3 font-body text-sm font-semibold text-neutral-gray hover:text-[#c05252] cursor-pointer"
+              >
+                <SignOutIcon weight="bold" size={16} />
+                Sign out
+              </button>
+            </>
+          }
+        />
+        <BranchSwitcherDialog
+          isOpen={isBranchSwitcherOpen}
+          branches={operableBranches}
+          currentBranchId={effectiveBranchId ?? undefined}
+          onSelect={(id) => {
+            localStorage.setItem(BRANCH_KEY, id);
+            setSelectedBranchId(id);
+            setIsBranchSwitcherOpen(false);
+          }}
+          onClose={() => setIsBranchSwitcherOpen(false)}
+        />
+        <SignOutDialog isOpen={isSignOutOpen} onCancel={() => setIsSignOutOpen(false)} onConfirm={logout} />
+      </>
     );
   }
 

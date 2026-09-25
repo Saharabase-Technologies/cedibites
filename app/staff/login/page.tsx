@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { nextFromLocation } from '@/lib/utils/loginRedirect';
 import { useRouter } from 'next/navigation';
 import {
     EnvelopeIcon,
@@ -42,7 +43,28 @@ function normaliseIdentifier(value: string): string {
 
 export default function StaffLoginPage() {
     const router = useRouter();
-    const { login } = useStaffAuth();
+    const { login, staffUser, isLoading: isAuthLoading } = useStaffAuth();
+
+    // Already signed in: go home. The staff app starts here, and a signed-in
+    // manager should not meet the form.
+    //
+    // Home, never `next`: a layout that sends a signed-in person here (no
+    // access to that portal, a stale till session) would otherwise have them
+    // bounced straight back to it, round and round. `next` is honoured after
+    // an actual sign-in, below.
+    //
+    // And only with a token still saved: an expired token is cleared from
+    // storage while the user is still held in memory, and forwarding that
+    // person home would fail, send them back here, and loop.
+    useEffect(() => {
+        if (isAuthLoading || !staffUser) return;
+        let hasToken = false;
+        try { hasToken = !!localStorage.getItem('cedibites_staff_token'); } catch { /* private window */ }
+        if (!hasToken) return;
+        router.replace(
+            staffUser.must_reset_password ? '/staff/change-password' : permissionsHomeRoute(staffUser.permissions ?? [])
+        );
+    }, [isAuthLoading, staffUser, router]);
 
     const [step, setStep] = useState<Step>('identifier');
     const [identifier, setIdentifier] = useState('');
@@ -123,7 +145,9 @@ export default function StaffLoginPage() {
             router.replace(
                 user.must_reset_password
                     ? '/staff/change-password'
-                    : permissionsHomeRoute(user.permissions ?? [])
+                    // Back to the page a text or a push pointed at, if there
+                    // was one; the page itself checks what they may see.
+                    : nextFromLocation() ?? permissionsHomeRoute(user.permissions ?? [])
             );
         } catch (err) {
             setGlobalError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');

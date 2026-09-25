@@ -24,6 +24,7 @@ import {
 } from '@phosphor-icons/react';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { toast } from '@/lib/utils/toast';
+import { TodayOpenings } from '@/app/admin/openings/_components/TodayOpenings';
 import { exportElementToPdf } from '@/lib/utils/exportPdf';
 
 
@@ -236,6 +237,9 @@ export default function AdminDashboardPage() {
                     {isExporting ? 'Exporting…' : 'Export PDF'}
                 </button>
             </div>
+
+            {/* ── Openings: the morning's first question ──────────────────────── */}
+            <TodayOpenings />
 
             {/* ── Cross-branch KPI row ─────────────────────────────────────────── */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-7">

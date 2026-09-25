@@ -30,6 +30,7 @@ import { writeLastOrder } from '@/lib/orders/lastOrder';
 import { useAddresses } from '@/lib/api/hooks/useAddresses';
 import { DEFAULT_SC_CONFIG, QUESTIONS, STEPS, composeNote, stepIndex } from './_components/types';
 import type { ContactDetails, OrderType, PaymentMethod, Phase, Question, ServiceChargeConfig, Step } from './_components/types';
+import { branchOpenState } from '@/lib/utils/branchOpenState';
 
 const NO_RECALL: RecalledDetails = { name: '', phone: '', address: '' };
 
@@ -478,13 +479,20 @@ export default function CheckoutPage() {
     const blocker = stage === 'review' ? reviewBlocker(checkoutState) : questionBlocker(stage, checkoutState);
     const verb = paymentMethod === 'mobile_money' ? 'Pay now' : 'Place order';
 
+    // Just after opening time, while the manager is still on the opening
+    // checklist, the order is taken and waits a few minutes for the till.
+    // Said from the first question, so nobody is surprised at the last.
+    const readyNote = effectiveBranch && branchOpenState(effectiveBranch) === 'getting_ready'
+        ? `${effectiveBranch.name} is getting ready. Your order starts when the branch opens.`
+        : undefined;
+
     const action: BarAction = (() => {
         if (blocker?.opens === 'branch') {
             return { label: blocker.action, reason: blocker.reason, onPress: openBranchSheet };
         }
 
         if (stage !== 'review') {
-            return { label: 'Continue', arrow: true, onPress: blocker ? undefined : advance };
+            return { label: 'Continue', arrow: true, onPress: blocker ? undefined : advance, note: readyNote };
         }
 
         if (!moneyReady) return { label: verb };
@@ -507,11 +515,14 @@ export default function CheckoutPage() {
             figure: formatPrice(totals.dueNow),
             busy: placing,
             onPress: handlePlace,
-            note: totals.delivery > 0
-                ? (paymentMethod === 'mobile_money'
-                    ? `The rider collects ${formatPrice(totals.delivery)} for delivery at the door.`
-                    : `Includes ${formatPrice(totals.delivery)} delivery, all of it paid to the rider.`)
-                : undefined,
+            note: [
+                readyNote,
+                totals.delivery > 0
+                    ? (paymentMethod === 'mobile_money'
+                        ? `The rider collects ${formatPrice(totals.delivery)} for delivery at the door.`
+                        : `Includes ${formatPrice(totals.delivery)} delivery, all of it paid to the rider.`)
+                    : undefined,
+            ].filter(Boolean).join(' ') || undefined,
         };
     })();
 

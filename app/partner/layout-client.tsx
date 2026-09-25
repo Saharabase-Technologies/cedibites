@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { loginUrlFor } from '@/lib/utils/loginRedirect';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -142,7 +143,9 @@ function PartnerShell({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (!isLoading && (!staffUser || !staffUser.permissions?.includes('access_partner_portal'))) {
-            router.replace('/staff/login');
+            // Remember the page only for someone signed out. A signed-in person
+            // without partner access is sent to sign in as before, not looped.
+            router.replace(staffUser ? '/staff/login' : loginUrlFor());
         }
     }, [isLoading, staffUser, router]);
 

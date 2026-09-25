@@ -5,6 +5,7 @@ import { useBranch } from '../providers/BranchProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { serverNow } from '@/lib/utils/serverClock';
 import ActiveOrderChip from './ActiveOrderChip';
+import { branchOpenState, OPEN_STATE_INK, OPEN_STATE_LABEL } from '@/lib/utils/branchOpenState';
 
 function greetingFor(hour: number): string {
     if (hour < 12) return 'Good morning';
@@ -36,7 +37,7 @@ export default function GreetingBar() {
     }, []);
 
     const firstName = user?.name?.trim().split(/\s+/)[0];
-    const isOpen = selectedBranch?.isOpen;
+    const openState = selectedBranch ? branchOpenState(selectedBranch) : null;
 
     return (
         // Indented by exactly the hero frame's own padding, so the greeting
@@ -60,14 +61,14 @@ export default function GreetingBar() {
             </h1>
 
             <div className="flex items-center justify-between gap-3">
-                {selectedBranch && typeof isOpen === 'boolean' ? (
+                {openState ? (
                     <p className="flex items-center gap-2 text-sm">
                         <span
                             aria-hidden
-                            className={`h-2 w-2 shrink-0 rounded-xs ${isOpen ? 'bg-success' : 'bg-danger'}`}
+                            className={`h-2 w-2 shrink-0 rounded-xs ${OPEN_STATE_INK[openState].dot}`}
                         />
-                        <span className={`font-bold ${isOpen ? 'text-success-ink' : 'text-danger-ink'}`}>
-                            {isOpen ? 'Open now' : 'Closed'}
+                        <span className={`font-bold ${OPEN_STATE_INK[openState].text}`}>
+                            {OPEN_STATE_LABEL[openState]}
                         </span>
                     </p>
                 ) : <span />}

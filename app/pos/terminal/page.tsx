@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { loginUrlFor } from '@/lib/utils/loginRedirect';
 import { useRouter } from 'next/navigation';
 import {
   MagnifyingGlassIcon,
@@ -70,6 +71,9 @@ import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import BranchSelectPage from '@/app/components/ui/BranchSelectPage';
 import BranchSwitcherDialog from '@/app/components/ui/BranchSwitcherDialog';
+import { OpeningChecklist } from '@/app/components/opening/OpeningChecklist';
+import { OpeningWaiting } from '@/app/components/opening/OpeningWaiting';
+import { OverrideDialog } from '@/app/components/opening/OverrideDialog';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 import PendingPaymentsDrawer from './PendingPaymentsDrawer';
 import { useOnlineOrderArrivals } from '../hooks/useOnlineOrderArrivals';
@@ -215,7 +219,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     setIsManualEntry,
     todayOrders,
   } = usePOS();
-  const { staffUser, logout } = useStaffAuth();
+  const { staffUser, logout, can } = useStaffAuth();
   const { branches } = useBranch();
   const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
   // Scoped to the till's own branch. This used to fetch every branch's menu and
@@ -261,6 +265,8 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   const [backgroundMomoToken, setBackgroundMomoToken] = useState<string | null>(null);
   const [backgroundConfirmedOrder, setBackgroundConfirmedOrder] = useState<Order | null>(null);
   const [branchClosedNotice, setBranchClosedNotice] = useState<string | null>(null);
+  // Head office opening the branch from the till without the checklist.
+  const [isOverrideOpen, setIsOverrideOpen] = useState(false);
   const [stockShortNotice, setStockShortNotice] = useState<{
     message: string;
     shortfalls: StockShortfall[];
@@ -285,7 +291,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   // Redirect if no session (but not if we just need branch selection)
   useEffect(() => {
     if (isSessionLoaded && !isSessionValid && !isNeedsBranchSelection) {
-      router.replace('/staff/login');
+      router.replace(loginUrlFor());
     }
   }, [isSessionLoaded, isSessionValid, isNeedsBranchSelection, router]);
 
@@ -534,7 +540,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   const grandTotal = effectiveTotal + currentDeliveryFee;
 
   // Handle payment complete
-  const handlePaymentComplete = async (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string }) => {
+  const handlePaymentComplete = async (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string; reason: string }) => {
     try {
       const order = await processPayment(method, amountPaid, momoNumber, { code: codeInForce, discount: promoDiscount }, manualOpts);
       setShowCode(false);
@@ -572,7 +578,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
         setCodeMessage({ tone: 'error', text: refusal });
         setShowCode(true);
         toast.error(refusal);
-      } else if (apiErr.code === 'branch_closed') {
+      } else if (apiErr.code === 'branch_closed' || apiErr.code === 'branch_not_opened') {
         setBranchClosedNotice(apiErr.message || 'This branch is currently closed and cannot accept orders.');
       } else if (body.error === 'insufficient_stock' || apiErr.code === 'insufficient_stock') {
         // A refusal at the counter needs reading, not a toast that slides away
@@ -679,6 +685,73 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
           />
         )}
       </div>
+    );
+  }
+
+  // Guard: not opened for today. Nothing sells until the manager has done the
+  // opening checklist, so the manager gets the checklist here and everyone
+  // else waits on a screen that unlocks itself when the branch opens. The call
+  // centre is not held here: it orders for any branch, and the server says
+  // which ones are not open yet.
+  if (branchInfo && branchInfo.opening.required && !branchInfo.opening.opened && !(isCompanyWide && !isAdmin)) {
+    const gateActions = (
+      <>
+        {can('manage_branches') && (
+          <button
+            onClick={() => setIsOverrideOpen(true)}
+            className="min-h-11 flex items-center rounded-xl border border-[#e3ddd0] bg-white px-4 text-sm font-semibold text-text-dark hover:border-neutral-gray/50 cursor-pointer"
+          >
+            Open without the checklist
+          </button>
+        )}
+        {switchableBranches.length > 1 && (
+          <button
+            onClick={() => setIsBranchSwitcherOpen(true)}
+            className="min-h-11 flex items-center gap-2 rounded-xl border border-[#e3ddd0] bg-white px-4 text-sm font-semibold text-text-dark hover:border-neutral-gray/50 cursor-pointer"
+          >
+            <StorefrontIcon weight="fill" size={16} />
+            Switch branch
+          </button>
+        )}
+        {!embedded && (
+          <button
+            onClick={() => logout()}
+            className="min-h-11 flex items-center gap-2 rounded-xl px-3 text-sm font-semibold text-neutral-gray hover:text-error cursor-pointer"
+          >
+            <SignOutIcon weight="bold" size={16} />
+            Sign out
+          </button>
+        )}
+      </>
+    );
+
+    return (
+      <>
+        {can('branch.operate') ? (
+          <div className={`${embedded ? 'h-full' : 'min-h-dvh'} overflow-y-auto bg-neutral-light`}>
+            <OpeningChecklist branchId={Number(branchInfo.id)} via={embedded ? 'portal' : 'pos'} headerRight={gateActions} />
+          </div>
+        ) : (
+          <OpeningWaiting branchId={Number(branchInfo.id)} branchName={branchInfo.name} actions={gateActions} />
+        )}
+        {switchableBranches.length > 1 && (
+          <BranchSwitcherDialog
+            isOpen={isBranchSwitcherOpen}
+            branches={switchableBranches}
+            currentBranchId={session?.branchId}
+            onSelect={selectBranch}
+            onClose={() => setIsBranchSwitcherOpen(false)}
+          />
+        )}
+        {can('manage_branches') && (
+          <OverrideDialog
+            branchId={Number(branchInfo.id)}
+            branchName={branchInfo.name}
+            isOpen={isOverrideOpen}
+            onClose={() => setIsOverrideOpen(false)}
+          />
+        )}
+      </>
     );
   }
 
@@ -1811,7 +1884,7 @@ function POSItemOptionModal({ item, cart, branchId, onClose, onAdd }: POSItemOpt
 interface PaymentModalProps {
   total: number;
   onClose: () => void;
-  onPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string }) => void;
+  onPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string; reason: string }) => void;
   isManualEntry?: boolean;
   branchPaymentMethods?: Record<string, { is_enabled: boolean }>;
 }
@@ -1830,6 +1903,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
   const [recordedAt, setRecordedAt] = useState('');
   const [recordedTime, setRecordedTime] = useState('');
   const [momoReference, setMomoReference] = useState('');
+  const [manualReason, setManualReason] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [dateEnabled, setDateEnabled] = useState<boolean | null>(null);
 
@@ -1896,6 +1970,10 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
         setValidationError('Please enter the time the order was taken.');
         return;
       }
+      if (manualReason.trim().length < 3) {
+        setValidationError('Say why this sale was written on paper, for example: the power was off.');
+        return;
+      }
     }
 
     setIsProcessing(true);
@@ -1904,7 +1982,9 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
     const effectiveRecordedAt = isManualEntry
       ? (dateEnabled ? recordedAt : `${new Date().toISOString().slice(0, 10)}T${recordedTime}`)
       : undefined;
-    const manualOpts = isManualEntry ? { recordedAt: effectiveRecordedAt!, momoReference: momoReference || undefined } : undefined;
+    const manualOpts = isManualEntry
+      ? { recordedAt: effectiveRecordedAt!, momoReference: momoReference || undefined, reason: manualReason.trim() }
+      : undefined;
 
     if (selectedMethod === 'cash') {
       const paid = parseFloat(cashAmount) || total;
@@ -1991,6 +2071,15 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
                   <p className="text-xs text-neutral-gray/70">Only past times allowed. You cannot log a future order.</p>
                 </>
               )}
+              <label htmlFor="manual-reason" className="block pt-2 text-sm text-neutral-gray">Why was it written on paper?</label>
+              <textarea
+                id="manual-reason"
+                value={manualReason}
+                onChange={e => setManualReason(e.target.value)}
+                rows={2}
+                placeholder="For example: the power was off from 9 until 10.30."
+                className="w-full min-h-12 px-4 py-3 rounded-xl text-sm border focus:border-primary/50 outline-none transition-colors bg-neutral-light text-text-dark border-neutral-gray/20"
+              />
             </div>
           )}
 
@@ -2195,7 +2284,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
             disabled={
               !selectedMethod || isProcessing
               || (selectedMethod === 'mobile_money' && !momoVerified)
-              || (isManualEntry && !recordedAt && !recordedTime)
+              || (isManualEntry && ((!recordedAt && !recordedTime) || manualReason.trim().length < 3))
             }
             className="
               w-full h-14 rounded-2xl font-semibold text-lg

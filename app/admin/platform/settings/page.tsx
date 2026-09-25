@@ -19,9 +19,9 @@ interface RuntimeSetting {
     group: string;
     label: string;
     help: string;
-    type: 'boolean' | 'integer';
-    value: boolean | number;
-    default: boolean | number;
+    type: 'boolean' | 'integer' | 'phone_list';
+    value: boolean | number | string;
+    default: boolean | number | string;
     /** Which of value/default is winning. */
     source: 'env' | 'override';
     danger?: boolean;
@@ -32,6 +32,7 @@ interface RuntimeSetting {
 export default function PlatformSettingsPage() {
     const queryClient = useQueryClient();
     const [note, setNote] = useState<string | null>(null);
+    const [failure, setFailure] = useState<string | null>(null);
 
     const { data, isLoading } = useQuery({
         queryKey: ['platform-settings'],
@@ -42,11 +43,17 @@ export default function PlatformSettingsPage() {
     });
 
     const save = useMutation({
-        mutationFn: (payload: { key: string; value: boolean | number }) =>
+        mutationFn: (payload: { key: string; value: boolean | number | string }) =>
             apiClient.put('/platform/settings', payload),
         onSuccess: () => {
+            setFailure(null);
             setNote('Saved. It takes effect immediately — no restart needed.');
             queryClient.invalidateQueries({ queryKey: ['platform-settings'] });
+        },
+        // A value the setting cannot hold, such as a mistyped phone number.
+        onError: (error: Error) => {
+            setNote(null);
+            setFailure(error.message);
         },
     });
 
@@ -91,6 +98,10 @@ export default function PlatformSettingsPage() {
                 </p>
             </div>
 
+            {failure && (
+                <p className="mb-4 rounded-xl bg-error/10 px-4 py-2.5 font-body text-sm text-error">{failure}</p>
+            )}
+
             {note && (
                 <p className="mb-4 rounded-xl bg-secondary-light/50 px-4 py-2.5 font-body text-sm text-secondary">
                     {note}
@@ -131,7 +142,7 @@ function SettingRow({
     setting: RuntimeSetting;
     isProduction: boolean;
     busy: boolean;
-    onSave: (value: boolean | number) => void;
+    onSave: (value: boolean | number | string) => void;
     onRevert: () => void;
 }) {
     const [draft, setDraft] = useState(String(setting.value));
@@ -168,7 +179,7 @@ function SettingRow({
                 </div>
 
                 <div className="shrink-0">
-                    {setting.type === 'boolean' ? (
+                    {setting.type === 'phone_list' ? null : setting.type === 'boolean' ? (
                         <button
                             type="button"
                             onClick={toggle}
@@ -207,9 +218,30 @@ function SettingRow({
                 </div>
             </div>
 
+            {setting.type === 'phone_list' && (
+                <div className="mt-3 flex flex-col gap-2">
+                    <textarea
+                        aria-label={setting.label}
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
+                        rows={2}
+                        placeholder="0592123054, 0503923322"
+                        className="w-full rounded-lg border border-black/10 bg-neutral-light/40 px-3 py-2 text-sm font-body tabular-nums"
+                    />
+                    <button
+                        type="button"
+                        onClick={() => onSave(draft)}
+                        disabled={busy || draft === String(setting.value) || draft.trim() === ''}
+                        className="self-start min-h-11 px-4 rounded-lg bg-primary hover:bg-primary-hover text-brand-darker text-sm font-body font-semibold transition-colors disabled:opacity-40 cursor-pointer"
+                    >
+                        Save numbers
+                    </button>
+                </div>
+            )}
+
             <div className="flex items-center gap-3 mt-2.5">
                 <p className="font-body text-[11px] text-neutral-gray">
-                    Server default: <strong>{String(setting.default)}</strong>
+                    Server default: <strong>{String(setting.default) || 'none'}</strong>
                 </p>
 
                 {setting.source === 'override' && (

@@ -3,6 +3,7 @@ import { isValidGhanaPhone } from '@/app/lib/phone';
 import { nextOpening } from '@/lib/utils/branchHours';
 import { QUESTIONS } from './types';
 import type { ContactDetails, OrderType, PaymentMethod, Question, Step } from './types';
+import { branchOpenState } from '@/lib/utils/branchOpenState';
 
 /**
  * What this branch will actually accept, and whether the order is ready to go.
@@ -98,6 +99,13 @@ function branchBlocker({ branch, orderTypes, methods }: CheckoutState): Blocker 
             reason: when ? `${branch.name} opens ${when}.` : `${branch.name} is closed.`,
             opens: 'branch',
         };
+    }
+
+    // Open by its hours, but the manager has not opened it for the day and it
+    // is past the first half hour. Online stops taking money for food nobody
+    // is cooking; the server refuses it too.
+    if (branchOpenState(branch) === 'not_open_yet') {
+        return { action: 'Choose another branch', reason: `${branch.name} has not opened yet today.`, opens: 'branch' };
     }
 
     if (orderTypes.length === 0) {

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { loginUrlFor } from '@/lib/utils/loginRedirect';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { CancelRequestsBell } from './components/CancelRequestsBell';
@@ -38,6 +39,7 @@ import {
     RobotIcon,
     ChatCircleTextIcon,
     XIcon,
+    DoorOpenIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
@@ -56,6 +58,8 @@ const ADMIN_GROUPS = [
     {
         title: 'Operations',
         items: [
+            // First, because a branch not opened by 10:15 is the morning's first question.
+            { href: '/admin/openings',      label: 'Openings',      icon: DoorOpenIcon },
             { href: '/admin/orders',        label: 'Orders',        icon: ListIcon    },
             { href: '/admin/transactions',  label: 'Transactions',  icon: ReceiptIcon },
         ],
@@ -389,7 +393,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (!isLoading) {
             if (!staffUser) {
-                router.push('/staff/login');
+                router.push(loginUrlFor());
                 return;
             }
 

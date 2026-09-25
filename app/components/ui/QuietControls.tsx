@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { branchOpenState } from '@/lib/utils/branchOpenState';
+import type { BranchOpeningSummary } from '@/types/opening';
 
 /**
  * The two small controls every customer screen shares.
@@ -57,9 +59,12 @@ export function AttentionBadge({ children }: { children: React.ReactNode }) {
 }
 
 /** Whether a branch can take an order, said beside its name. Nothing when it can. */
-export function BranchStateBadge({ branch }: { branch: { isActive: boolean; isOpen: boolean } | null | undefined }) {
+export function BranchStateBadge({ branch }: { branch: { isActive: boolean; isOpen: boolean; opening?: BranchOpeningSummary } | null | undefined }) {
     if (!branch) return null;
     if (!branch.isActive) return <AttentionBadge>Not taking orders</AttentionBadge>;
     if (!branch.isOpen) return <AttentionBadge>Closed</AttentionBadge>;
+    const state = branchOpenState(branch);
+    if (state === 'getting_ready') return <AttentionBadge>Getting ready</AttentionBadge>;
+    if (state === 'not_open_yet') return <AttentionBadge>Not open yet</AttentionBadge>;
     return null;
 }

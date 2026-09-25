@@ -71,6 +71,20 @@ const EVENT_LABELS: Record<string, string> = {
     branch_closed_by_hand: 'Branch Closed by Hand',
     branch_override_cleared: 'Branch Back on Its Hours',
 
+    // Opening the branch for the day, and what head office was texted about it
+    opening_started: 'Opening Checklist Started',
+    branch_opened: 'Branch Opened',
+    opening_checklist_completed: 'Opening Checklist Finished',
+    opening_problem_fixed: 'Opening Problem Fixed',
+    branch_opened_without_checklist: 'Opened Without the Checklist',
+    opening_problems_reported: 'Texted: Opened With Problems',
+    opening_problems_fixed: 'Texted: Problems Fixed',
+    opening_grace_expired: 'Texted: Problems Past the Hour',
+    opening_problems_reminder: 'Texted: Problems Reminder',
+    branch_not_open: 'Texted: Branch Not Open',
+    branch_still_not_open: 'Texted: Branch Still Not Open',
+    branch_opened_late: 'Texted: Branch Opened Late',
+
     // Generic Eloquent model events (User / Customer / Employee / Branch / Menu / Promo)
     // These fire automatically via Spatie ActivityLog whenever a tracked field changes.
     created: 'Record Created',
@@ -165,6 +179,14 @@ const EVENT_GROUPS: { label: string; events: string[] }[] = [
     {
         label: 'Branches',
         events: ['branch_opened_by_hand', 'branch_closed_by_hand', 'branch_override_cleared'],
+    },
+    {
+        label: 'Opening',
+        events: [
+            'opening_started', 'branch_opened', 'opening_checklist_completed', 'opening_problem_fixed',
+            'branch_opened_without_checklist', 'branch_not_open', 'branch_still_not_open', 'branch_opened_late',
+            'opening_problems_reported', 'opening_grace_expired', 'opening_problems_reminder', 'opening_problems_fixed',
+        ],
     },
     {
         // Generic record-level audit events emitted by Spatie when a tracked

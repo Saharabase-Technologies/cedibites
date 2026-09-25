@@ -4,6 +4,7 @@ import { ReactNode, useEffect } from 'react';
 import { KitchenProvider, useKitchen } from './context';
 import { KitchenBranchProvider, useSwitchKitchenBranch } from './branch-context';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
+import { OpeningWaiting } from '@/app/components/opening/OpeningWaiting';
 import { InterruptionGateProvider, useHoldsInterruption } from '@/app/components/providers/InterruptionGate';
 import { CautionInterstitial } from '@/app/components/messaging/CautionInterstitial';
 import { ReleaseWalkthrough } from '@/app/components/messaging/ReleaseWalkthrough';
@@ -91,6 +92,38 @@ function KitchenGate({ children }: { children: ReactNode }) {
           </button>
         </div>
       </div>
+    );
+  }
+
+  // Guard: not opened for today. The kitchen can prepare, but no ticket shows
+  // until the manager has opened the branch with the checklist.
+  if (branchInfo && branchInfo.opening.required && !branchInfo.opening.opened) {
+    return (
+      <OpeningWaiting
+        branchId={Number(branchInfo.id)}
+        branchName={branchInfo.name}
+        dark
+        actions={
+          <>
+            {selectableBranches.length > 1 && (
+              <button
+                onClick={() => switchBranch('')}
+                className="flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-semibold text-white hover:bg-white/20 cursor-pointer"
+              >
+                <StorefrontIcon weight="fill" size={16} />
+                Switch branch
+              </button>
+            )}
+            <button
+              onClick={() => logout()}
+              className="flex min-h-11 items-center gap-2 px-3 text-sm font-semibold text-white/50 hover:text-red-400 cursor-pointer"
+            >
+              <SignOutIcon weight="bold" size={16} />
+              Sign out
+            </button>
+          </>
+        }
+      />
     );
   }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { loginUrlFor } from '@/lib/utils/loginRedirect';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -14,7 +15,7 @@ import {
     ChartBarIcon,
     ForkKnifeIcon,
     UsersThreeIcon,
-    GearSixIcon,
+    DoorOpenIcon,
     ClockIcon,
     CashRegisterIcon,
     MonitorIcon,
@@ -31,11 +32,14 @@ import { CautionInterstitial } from '@/app/components/messaging/CautionInterstit
 import { ReleaseWalkthrough } from '@/app/components/messaging/ReleaseWalkthrough';
 import { StaffMessageBell } from '@/app/components/messaging/StaffMessageBell';
 import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
+import { OpeningPrompt } from '@/app/components/opening/OpeningPrompt';
 
 // ─── Nav configs (permission-gated) ───────────────────────────────────────────
 
 const MANAGER_NAV_MAIN = [
     { href: '/staff/manager/dashboard', label: 'Dashboard', icon: SquaresFourIcon },
+    // The branch sells nothing until this is done, so it sits second.
+    { href: '/staff/manager/opening',   label: 'Opening',   icon: DoorOpenIcon,   permission: 'branch.operate' },
     { href: '/staff/manager/orders',    label: 'Orders',    icon: ListIcon },
     // No permission gate. Receiving a message is the job, not a privilege —
     // gating the inbox would mean editing all ten roles and silently excluding
@@ -57,7 +61,10 @@ const MANAGER_NAV_TOOLS = [
     { href: '/staff/manager/staff',     label: 'Staff',      icon: UsersThreeIcon, permission: 'view_employees' },
     { href: '/staff/manager/staff-sales', label: 'Staff Sales', icon: CurrencyCircleDollarIcon, permission: 'view_orders' },
     { href: '/staff/manager/shifts',    label: 'Shifts',     icon: ClockIcon,      permission: 'manage_shifts' },
-    { href: '/staff/manager/settings',  label: 'Configure',  icon: GearSixIcon,    permission: 'manage_settings' },
+    // Configure is off the menu. It saved through an admin-only route, so every
+    // save failed for a manager, and its open switch wrote `is_active`, which
+    // deactivates the branch rather than closing it for the day. The page stays
+    // so it can come back once it is rebuilt on what a manager may change.
 ];
 
 const SALES_NAV = [
@@ -211,7 +218,7 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
     // Not logged in → redirect (must be before any early returns)
     useEffect(() => {
         if (!isLoading && !staffUser && !isPublicPath) {
-            router.replace('/staff/login');
+            router.replace(loginUrlFor());
         }
     }, [isLoading, staffUser, isPublicPath, router]);
 
@@ -367,6 +374,7 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
 
                 {/* Page content */}
                 <main className="flex-1 min-h-0 overflow-y-auto pb-20 md:pb-0">
+                    <OpeningPrompt />
                     {children}
                 </main>
             </div>

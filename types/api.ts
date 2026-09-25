@@ -53,6 +53,8 @@ export interface Branch {
   extended_staff_access?: boolean;
   extended_order_access?: boolean;
   staff_access_allowed?: boolean;
+  /** Whether today has been opened with the checklist. Absent from an older API. */
+  opening?: import('./opening').BranchOpeningSummary;
   operating_hours?: Record<string, {
     is_open: boolean;
     open_time: string | null;

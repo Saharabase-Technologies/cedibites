@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
+import { loginUrlFor } from '@/lib/utils/loginRedirect';
 import { navigateTo } from '@/lib/navigation';
 import { nextRequestId } from '@/lib/feedback/request-id';
 import { recordNetwork } from '@/lib/feedback/network-buffer';
@@ -211,7 +212,7 @@ apiClient.interceptors.response.use(
           if (!isOnLoginPage) {
             localStorage.removeItem('cedibites_staff_token');
             localStorage.removeItem('cedibites-staff-session');
-            navigateTo('/staff/login');
+            navigateTo(loginUrlFor());
           }
         } else if (!isStaffRoute && usedCustomerToken) {
           /**
@@ -258,7 +259,7 @@ apiClient.interceptors.response.use(
         localStorage.removeItem('cedibites-staff-session');
 
         if (!isOnLoginPage) {
-          navigateTo('/staff/login');
+          navigateTo(loginUrlFor());
         }
       }
 

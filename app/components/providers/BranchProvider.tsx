@@ -8,6 +8,9 @@ import { useBranches } from '@/lib/api/hooks/useBranches';
 import { getEcho } from '@/lib/echo';
 import type { Branch as ApiBranch } from '@/types/api';
 import type { WeekHours } from '@/lib/utils/branchHours';
+import type { BranchOpeningSummary } from '@/types/opening';
+
+const NO_OPENING: BranchOpeningSummary = { required: false, status: 'not_required', opened: true, getting_ready: false };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -29,6 +32,8 @@ export interface Branch {
     extendedStaffAccess: boolean;
     extendedOrderAccess: boolean;
     staffAccessAllowed: boolean;
+    /** Whether today has been opened with the checklist. See types/opening.ts. */
+    opening: BranchOpeningSummary;
     orderTypes: Record<string, { is_enabled: boolean }>;
     paymentMethods: Record<string, { is_enabled: boolean }>;
     menuItemIds: string[]; // Legacy - will be deprecated
@@ -123,6 +128,9 @@ function mapApiBranchToLocal(apiBranch: ApiBranch): Branch {
         extendedStaffAccess: apiBranch.extended_staff_access ?? false,
         extendedOrderAccess: apiBranch.extended_order_access ?? false,
         staffAccessAllowed: apiBranch.staff_access_allowed ?? (apiBranch.is_open ?? apiBranch.is_active),
+        // An API from before the checklist sends nothing, which means exactly
+        // what it meant then: no opening to wait for.
+        opening: apiBranch.opening ?? NO_OPENING,
         orderTypes: apiBranch.order_types ?? {},
         paymentMethods: apiBranch.payment_methods ?? {},
         menuItemIds: apiBranch.menu_items?.map(item => String(item.id)) ?? [],

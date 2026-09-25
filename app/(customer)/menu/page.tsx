@@ -11,6 +11,7 @@ import type { SearchableItem } from '@/app/components/providers/MenuDiscoveryPro
 import DishCard from './_components/DishCard';
 import SectionRail, { type MenuSection } from './_components/SectionRail';
 import { MenuEmpty, MenuError, MenuNoResults, MenuSkeleton } from './_components/MenuStates';
+import { branchOpenState, OPEN_STATE_INK, OPEN_STATE_LABEL } from '@/lib/utils/branchOpenState';
 
 /**
  * The menu, as one continuous list with a spine.
@@ -376,6 +377,7 @@ function BranchCard() {
     const { openBranchSelector } = useModal();
 
     if (!selectedBranch) return null;
+    const openState = branchOpenState(selectedBranch);
 
     return (
         <div className="mt-6 rounded-2xl border border-hairline bg-surface p-4">
@@ -384,10 +386,10 @@ function BranchCard() {
             <p className="mt-1 flex items-center gap-1.5 text-xs">
                 <span
                     aria-hidden
-                    className={`h-2 w-2 shrink-0 rounded-full ${selectedBranch.isOpen ? 'bg-success' : 'bg-danger'}`}
+                    className={`h-2 w-2 shrink-0 rounded-full ${OPEN_STATE_INK[openState].dot}`}
                 />
-                <span className={`font-bold ${selectedBranch.isOpen ? 'text-success-ink' : 'text-danger-ink'}`}>
-                    {selectedBranch.isOpen ? 'Open now' : 'Closed'}
+                <span className={`font-bold ${OPEN_STATE_INK[openState].text}`}>
+                    {OPEN_STATE_LABEL[openState]}
                 </span>
             </p>
 
