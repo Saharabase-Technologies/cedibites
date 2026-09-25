@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
     ArrowLeftIcon,
@@ -135,6 +136,18 @@ export function OpeningWizard({
             delete timers.current[Number(id)];
             t.run();
         }
+    }, []);
+
+    // Nothing behind the window scrolls while it is open.
+    useEffect(() => {
+        const html = document.documentElement.style.overflow;
+        const body = document.body.style.overflow;
+        document.documentElement.style.overflow = 'hidden';
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.documentElement.style.overflow = html;
+            document.body.style.overflow = body;
+        };
     }, []);
 
     useEffect(() => () => {
@@ -325,7 +338,6 @@ export function OpeningWizard({
                 {!started && (
                     <p className="mt-2 max-w-[52ch] font-body text-sm text-neutral-gray">
                         You can open with a problem. Say what it is and head office is told; you then have an hour to fix it.
-                        Four food-safety lines must pass.
                     </p>
                 )}
                 {tooEarly && <p className="mt-4 font-body text-sm text-neutral-gray">The checklist opens at {clock(initial.schedule.checklist_from)}.</p>}
@@ -359,7 +371,7 @@ export function OpeningWizard({
                     <li className="flex min-h-12 items-center justify-between gap-3 py-2">
                         <span className="font-body text-[15px] text-text-dark">Food safety</span>
                         <span className={`rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${unsafe.length ? `${TONE.problem.bg} ${TONE.problem.text}` : `${TONE.done.bg} ${TONE.done.text}`}`}>
-                            {unsafe.length ? `Failed: ${unsafe.map((a) => a.short).join(', ')}` : 'All pass'}
+                            {unsafe.length ? `Problem: ${unsafe.map((a) => a.short).join(', ')}` : 'No problems'}
                         </span>
                     </li>
                 </ul>
@@ -444,7 +456,10 @@ export function OpeningWizard({
 
     // ── The card ──────────────────────────────────────────────────────────
 
-    return (
+    // Rendered at the top of the document, not inside the page. Inside it, the
+    // staff portal's scrolling <main> is the card's ancestor, so a wheel or a
+    // swipe over the dimmed backdrop scrolled the page behind the checklist.
+    return createPortal(
         <div className="fixed inset-0 z-90 flex items-center justify-center bg-brand-darker/75 p-3 sm:p-6">
             <div
                 role="dialog"
@@ -466,7 +481,7 @@ export function OpeningWizard({
 
                 <div
                     key={index}
-                    className={`min-h-0 flex-1 overflow-y-auto ${direction === 1 ? 'walkthrough-enter-next' : 'walkthrough-enter-prev'}`}
+                    className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${direction === 1 ? 'walkthrough-enter-next' : 'walkthrough-enter-prev'}`}
                 >
                     {body}
                 </div>
@@ -557,7 +572,8 @@ export function OpeningWizard({
                     )}
                 </footer>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }
 
@@ -640,7 +656,7 @@ function Line({
                     <p className="font-body text-[15px] text-text-dark">{line.label}</p>
                     {line.weight === 'must_pass' && (
                         <span className="mt-1 inline-block rounded-full bg-rose-50 px-2 py-0.5 font-body text-[11px] font-semibold text-rose-700">
-                            Food safety. Must pass to open
+                            Food safety
                         </span>
                     )}
                     {line.help && <p className="mt-0.5 font-body text-xs text-neutral-gray">{line.help}</p>}

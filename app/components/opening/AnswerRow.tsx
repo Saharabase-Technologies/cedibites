@@ -147,7 +147,7 @@ export function AnswerRow({
                     <p className="text-sm font-body text-text-dark">{answer.label}</p>
                     {answer.weight === 'must_pass' && (
                         <span className="mt-1 inline-block rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold font-body text-rose-700">
-                            Food safety. Must pass to open
+                            Food safety
                         </span>
                     )}
                     {answer.help && <p className="mt-0.5 text-xs font-body text-neutral-gray">{answer.help}</p>}
