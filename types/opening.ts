@@ -45,6 +45,11 @@ export type AnswerWeight = 'must_pass' | 'can_open' | 'record';
 
 export type CheckAnswer = 'ok' | 'problem' | 'na';
 
+/** When a line is asked. See lib/utils/openingRelevance.ts. */
+export type ShowIf =
+    | { when: string; is?: CheckAnswer }
+    | { any_problem: string[] };
+
 export interface OpeningPhoto {
     id: number;
     /** The problem as found, or the fix. Decided by the server. */
@@ -67,6 +72,9 @@ export interface OpeningAnswer {
     kind: AnswerKind;
     weight: AnswerWeight;
     allows_na: boolean;
+    show_if?: ShowIf | null;
+    /** Asked, given the answers so far, as the server last worked it out. */
+    relevant?: boolean;
     answer: CheckAnswer | null;
     value: string | null;
     note: string | null;

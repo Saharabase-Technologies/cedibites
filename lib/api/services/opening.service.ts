@@ -33,6 +33,10 @@ export const openingService = {
     answer: async (branchId: number, answerId: number, payload: AnswerPayload): Promise<OpeningAnswer> =>
         extractData(await apiClient.patch(`/manager/branches/${branchId}/opening/answers/${answerId}`, payload)),
 
+    /** "Yes to all" for one set. Returns the lines it changed. */
+    answerGroup: async (branchId: number, section: string, group: string | null): Promise<OpeningAnswer[]> =>
+        extractData(await apiClient.post(`/manager/branches/${branchId}/opening/answer-group`, { section, group })),
+
     complete: async (branchId: number, via: OpeningVia, note?: string): Promise<BranchOpening> =>
         extractData(await apiClient.post(`/manager/branches/${branchId}/opening/complete`, { via, note: note || null })),
 
@@ -57,7 +61,7 @@ export const openingService = {
         extractData(await apiClient.get(`/employee/branches/${branchId}/opening`)),
 
     // ── Head office ────────────────────────────────────────────────────────
-    listForDay: async (date?: string): Promise<{ business_date: string; today: string; branches: AdminOpeningRow[] }> =>
+    listForDay: async (date?: string): Promise<{ business_date: string; today: string; can_reset?: boolean; branches: AdminOpeningRow[] }> =>
         extractData(await apiClient.get('/admin/openings', { params: date ? { date } : {} })),
 
     show: async (openingId: number): Promise<BranchOpening> =>
@@ -65,6 +69,11 @@ export const openingService = {
 
     openWithoutChecklist: async (branchId: number, reason: string): Promise<BranchOpening> =>
         extractData(await apiClient.post(`/admin/branches/${branchId}/open-without-checklist`, { reason })),
+
+    /** Beta only: throw today's opening away so the morning can be run again. */
+    reset: async (branchId: number): Promise<void> => {
+        await apiClient.post(`/admin/branches/${branchId}/opening/reset`);
+    },
 
     setRequirement: async (branchId: number, required: boolean): Promise<{ requires_opening_checklist: boolean }> =>
         extractData(await apiClient.patch(`/admin/branches/${branchId}/opening-requirement`, { required })),

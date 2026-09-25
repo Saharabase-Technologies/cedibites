@@ -27,6 +27,7 @@ export default function AdminOpeningsPage() {
     const [date, setDate] = useState<string | null>(null);
     const [overriding, setOverriding] = useState<AdminOpeningRow | null>(null);
     const [switching, setSwitching] = useState<AdminOpeningRow | null>(null);
+    const [resetting, setResetting] = useState<AdminOpeningRow | null>(null);
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['openings', date],
@@ -40,6 +41,21 @@ export default function AdminOpeningsPage() {
     const order = (r: AdminOpeningRow) =>
         r.is_late && !r.opened_at ? 0 : r.status === 'open_with_problems' ? 1 : r.status === 'in_progress' || r.status === 'not_started' ? 2 : 3;
     const sorted = [...rows].sort((a, b) => order(a) - order(b) || a.branch.name.localeCompare(b.branch.name));
+
+    // Beta only: throw today's opening away so the morning can be run again.
+    async function reset(row: AdminOpeningRow) {
+        try {
+            await openingService.reset(row.branch.id);
+            toast.success(`${row.branch.name} can be opened again.`);
+            queryClient.invalidateQueries({ queryKey: ['openings'] });
+            queryClient.invalidateQueries({ queryKey: ['opening'] });
+            queryClient.invalidateQueries({ queryKey: ['branches'] });
+        } catch (err) {
+            toast.error((err as Error).message);
+        } finally {
+            setResetting(null);
+        }
+    }
 
     async function setRequirement(row: AdminOpeningRow, required: boolean) {
         try {
@@ -111,6 +127,12 @@ export default function AdminOpeningsPage() {
                                             Open without the checklist
                                         </button>
                                     )}
+                                    {isToday && data?.can_reset && row.required && (row.started_at || row.opened_at) && (
+                                        <button type="button" onClick={() => setResetting(row)}
+                                            className="min-h-11 rounded-xl px-4 text-sm font-semibold font-body text-rose-700 hover:underline cursor-pointer">
+                                            Reset for testing
+                                        </button>
+                                    )}
                                     {row.id && (
                                         <Link href={`/admin/openings/${row.id}`}
                                             className="min-h-11 inline-flex items-center rounded-xl px-4 text-sm font-semibold font-body text-primary hover:underline">
@@ -141,6 +163,24 @@ export default function AdminOpeningsPage() {
                     onClose={() => setOverriding(null)}
                 />
             )}
+
+            <InventoryModal isOpen={resetting !== null} onClose={() => setResetting(null)} title={`Reset ${resetting?.branch.name ?? ''} for testing?`}>
+                <p className="text-sm font-body text-text-dark">
+                    Today&apos;s opening is thrown away: every answer, every photo, and the time it opened. The till locks
+                    again until someone opens the branch, so the morning can be run from the start.
+                </p>
+                <p className="mt-2 text-sm font-body text-neutral-gray">This only works on beta. Production refuses it.</p>
+                <div className="mt-5 flex justify-end gap-2">
+                    <button type="button" onClick={() => setResetting(null)}
+                        className="min-h-11 rounded-xl px-4 text-sm font-semibold font-body text-neutral-gray hover:text-text-dark cursor-pointer">
+                        Cancel
+                    </button>
+                    <button type="button" onClick={() => resetting && reset(resetting)}
+                        className="min-h-11 rounded-xl bg-primary px-5 text-sm font-semibold font-body text-white hover:bg-primary/90 cursor-pointer">
+                        Reset it
+                    </button>
+                </div>
+            </InventoryModal>
 
             <InventoryModal isOpen={switching !== null} onClose={() => setSwitching(null)} title={`Switch ${switching?.branch.name ?? ''} onto the checklist?`}>
                 <p className="text-sm font-body text-text-dark">

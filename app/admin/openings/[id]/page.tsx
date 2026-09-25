@@ -30,7 +30,7 @@ export default function AdminOpeningDetailPage() {
     if (error || !o) return <p className="p-8 text-sm font-body text-rose-700">{(error as Error)?.message ?? 'Not found.'}</p>;
 
     const tone = statusTone(o.status, o.is_late);
-    const problems = o.answers.filter((a) => a.answer === 'problem');
+    const problems = o.answers.filter((a) => a.answer === 'problem' && a.relevant !== false);
     const sections = groupBySection(o.answers);
 
     const timeline: { at: string | null; text: string }[] = [
@@ -132,6 +132,8 @@ function answerText(a: OpeningAnswer): string {
 function groupBySection(answers: OpeningAnswer[]): [string, OpeningAnswer[]][] {
     const map = new Map<string, OpeningAnswer[]>();
     for (const a of answers) {
+        // Not asked that morning: "cover for absent staff" when nobody was.
+        if (a.relevant === false) continue;
         if (a.kind === 'text' && !a.value) continue;
         if (!map.has(a.section)) map.set(a.section, []);
         map.get(a.section)!.push(a);
