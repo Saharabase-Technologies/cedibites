@@ -139,6 +139,8 @@ export interface ChecklistItem {
     allows_na: boolean;
     position: number;
     is_active: boolean;
+    /** Asked only after another answer. Set by the seeder, not edited on screen. */
+    show_if?: ShowIf | null;
 }
 
 /** A refusal from the opening endpoints: `code` says which, and some carry more. */

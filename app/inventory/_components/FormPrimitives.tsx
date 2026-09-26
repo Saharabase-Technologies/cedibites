@@ -74,16 +74,25 @@ export function Toggle({
   checked,
   onChange,
   label,
+  ariaLabel,
+  disabled,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label?: string;
+  /** Names the switch when no visible label sits beside it, as in a table row. */
+  ariaLabel?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label ? undefined : ariaLabel}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="flex items-center gap-3 group cursor-pointer"
+      className="flex items-center gap-3 group cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
     >
       <span
         className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${

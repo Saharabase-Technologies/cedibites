@@ -84,6 +84,6 @@ export const openingService = {
     updateItem: async (id: number, patch: Partial<ChecklistItem>): Promise<ChecklistItem> =>
         extractData(await apiClient.patch(`/admin/opening-checklist/${id}`, patch)),
 
-    createItem: async (item: Pick<ChecklistItem, 'section' | 'group' | 'label' | 'short' | 'kind' | 'weight' | 'allows_na'>): Promise<ChecklistItem> =>
+    createItem: async (item: Pick<ChecklistItem, 'section' | 'group' | 'label' | 'short' | 'help' | 'kind' | 'weight' | 'allows_na'>): Promise<ChecklistItem> =>
         extractData(await apiClient.post('/admin/opening-checklist', item)),
 };
