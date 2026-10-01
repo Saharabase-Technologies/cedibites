@@ -43,7 +43,17 @@ export interface SaveShortLinkPayload {
 // ─── Campaigns ───────────────────────────────────────────────────────────────
 
 /** Mirrors backend App\Enums\CampaignStatus. */
-export type CampaignStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed' | 'cancelled';
+export type CampaignStatus =
+    | 'draft'
+    | 'scheduled'
+    | 'sending'
+    /** Stopped part way with people still waiting. Resumable. */
+    | 'paused'
+    | 'sent'
+    /** Finished, and part of the list was not accepted. */
+    | 'partly_sent'
+    | 'failed'
+    | 'cancelled';
 
 /** Mirrors backend App\Enums\CampaignSegment. */
 export type CampaignSegmentValue = 'all' | 'active' | 'at_risk' | 'churned' | 'loyal' | 'one_time';
@@ -70,6 +80,11 @@ export interface SegmentsResponse {
      * for the same message.
      */
     rate_per_segment: number;
+    /**
+     * The whole list by network, read off the prefix. `other` is every number
+     * on a prefix no network uses, and those are left off every send.
+     */
+    networks?: { value: GhanaNetwork | 'other'; label: string; count: number }[];
 }
 
 /** Mirrors backend App\Enums\GhanaNetwork. */
@@ -200,6 +215,44 @@ export interface CampaignDeliveryReport {
     outcomes: { value: DeliveryOutcomeValue; label: string; description: string }[];
 }
 
+/**
+ * Where a campaign's whole list stands.
+ *
+ * A step earlier than the delivery report. That one covers the messages Hubtel
+ * accepted. This one starts at the list and includes the people Hubtel never
+ * took, which on the first production campaign was 3,500 of 3,539.
+ */
+export interface CampaignReach {
+    /** False for a campaign sent before the list was kept. The figures then come off the campaign's own counters. */
+    tracked: boolean;
+    audience: number;
+    accepted: number;
+    delivered: number;
+    /** Hubtel said no and took nothing. Safe to send again. */
+    refused: number;
+    /** Sent with no clear answer back. May have arrived. */
+    unsure: number;
+    /** Not sent yet, held while the campaign is paused. */
+    waiting: number;
+    /** On a prefix no network uses. Never sent to again. */
+    not_mobile: number;
+    /** Who a resume would send to. */
+    resumable: number;
+    resumable_with_unsure: number;
+}
+
+export interface CampaignReport {
+    reach: CampaignReach;
+    reasons: { reason: string; label: string; remedy: string; count: number }[];
+    networks: { value: string; label: string; sent_to: number; accepted: number; delivered: number }[];
+    /**
+     * Delivered counts at 1, 6, 24 and 48 hours after the send. `reached` is
+     * the server saying whether that mark has passed, so the page never asks
+     * the local clock.
+     */
+    curve: { hour: number; delivered: number; reached?: boolean }[];
+}
+
 export interface AudienceCount {
     count: number;
     /** The rules as sentences, for the review step and the audit trail. */
@@ -222,6 +275,18 @@ export interface Campaign {
     status: CampaignStatus;
     status_label: string;
     is_editable: boolean;
+
+    /** Why it stopped, in the server's words, with what to do about it. Null unless paused. */
+    paused_at: string | null;
+    pause_reason: string | null;
+    pause_reason_label: string | null;
+    pause_remedy: string | null;
+
+    /** Everybody the chunks have not accounted for. What a paused campaign is holding. */
+    waiting_count: number;
+    /** Who a resume would send to: the waiting, plus anyone Hubtel clearly refused. */
+    resumable_count: number;
+    can_resume: boolean;
 
     scheduled_for: string | null;
 
@@ -293,6 +358,9 @@ export interface CampaignPreview {
     non_gsm_characters: string[];
 
     estimated_cost: number;
+
+    /** Numbers in the audience no network would carry. Left off the send. */
+    left_out_count?: number;
 
     cap: number;
     over_cap: boolean;
