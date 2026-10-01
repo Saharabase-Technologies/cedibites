@@ -6,6 +6,7 @@ import type {
     Campaign,
     CampaignDeliveryReport,
     CampaignPreview,
+    CampaignReport,
     CampaignStatus,
     SaveCampaignPayload,
     SegmentsResponse,
@@ -133,6 +134,26 @@ export const campaignService = {
     sendCampaign: async (id: number): Promise<Campaign> => {
         const response = await apiClient.post(`/admin/campaigns/${id}/send`);
         return unwrap<Campaign>(response);
+    },
+
+    /**
+     * Send to the people a paused or part-sent campaign missed.
+     *
+     * Nobody Hubtel already accepted is sent to again. `includeUnsure` adds the
+     * people we got no answer about, some of whom will have the message
+     * already, so it is off unless somebody chooses it.
+     */
+    resumeCampaign: async (id: number, includeUnsure = false): Promise<Campaign> => {
+        const response = await apiClient.post(`/admin/campaigns/${id}/resume`, {
+            include_unsure: includeUnsure,
+        });
+        return unwrap<Campaign>(response);
+    },
+
+    /** Where the whole list stands. What the charts on the campaign page read. */
+    getReport: async (id: number): Promise<CampaignReport> => {
+        const response = await apiClient.get(`/admin/campaigns/${id}/report`);
+        return unwrap<CampaignReport>(response);
     },
 
     cancelCampaign: async (id: number): Promise<Campaign> => {

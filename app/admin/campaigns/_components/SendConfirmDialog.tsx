@@ -141,6 +141,18 @@ export function SendConfirmDialog({
                                     label="Going to"
                                     value={`${going.toLocaleString()} ${going === 1 ? 'person' : 'people'}`}
                                 />
+                                {/*
+                                    Why the send is smaller than the audience.
+                                    One in ten numbers on the first real
+                                    campaign was a placeholder typed at the
+                                    till, on a prefix no network uses.
+                                */}
+                                {(preview.left_out_count ?? 0) > 0 && (
+                                    <Line
+                                        label="Left out"
+                                        value={`${(preview.left_out_count ?? 0).toLocaleString()} that are not mobile numbers`}
+                                    />
+                                )}
                                 <Line label="Length" value={`${preview.characters} characters`} />
                                 {/*
                                     At the rate's own precision, not two

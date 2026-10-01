@@ -62,6 +62,9 @@ export function useCampaignSegments() {
         // The rate Hubtel last charged. Falls back to the same figure the
         // backend defaults to, so a slow load never quotes a different price.
         ratePerSegment: data?.rate_per_segment ?? 0.0243,
+        // The list by network. Empty until loaded, and on an API that does not
+        // serve it yet, so the chart draws nothing instead of a wrong split.
+        networks: data?.networks ?? [],
         isLoading,
         error,
     };
@@ -148,6 +151,34 @@ export function useCampaignDeliveries(
     };
 }
 
+/**
+ * Where a campaign's whole list stands, for the charts.
+ *
+ * Follows the campaign's own rhythm: every five seconds while chunks are going
+ * out, every minute while delivery is still settling, then not at all. `live`
+ * and `settling` come from the caller, which already holds the campaign.
+ */
+export function useCampaignReport(
+    id: number | null,
+    { enabled = true, live = false, settling = false }: { enabled?: boolean; live?: boolean; settling?: boolean } = {},
+) {
+    const { data, isLoading, isFetching } = useQuery({
+        queryKey: [CAMPAIGNS_KEY, 'report', id],
+        queryFn: () => campaignService.getReport(id as number),
+        enabled: hasStaffToken() && id !== null && enabled,
+        staleTime: 15 * 1000,
+        // Hold the last figures while the next ones load, so the bars do not
+        // collapse to nothing between polls.
+        placeholderData: (previous) => previous,
+        refetchInterval: live ? 5000 : settling ? 60 * 1000 : false,
+        // An API that does not serve the report yet answers 404. Asking three
+        // more times will not change that.
+        retry: false,
+    });
+
+    return { report: data ?? null, isLoading, isFetching };
+}
+
 export function useCampaignMutations() {
     const queryClient = useQueryClient();
     const invalidate = () => queryClient.invalidateQueries({ queryKey: [CAMPAIGNS_KEY] });
@@ -188,5 +219,12 @@ export function useCampaignMutations() {
         onSuccess: invalidate,
     });
 
-    return { create, update, remove, test, send, cancel };
+    /** Send to the people who were missed. The second call here that spends money. */
+    const resume = useMutation({
+        mutationFn: ({ id, includeUnsure = false }: { id: number; includeUnsure?: boolean }) =>
+            campaignService.resumeCampaign(id, includeUnsure),
+        onSuccess: invalidate,
+    });
+
+    return { create, update, remove, test, send, cancel, resume };
 }
