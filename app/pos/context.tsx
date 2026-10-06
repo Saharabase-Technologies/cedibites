@@ -103,7 +103,7 @@ interface POSContextValue {
    * discount out itself and checks the code again; `promo.discount` is only
    * what the till was showing, kept as a fallback for the local copy.
    */
-  processPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, promo?: { code?: string; discount: number }, manualOpts?: { recordedAt: string; momoReference?: string; reason: string }, branchCodePaymentId?: number) => Promise<Order>;
+  processPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, promo?: { code?: string; discount: number }, manualOpts?: { recordedAt: string; momoReference?: string; reason: string }) => Promise<Order>;
 
   // Manual entry mode
   isManualEntry: boolean;
@@ -389,10 +389,7 @@ export function POSProvider({ children }: POSProviderProps) {
     amountPaid?: number,
     momoNumber?: string,
     promo?: { code?: string; discount: number },
-    manualOpts?: { recordedAt: string; momoReference?: string; reason: string },
-    // The customer already paid by dialling the branch code, and the cashier
-    // picked that payment. The sale is MoMo; only the request says branch_code.
-    branchCodePaymentId?: number,
+    manualOpts?: { recordedAt: string; momoReference?: string; reason: string }
   ): Promise<Order> => {
     const discount = promo?.discount ?? 0;
     const branch = branches.find(b => b.id === session?.branchId);
@@ -413,8 +410,7 @@ export function POSProvider({ children }: POSProviderProps) {
       fulfillment_type: orderType as string,
       contact_name: customerName || 'Walk-in',
       contact_phone: customerPhone ? normalizeGhanaPhone(customerPhone) : '0000000000',
-      payment_method: branchCodePaymentId ? 'branch_code' as const : method,
-      hubtel_incoming_payment_id: branchCodePaymentId,
+      payment_method: method,
       momo_number: momoNumber ? normalizeGhanaPhone(momoNumber) : undefined,
       is_manual_entry: isManualEntry || undefined,
       recorded_at: manualOpts?.recordedAt,
