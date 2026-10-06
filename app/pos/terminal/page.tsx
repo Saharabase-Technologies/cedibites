@@ -28,7 +28,9 @@ import {
   TagIcon,
   HourglassIcon,
   WarningCircleIcon,
+  HashIcon,
 } from '@phosphor-icons/react';
+import BranchCodePaymentPicker from './BranchCodePaymentPicker';
 import Link from 'next/link';
 import { usePOS } from '../context';
 import { formatGHS } from '@/lib/utils/currency';
@@ -540,9 +542,9 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   const grandTotal = effectiveTotal + currentDeliveryFee;
 
   // Handle payment complete
-  const handlePaymentComplete = async (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string; reason: string }) => {
+  const handlePaymentComplete = async (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string; reason: string }, branchCodePaymentId?: number) => {
     try {
-      const order = await processPayment(method, amountPaid, momoNumber, { code: codeInForce, discount: promoDiscount }, manualOpts);
+      const order = await processPayment(method, amountPaid, momoNumber, { code: codeInForce, discount: promoDiscount }, manualOpts, branchCodePaymentId);
       setShowCode(false);
       setCodeInput('');
       if (method === 'mobile_money' && order.paymentStatus === 'pending') {
@@ -1605,6 +1607,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
       {isPaymentOpen && (
         <PaymentModal
           total={grandTotal}
+          branchId={session?.branchId ? Number(session.branchId) : undefined}
           onClose={closePayment}
           onPayment={handlePaymentComplete}
           isManualEntry={isManualEntry}
@@ -1883,16 +1886,21 @@ function POSItemOptionModal({ item, cart, branchId, onClose, onAdd }: POSItemOpt
 
 interface PaymentModalProps {
   total: number;
+  branchId?: number;
   onClose: () => void;
-  onPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string; reason: string }) => void;
+  onPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string; reason: string }, branchCodePaymentId?: number) => void;
   isManualEntry?: boolean;
   branchPaymentMethods?: Record<string, { is_enabled: boolean }>;
 }
 
-function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentMethods }: PaymentModalProps) {
+/** A way to pay as the cashier picks it. A branch code payment is MoMo the customer already sent. */
+type PayChoice = PaymentMethod | 'branch_code';
+
+function PaymentModal({ total, branchId, onClose, onPayment, isManualEntry, branchPaymentMethods }: PaymentModalProps) {
   const { staffUser } = useStaffAuth();
   const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<PayChoice | null>(null);
+  const [branchCodePaymentId, setBranchCodePaymentId] = useState<number | null>(null);
   const [cashAmount, setCashAmount] = useState('');
   const [momoNumber, setMomoNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -2001,6 +2009,13 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
       await onPayment('manual_momo', undefined, manualMomoNum, manualOpts);
     } else if (selectedMethod === 'no_charge') {
       await onPayment('no_charge', undefined, undefined, manualOpts);
+    } else if (selectedMethod === 'branch_code') {
+      if (!branchCodePaymentId) {
+        setValidationError('Pick the customer\'s payment from the list.');
+        setIsProcessing(false);
+        return;
+      }
+      await onPayment('mobile_money', undefined, undefined, manualOpts, branchCodePaymentId);
     } else {
       await onPayment('card', undefined, undefined, manualOpts);
     }
@@ -2088,7 +2103,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
           <div className="grid grid-cols-2 gap-3">
             {(() => {
               // Map POS payment method IDs to branch settings DB keys
-              const posToDbKey: Record<string, string> = { cash: 'cash_on_delivery', mobile_money: 'momo', manual_momo: 'momo', card: 'card', no_charge: 'no_charge' };
+              const posToDbKey: Record<string, string> = { cash: 'cash_on_delivery', mobile_money: 'momo', manual_momo: 'momo', branch_code: 'momo', card: 'card', no_charge: 'no_charge' };
               const isMethodEnabled = (id: string) => {
                 const dbKey = posToDbKey[id];
                 if (!dbKey || !branchPaymentMethods) return true; // No branch data = allow all
@@ -2096,14 +2111,16 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
               };
 
               return [
-                { id: 'cash' as PaymentMethod, label: 'Cash', icon: CurrencyDollarIcon },
+                { id: 'cash' as PayChoice, label: 'Cash', icon: CurrencyDollarIcon },
                 ...(isManualEntry
-                  ? [{ id: 'manual_momo' as PaymentMethod, label: 'Direct MoMo', icon: DeviceMobileIcon }]
-                  : [{ id: 'mobile_money' as PaymentMethod, label: 'MoMo', icon: DeviceMobileIcon }]
+                  ? [{ id: 'manual_momo' as PayChoice, label: 'Direct MoMo', icon: DeviceMobileIcon }]
+                  : [{ id: 'mobile_money' as PayChoice, label: 'MoMo', icon: DeviceMobileIcon }]
                 ),
-                { id: 'card' as PaymentMethod, label: 'Card', icon: CreditCardIcon },
+                // The customer dialled the branch code and has already paid.
+                ...(branchId ? [{ id: 'branch_code' as PayChoice, label: 'Branch code', icon: HashIcon }] : []),
+                { id: 'card' as PayChoice, label: 'Card', icon: CreditCardIcon },
                 ...(isAdmin
-                  ? [{ id: 'no_charge' as PaymentMethod, label: 'No Charge', icon: ProhibitIcon }]
+                  ? [{ id: 'no_charge' as PayChoice, label: 'No Charge', icon: ProhibitIcon }]
                   : []
                 ),
               ].filter(m => isMethodEnabled(m.id)).map(method => (
@@ -2265,6 +2282,15 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
             </div>
           )}
 
+          {selectedMethod === 'branch_code' && branchId && (
+            <BranchCodePaymentPicker
+              branchId={branchId}
+              total={total}
+              selectedId={branchCodePaymentId}
+              onSelect={setBranchCodePaymentId}
+            />
+          )}
+
           {selectedMethod === 'no_charge' && (
             <div className="pt-2 text-center text-neutral-gray">
               <p>Staff meal. No payment required.</p>
@@ -2284,6 +2310,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
             disabled={
               !selectedMethod || isProcessing
               || (selectedMethod === 'mobile_money' && !momoVerified)
+              || (selectedMethod === 'branch_code' && !branchCodePaymentId)
               || (isManualEntry && ((!recordedAt && !recordedTime) || manualReason.trim().length < 3))
             }
             className="

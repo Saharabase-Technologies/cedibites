@@ -18,6 +18,19 @@ export interface CreateCheckoutSessionRequest {
   promo_code?: string;
 }
 
+/**
+ * A payment a customer made by dialling the branch code, which Hubtel has
+ * confirmed and no sale has used yet. Only the last four digits of the
+ * payer's number leave the server.
+ */
+export interface BranchCodePayment {
+  id: number;
+  amount: number;
+  paid_at: string;
+  payer_last_four: string | null;
+  network_transaction_id: string | null;
+}
+
 export interface RetryPaymentRequest {
   momo_number?: string;
   momo_network?: string;
@@ -66,7 +79,10 @@ export const checkoutSessionService = {
     fulfillment_type: string;
     contact_name: string;
     contact_phone: string;
-    payment_method: PaymentMethod;
+    /** branch_code is a request-only value. The server stores the sale as mobile_money. */
+    payment_method: PaymentMethod | 'branch_code';
+    /** The branch code payment the cashier picked. Sent with payment_method branch_code. */
+    hubtel_incoming_payment_id?: number;
     momo_number?: string;
     is_manual_entry?: boolean;
     recorded_at?: string;
@@ -87,6 +103,10 @@ export const checkoutSessionService = {
     status?: string;
   }): Promise<{ data: CheckoutSession[] }> => {
     return apiClient.get('/pos/checkout-sessions', { params });
+  },
+
+  posBranchCodePayments: (branchId: number): Promise<{ data: BranchCodePayment[] }> => {
+    return apiClient.get('/pos/branch-code-payments', { params: { branch_id: branchId } });
   },
 
   posGetStatus: (token: string): Promise<CheckoutSession> => {
