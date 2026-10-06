@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { loginUrlFor } from '@/lib/utils/loginRedirect';
 import { useRouter } from 'next/navigation';
 import {
@@ -2489,9 +2489,21 @@ interface MomoWaitingModalProps {
 function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaitingModalProps) {
   const [secondsRemaining, setSecondsRemaining] = useState(Math.floor(MOMO_TIMEOUT_MS / 1000));
 
+  // The till re-renders every 4 seconds while it polls for online orders, and
+  // these handlers arrive as new functions each time. With them in the effect's
+  // dependencies the timers restarted on every render, so the 7 second poll
+  // never fired and a paid prompt sat on "Waiting" until someone pressed
+  // Dismiss. Read through a ref, the timers start once per prompt.
+  const handlersRef = useRef({ onConfirmed, onTimeout, onCancel });
+  useEffect(() => {
+    handlersRef.current = { onConfirmed, onTimeout, onCancel };
+  }, [onConfirmed, onTimeout, onCancel]);
+
   useEffect(() => {
     const startTime = Date.now();
     let timedOut = false;
+    // Set on cleanup, so a poll still in flight cannot act on a closed modal.
+    let stopped = false;
     const sessionToken = order._sessionToken;
 
     // Countdown timer
@@ -2510,7 +2522,7 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
         timedOut = true;
         clearInterval(poll);
         clearInterval(countdown);
-        onTimeout();
+        handlersRef.current.onTimeout();
         return;
       }
 
@@ -2519,32 +2531,34 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
           // New flow: poll checkout session status
           const { checkoutSessionService } = await import('@/lib/api/services/checkout-session.service');
           const session = await checkoutSessionService.posGetStatus(sessionToken);
+          if (stopped) return;
 
           if (session.status === 'confirmed') {
             clearInterval(poll);
             clearInterval(countdown);
-            onConfirmed({ ...order, paymentStatus: 'completed', isPaid: true, orderNumber: session.order?.order_number ?? order.orderNumber });
+            handlersRef.current.onConfirmed({ ...order, paymentStatus: 'completed', isPaid: true, orderNumber: session.order?.order_number ?? order.orderNumber });
           } else if (session.status === 'failed' || session.status === 'expired') {
             clearInterval(poll);
             clearInterval(countdown);
             toast.error('Payment was declined. Please ask the customer to try again.');
-            onCancel();
+            handlersRef.current.onCancel();
           }
         } else if (order.paymentId) {
           // Legacy flow: poll payment verify endpoint
           const response = await apiClient.get(`/payments/${order.paymentId}/verify`);
+          if (stopped) return;
           const data = response as unknown as { data?: { payment_status?: string } };
           const status = data?.data?.payment_status;
 
           if (status === 'completed') {
             clearInterval(poll);
             clearInterval(countdown);
-            onConfirmed({ ...order, paymentStatus: 'completed', isPaid: true });
+            handlersRef.current.onConfirmed({ ...order, paymentStatus: 'completed', isPaid: true });
           } else if (status === 'failed') {
             clearInterval(poll);
             clearInterval(countdown);
             toast.error('Payment was declined. Please ask the customer to try again.');
-            onCancel();
+            handlersRef.current.onCancel();
           }
         }
       } catch {
@@ -2553,10 +2567,11 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
     }, MOMO_POLL_INTERVAL_MS);
 
     return () => {
+      stopped = true;
       clearInterval(poll);
       clearInterval(countdown);
     };
-  }, [order, onConfirmed, onTimeout, onCancel]);
+  }, [order]);
 
   const minutes = Math.floor(secondsRemaining / 60);
   const seconds = secondsRemaining % 60;
