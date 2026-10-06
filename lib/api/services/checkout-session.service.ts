@@ -18,6 +18,36 @@ export interface CreateCheckoutSessionRequest {
   promo_code?: string;
 }
 
+/**
+ * A payment a customer made by dialling the branch code, which Hubtel has
+ * confirmed. Only the last four digits of the payer's number leave the server.
+ */
+export interface BranchCodePayment {
+  id: number;
+  amount: number;
+  paid_at: string;
+  payer_last_four: string | null;
+  network_transaction_id: string | null;
+}
+
+/**
+ * What the server found for a transaction ID typed from a customer's MoMo
+ * message. `ours` is a MoMo prompt the till itself sent; `unavailable` means
+ * Hubtel did not answer.
+ */
+export interface BranchCodePaymentCheck {
+  transaction_id: string;
+  outcome: 'paid' | 'ours' | 'not_paid' | 'not_found' | 'unavailable';
+  amount: number | null;
+  paid_at: string | null;
+  payer_last_four: string | null;
+  /** Known only for a payment already on a branch's list. */
+  branch: string | null;
+  order_number: string | null;
+  /** The first time this ID was checked and found paid, if this is not it. */
+  first_checked: { at: string; branch: string | null; by: string | null } | null;
+}
+
 export interface RetryPaymentRequest {
   momo_number?: string;
   momo_network?: string;
@@ -87,6 +117,14 @@ export const checkoutSessionService = {
     status?: string;
   }): Promise<{ data: CheckoutSession[] }> => {
     return apiClient.get('/pos/checkout-sessions', { params });
+  },
+
+  posBranchCodePayments: (branchId: number): Promise<{ data: BranchCodePayment[] }> => {
+    return apiClient.get('/pos/branch-code-payments', { params: { branch_id: branchId } });
+  },
+
+  posCheckBranchCodePayment: (branchId: number, transactionId: string): Promise<{ data: BranchCodePaymentCheck }> => {
+    return apiClient.post('/pos/branch-code-payments/check', { branch_id: branchId, transaction_id: transactionId });
   },
 
   posGetStatus: (token: string): Promise<CheckoutSession> => {

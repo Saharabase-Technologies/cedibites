@@ -28,6 +28,7 @@ import {
   TagIcon,
   HourglassIcon,
   WarningCircleIcon,
+  HandCoinsIcon,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { usePOS } from '../context';
@@ -76,6 +77,7 @@ import { OpeningWaiting } from '@/app/components/opening/OpeningWaiting';
 import { OverrideDialog } from '@/app/components/opening/OverrideDialog';
 import { isValidGhanaPhone, normalizeGhanaPhone } from '@/app/lib/phone';
 import PendingPaymentsDrawer from './PendingPaymentsDrawer';
+import MomoReceivedDrawer, { useMomoArrivals } from './MomoReceivedDrawer';
 import { useOnlineOrderArrivals } from '../hooks/useOnlineOrderArrivals';
 import { useMarkReceiptPrinted } from '@/lib/api/hooks/useOrders';
 import { isRemoteSource } from '@/lib/constants/order.constants';
@@ -278,6 +280,12 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     session?.branchId ? { branch_id: Number(session.branchId), status: 'pending,payment_initiated' } : undefined
   );
   const pendingCount = pendingSessionsData?.data?.length ?? 0;
+
+  // Payments customers made by dialling the branch code, once Hubtel has
+  // confirmed them. Each one that lands while the till is open gets a notice;
+  // the drawer is where the cashier checks a particular customer's.
+  const momoToday = useMomoArrivals(session?.branchId ? Number(session.branchId) : undefined);
+  const [isMomoDrawerOpen, setIsMomoDrawerOpen] = useState(false);
 
   // Orders the till did not take and nobody has accepted. Silent and without a
   // socket of its own — the shell's arrival banner owns the announcement, and a
@@ -959,6 +967,21 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
               {pendingCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-4 h-4 px-0.5 rounded-full bg-error text-white text-[10px] font-bold flex items-center justify-center">
                   {pendingCount}
+                </span>
+              )}
+            </button>
+
+            {/* MoMo received by branch code. The count is today's, so a new
+                payment shows as the number going up. */}
+            <button
+              onClick={() => setIsMomoDrawerOpen(true)}
+              className="relative w-10 h-10 rounded-xl bg-neutral-gray/10 flex items-center justify-center text-neutral-gray hover:text-primary hover:bg-primary/10 transition-colors"
+              title="MoMo received"
+            >
+              <HandCoinsIcon className="w-5 h-5" />
+              {momoToday.length > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-0.5 rounded-full bg-primary text-brown text-[10px] font-bold tabular-nums flex items-center justify-center">
+                  {momoToday.length}
                 </span>
               )}
             </button>
@@ -1663,6 +1686,15 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
         <PaymentConfirmedOverlay
           order={backgroundConfirmedOrder}
           onDismiss={() => setBackgroundConfirmedOrder(null)}
+        />
+      )}
+
+      {session?.branchId && (
+        <MomoReceivedDrawer
+          branchId={Number(session.branchId)}
+          branchName={branchInfo?.name}
+          isOpen={isMomoDrawerOpen}
+          onClose={() => setIsMomoDrawerOpen(false)}
         />
       )}
 

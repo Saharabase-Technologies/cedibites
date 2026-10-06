@@ -93,6 +93,19 @@ export const usePosCheckoutSessions = (params?: { branch_id?: number; status?: s
   });
 };
 
+/**
+ * Today's branch code payments at a branch, as Hubtel confirms them. Polled,
+ * because the till shows a notice as each one lands.
+ */
+export const useBranchCodePayments = (branchId?: number) => {
+  return useQuery({
+    queryKey: ['pos-branch-code-payments', branchId],
+    queryFn: () => checkoutSessionService.posBranchCodePayments(branchId!),
+    enabled: !!branchId,
+    refetchInterval: 10000,
+  });
+};
+
 /** Create a POS checkout session. */
 export const useCreatePosCheckoutSession = () => {
   const queryClient = useQueryClient();
