@@ -34,7 +34,7 @@ from Nii Mantse: monthly sales for each branch since it opened.
 | 2 | Frontend: types, service, and the figures ported to TypeScript | Done 2026-10-14. `14f4b5c`, `0aa6bc9` and the review's mend `bb3ba22` on the frontend's `feat/finance-section`, with the ticks. Not pushed. |
 | 3 | Overview screen | Done 2026-10-14. `dde7bc4`, `87a71e1`, `d6dbeca` and `16900c7` on the frontend's `feat/finance-section`, with the ticks. Not pushed. |
 | 4 | Compare screen | Done 2026-10-14. `98a1e86` on the frontend's `feat/finance-section`, with the tick. Not looked at in a browser: left to Phase 8. Not pushed. |
-| 5 | Ledgers screen | Not started |
+| 5 | Ledgers screen | Done 2026-10-14. `6b4bedd` and `3a0143e` on the frontend's `feat/finance-section`, with the tick. Not looked at in a browser: left to Phase 8. Not pushed. |
 | 6 | Download: the sheet, the PDF and the CSV | Not started |
 | 7 | Partner portal: the same section, limited to the partner's branches | Not started |
 | 8 | Phone pass and design pass | Not started |
@@ -48,7 +48,7 @@ Branches, both cut 2026-10-14:
 Neither branch has an upstream. That is on purpose. A bare `git push` would
 otherwise go to `main` or `master`, and both deploy to prod.
 
-Last updated: 2026-10-14, at the end of Phase 3. Next: Phase 4, Compare.
+Last updated: 2026-10-14, at the end of Phase 5. Next: Phase 6, Download.
 
 ---
 
@@ -300,7 +300,7 @@ Done when: the endpoint returns the shape in Section 5 and the tests pass.
 
 ### Phase 5. Ledgers
 
-- [ ] The five Ledgers sections, on the kit's `DataTable`.
+- [x] The five Ledgers sections, on the kit's `DataTable`. (FE `6b4bedd`, `3a0143e`) `FinanceLedgers` in `app/components/finance/ledgers/` holds the five sections, and Phase 7 mounts it too. `DataTable` gained three things, each off unless asked for: a column's `foot` for a totals row, `stickyFirst`, and `stackOnPhone`, which shows a row as a block below `md` with a sort picker over the list. The statement stays a table on a phone with its month held in place. Every other Ledgers table becomes a list. The shared table parts moved from `compare/parts.tsx` to `app/components/finance/parts.tsx`, with the month grid's `monthNote`. `6b4bedd` holds only that move, by a staging slip, and does not build alone. `3a0143e` holds the rest. Not looked at in a browser: a scratch route would have taken about eight calls on a session already past its limit. The look is left to Phase 8. Recommended, taken: Which orders does Cancelled after payment list? The ones the figures count, from `cancelledIn` in `figures.ts`. So the list and its counts cannot differ from the Overview's figure. An order placed before its branch's first sale, or at a branch that never sold, is in neither. Checked on made up data over five filter sets. Recommended, taken: Do the Ledgers sections have filters of their own? No. They follow the page filters. Recommended, taken: The CSV buttons on Daily takings and Cancelled after payment? Left out. Phase 6's CSV box owns them. Recommended, taken: What does What sold show? Each category by month, as the review page did. Its line says the months are whole and the sales are before any discount. Dish names are in Compare's Menu items. Recommended, taken: How does today show? Its row in Daily takings and in a month's days says "So far". Sales a day uses `perDay`, so today is left out of it (Q12).
 
 ### Phase 6. Download
 
@@ -405,3 +405,5 @@ Each has a default. Build on the default until the user says otherwise.
 - 2026-10-14. The kit's `DataTable` draws its own card. On a Finance panel that is a card inside a card. Pass `framed={false}`, as `FigureTable` in `compare/parts.tsx` does.
 - 2026-10-14. The review page may not open from the account a session runs on. An earlier session's read of it is saved in that session's scratchpad, under `artifact-files/<artifact id>/index.html`. Cut only the functions from it, never the data.
 - 2026-10-14. Some files in the kit have CRLF line ends, `DataTable.tsx` among them. A script that replaces a block written with `\n` misses it and says nothing. Use the Edit tool there.
+- 2026-10-14. `git add` stops at a path that no longer exists, such as a file just moved with `git mv`, and stages nothing. A commit made straight after holds only what was staged before. Name a moved file by its new path alone, and read `git show --stat` after every commit.
+- 2026-10-14. A wide table on a Finance panel passes `stackOnPhone` to `DataTable`. Only the month grid and the monthly statement scroll sideways, the statement with `stickyFirst`. A column's `foot` gives the totals row, so no table is drawn by hand for its foot.
