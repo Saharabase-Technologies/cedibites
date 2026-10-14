@@ -222,6 +222,10 @@ const matcher = (f: ChannelFilters) => (source: string, type: string, method: st
  * `end` is the last day to count, `YYYY-MM-DD`. Left out, it is today, since
  * the figures are live. Pass it when the ledger was read with a `to`, or to
  * see the figures as they stood on an earlier day.
+ *
+ * Only the sales and the cancelled orders are cut at `end`. Item rows come by
+ * the month, so `compute` and `itemTable` count every line of the month `end`
+ * falls in. To cut the items at a day, read the ledger with that day as `to`.
  */
 export function openBook(ledger: FinanceLedger, options: { end?: string } = {}): FinanceBook {
   const today = ymd(ledger.today);
@@ -376,7 +380,8 @@ export function compute(book: FinanceBook, filters: FigureFilters): Figures {
   }
   const grand = blank();
   for (const m of months) { addInto(grand, total[m]); grand.days += total[m].days; grand.partDays += total[m].partDays; }
-  const start = months.length ? Math.max(monthStart(months[0]), openFrom(branches)) : book.end;
+  /* With no month or no branch chosen there is no first day. `start` falls back to the book's end, so a screen can still format it. */
+  const start = months.length && branches.length ? Math.max(monthStart(months[0]), openFrom(branches)) : book.end;
   const end = months.length ? Math.min(monthEnd(months[months.length - 1]), book.end) : book.end;
 
   /* Items: branch, then line, then month. */
