@@ -30,7 +30,7 @@ from Nii Mantse: monthly sales for each branch since it opened.
 | Phase | What | State |
 |---|---|---|
 | 0 | Branches cut, plan written | Done 2026-10-14 |
-| 1 | Backend: one endpoint that returns the finance data | In progress. Three of five boxes done: the worktree, the trait, the endpoint. Its tests and the full suite are next. |
+| 1 | Backend: one endpoint that returns the finance data | Done 2026-10-14. Four commits on the backend's `feat/finance-section`, head `bf976dc`. Not pushed. |
 | 2 | Frontend: types, service, and the figures ported to TypeScript | Not started |
 | 3 | Overview screen | Not started |
 | 4 | Compare screen | Not started |
@@ -48,8 +48,8 @@ Branches, both cut 2026-10-14:
 Neither branch has an upstream. That is on purpose. A bare `git push` would
 otherwise go to `main` or `master`, and both deploy to prod.
 
-Last updated: 2026-10-14, during Phase 1. Next: the endpoint's tests, then the
-full suite. Phase 2 follows Phase 1 in this run.
+Last updated: 2026-10-14, at the end of Phase 1. Next: Phase 2, the frontend's
+types, service, hook and figures.
 
 ---
 
@@ -276,8 +276,8 @@ One **Download** button in the header opens a sheet. A bottom sheet on a phone, 
 - [x] Worktree on `feat/finance-section` (Section 4, Traps). (BE `1451004`, where the worktree starts. A worktree leaves nothing to commit.)
 - [x] Move the branch scoping out of `AdminAnalyticsController` into a trait. Analytics still uses it. Its tests still pass. (BE `675ac7e`) The trait is `ScopesToAssignedBranches`. See Q5.
 - [x] `FinanceController::ledger`, route `GET admin/finance/ledger` under `permission:view_analytics`. (BE `a6ea6fa`) The queries live in `FinanceLedgerService`. See Q6 to Q11.
-- [ ] Tests: a partner gets only their branches, even when asking for another by `branch_ids`. A cashier gets 403. Cancelled orders land in the right outcome. Soft-deleted orders are left out. Net excludes the delivery fee.
-- [ ] Run the full suite. Note the known failures from the baseline memory, and only those.
+- [x] Tests: a partner gets only their branches, even when asking for another by `branch_ids`. A cashier gets 403. Cancelled orders land in the right outcome. Soft-deleted orders are left out. Net excludes the delivery fee. (BE `40a907d`, mended in `bf976dc`) `tests/Feature/Finance/FinanceLedgerTest.php`, 17 tests. It also pins Q6, Q7, Q10 and Q11, and a partner with no branches.
+- [x] Run the full suite. Note the known failures from the baseline memory, and only those. (BE `40a907d`, no code changed.) Run at 02:29: 6 failed, 1388 passed. The six are the baseline's: two IAM `SecurityHardeningTest` (IAM-011, IAM-016/017) and four `SmartCategoryTest`. The 17 more passes are the ledger tests. The mend `bf976dc` changed two numbers in one test after the run started, so that file was run again on its own: 17 passed.
 
 Done when: the endpoint returns the shape in Section 5 and the tests pass.
 
@@ -382,3 +382,8 @@ Each has a default. Build on the default until the user says otherwise.
 - 2026-10-14. `PaymentController`, `AdminDashboardController` and `BranchController` each hold their own copy of the assigned branches rule. The plan does not ask to move them, so they are left. The owner decides.
 - 2026-10-14. The ledger was run read only on the local dev Postgres, never prod or beta. Net, paid orders, delivery fees and the cancelled count matched Analytics' own totals on three filter sets, in 350 ms. The month is `TO_CHAR` on Postgres and `strftime` on SQLite, so the tests cannot prove the Postgres line. This run did.
 - 2026-10-14. `php artisan tinker <file>` waits at a prompt and never exits when an agent runs it. Use `php artisan tinker --execute="require '<file>';" < /dev/null`.
+- 2026-10-14. Backend suite at the end of Phase 1, run at 02:29: 6 failed, 1388 passed. The same six as the baseline, and 17 more passes, which are the ledger tests. This is the count to match from here on.
+- 2026-10-14. Laravel's JSON drops a zero fraction. A whole amount reaches the frontend as `195`, not `195.00`. The screen formats every amount itself. The ledger tests compare rows with `toEqual` for the same reason.
+- 2026-10-14. With nothing sold, `options` comes back as `{}`, never `[]`. A Laravel test's `json()` reads both as an empty array, so the tests check the raw body.
+- 2026-10-14. The menu item factory gives every dish a Standard option, and the order item factory fills an empty option with it. To test a line with no option, clear the option after the line is made.
+- 2026-10-14. Helper functions in Pest files are global across the whole suite. The ledger test's helpers all start with `ledger` or `financeLedger`, so they cannot collide with another file's.
