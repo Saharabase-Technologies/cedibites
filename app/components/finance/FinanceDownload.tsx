@@ -8,6 +8,7 @@ import {
   aboutPages, FULL_REPORT, LONG_LISTS, longListRows, PDF_SECTIONS, SHORT_REPORT, filtersText, fileName, saveFile, sectionTitle,
   type PdfSection,
 } from '@/lib/finance/download';
+import { salesByMonthCsv } from '@/lib/finance/csv';
 import { buildPdf } from '@/lib/finance/pdf';
 import { serverNow } from '@/lib/utils/serverClock';
 import { useFinance, type FinanceReady } from './FinanceProvider';
@@ -47,9 +48,9 @@ const loadFonts = () => {
   return fontBytes;
 };
 
-/** Makes the file. The CSVs are built in the box after the PDF's. */
+/** Makes the file: the PDF from the chosen sections, or the CSV of sales by month. */
 async function makeFile({ book, figures, colours }: FinanceReady, kind: Kind, sections: PdfSection[]): Promise<Blob> {
-  if (kind === 'csv') throw new Error('the CSV maker is not built yet');
+  if (kind === 'csv') return salesByMonthCsv(figures);
   const doc = await buildPdf({ book, figures, colours, sections, fonts: await loadFonts(), madeAt: serverNow().getTime() });
   return doc.output('blob');
 }

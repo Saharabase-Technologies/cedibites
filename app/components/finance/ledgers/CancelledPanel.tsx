@@ -3,17 +3,19 @@
 import { useState } from 'react';
 import { SegmentedTabs, type DataTableColumn } from '@/app/inventory/_components';
 import { TONE } from '@/app/inventory/_components/status-tokens';
+import { cancelledCsv } from '@/lib/finance/csv';
+import { fileName, saveFile } from '@/lib/finance/download';
 import { cancelledIn, LABEL } from '@/lib/finance/figures';
 import { amt, int, placedText } from '@/lib/finance/format';
 import type { FinanceCancelledOrder, FinanceCancelOutcome } from '@/types/finance';
 import { ChartPanel } from '../ChartPanel';
 import { useFinance } from '../FinanceProvider';
-import { BranchName, FigureTable } from '../parts';
+import { BranchName, CsvButton, FigureTable } from '../parts';
 
 /**
  * Cancelled after payment: each order that was paid for and then cancelled,
  * split by what became of the money (D8). Ported from the review page's
- * `drawCx`. Its CSV comes with the download, in Phase 6.
+ * `drawCx`. Its CSV button saves the orders the chosen tab shows.
  *
  * The list and its counts come from `cancelledIn`, so they always agree with
  * the Overview's Cancelled after payment figure.
@@ -47,6 +49,7 @@ export function CancelledPanel() {
   const count = (k: Kind) => (k === 'all' ? all.length : all.filter(c => c.outcome === k).length);
   const rows = kind === 'all' ? all : all.filter(c => c.outcome === kind);
   const branchOf = new Map(res.branches.map(b => [b.id, b]));
+  const what = kind === 'all' ? 'cancelled after payment' : `cancelled after payment, ${LABEL.outcome[kind].toLowerCase()}`;
 
   const columns: DataTableColumn<FinanceCancelledOrder>[] = [
     { key: 'order', header: 'Order', sortValue: c => c.order_number, cell: c => <span className="font-bold whitespace-nowrap">{c.order_number}</span>, foot: 'Total' },
@@ -74,14 +77,17 @@ export function CancelledPanel() {
       title="Cancelled after payment"
       sub="Orders that were paid for and then cancelled. None of them is in net sales."
       controls={(
-        <SegmentedTabs<Kind>
-          options={[
-            { value: 'all', label: `All (${int(count('all'))})` },
-            ...KINDS.map(k => ({ value: k, label: `${LABEL.outcome[k]} (${int(count(k))})` })),
-          ]}
-          value={kind}
-          onChange={setKind}
-        />
+        <>
+          <SegmentedTabs<Kind>
+            options={[
+              { value: 'all', label: `All (${int(count('all'))})` },
+              ...KINDS.map(k => ({ value: k, label: `${LABEL.outcome[k]} (${int(count(k))})` })),
+            ]}
+            value={kind}
+            onChange={setKind}
+          />
+          <CsvButton disabled={!rows.length} onClick={() => saveFile(fileName(book, res, what, 'csv'), cancelledCsv(res, rows))} />
+        </>
       )}
     >
       <FigureTable

@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { DownloadSimpleIcon } from '@phosphor-icons/react';
 import { DataTable, type DataTableColumn } from '@/app/inventory/_components';
 import { SeriesKey } from './charts';
 
@@ -10,6 +11,21 @@ export { monthNote } from '@/lib/finance/format';
  * What the Finance tabs share. Every table here is the kit's `DataTable`
  * drawn without its own card, since it already sits on a panel.
  */
+
+/** The Download CSV button, in a panel's row of controls. It sits at the row's right end from md. */
+export function CsvButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="md:ml-auto flex items-center gap-2 min-h-11 px-3.5 rounded-xl border border-[#e3ddd0] bg-neutral-card text-sm font-medium font-body text-text-dark hover:border-neutral-gray/50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <DownloadSimpleIcon size={16} weight="bold" />
+      Download CSV
+    </button>
+  );
+}
 
 /** A branch with its series colour, for the first cell of a row or a column heading. */
 export function BranchName({ name, colour, strong }: { name: string; colour?: string; strong?: boolean }) {

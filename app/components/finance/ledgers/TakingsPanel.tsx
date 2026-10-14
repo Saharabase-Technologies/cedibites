@@ -1,36 +1,19 @@
 'use client';
 
 import type { DataTableColumn } from '@/app/inventory/_components';
-import { DAY, iso, LABEL, lost, type BookBranch, type Day, type Figures, type Sums } from '@/lib/finance/figures';
+import { takingsCsv } from '@/lib/finance/csv';
+import { fileName, saveFile } from '@/lib/finance/download';
+import { LABEL, lost, takingsRows, type Sums, type TakingsRow } from '@/lib/finance/figures';
 import { amt, int, rowDate } from '@/lib/finance/format';
 import { ChartPanel } from '../ChartPanel';
 import { useFinance } from '../FinanceProvider';
-import { BranchName, Figure, FigureTable } from '../parts';
+import { BranchName, CsvButton, Figure, FigureTable } from '../parts';
 
 /**
  * Daily takings: every day each chosen branch was open, one branch and day to
  * a row, newest first. Ported from the review page's `drawDailyLedger`. Its
- * CSV comes with the download, in Phase 6.
+ * CSV button saves the same rows.
  */
-
-interface TakingsRow {
-  day: Day;
-  branch: BookBranch;
-  /** The branch's place among the chosen ones, to keep a day's rows in order. */
-  place: number;
-  /** Null on a day the branch was open and sold nothing. */
-  sums: Sums | null;
-}
-
-function takingsRows(res: Figures): TakingsRow[] {
-  const out: TakingsRow[] = [];
-  res.branches.forEach((branch, place) => {
-    for (let t = Math.max(res.start, branch.openDay); t <= res.end; t += DAY) {
-      out.push({ day: t, branch, place, sums: res.days[branch.id][iso(t)] ?? null });
-    }
-  });
-  return out;
-}
 
 const FIGURES: [string, string, (a: Sums) => number, (v: number) => string][] = [
   ['orders', 'Paid orders', a => a.orders, int],
@@ -76,7 +59,11 @@ export function TakingsPanel() {
   ];
 
   return (
-    <ChartPanel title="Daily takings" sub="Every day each branch was open. Amounts in Ghana cedis.">
+    <ChartPanel
+      title="Daily takings"
+      sub="Every day each branch was open. Amounts in Ghana cedis."
+      controls={<CsvButton disabled={!rows.length} onClick={() => saveFile(fileName(book, res, 'daily takings', 'csv'), takingsCsv(res))} />}
+    >
       <FigureTable
         rows={rows}
         rowKey={r => `${r.branch.id}-${r.day}`}

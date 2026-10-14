@@ -417,6 +417,27 @@ export function cancelledIn(book: FinanceBook, res: Figures): FinanceCancelledOr
   });
 }
 
+/** A row of Daily takings: one branch on one day it was open. */
+export interface TakingsRow {
+  day: Day;
+  branch: BookBranch;
+  /** The branch's place among the chosen ones, to keep a day's rows in order. */
+  place: number;
+  /** Null on a day the branch was open and sold nothing. */
+  sums: Sums | null;
+}
+
+/** Every day each chosen branch was open, from its first sale or the first chosen day. The screen and the CSV share it. */
+export function takingsRows(res: Figures): TakingsRow[] {
+  const out: TakingsRow[] = [];
+  res.branches.forEach((branch, place) => {
+    for (let t = Math.max(res.start, branch.openDay); t <= res.end; t += DAY) {
+      out.push({ day: t, branch, place, sums: res.days[branch.id][iso(t)] ?? null });
+    }
+  });
+  return out;
+}
+
 /** Average net sales for each day of the week, Monday first, over complete days. */
 export function weekday(book: FinanceBook, res: Figures, branch: BookBranch): { average: number | null; days: number }[] {
   const sum = new Array<number>(7).fill(0), count = new Array<number>(7).fill(0);
