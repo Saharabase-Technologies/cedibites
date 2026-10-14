@@ -1,8 +1,9 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useId, useRef, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { CaretLeftIcon, CaretRightIcon, DotsThreeIcon } from '@phosphor-icons/react';
+import { ArrowDownIcon, ArrowUpIcon, CaretLeftIcon, CaretRightIcon, DotsThreeIcon } from '@phosphor-icons/react';
+import { CustomSelect } from './CustomSelect';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,8 @@ export type DataTableColumn<T> = {
   width?: string;
   /** Hide column below given breakpoint. */
   hideBelow?: 'sm' | 'md' | 'lg';
+  /** This column's cell in a totals row at the foot. The row shows when any column sets one. */
+  foot?: ReactNode;
 };
 
 export type DataTableProps<T> = {
@@ -70,6 +73,20 @@ export type DataTableProps<T> = {
    * card inside a card.
    */
   framed?: boolean;
+  /**
+   * Hold the first column in place while the table scrolls sideways. For a
+   * table whose point is comparing across its columns, so it stays a table
+   * on a phone. A row's caret scrolls away under it, so pair it with
+   * `expandOnRowClick`.
+   */
+  stickyFirst?: boolean;
+  /**
+   * Below `md`, show each row as a block instead of a table: the first
+   * column as its heading, the rest as pairs. Sorting moves to a picker over
+   * the list. Columns with `hideBelow` are left out of the list, and rows do
+   * not open there.
+   */
+  stackOnPhone?: boolean;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -89,8 +106,13 @@ export function DataTable<T>({
   expandedContent,
   expandOnRowClick,
   framed = true,
+  stickyFirst,
+  stackOnPhone,
 }: DataTableProps<T>) {
   const frame = framed ? 'bg-neutral-card border border-[#f0e8d8] rounded-2xl' : '';
+  const sortId = useId();
+  const hasFoot = columns.some((c) => c.foot !== undefined);
+  const stick = (i: number, bg = 'bg-neutral-card') => (stickyFirst && i === 0 ? `sticky left-0 z-[1] ${bg}` : '');
   const [sortKey, setSortKey] = useState<string | undefined>(defaultSortKey);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultSortDir);
   const [page, setPage] = useState(1);
@@ -174,7 +196,7 @@ export function DataTable<T>({
 
   return (
     <div className={`${frame} overflow-hidden`}>
-      <div className="overflow-x-auto">
+      <div className={stackOnPhone ? 'hidden md:block overflow-x-auto' : 'overflow-x-auto'}>
         <table className="w-full text-sm font-body">
           <thead>
             <tr className="border-b border-[#f0e8d8]">
@@ -184,7 +206,7 @@ export function DataTable<T>({
                   #
                 </th>
               )}
-              {columns.map((col) => {
+              {columns.map((col, i) => {
                 const sortable = !!col.sortValue;
                 const active = sortable && sortKey === col.key;
                 return (
@@ -196,6 +218,7 @@ export function DataTable<T>({
                       ${col.align === 'right' ? 'text-right' : 'text-left'}
                       ${col.width ?? ''}
                       ${hideClass(col)}
+                      ${stick(i)}
                       ${sortable ? 'cursor-pointer' : ''}
                       ${active ? 'text-primary' : 'text-neutral-gray hover:text-text-dark'}
                     `}
@@ -254,13 +277,14 @@ export function DataTable<T>({
                         {sliceStart + idx + 1}
                       </td>
                     )}
-                    {columns.map((col) => (
+                    {columns.map((col, i) => (
                       <td
                         key={col.key}
                         className={`
                           py-3 px-4 text-text-dark
                           ${col.align === 'right' ? 'text-right' : 'text-left'}
                           ${hideClass(col)}
+                          ${stick(i)}
                         `}
                       >
                         {col.cell(row, sliceStart + idx)}
@@ -278,8 +302,47 @@ export function DataTable<T>({
               );
             })}
           </tbody>
+          {hasFoot && (
+            <tfoot>
+              <tr className="bg-neutral-light">
+                {expandedContent && <td />}
+                {showIndex && <td />}
+                {columns.map((col, i) => (
+                  <td
+                    key={col.key}
+                    className={`
+                      py-3 px-4 font-bold text-text-dark whitespace-nowrap
+                      ${col.align === 'right' ? 'text-right' : 'text-left'}
+                      ${hideClass(col)}
+                      ${stick(i, 'bg-neutral-light')}
+                    `}
+                  >
+                    {col.foot}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
+
+      {stackOnPhone && (
+        <PhoneList
+          rows={paged}
+          first={sliceStart}
+          columns={columns.filter((c) => !c.hideBelow)}
+          rowKey={rowKey}
+          onRowClick={onRowClick}
+          hasFoot={hasFoot}
+          sort={{
+            id: sortId,
+            key: sortKey,
+            dir: sortDir,
+            setKey: setSortKey,
+            turn: () => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc')),
+          }}
+        />
+      )}
 
       {/* ── Pagination footer ───────────────────────────────────────────────── */}
       {totalPages > 1 && (
@@ -330,6 +393,93 @@ export function DataTable<T>({
           {sorted.length} row{sorted.length !== 1 ? 's' : ''}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Phone list (stackOnPhone) ────────────────────────────────────────────────
+
+function PhoneList<T>({
+  rows,
+  first,
+  columns,
+  rowKey,
+  onRowClick,
+  hasFoot,
+  sort,
+}: {
+  rows: T[];
+  /** The index of the first row on this page, among all the rows. */
+  first: number;
+  columns: DataTableColumn<T>[];
+  rowKey?: (row: T, index: number) => string | number;
+  onRowClick?: (row: T) => void;
+  hasFoot: boolean;
+  sort: { id: string; key?: string; dir: 'asc' | 'desc'; setKey: (key: string) => void; turn: () => void };
+}) {
+  const [head, ...rest] = columns;
+  const sortable = columns.filter((c) => c.sortValue);
+  if (!head) return null;
+  const pairs = 'mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm';
+
+  return (
+    <div className="md:hidden font-body">
+      {sortable.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-[#f0e8d8]">
+          <label htmlFor={sort.id} className="text-xs font-semibold text-neutral-gray whitespace-nowrap">Sort by</label>
+          <div className="flex-1 min-w-0">
+            <CustomSelect
+              id={sort.id}
+              size="sm"
+              fullWidth
+              value={sort.key ?? ''}
+              placeholder="As listed"
+              onChange={sort.setKey}
+              options={sortable.map((c) => ({ value: c.key, label: c.header }))}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={sort.turn}
+            aria-label={sort.dir === 'asc' ? 'Ascending. Turn the order round' : 'Descending. Turn the order round'}
+            className="min-h-11 min-w-11 flex items-center justify-center rounded-xl border border-[#e3ddd0] text-text-dark cursor-pointer"
+          >
+            {sort.dir === 'asc' ? <ArrowUpIcon size={16} /> : <ArrowDownIcon size={16} />}
+          </button>
+        </div>
+      )}
+      <ul className="divide-y divide-[#f0e8d8]">
+        {rows.map((row, idx) => (
+          <li
+            key={rowKey ? rowKey(row, first + idx) : first + idx}
+            onClick={onRowClick ? () => onRowClick(row) : undefined}
+            className={`px-4 py-3 ${onRowClick ? 'cursor-pointer' : ''}`}
+          >
+            <div className="text-sm font-semibold text-text-dark">{head.cell(row, first + idx)}</div>
+            <dl className={pairs}>
+              {rest.map((col) => (
+                <Fragment key={col.key}>
+                  <dt className="text-neutral-gray">{col.header}</dt>
+                  <dd className="text-right text-text-dark">{col.cell(row, first + idx)}</dd>
+                </Fragment>
+              ))}
+            </dl>
+          </li>
+        ))}
+        {hasFoot && (
+          <li className="px-4 py-3 bg-neutral-light">
+            <div className="text-sm font-bold text-text-dark">{head.foot}</div>
+            <dl className={pairs}>
+              {rest.filter((c) => c.foot != null && c.foot !== '').map((col) => (
+                <Fragment key={col.key}>
+                  <dt className="text-neutral-gray">{col.header}</dt>
+                  <dd className="text-right font-bold text-text-dark">{col.foot}</dd>
+                </Fragment>
+              ))}
+            </dl>
+          </li>
+        )}
+      </ul>
     </div>
   );
 }

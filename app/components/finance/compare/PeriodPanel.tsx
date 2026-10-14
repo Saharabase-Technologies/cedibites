@@ -8,7 +8,7 @@ import { amt, compact, ghs, int, monthName, plural, rangeText, signedPct } from 
 import { ChangePill } from '../ChangePill';
 import { ChartNote, ChartPanel, ControlGroup, useChartFilter } from '../ChartPanel';
 import { useFinance } from '../FinanceProvider';
-import { BranchName, Figure, FigureTable } from './parts';
+import { BranchName, Figure, FigureTable } from '../parts';
 
 /**
  * Period against period: any two spans of days, branch by branch. One table

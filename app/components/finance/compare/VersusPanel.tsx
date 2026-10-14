@@ -7,7 +7,7 @@ import { itemTable, lost, monthEnd, monthOf, monthStart, perDay, versus, type It
 import { amt, compact, int, monthLabel, one, pct, rangeText } from '@/lib/finance/format';
 import { ChartNote, ChartPanel, ControlGroup } from '../ChartPanel';
 import { useFinance } from '../FinanceProvider';
-import { Figure, FigureTable, PartHeading } from './parts';
+import { Figure, FigureTable, PartHeading } from '../parts';
 
 /**
  * Branch against branch: the chosen branches side by side on the figures,

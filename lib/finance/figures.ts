@@ -1,4 +1,4 @@
-import type { FinanceLedger } from '@/types/finance';
+import type { FinanceCancelledOrder, FinanceLedger } from '@/types/finance';
 import { receiptName } from '../utils/receiptName.mjs';
 
 /**
@@ -398,6 +398,23 @@ export function compute(book: FinanceBook, filters: FigureFilters): Figures {
     x.quantity += quantity; x.sales += sales;
   }
   return { filters: { ...filters }, branches, months, cell, total, branchTotal, grand, days, start, end, items };
+}
+
+/**
+ * The orders cancelled after payment that `res` counts: at its branches, on a
+ * day each one was open in its span, through its channel filters. A list made
+ * from this always agrees with the counts in `res`. An order placed before its
+ * branch's first sale, or at a branch that never sold, is in neither.
+ */
+export function cancelledIn(book: FinanceBook, res: Figures): FinanceCancelledOrder[] {
+  const ok = matcher(res.filters);
+  const from = new Map(res.branches.map(b => [b.id, Math.max(res.start, b.openDay)]));
+  return book.ledger.cancelled.filter(c => {
+    const first = from.get(c.branch_id);
+    if (first === undefined || !ok(c.source, c.type, c.method)) return false;
+    const t = ymd(c.placed_at.slice(0, 10));
+    return t >= first && t <= res.end;
+  });
 }
 
 /** Average net sales for each day of the week, Monday first, over complete days. */

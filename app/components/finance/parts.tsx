@@ -2,12 +2,23 @@
 
 import type { ReactNode } from 'react';
 import { DataTable, type DataTableColumn } from '@/app/inventory/_components';
-import { SeriesKey } from '../charts';
+import { iso, monthDays, monthEnd, monthStart, type Figures, type FinanceBook } from '@/lib/finance/figures';
+import { monthShort } from '@/lib/finance/format';
+import { SeriesKey } from './charts';
 
 /**
- * What the Compare sections share. Every table here is the kit's `DataTable`
+ * What the Finance tabs share. Every table here is the kit's `DataTable`
  * drawn without its own card, since it already sits on a panel.
  */
+
+/** The days a short month holds, `27 to 31 Mar`. Empty for a whole month. */
+export function monthNote(book: FinanceBook, res: Figures, m: string): string {
+  const t = res.total[m];
+  if (!t || !t.days || t.days >= monthDays(m)) return '';
+  const from = Math.max(monthStart(m), Math.min(...res.branches.map(b => b.openDay)));
+  const to = Math.min(monthEnd(m), book.end);
+  return `${Number(iso(from).slice(8))} to ${Number(iso(to).slice(8))} ${monthShort(m)}`;
+}
 
 /** A branch with its series colour, for the first cell of a row or a column heading. */
 export function BranchName({ name, colour, strong }: { name: string; colour?: string; strong?: boolean }) {
@@ -38,6 +49,9 @@ export function FigureTable<T>({
   defaultSortKey,
   defaultSortDir,
   empty,
+  expandedContent,
+  stickyFirst,
+  stackOnPhone,
 }: {
   rows: T[];
   columns: DataTableColumn<T>[];
@@ -47,6 +61,10 @@ export function FigureTable<T>({
   defaultSortKey?: string;
   defaultSortDir?: 'asc' | 'desc';
   empty?: string;
+  /** What a row opens to show. The whole row opens it. */
+  expandedContent?: (row: T) => ReactNode;
+  stickyFirst?: boolean;
+  stackOnPhone?: boolean;
 }) {
   return (
     <div className="tabular-nums -mx-4 md:-mx-5 border-t border-[#f0e8d8] min-w-0">
@@ -59,6 +77,10 @@ export function FigureTable<T>({
         defaultSortKey={defaultSortKey}
         defaultSortDir={defaultSortDir}
         emptyState={empty ? <p className="py-8 text-center text-sm font-body text-neutral-gray">{empty}</p> : undefined}
+        expandedContent={expandedContent}
+        expandOnRowClick={!!expandedContent}
+        stickyFirst={stickyFirst}
+        stackOnPhone={stackOnPhone}
       />
     </div>
   );

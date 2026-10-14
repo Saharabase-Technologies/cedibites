@@ -7,7 +7,7 @@ import { isPart, perDay, since, type Sums } from '@/lib/finance/figures';
 import { amt, compact, ghs, int, monthLabel, plural } from '@/lib/finance/format';
 import { ChartNote, ChartPanel, ControlGroup, useChartFilter } from '../ChartPanel';
 import { useFinance } from '../FinanceProvider';
-import { Figure, FigureTable } from './parts';
+import { Figure, FigureTable } from '../parts';
 
 /**
  * Months since opening: each branch from its own first month, so their starts

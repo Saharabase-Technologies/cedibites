@@ -2,10 +2,11 @@
 
 import { useId } from 'react';
 import { SeriesKey } from '../charts';
-import { change, iso, monthBefore, monthDays, monthEnd, monthStart, perDay, sumRange, type BookBranch, type Sums } from '@/lib/finance/figures';
-import { amt, int, monthLabel, monthShort } from '@/lib/finance/format';
+import { change, monthBefore, monthEnd, monthStart, perDay, sumRange, type BookBranch, type Sums } from '@/lib/finance/figures';
+import { amt, int, monthLabel } from '@/lib/finance/format';
 import { ChangePill } from '../ChangePill';
 import { useFinance } from '../FinanceProvider';
+import { monthNote } from '../parts';
 
 /**
  * Month by month, branch by branch (D14). For each branch: net sales,
@@ -29,15 +30,6 @@ export function MonthGrid() {
   const previous = (b: BookBranch, m: string): Sums => {
     const before = monthBefore(m);
     return res.cell[b.id][before] ?? sumRange(book, res.days, b, monthStart(before), monthEnd(before));
-  };
-
-  /* A short month says which days it holds: `27 to 31 Mar`. */
-  const monthNote = (m: string): string => {
-    const t = res.total[m];
-    if (!t || !t.days || t.days >= monthDays(m)) return '';
-    const from = Math.max(monthStart(m), Math.min(...res.branches.map(b => b.openDay)));
-    const to = Math.min(monthEnd(m), book.end);
-    return `${Number(iso(from).slice(8))} to ${Number(iso(to).slice(8))} ${monthShort(m)}`;
   };
 
   return (
@@ -70,7 +62,7 @@ export function MonthGrid() {
           </thead>
           <tbody>
             {res.months.map(m => {
-              const note = monthNote(m);
+              const note = monthNote(book, res, m);
               return (
                 <tr key={m} className="border-b border-[#f0e8d8]">
                   <th scope="row" className={`${stick} py-3 px-4 text-left font-medium text-text-dark whitespace-nowrap`}>

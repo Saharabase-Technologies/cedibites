@@ -7,7 +7,7 @@ import { compute, type Sums } from '@/lib/finance/figures';
 import { amt, ghs, int, monthLong, pct, plural, rangeText } from '@/lib/finance/format';
 import { ChartPanel, ControlGroup } from '../ChartPanel';
 import { useFinance } from '../FinanceProvider';
-import { BranchName, FigureTable } from './parts';
+import { BranchName, FigureTable } from '../parts';
 
 /**
  * Share of sales: each branch's part of the whole, as a donut (D12), for the

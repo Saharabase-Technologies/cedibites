@@ -8,7 +8,7 @@ import { amt, dayAndMonth, ghs, ghs0, int, listAnd, monthName, monthShort } from
 import { ChangePill } from '../ChangePill';
 import { ChartNote } from '../ChartPanel';
 import { useFinance } from '../FinanceProvider';
-import { BranchName, FigureTable } from './parts';
+import { BranchName, FigureTable } from '../parts';
 
 /**
  * This month so far, against the same days of the month before, with where

@@ -1,5 +1,5 @@
-import { FinanceNotice } from '@/app/components/finance/FinanceNotice';
+import { FinanceLedgers } from '@/app/components/finance/ledgers/FinanceLedgers';
 
 export default function FinanceLedgersPage() {
-  return <FinanceNotice title="Ledgers is not built yet" />;
+  return <FinanceLedgers />;
 }

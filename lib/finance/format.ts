@@ -1,4 +1,4 @@
-import { DOW, DOW3, MON, MONTH, type Day } from './figures';
+import { DOW, DOW3, MON, MONTH, ymd, type Day } from './figures';
 
 /**
  * How the Finance figures are written out. The screens and the download both
@@ -54,6 +54,10 @@ export const dayAndMonth = (t: Day): string => { const [d, m] = dayParts(t); ret
 export const weekdayDate = (t: Day): string => { const [d, m, y, w] = dayParts(t); return `${DOW[w]} ${d} ${MONTH[m]} ${y}`; };
 /** `Wed 14 Oct 2026`, for a row in a table. */
 export const rowDate = (t: Day): string => { const [d, m, y, w] = dayParts(t); return `${DOW3[w]} ${d} ${MON[m]} ${y}`; };
+
+/** When an order was placed, from the server's `YYYY-MM-DD HH:mm`: `14 Oct 2026 at 14:28`. */
+export const placedText = (s: string): string =>
+  shortDate(ymd(s.slice(0, 10))) + (s.length >= 16 ? ` at ${s.slice(11, 16)}` : '');
 
 /** A month, `YYYY-MM`, as `Oct`. */
 export const monthShort = (m: string): string => MON[+m.slice(5) - 1];
