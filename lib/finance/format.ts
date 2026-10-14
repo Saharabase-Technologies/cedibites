@@ -44,6 +44,8 @@ const dayParts = (t: Day): [number, number, number, number] => {
 export const longDate = (t: Day): string => { const [d, m, y] = dayParts(t); return `${d} ${MONTH[m]} ${y}`; };
 /** `14 Oct 2026`. */
 export const shortDate = (t: Day): string => { const [d, m, y] = dayParts(t); return `${d} ${MON[m]} ${y}`; };
+/** `14 Oct`, for a chart's axis. */
+export const dayShort = (t: Day): string => { const [d, m] = dayParts(t); return `${d} ${MON[m]}`; };
 /** `14 October`. */
 export const dayAndMonth = (t: Day): string => { const [d, m] = dayParts(t); return `${d} ${MONTH[m]}`; };
 /** `Wednesday 14 October 2026`. */
