@@ -33,7 +33,7 @@ from Nii Mantse: monthly sales for each branch since it opened.
 | 1 | Backend: one endpoint that returns the finance data | Done 2026-10-14. Four commits on the backend's `feat/finance-section`, head `bf976dc`. Not pushed. |
 | 2 | Frontend: types, service, and the figures ported to TypeScript | Done 2026-10-14. `14f4b5c`, `0aa6bc9` and the review's mend `bb3ba22` on the frontend's `feat/finance-section`, with the ticks. Not pushed. |
 | 3 | Overview screen | Done 2026-10-14. `dde7bc4`, `87a71e1`, `d6dbeca` and `16900c7` on the frontend's `feat/finance-section`, with the ticks. Not pushed. |
-| 4 | Compare screen | Not started |
+| 4 | Compare screen | Done 2026-10-14. `98a1e86` on the frontend's `feat/finance-section`, with the tick. Not looked at in a browser: left to Phase 8. Not pushed. |
 | 5 | Ledgers screen | Not started |
 | 6 | Download: the sheet, the PDF and the CSV | Not started |
 | 7 | Partner portal: the same section, limited to the partner's branches | Not started |
@@ -296,7 +296,7 @@ Done when: the endpoint returns the shape in Section 5 and the tests pass.
 
 ### Phase 4. Compare
 
-- [ ] The five Compare sections in the order of Section 6.
+- [x] The five Compare sections in the order of Section 6. (FE `98a1e86`) `FinanceCompare` in `app/components/finance/compare/` holds the five sections, and Phase 7 mounts it too. Every table is the kit's `DataTable`, which now takes `framed={false}` so it sits on a panel with no second card. `ChangePill` moved out of the month grid so both tabs share it. `format.ts` gained `one`, for orders a day. Not looked at in a browser: the seed route from Phase 3 was gone, and a new one would have taken about eight calls on a session already past its limit. The look is left to Phase 8. Recommended, taken: Does Period against period show every figure at once? No. Show picks one, and the table and the paired bars follow it, so the table stays four columns wide. Recommended, taken: Where do the period presets end? On the last complete day (D11). Pick dates reaches today, and every date is read in UTC. Recommended, taken: What controls has This month so far? None. Its bars are net sales, it follows the page filters, and each bar writes its own figures, so it has no readout on hover. Recommended, taken: How is a forecast against a part month marked? `vsMonthBefore` is left as ported. The cell gets a hollow dot, and a note names the branch and the day it opened. Recommended, taken: What does Months since opening offer? Show has all four, Sales a day first. Chart has Lines and Bars, with no Stacked, since Month 1 is a different month at each branch. It has Filter this chart. Recommended, taken: How does Share of sales pick its months? "All chosen months" or one month. Show has Net sales and Orders. It always shows every branch, whatever branch the page has chosen, as the review page did, so it has no Filter this chart. Recommended, taken: What has Branch against branch? Chips, at least two kept, all on to start. No Filter this chart: the chips choose the branches. A book with one branch says it needs two. Orders a day divides by every day open, today among them, as the review page did. Recommended, taken: The review page could not be read from this account. The functions were cut from an earlier session's saved read of the same page, made at 03:05 today, into `scratch/page.compare.js`, with no data.
 
 ### Phase 5. Ledgers
 
@@ -402,3 +402,6 @@ Each has a default. Build on the default until the user says otherwise.
 - 2026-10-14. `next dev` writes every route into `.next/dev/types`, and `tsconfig.json` reads it. A scratch route deleted after a look leaves `tsc` red until its lines come out of `validator.ts` and `routes.d.ts` there.
 - 2026-10-14. A screen can be looked at with no backend. A scratch route seeds a `QueryClient` with `setQueryData` under the ledger's query key, with made up numbers and `staleTime: Infinity`, and mounts `FinanceProvider` inside it. Never commit it.
 - 2026-10-14. `pace` sets `vsMonthBefore` from a forecast for the whole month over the month before as it was. A branch that opened part way through that month reads as growth. The review page did the same. Left as ported, for the owner.
+- 2026-10-14. The kit's `DataTable` draws its own card. On a Finance panel that is a card inside a card. Pass `framed={false}`, as `FigureTable` in `compare/parts.tsx` does.
+- 2026-10-14. The review page may not open from the account a session runs on. An earlier session's read of it is saved in that session's scratchpad, under `artifact-files/<artifact id>/index.html`. Cut only the functions from it, never the data.
+- 2026-10-14. Some files in the kit have CRLF line ends, `DataTable.tsx` among them. A script that replaces a block written with `\n` misses it and says nothing. Use the Edit tool there.
