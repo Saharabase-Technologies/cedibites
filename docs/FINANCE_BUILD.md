@@ -283,7 +283,7 @@ Done when: the endpoint returns the shape in Section 5 and the tests pass.
 
 ### Phase 2. Frontend data
 
-- [ ] Types in `types/finance.ts`. Service in `lib/api/services/finance.service.ts`. Hook `useFinanceLedger(filters)`.
+- [x] Types in `types/finance.ts`. Service in `lib/api/services/finance.service.ts`. Hook `useFinanceLedger(filters)`. (FE `14f4b5c`) The hook is in `lib/api/hooks/useFinance.ts`. Sale and item rows are typed as tuples, in the order the endpoint sends them.
 - [ ] Port the review page's `core` script to `lib/finance/figures.ts`: `compute`, `periods`, `pace`, `since`, `versus`, `itemTable`, `weekday`, `dailySeries`, `bestMonth`. Pure functions, no DOM, no `new Date()` for "now".
 - [ ] Item names through `receiptName()`.
 - [ ] Check: with the end date set to 13 October 2026, the totals match the review page.
