@@ -31,7 +31,7 @@ from Nii Mantse: monthly sales for each branch since it opened.
 |---|---|---|
 | 0 | Branches cut, plan written | Done 2026-10-14 |
 | 1 | Backend: one endpoint that returns the finance data | Done 2026-10-14. Four commits on the backend's `feat/finance-section`, head `bf976dc`. Not pushed. |
-| 2 | Frontend: types, service, and the figures ported to TypeScript | Not started |
+| 2 | Frontend: types, service, and the figures ported to TypeScript | Done 2026-10-14. `14f4b5c` and `0aa6bc9` on the frontend's `feat/finance-section`, then the ticks. Not pushed. |
 | 3 | Overview screen | Not started |
 | 4 | Compare screen | Not started |
 | 5 | Ledgers screen | Not started |
@@ -48,8 +48,7 @@ Branches, both cut 2026-10-14:
 Neither branch has an upstream. That is on purpose. A bare `git push` would
 otherwise go to `main` or `master`, and both deploy to prod.
 
-Last updated: 2026-10-14, at the end of Phase 1. Next: Phase 2, the frontend's
-types, service, hook and figures.
+Last updated: 2026-10-14, at the end of Phase 2. Next: Phase 3, Overview.
 
 ---
 
@@ -283,10 +282,10 @@ Done when: the endpoint returns the shape in Section 5 and the tests pass.
 
 ### Phase 2. Frontend data
 
-- [x] Types in `types/finance.ts`. Service in `lib/api/services/finance.service.ts`. Hook `useFinanceLedger(filters)`. (FE `14f4b5c`) The hook is in `lib/api/hooks/useFinance.ts`. Sale and item rows are typed as tuples, in the order the endpoint sends them.
-- [ ] Port the review page's `core` script to `lib/finance/figures.ts`: `compute`, `periods`, `pace`, `since`, `versus`, `itemTable`, `weekday`, `dailySeries`, `bestMonth`. Pure functions, no DOM, no `new Date()` for "now".
-- [ ] Item names through `receiptName()`.
-- [ ] Check: with the end date set to 13 October 2026, the totals match the review page.
+- [x] Types in `types/finance.ts`. Service in `lib/api/services/finance.service.ts`. Hook `useFinanceLedger(filters)`. (FE `14f4b5c`) The hook is in `lib/api/hooks/useFinance.ts`. Sale and item rows are typed as tuples, in the order the endpoint sends them. Source, type and method are plain strings, as stored.
+- [x] Port the review page's `core` script to `lib/finance/figures.ts`: `compute`, `periods`, `pace`, `since`, `versus`, `itemTable`, `weekday`, `dailySeries`, `bestMonth`. Pure functions, no DOM, no `new Date()` for "now". (FE `0aa6bc9`) `openBook(ledger, { end })` makes a book once for each read, and every function takes the book first. Fields are spelt out: `orders`, `discount`, `serviceCharge`, `deliveryFee`, where the page had `n`, `disc`, `svc`, `dlv`. Checked in scratch: the page's own `core` and the port, run over the page's data, give the same figure to the last digit on every function, for each branch, source, type and method, and under four time zones. Recommended, taken: Q12, Q14, Q15 and Q16 in Section 10.
+- [x] Item names through `receiptName()`. (FE `0aa6bc9`) `openBook` names each option with `receiptName(item, display_name || label)`. Options that come out with the same name and category are one line. Recommended, taken: Q13 in Section 10.
+- [x] Check: with the end date set to 13 October 2026, the totals match the review page. (No code.) Matches: net sales, paid orders, the count cancelled after payment and each of its three parts, and September for all branches. The check ran on the page's data, shaped as the endpoint sends it, because the build cannot reach prod. The soft deleted payments of Q11 cannot show in it, since that data came from the page's own SQL. The look on prod is Phase 9's fourth box.
 
 ### Phase 3. Overview
 
@@ -365,6 +364,11 @@ Each has a default. Build on the default until the user says otherwise.
 | Q9 | What comes back with no `from` and no `to`? | Everything since the first sale. Recommended, taken in Phase 1. |
 | Q10 | A line sold with no option. | It comes back under option id 0 and has no entry in `options`. Recommended, taken in Phase 1. |
 | Q11 | Are soft deleted payments counted? | No. Analytics leaves them out, so Finance does. The review page's SQL did not, so a total can differ from it by a deleted payment. Recommended, taken in Phase 1. |
+| Q12 | Does today count in sales a day? | No. Today is in every total. Sales a day, the weekday averages and the seven day average leave it out, because a day that is not over reads as a fall (D7). "So far" and the forecast stop at yesterday (D11). Recommended, taken in Phase 2. |
+| Q13 | What is a line with no option called? | "Dish not recorded", under "Uncategorised". Its row holds no dish name, so it cannot be named from the item. An option that is no longer in `options` reads the same. Prod has no such line today. Recommended, taken in Phase 2. |
+| Q14 | Is a branch that never sold in the figures? | No. It has no first sale to count days from. The endpoint still lists it, so a screen can name it. Recommended, taken in Phase 2. |
+| Q15 | Which month is "This month so far" on the 1st? | The month before, whole, with no days left. No day of the new month is complete yet. Recommended, taken in Phase 2. |
+| Q16 | Do the screens read the ledger with a `from`? | No. They read the whole ledger and choose months on the screen, as the review page does. A day the endpoint left out would count as a day open with no sales. An end date goes to `openBook` as `end`. Recommended, taken in Phase 2. |
 
 ---
 
@@ -387,3 +391,9 @@ Each has a default. Build on the default until the user says otherwise.
 - 2026-10-14. With nothing sold, `options` comes back as `{}`, never `[]`. A Laravel test's `json()` reads both as an empty array, so the tests check the raw body.
 - 2026-10-14. The menu item factory gives every dish a Standard option, and the order item factory fills an empty option with it. To test a line with no option, clear the option after the line is made.
 - 2026-10-14. Helper functions in Pest files are global across the whole suite. The ledger test's helpers all start with `ledger` or `financeLedger`, so they cannot collide with another file's.
+- 2026-10-14. Node 22 runs the frontend's TypeScript with `node --experimental-strip-types`, when the file takes its types with `import type` and its code by a relative path with the extension. `lib/finance/figures.ts` is written that way, so a scratch script can run it. The frontend still has no test runner.
+- 2026-10-14. The review page's data is not the endpoint's shape. Its item rows hold a place in a list of names built beforehand, not an option id. Its cancelled orders are arrays, with `free` where the endpoint says `no_charge`. A check script has to reshape it first.
+- 2026-10-14. The review page never had a part day: it ended the day before it was read. `Sums` carries `partDays` and `partNet` so that `perDay` can leave today out. A screen that divides `net` by `days` itself brings the fall back. Use `perDay` and `change`.
+- 2026-10-14. A branch filter that matches no branch gives `start` as `Infinity`, as on the review page. Every loop then does nothing. A screen must not format `start` before it has a branch.
+- 2026-10-14. `TZ=... node` does not reach Node from Git Bash on Windows. Set `process.env.TZ` at the top of the script.
+- 2026-10-14. The scratch checks for the figures are not in the repo, because the page's data holds real figures. To check again: read the review page with the Artifact tool, cut out `<script id="core">`, run it in `node:vm` with `window = {}`, and compare it with the port over the same data.
