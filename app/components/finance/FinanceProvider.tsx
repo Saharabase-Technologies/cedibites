@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useFinanceLedger } from '@/lib/api/hooks/useFinance';
+import { branchColours } from '@/lib/finance/branchColours';
 import { compute, openBook, type Figures, type FigureFilters, type FinanceBook } from '@/lib/finance/figures';
 import type { FinanceLedgerFilters } from '@/types/finance';
 
@@ -38,6 +39,8 @@ export interface FinanceReady {
   filters: FigureFilters;
   /** The chosen branches over the chosen months. */
   figures: Figures;
+  /** Branch id to its series colour, made from the whole book so a filter never repaints a branch. */
+  colours: Record<number, string>;
   /** Each source, type and payment method the ledger holds, in the order it first appears. */
   present: { source: string[]; type: string[]; method: string[] };
   setFilters: (patch: Partial<FigureFilters>) => void;
@@ -69,6 +72,7 @@ export function FinanceProvider({
   const [choice, setChoice] = useState<Choice>(NO_CHOICE);
 
   const book = useMemo(() => (data ? openBook(data) : null), [data]);
+  const colours = useMemo(() => (book ? branchColours(book.branches) : {}), [book]);
 
   const present = useMemo(() => {
     const sales = book ? book.ledger.sales : [];
@@ -122,12 +126,12 @@ export function FinanceProvider({
 
   const state = useMemo<FinanceState>(() => {
     if (book && filters && figures) {
-      return { status: 'ready', book, filters, figures, present, setFilters, clearFilter, clearFilters };
+      return { status: 'ready', book, filters, figures, colours, present, setFilters, clearFilter, clearFilters };
     }
     if (book) return { status: 'empty' };
     if (isError && !isLoading) return { status: 'error', retry: () => { void refetch(); } };
     return { status: 'loading' };
-  }, [book, filters, figures, present, setFilters, clearFilter, clearFilters, isError, isLoading, refetch]);
+  }, [book, filters, figures, colours, present, setFilters, clearFilter, clearFilters, isError, isLoading, refetch]);
 
   return <FinanceContext.Provider value={state}>{children}</FinanceContext.Provider>;
 }

@@ -1,5 +1,5 @@
-import { FinanceNotice } from '@/app/components/finance/FinanceNotice';
+import { FinanceOverview } from '@/app/components/finance/overview/FinanceOverview';
 
 export default function FinanceOverviewPage() {
-  return <FinanceNotice title="Overview is not built yet" />;
+  return <FinanceOverview />;
 }
