@@ -65,11 +65,11 @@ const TITLE = 'Sales by branch, month by month';
 
 /** Curly quotes, dashes and accents the font subset may not hold, made plain. */
 const plain = (s: string): string => s
-  .replace(/[‘’]/g, '\'')
-  .replace(/[“”]/g, '"')
-  .replace(/[–—]/g, '-')
+  .replace(/[\u2018\u2019]/g, '\'')
+  .replace(/[\u201C\u201D]/g, '"')
+  .replace(/[\u2013\u2014]/g, '-')
   .normalize('NFKD')
-  .replace(/[̀-ͯ]/g, '')
+  .replace(/[\u0300-\u036f]/g, '')
   .replace(/[^\x20-\x7E\n]/g, '');
 
 const base64 = (bytes: Uint8Array): string => {
