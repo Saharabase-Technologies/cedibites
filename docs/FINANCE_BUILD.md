@@ -31,7 +31,7 @@ from Nii Mantse: monthly sales for each branch since it opened.
 |---|---|---|
 | 0 | Branches cut, plan written | Done 2026-10-14 |
 | 1 | Backend: one endpoint that returns the finance data | Done 2026-10-14. Four commits on the backend's `feat/finance-section`, head `bf976dc`. Not pushed. |
-| 2 | Frontend: types, service, and the figures ported to TypeScript | Done 2026-10-14. `14f4b5c` and `0aa6bc9` on the frontend's `feat/finance-section`, then the ticks. Not pushed. |
+| 2 | Frontend: types, service, and the figures ported to TypeScript | Done 2026-10-14. `14f4b5c`, `0aa6bc9` and the review's mend `bb3ba22` on the frontend's `feat/finance-section`, with the ticks. Not pushed. |
 | 3 | Overview screen | Not started |
 | 4 | Compare screen | Not started |
 | 5 | Ledgers screen | Not started |
@@ -285,7 +285,7 @@ Done when: the endpoint returns the shape in Section 5 and the tests pass.
 - [x] Types in `types/finance.ts`. Service in `lib/api/services/finance.service.ts`. Hook `useFinanceLedger(filters)`. (FE `14f4b5c`) The hook is in `lib/api/hooks/useFinance.ts`. Sale and item rows are typed as tuples, in the order the endpoint sends them. Source, type and method are plain strings, as stored.
 - [x] Port the review page's `core` script to `lib/finance/figures.ts`: `compute`, `periods`, `pace`, `since`, `versus`, `itemTable`, `weekday`, `dailySeries`, `bestMonth`. Pure functions, no DOM, no `new Date()` for "now". (FE `0aa6bc9`) `openBook(ledger, { end })` makes a book once for each read, and every function takes the book first. Fields are spelt out: `orders`, `discount`, `serviceCharge`, `deliveryFee`, where the page had `n`, `disc`, `svc`, `dlv`. Checked in scratch: the page's own `core` and the port, run over the page's data, give the same figure to the last digit on every function, for each branch, source, type and method, and under four time zones. Recommended, taken: Q12, Q14, Q15 and Q16 in Section 10.
 - [x] Item names through `receiptName()`. (FE `0aa6bc9`) `openBook` names each option with `receiptName(item, display_name || label)`. Options that come out with the same name and category are one line. Recommended, taken: Q13 in Section 10.
-- [x] Check: with the end date set to 13 October 2026, the totals match the review page. (No code.) Matches: net sales, paid orders, the count cancelled after payment and each of its three parts, and September for all branches. The check ran on the page's data, shaped as the endpoint sends it, because the build cannot reach prod. The soft deleted payments of Q11 cannot show in it, since that data came from the page's own SQL. The look on prod is Phase 9's fourth box.
+- [x] Check: with the end date set to 13 October 2026, the totals match the review page. (FE `0aa6bc9`, no code changed.) Matches: net sales, paid orders, the count cancelled after payment and each of its three parts, and September for all branches. The check ran on the page's data, shaped as the endpoint sends it, because the build cannot reach prod. The soft deleted payments of Q11 cannot show in it, since that data came from the page's own SQL. Run again on the mend `bb3ba22`: it still matches. The look on prod is Phase 9's fourth box.
 
 ### Phase 3. Overview
 
@@ -394,6 +394,8 @@ Each has a default. Build on the default until the user says otherwise.
 - 2026-10-14. Node 22 runs the frontend's TypeScript with `node --experimental-strip-types`, when the file takes its types with `import type` and its code by a relative path with the extension. `lib/finance/figures.ts` is written that way, so a scratch script can run it. The frontend still has no test runner.
 - 2026-10-14. The review page's data is not the endpoint's shape. Its item rows hold a place in a list of names built beforehand, not an option id. Its cancelled orders are arrays, with `free` where the endpoint says `no_charge`. A check script has to reshape it first.
 - 2026-10-14. The review page never had a part day: it ended the day before it was read. `Sums` carries `partDays` and `partNet` so that `perDay` can leave today out. A screen that divides `net` by `days` itself brings the fall back. Use `perDay` and `change`.
-- 2026-10-14. A branch filter that matches no branch gives `start` as `Infinity`, as on the review page. Every loop then does nothing. A screen must not format `start` before it has a branch.
+- 2026-10-14. A branch filter that matches no branch gives empty figures. The review page gave the first day as `Infinity` there, and formatting it throws. Since `bb3ba22` `start` falls back to the book's end. This is the one place the port leaves the page.
 - 2026-10-14. `TZ=... node` does not reach Node from Git Bash on Windows. Set `process.env.TZ` at the top of the script.
 - 2026-10-14. The scratch checks for the figures are not in the repo, because the page's data holds real figures. To check again: read the review page with the Artifact tool, cut out `<script id="core">`, run it in `node:vm` with `window = {}`, and compare it with the port over the same data.
+- 2026-10-14. An order cancelled after payment is in `ledger.cancelled` but in no `Sums` when it was placed before its branch's first sale, or at a branch that never sold. `dayMap` and `sumRange` start at `openDay`. A list of cancelled orders can so hold more rows than the count beside it.
+- 2026-10-14. `pace` sets `vsMonthBefore` from a forecast for the whole month over the month before as it was. A branch that opened part way through that month reads as growth. The review page did the same. Left as ported, for the owner.
