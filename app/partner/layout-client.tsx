@@ -10,6 +10,7 @@ import {
     BuildingsIcon,
     UserCircleIcon,
     ChartBarIcon,
+    MoneyIcon,
     SignOutIcon,
     CaretRightIcon,
     CaretDownIcon,
@@ -28,10 +29,13 @@ const PARTNER_NAV = [
     { href: '/partner/orders',    label: 'Orders',     icon: ListIcon        },
     { href: '/partner/branch',    label: 'My Branch',  icon: BuildingsIcon   },
     { href: '/partner/analytics', label: 'Analytics',  icon: ChartBarIcon    },
+    { href: '/partner/finance',   label: 'Finance',    icon: MoneyIcon       },
     { href: '/partner/profile',   label: 'Profile',    icon: UserCircleIcon  },
 ];
 
-const BOTTOM_NAV = PARTNER_NAV; // All 5 in bottom nav
+// All 6 in bottom nav. They fit at 360px. The side menu is hidden on a phone,
+// so nothing can leave the bar without losing its only way in.
+const BOTTOM_NAV = PARTNER_NAV;
 
 // ─── Sidebar link ─────────────────────────────────────────────────────────────
 

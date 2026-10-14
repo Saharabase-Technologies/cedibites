@@ -17,6 +17,7 @@ import {
     UsersThreeIcon,
     UserCircleIcon,
     ChartBarIcon,
+    MoneyIcon,
     GearSixIcon,
     ClockCounterClockwiseIcon,
     ChatCircleDotsIcon,
@@ -53,6 +54,8 @@ const ADMIN_GROUPS = [
         items: [
             { href: '/admin/dashboard',  label: 'Dashboard',  icon: SquaresFourIcon },
             { href: '/admin/analytics',  label: 'Analytics',  icon: ChartBarIcon    },
+            // A banknote, not a dollar sign: the money here is cedis.
+            { href: '/admin/finance',    label: 'Finance',    icon: MoneyIcon       },
         ],
     },
     {
