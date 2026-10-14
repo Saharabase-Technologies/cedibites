@@ -18,7 +18,6 @@ import { Figure, FigureTable, PartHeading } from '../parts';
  * filters hold, but the chips here choose the branches.
  */
 
-
 type Mode = 'sales' | 'quantity';
 const MODES = [{ value: 'sales' as const, label: 'Sales' }, { value: 'quantity' as const, label: 'Items sold' }];
 const ALL = 'all';

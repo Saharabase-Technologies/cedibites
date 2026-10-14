@@ -51,7 +51,6 @@ const MEASURES: Record<Measure, {
 
 const SHOW = (Object.keys(MEASURES) as Measure[]).map(value => ({ value, label: MEASURES[value].show }));
 
-
 export function MonthPanel() {
   const { book, colours } = useFinance();
   const filter = useChartFilter();

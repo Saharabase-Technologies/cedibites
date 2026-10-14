@@ -43,7 +43,6 @@ const changeOf = (measure: Measure, a: Sums, b: Sums): number | null => {
   return x != null && y ? x / y - 1 : null;
 };
 
-
 type Picked = { a0: Day; a1: Day; b0: Day; b1: Day };
 
 export function PeriodPanel() {

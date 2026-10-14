@@ -11,7 +11,6 @@ export { monthNote } from '@/lib/finance/format';
  * drawn without its own card, since it already sits on a panel.
  */
 
-
 /** A branch with its series colour, for the first cell of a row or a column heading. */
 export function BranchName({ name, colour, strong }: { name: string; colour?: string; strong?: boolean }) {
   return (

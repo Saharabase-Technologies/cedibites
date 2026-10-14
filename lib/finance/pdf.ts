@@ -99,6 +99,7 @@ interface TableOptions {
 
 /** Builds the PDF. Returns the document; the caller asks it for a blob. */
 export async function buildPdf({ book, figures: res, colours, sections, fonts, madeAt }: PdfInput): Promise<jsPDF> {
+  if (!res.branches.length) throw new Error('there are no sales to report for these filters');
   const [{ jsPDF: JsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const on = new Set(PDF_SECTIONS.filter(k => sections.includes(k)));
   const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
@@ -604,7 +605,8 @@ export async function buildPdf({ book, figures: res, colours, sections, fonts, m
     });
   }
 
-  if (on.has('bvb')) {
+  /* Branch against branch needs two branches, as on screen. */
+  if (on.has('bvb') && multi) {
     const v = versus(book, f, bs.map(b => b.id), true, res.start, res.end);
     section('Branch against branch', `Compared over ${rangeText(v.start, v.end)}. Amounts in Ghana cedis. Where one way is better, the strongest figure is in bold gold.`);
     const best = new Set<string>();

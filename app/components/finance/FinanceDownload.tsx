@@ -70,13 +70,16 @@ export function FinanceDownload({ open, onClose }: { open: boolean; onClose: () 
     onClose();
   }, [onClose]);
 
-  const sections = amount === 'short' ? SHORT_REPORT : amount === 'full' ? FULL_REPORT : PDF_SECTIONS.filter(k => ticked[k]);
+  /* Branch against branch needs two branches, as on screen. With one it is in no report. */
+  const can = (k: PdfSection) => res.branches.length > 1 || k !== 'bvb';
+  const sections = (amount === 'short' ? SHORT_REPORT : amount === 'full' ? FULL_REPORT : PDF_SECTIONS.filter(k => ticked[k])).filter(can);
   const none = kind === 'pdf' && !sections.length;
   const rows = longListRows(book, res);
   const hint: Partial<Record<PdfSection, string>> = {
     branches: `about ${res.branches.length * 2} pages`,
     ledger: aboutPages(rows.ledger),
     cx: aboutPages(rows.cx),
+    ...(can('bvb') ? {} : { bvb: 'This needs two branches that have sold.' }),
   };
 
   const download = async () => {
@@ -120,11 +123,12 @@ export function FinanceDownload({ open, onClose }: { open: boolean; onClose: () 
           {amount === 'choose' && (
             <div className="flex flex-col pl-2">
               {PDF_SECTIONS.map(k => (
-                <label key={k} className="flex items-center gap-3 min-h-11 text-sm text-text-dark cursor-pointer">
+                <label key={k} className={`flex items-center gap-3 min-h-11 text-sm ${can(k) ? 'text-text-dark cursor-pointer' : 'text-neutral-gray'}`}>
                   <input
                     type="checkbox"
                     className="w-4 h-4 accent-primary shrink-0"
-                    checked={ticked[k]}
+                    checked={ticked[k] && can(k)}
+                    disabled={!can(k)}
                     onChange={e => setTicked(previous => ({ ...previous, [k]: e.target.checked }))}
                   />
                   <span className="flex-1">{sectionTitle(book, k)}</span>
