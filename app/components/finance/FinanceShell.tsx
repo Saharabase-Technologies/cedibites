@@ -21,6 +21,7 @@ import { FinanceProvider, useFinanceState } from './FinanceProvider';
 export function FinanceShell({
   basePath,
   scope,
+  branch,
   branchControl,
   children,
 }: {
@@ -28,12 +29,14 @@ export function FinanceShell({
   basePath: string;
   /** The branches to read. Left out, every branch the caller may see. */
   scope?: Pick<FinanceLedgerFilters, 'branch_id' | 'branch_ids'>;
+  /** The branch filter, when `branchControl` chooses it. */
+  branch?: 'all' | number;
   /** Stands in for the branch picker in the filter row. */
   branchControl?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <FinanceProvider scope={scope}>
+    <FinanceProvider scope={scope} branch={branch}>
       <FinanceFrame basePath={basePath} branchControl={branchControl}>{children}</FinanceFrame>
     </FinanceProvider>
   );
@@ -82,7 +85,11 @@ function FinanceFrame({
         </FinanceNotice>
       )}
       {state.status === 'empty' && (
-        <FinanceNotice title="No paid orders yet">The figures start with the first one.</FinanceNotice>
+        <>
+          {/* A branch with no sales yet can be chosen from outside. The control stays, so another can be chosen. */}
+          {branchControl && <div className="mb-4">{branchControl}</div>}
+          <FinanceNotice title="No paid orders yet">The figures start with the first one.</FinanceNotice>
+        </>
       )}
       {state.status === 'ready' && (
         <>

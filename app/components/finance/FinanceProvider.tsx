@@ -62,10 +62,13 @@ const distinct = (values: string[]): string[] => [...new Set(values)];
 
 export function FinanceProvider({
   scope,
+  branch,
   children,
 }: {
   /** The branches to read. Left out, the endpoint sends every branch the caller may see. */
   scope?: Pick<FinanceLedgerFilters, 'branch_id' | 'branch_ids'>;
+  /** The branch filter, when a control outside the filter row chooses it. The row's own branch choice is then ignored. */
+  branch?: 'all' | number;
   children: ReactNode;
 }) {
   const { data, isLoading, isError, refetch } = useFinanceLedger(scope);
@@ -89,15 +92,16 @@ export function FinanceProvider({
     const first = book.months[0], last = book.months[book.months.length - 1];
     const from = choice.from && book.months.includes(choice.from) ? choice.from : first;
     const to = choice.to && book.months.includes(choice.to) ? choice.to : last;
+    const wanted = branch ?? choice.branch;
     return {
-      branch: choice.branch !== 'all' && book.branches.some(b => b.id === choice.branch) ? choice.branch : 'all',
+      branch: wanted !== 'all' && book.branches.some(b => b.id === wanted) ? wanted : 'all',
       from,
       to: to < from ? from : to,
       source: present.source.includes(choice.source) ? choice.source : 'all',
       type: present.type.includes(choice.type) ? choice.type : 'all',
       method: present.method.includes(choice.method) ? choice.method : 'all',
     };
-  }, [book, choice, present]);
+  }, [book, branch, choice, present]);
 
   const figures = useMemo(() => (book && filters ? compute(book, filters) : null), [book, filters]);
 
@@ -124,14 +128,18 @@ export function FinanceProvider({
 
   const clearFilters = useCallback(() => setChoice(NO_CHOICE), []);
 
+  /* A branch chosen outside the row that has never sold is not in the book. Falling back to every branch would show their figures under its name. */
+  const unsold = book !== null && branch !== undefined && branch !== 'all' && !book.branches.some(b => b.id === branch);
+
   const state = useMemo<FinanceState>(() => {
+    if (unsold) return { status: 'empty' };
     if (book && filters && figures) {
       return { status: 'ready', book, filters, figures, colours, present, setFilters, clearFilter, clearFilters };
     }
     if (book) return { status: 'empty' };
     if (isError && !isLoading) return { status: 'error', retry: () => { void refetch(); } };
     return { status: 'loading' };
-  }, [book, filters, figures, colours, present, setFilters, clearFilter, clearFilters, isError, isLoading, refetch]);
+  }, [unsold, book, filters, figures, colours, present, setFilters, clearFilter, clearFilters, isError, isLoading, refetch]);
 
   return <FinanceContext.Provider value={state}>{children}</FinanceContext.Provider>;
 }

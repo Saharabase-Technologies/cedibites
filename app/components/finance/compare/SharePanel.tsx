@@ -66,7 +66,7 @@ export function SharePanel() {
   return (
     <ChartPanel
       title={title}
-      sub={`${rangeText(res.start, res.end)}.${filters.branch !== 'all' ? ' Every branch, whatever branch is chosen above.' : ''}`}
+      sub={`${rangeText(res.start, res.end)}.${filters.branch !== 'all' && book.branches.length > 1 ? ' Every branch, whatever branch is chosen above.' : ''}`}
       controls={controls}
     >
       <DonutChart

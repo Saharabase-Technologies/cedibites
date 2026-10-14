@@ -20,7 +20,7 @@ import { useFinance, type FinanceFilterName } from './FinanceProvider';
 export function FinanceFilterBar({
   branchControl,
 }: {
-  /** Stands in for the branch picker. The partner portal passes its own scope selector, which sets the branches the ledger is read for. */
+  /** Stands in for the branch picker. The partner portal passes its own scope selector, which sets the branch filter. It keeps its own width. */
   branchControl?: ReactNode;
 }) {
   const { book, filters, present, setFilters, clearFilter, clearFilters } = useFinance();
@@ -49,7 +49,7 @@ export function FinanceFilterBar({
   return (
     <FilterBar>
       <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-        <div className="w-full md:w-40">
+        <div className={branchControl ? 'w-full md:w-auto' : 'w-full md:w-40'}>
           {branchControl ?? (
             <CustomSelect
               fullWidth

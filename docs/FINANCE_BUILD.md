@@ -311,7 +311,7 @@ Done when: the endpoint returns the shape in Section 5 and the tests pass.
 
 ### Phase 7. Partner portal
 
-- [ ] **Finance** in `PARTNER_NAV`. Check the phone bar fits at 360px. See Q2.
+- [x] **Finance** in `PARTNER_NAV`. Check the phone bar fits at 360px. See Q2. (FE `7a35b51`) Finance sits after Analytics, with the admin menu's `MoneyIcon`. All six stay in the phone bar. Measured on a copy of the bar in Manrope, in a 360px frame, with one picture: no label wraps, the bar does not scroll, each cell is 57px wide, and the tightest gap is 5px, between My Branch and Analytics. A real phone is Phase 8's. Recommended, taken: Do six fit at 360px (Q2)? Yes, so My Branch stays in the bar. The side menu is hidden on a phone, and nothing else links to My Branch, so taking it out of the bar would leave a phone partner no way in.
 - [ ] `app/partner/finance/` routes mounting the shared components, with `BranchScopeSelector`.
 - [ ] Log in as a partner. Check that only their branches appear, on screen and in the PDF.
 
