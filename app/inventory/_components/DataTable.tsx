@@ -430,7 +430,7 @@ function PhoneList<T>({
           <div className="flex-1 min-w-0">
             <CustomSelect
               id={sort.id}
-              size="sm"
+              sheetTitle="Sort by"
               fullWidth
               value={sort.key ?? ''}
               placeholder="As listed"

@@ -119,6 +119,7 @@ export function VersusPanel() {
           <FigureTable
             rows={FACTORS.map((_, i) => i)}
             rowKey={i => i}
+            stackOnPhone
             columns={[
               { key: 'figure', header: 'Figure', cell: i => <span className="font-medium">{FACTORS[i].name}</span> },
               ...v.rows.map(r => ({
@@ -148,7 +149,7 @@ export function VersusPanel() {
               <div className="w-52">
                 <CustomSelect
                   id={categoryId}
-                  size="sm"
+                  sheetTitle="Category"
                   fullWidth
                   value={chosenCategory}
                   onChange={setCategory}
@@ -160,6 +161,7 @@ export function VersusPanel() {
           <FigureTable<ItemRow>
             rows={shown}
             rowKey={r => r.line}
+            stackOnPhone
             pageSize={12}
             defaultSortKey="together"
             defaultSortDir="desc"
@@ -182,6 +184,7 @@ export function VersusPanel() {
           <FigureTable
             rows={mix}
             rowKey={c => c.name}
+            stackOnPhone
             empty="No items sold in this selection."
             columns={[
               { key: 'category', header: 'Category', cell: c => <span className="font-medium">{c.name}</span> },

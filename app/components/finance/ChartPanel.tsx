@@ -125,7 +125,7 @@ export function ChartPanel({
                 <div className="w-44">
                   <CustomSelect
                     id={`${pickersId}-branch`}
-                    size="sm"
+                    sheetTitle="Branch for this chart"
                     fullWidth
                     value={String(filter.choice.branch)}
                     onChange={v => filter.setChoice({ branch: v === 'page' ? 'page' : Number(v) })}
@@ -138,7 +138,7 @@ export function ChartPanel({
                 <div className="w-44">
                   <CustomSelect
                     id={`${pickersId}-method`}
-                    size="sm"
+                    sheetTitle="Payment for this chart"
                     fullWidth
                     value={filter.choice.method}
                     onChange={v => filter.setChoice({ method: v })}

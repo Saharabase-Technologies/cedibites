@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { XIcon } from '@phosphor-icons/react';
 import BottomSheet from '@/app/components/ui/BottomSheet';
 import { InventoryModal, SegmentedTabs } from '@/app/inventory/_components';
@@ -10,6 +10,7 @@ import {
 } from '@/lib/finance/download';
 import { salesByMonthCsv } from '@/lib/finance/csv';
 import { buildPdf } from '@/lib/finance/pdf';
+import { usePhone } from '@/lib/hooks/usePhone';
 import { serverNow } from '@/lib/utils/serverClock';
 import { useFinance, type FinanceReady } from './FinanceProvider';
 
@@ -24,14 +25,6 @@ import { useFinance, type FinanceReady } from './FinanceProvider';
 
 type Kind = 'pdf' | 'csv';
 type Amount = 'short' | 'full' | 'choose';
-
-const PHONE = '(max-width: 639px)';
-const onWidth = (notify: () => void) => {
-  const query = window.matchMedia(PHONE);
-  query.addEventListener('change', notify);
-  return () => query.removeEventListener('change', notify);
-};
-const usePhone = (): boolean => useSyncExternalStore(onWidth, () => window.matchMedia(PHONE).matches, () => false);
 
 const TICKED = Object.fromEntries(PDF_SECTIONS.map(k => [k, !LONG_LISTS.includes(k)])) as Record<PdfSection, boolean>;
 

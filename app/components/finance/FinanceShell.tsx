@@ -23,6 +23,7 @@ export function FinanceShell({
   scope,
   branch,
   branchControl,
+  barRoom = true,
   children,
 }: {
   /** Where the section lives: `/admin/finance` or `/partner/finance`. */
@@ -33,11 +34,17 @@ export function FinanceShell({
   branch?: 'all' | number;
   /** Stands in for the branch picker in the filter row. */
   branchControl?: ReactNode;
+  /**
+   * Room at the foot for the phone bar, as the Menu section and the inventory
+   * pages leave. Off where the portal's `main` leaves it already, as the
+   * partner portal's does.
+   */
+  barRoom?: boolean;
   children: ReactNode;
 }) {
   return (
     <FinanceProvider scope={scope} branch={branch}>
-      <FinanceFrame basePath={basePath} branchControl={branchControl}>{children}</FinanceFrame>
+      <FinanceFrame basePath={basePath} branchControl={branchControl} barRoom={barRoom}>{children}</FinanceFrame>
     </FinanceProvider>
   );
 }
@@ -45,10 +52,12 @@ export function FinanceShell({
 function FinanceFrame({
   basePath,
   branchControl,
+  barRoom,
   children,
 }: {
   basePath: string;
   branchControl?: ReactNode;
+  barRoom: boolean;
   children: ReactNode;
 }) {
   const state = useFinanceState();
@@ -66,7 +75,7 @@ function FinanceFrame({
 
   return (
     // The same width and padding as the Menu section and the inventory pages.
-    <div className="p-6 pb-24 md:pb-6 max-w-6xl mx-auto w-full">
+    <div className={`p-6 ${barRoom ? 'pb-24 md:pb-6' : ''} max-w-6xl mx-auto w-full`}>
       <PageHeader
         title="Finance"
         subtitle={subtitle}

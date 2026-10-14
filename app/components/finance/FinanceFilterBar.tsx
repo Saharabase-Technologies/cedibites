@@ -53,6 +53,7 @@ export function FinanceFilterBar({
           {branchControl ?? (
             <CustomSelect
               fullWidth
+              sheetTitle="Branch"
               value={String(filters.branch)}
               onChange={v => setFilters({ branch: v })}
               options={[{ value: 'all', label: 'All branches' }, ...book.branches.map(b => ({ value: String(b.id), label: b.name }))]}
@@ -62,13 +63,13 @@ export function FinanceFilterBar({
         <div className="flex flex-1 items-center gap-2 md:flex-none">
           <label htmlFor="finance-from" className="text-sm font-body text-neutral-gray">From</label>
           <div className="flex-1 md:flex-none md:w-36">
-            <CustomSelect id="finance-from" fullWidth value={filters.from} onChange={v => setFilters({ from: v })} options={months} />
+            <CustomSelect id="finance-from" sheetTitle="From" fullWidth value={filters.from} onChange={v => setFilters({ from: v })} options={months} />
           </div>
         </div>
         <div className="flex flex-1 items-center gap-2 md:flex-none">
           <label htmlFor="finance-to" className="text-sm font-body text-neutral-gray">To</label>
           <div className="flex-1 md:flex-none md:w-36">
-            <CustomSelect id="finance-to" fullWidth value={filters.to} onChange={v => setFilters({ to: v })} options={months} />
+            <CustomSelect id="finance-to" sheetTitle="To" fullWidth value={filters.to} onChange={v => setFilters({ to: v })} options={months} />
           </div>
         </div>
       </div>
@@ -89,13 +90,13 @@ export function FinanceFilterBar({
         className={`${moreOpen ? 'flex' : 'hidden'} md:flex flex-wrap items-center gap-3 w-full md:w-auto`}
       >
         <div className="w-full md:w-40">
-          <CustomSelect fullWidth value={filters.source} onChange={v => setFilters({ source: v })} options={withAll('source', 'All channels')} />
+          <CustomSelect fullWidth sheetTitle="Channel" value={filters.source} onChange={v => setFilters({ source: v })} options={withAll('source', 'All channels')} />
         </div>
         <div className="w-full md:w-40">
-          <CustomSelect fullWidth value={filters.type} onChange={v => setFilters({ type: v })} options={withAll('type', 'All order types')} />
+          <CustomSelect fullWidth sheetTitle="Order type" value={filters.type} onChange={v => setFilters({ type: v })} options={withAll('type', 'All order types')} />
         </div>
         <div className="w-full md:w-40">
-          <CustomSelect fullWidth value={filters.method} onChange={v => setFilters({ method: v })} options={withAll('method', 'All payments')} />
+          <CustomSelect fullWidth sheetTitle="Payment" value={filters.method} onChange={v => setFilters({ method: v })} options={withAll('method', 'All payments')} />
         </div>
       </div>
 

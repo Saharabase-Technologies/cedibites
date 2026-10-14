@@ -97,6 +97,7 @@ export function PacePanel() {
           <FigureTable
             rows={rows}
             rowKey={r => (r.branch ? r.branch.id : 'all')}
+            stackOnPhone
             columns={[
               { key: 'branch', header: 'Branch', cell: r => <BranchName name={nameOf(r)} colour={r.branch ? colourOf(r) : undefined} strong={!r.branch} /> },
               { key: 'days', header: 'Days so far', align: 'right', cell: r => int(r.soFar.days) },

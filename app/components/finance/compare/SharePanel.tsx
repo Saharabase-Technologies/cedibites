@@ -52,7 +52,7 @@ export function SharePanel() {
         <div className="w-52">
           <CustomSelect
             id={monthId}
-            size="sm"
+            sheetTitle="Month"
             fullWidth
             value={month}
             onChange={setMonth}
@@ -89,6 +89,7 @@ export function SharePanel() {
         <FigureTable
           rows={[...rows.map(b => ({ key: String(b.id), name: b.name, colour: colours[b.id], a: res.branchTotal[b.id] })), { key: 'all', name: 'All branches', colour: undefined, a: res.grand }]}
           rowKey={r => r.key}
+          stackOnPhone
           columns={[
             { key: 'branch', header: 'Branch', cell: r => <BranchName name={r.name} colour={r.colour} strong={!r.colour} /> },
             { key: 'value', header: measure === 'net' ? 'Net sales' : 'Orders', align: 'right', cell: r => <span className={r.colour ? undefined : 'font-bold'}>{measure === 'net' ? amt(r.a.net) : int(r.a.orders)}</span> },

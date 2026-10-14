@@ -112,6 +112,7 @@ export function SincePanel() {
       <FigureTable
         rows={steps}
         rowKey={i => i}
+        stackOnPhone
         columns={[
           { key: 'month', header: 'Month', cell: i => <span className="font-medium whitespace-nowrap">Month {i + 1}</span> },
           ...list.map(x => ({

@@ -140,6 +140,7 @@ export function PeriodPanel() {
           <FigureTable
             rows={rows}
             rowKey={r => r.key}
+            stackOnPhone
             columns={[
               { key: 'branch', header: 'Branch', cell: r => <BranchName name={r.name} colour={r.colour} strong={r.all} /> },
               { key: 'a', header: 'This period', align: 'right', cell: r => <Figure value={cell(r.a)} under={plural(r.a.days, 'day')} strong={r.all} /> },
