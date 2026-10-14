@@ -577,3 +577,24 @@ export function itemTable(book: FinanceBook, filters: ChannelFilters, ids: numbe
   }
   return Object.values(out);
 }
+
+/** Two date ranges to set side by side: `A` the later, `B` the earlier. */
+export interface PeriodRanges { A: [Day, Day]; B: [Day, Day] }
+
+/**
+ * The month so far against the same days of the month before, and the last
+ * full month against the one before it. Both end at the last complete day
+ * (D11). On the 1st, the month so far is the month before, whole (Q15).
+ */
+export function periodPresets(book: FinanceBook): { mtd: PeriodRanges; full: PeriodRanges; month: string } {
+  const end = book.lastFull;
+  const month = monthOf(end), before = monthBefore(month);
+  const days = span(monthStart(month), end);
+  const mtd: PeriodRanges = {
+    A: [monthStart(month), end],
+    B: [monthStart(before), Math.min(monthStart(before) + (days - 1) * DAY, monthEnd(before))],
+  };
+  const last = end === monthEnd(month) ? month : before, earlier = monthBefore(last);
+  const full: PeriodRanges = { A: [monthStart(last), monthEnd(last)], B: [monthStart(earlier), monthEnd(earlier)] };
+  return { mtd, full, month };
+}

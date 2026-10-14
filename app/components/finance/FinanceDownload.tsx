@@ -8,7 +8,9 @@ import {
   aboutPages, FULL_REPORT, LONG_LISTS, longListRows, PDF_SECTIONS, SHORT_REPORT, filtersText, fileName, saveFile, sectionTitle,
   type PdfSection,
 } from '@/lib/finance/download';
-import { useFinance } from './FinanceProvider';
+import { buildPdf } from '@/lib/finance/pdf';
+import { serverNow } from '@/lib/utils/serverClock';
+import { useFinance, type FinanceReady } from './FinanceProvider';
 
 /**
  * The download (plan Section 7). One sheet asks what you want and how much,
@@ -32,13 +34,29 @@ const usePhone = (): boolean => useSyncExternalStore(onWidth, () => window.match
 
 const TICKED = Object.fromEntries(PDF_SECTIONS.map(k => [k, !LONG_LISTS.includes(k)])) as Record<PdfSection, boolean>;
 
-/** Makes the file. The PDF and the CSVs are built in the boxes after the sheet's. */
-async function makeFile(kind: Kind): Promise<Blob> {
-  throw new Error(kind === 'pdf' ? 'the PDF maker is not built yet' : 'the CSV maker is not built yet');
+/** The font subset the PDF is drawn in, read once and kept. */
+let fontBytes: Promise<{ regular: Uint8Array; bold: Uint8Array }> | null = null;
+const loadFonts = () => {
+  const read = (file: string) => fetch(`/fonts/${file}`).then(r => {
+    if (!r.ok) throw new Error('the font for the PDF did not load');
+    return r.arrayBuffer();
+  }).then(b => new Uint8Array(b));
+  fontBytes = fontBytes || Promise.all([read('NotoSans-Regular.subset.ttf'), read('NotoSans-Bold.subset.ttf')])
+    .then(([regular, bold]) => ({ regular, bold }));
+  fontBytes.catch(() => { fontBytes = null; });
+  return fontBytes;
+};
+
+/** Makes the file. The CSVs are built in the box after the PDF's. */
+async function makeFile({ book, figures, colours }: FinanceReady, kind: Kind, sections: PdfSection[]): Promise<Blob> {
+  if (kind === 'csv') throw new Error('the CSV maker is not built yet');
+  const doc = await buildPdf({ book, figures, colours, sections, fonts: await loadFonts(), madeAt: serverNow().getTime() });
+  return doc.output('blob');
 }
 
 export function FinanceDownload({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { book, figures: res } = useFinance();
+  const finance = useFinance();
+  const { book, figures: res } = finance;
   const phone = usePhone();
 
   const [kind, setKind] = useState<Kind>('pdf');
@@ -52,12 +70,10 @@ export function FinanceDownload({ open, onClose }: { open: boolean; onClose: () 
     onClose();
   }, [onClose]);
 
-  const multi = res.branches.length > 1;
   const sections = amount === 'short' ? SHORT_REPORT : amount === 'full' ? FULL_REPORT : PDF_SECTIONS.filter(k => ticked[k]);
-  const none = kind === 'pdf' && !sections.some(k => k !== 'stmt' || multi);
+  const none = kind === 'pdf' && !sections.length;
   const rows = longListRows(book, res);
   const hint: Partial<Record<PdfSection, string>> = {
-    stmt: multi ? '' : 'Needs more than one branch',
     branches: `about ${res.branches.length * 2} pages`,
     ledger: aboutPages(rows.ledger),
     cx: aboutPages(rows.cx),
@@ -68,7 +84,7 @@ export function FinanceDownload({ open, onClose }: { open: boolean; onClose: () 
     setBusy(true);
     setStatus(kind === 'pdf' ? 'Making the PDF. A long report takes a few seconds.' : 'Making the CSV.');
     try {
-      saveFile(name, await makeFile(kind));
+      saveFile(name, await makeFile(finance, kind, sections));
       setStatus(`${name} saved.`);
     } catch (e) {
       setStatus(`The file could not be made: ${e instanceof Error ? e.message : 'something went wrong'}.`);
@@ -95,7 +111,7 @@ export function FinanceDownload({ open, onClose }: { open: boolean; onClose: () 
         <fieldset className="flex flex-col gap-2">
           <legend className="text-sm font-semibold text-text-dark mb-2">How much?</legend>
           <Choice name="amount" checked={amount === 'short'} onChange={() => setAmount('short')} label="Short report">
-            {multi ? 'Summary, month by month and the monthly statement. About 4 pages.' : 'Summary and month by month. About 2 pages.'}
+            Summary, month by month and the monthly statement. About {2 + 2 * Math.ceil(res.months.length / 15)} pages.
           </Choice>
           <Choice name="amount" checked={amount === 'full'} onChange={() => setAmount('full')} label="Full report">
             Every section except the daily takings and the cancelled orders.
@@ -103,22 +119,18 @@ export function FinanceDownload({ open, onClose }: { open: boolean; onClose: () 
           <Choice name="amount" checked={amount === 'choose'} onChange={() => setAmount('choose')} label="Choose sections" />
           {amount === 'choose' && (
             <div className="flex flex-col pl-2">
-              {PDF_SECTIONS.map(k => {
-                const off = k === 'stmt' && !multi;
-                return (
-                  <label key={k} className={`flex items-center gap-3 min-h-11 text-sm ${off ? 'text-neutral-gray' : 'text-text-dark cursor-pointer'}`}>
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4 accent-primary shrink-0"
-                      checked={ticked[k] && !off}
-                      disabled={off}
-                      onChange={e => setTicked(previous => ({ ...previous, [k]: e.target.checked }))}
-                    />
-                    <span className="flex-1">{sectionTitle(book, k)}</span>
-                    {hint[k] && <span className="text-xs text-neutral-gray tabular-nums">{hint[k]}</span>}
-                  </label>
-                );
-              })}
+              {PDF_SECTIONS.map(k => (
+                <label key={k} className="flex items-center gap-3 min-h-11 text-sm text-text-dark cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 accent-primary shrink-0"
+                    checked={ticked[k]}
+                    onChange={e => setTicked(previous => ({ ...previous, [k]: e.target.checked }))}
+                  />
+                  <span className="flex-1">{sectionTitle(book, k)}</span>
+                  {hint[k] && <span className="text-xs text-neutral-gray tabular-nums">{hint[k]}</span>}
+                </label>
+              ))}
             </div>
           )}
         </fieldset>

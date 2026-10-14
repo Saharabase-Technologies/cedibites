@@ -3,8 +3,8 @@
 import { useState, type ReactNode } from 'react';
 import { SegmentedTabs } from '@/app/inventory/_components';
 import { CategoryLineChart, ChartLegend, ColumnChart, TipNote, TipRow, TipRows, TipTitle, TipTotal, type BandSeries } from '../charts';
-import { DAY, iso, isPart, monthDays, monthEnd, monthOf, monthStart, perDay, type BookBranch, type Day, type FinanceBook, type Figures, type Sums } from '@/lib/finance/figures';
-import { compact, dayAndMonth, ghs, int, listAnd, monthLong, monthName, monthShort, weekdayDate } from '@/lib/finance/format';
+import { DAY, iso, isPart, monthDays, monthEnd, monthStart, perDay, type BookBranch, type Day, type Sums } from '@/lib/finance/figures';
+import { compact, ghs, int, monthLong, monthShort, partReasons, weekdayDate } from '@/lib/finance/format';
 import { ChartNote, ChartPanel, ControlGroup, useChartFilter } from '../ChartPanel';
 import { useFinance } from '../FinanceProvider';
 
@@ -51,19 +51,6 @@ const MEASURES: Record<Measure, {
 
 const SHOW = (Object.keys(MEASURES) as Measure[]).map(value => ({ value, label: MEASURES[value].show }));
 
-/** Why a month is short: a branch opened in it, or it is the month still running. */
-function partReasons(book: FinanceBook, res: Figures): string[] {
-  const out: string[] = [];
-  const running = monthOf(book.end);
-  for (const m of res.months) {
-    const short = res.branches.filter(b => isPart(res.cell[b.id][m], m));
-    if (!short.length) continue;
-    const opened = short.filter(b => b.opened.slice(0, 7) === m);
-    if (opened.length) out.push(listAnd(opened.map(b => `${b.name} opened on ${dayAndMonth(b.openDay)}`)) + '.');
-    if (m === running) out.push(`${monthName(m)} runs to ${dayAndMonth(book.end)}.`);
-  }
-  return out;
-}
 
 export function MonthPanel() {
   const { book, colours } = useFinance();

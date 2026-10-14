@@ -304,7 +304,7 @@ Done when: the endpoint returns the shape in Section 5 and the tests pass.
 
 ### Phase 6. Download
 
-- [ ] The sheet from Section 7.
+- [x] The sheet from Section 7. (FE `8662ee5`) `FinanceDownload` in `app/components/finance/`, opened by a Download button in the shell's header, so the partner portal has it too. `lib/finance/download.ts` holds the sections, the file names and the save. Not looked at in a browser: the look is Phase 8's. Recommended, taken: Where does the sheet become a dialog? At 640px, the BottomSheet's own breakpoint, not at md, so no width shows a sheet without its handle. Recommended, taken: Which header button? The PageHeader's outline action, so the sheet's own button is the one red button. Recommended, taken: What does the file name say? The branches and months, then the day it was made, from `serverNow()`: `made 14 Oct 2026`.
 - [ ] `lib/finance/pdf.ts`, ported from `buildPdf`, with the Noto Sans subset in `public/fonts/`.
 - [ ] CSVs for the statement, the daily takings and the cancelled orders.
 - [ ] Open the PDF and look at every section once.

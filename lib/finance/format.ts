@@ -1,4 +1,4 @@
-import { DOW, DOW3, MON, MONTH, ymd, type Day } from './figures';
+import { DOW, DOW3, iso, isPart, MON, MONTH, monthDays, monthEnd, monthOf, monthStart, ymd, type Day, type Figures, type FinanceBook } from './figures';
 
 /**
  * How the Finance figures are written out. The screens and the download both
@@ -94,3 +94,26 @@ export const readAtText = (readAt: string): string => {
   const two = (n: number): string => String(n).padStart(2, '0');
   return `${longDate(t)} at ${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`;
 };
+
+/** The days a short month holds, `27 to 31 Mar`. Empty for a whole month. */
+export function monthNote(book: FinanceBook, res: Figures, m: string): string {
+  const t = res.total[m];
+  if (!t || !t.days || t.days >= monthDays(m)) return '';
+  const from = Math.max(monthStart(m), Math.min(...res.branches.map(b => b.openDay)));
+  const to = Math.min(monthEnd(m), book.end);
+  return `${Number(iso(from).slice(8))} to ${Number(iso(to).slice(8))} ${monthShort(m)}`;
+}
+
+/** Why a month is short: a branch opened in it, or it is the month still running. */
+export function partReasons(book: FinanceBook, res: Figures): string[] {
+  const out: string[] = [];
+  const running = monthOf(book.end);
+  for (const m of res.months) {
+    const short = res.branches.filter(b => isPart(res.cell[b.id][m], m));
+    if (!short.length) continue;
+    const opened = short.filter(b => b.opened.slice(0, 7) === m);
+    if (opened.length) out.push(listAnd(opened.map(b => `${b.name} opened on ${dayAndMonth(b.openDay)}`)) + '.');
+    if (m === running) out.push(`${monthName(m)} runs to ${dayAndMonth(book.end)}.`);
+  }
+  return out;
+}

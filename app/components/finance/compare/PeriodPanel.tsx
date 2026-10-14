@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { SegmentedTabs, TextInput } from '@/app/inventory/_components';
 import { ColumnChart, TipNote, TipRow, TipRows, TipTitle } from '../charts';
-import { change, DAY, iso, monthBefore, monthEnd, monthOf, monthStart, perDay, periods, span, ymd, type Day, type FinanceBook, type Sums } from '@/lib/finance/figures';
+import { change, iso, perDay, periodPresets, periods, ymd, type Day, type PeriodRanges, type Sums } from '@/lib/finance/figures';
 import { amt, compact, ghs, int, monthName, plural, rangeText, signedPct } from '@/lib/finance/format';
 import { ChangePill } from '../ChangePill';
 import { ChartNote, ChartPanel, ControlGroup, useChartFilter } from '../ChartPanel';
@@ -18,8 +18,6 @@ import { BranchName, Figure, FigureTable } from '../parts';
 
 type Preset = 'mtd' | 'full' | 'custom';
 type Measure = 'net' | 'orders' | 'aov' | 'day';
-type Range = [Day, Day];
-interface Ranges { A: Range; B: Range }
 
 const MEASURES: Record<Measure, {
   show: string;
@@ -45,23 +43,6 @@ const changeOf = (measure: Measure, a: Sums, b: Sums): number | null => {
   return x != null && y ? x / y - 1 : null;
 };
 
-/**
- * The month so far against the same days of the month before, and the last
- * full month against the one before it. Both end at the last complete day
- * (D11). On the 1st, the month so far is the month before, whole (Q15).
- */
-function presets(book: FinanceBook): { mtd: Ranges; full: Ranges; month: string } {
-  const end = book.lastFull;
-  const month = monthOf(end), before = monthBefore(month);
-  const days = span(monthStart(month), end);
-  const mtd: Ranges = {
-    A: [monthStart(month), end],
-    B: [monthStart(before), Math.min(monthStart(before) + (days - 1) * DAY, monthEnd(before))],
-  };
-  const last = end === monthEnd(month) ? month : before, earlier = monthBefore(last);
-  const full: Ranges = { A: [monthStart(last), monthEnd(last)], B: [monthStart(earlier), monthEnd(earlier)] };
-  return { mtd, full, month };
-}
 
 type Picked = { a0: Day; a1: Day; b0: Day; b1: Day };
 
@@ -72,10 +53,10 @@ export function PeriodPanel() {
   const [measure, setMeasure] = useState<Measure>('net');
   const [picked, setPicked] = useState<Picked | null>(null);
 
-  const { mtd, full, month } = presets(book);
+  const { mtd, full, month } = periodPresets(book);
   /* Pick dates starts from the month so far, until a date is changed. */
   const dates: Picked = picked ?? { a0: mtd.A[0], a1: mtd.A[1], b0: mtd.B[0], b1: mtd.B[1] };
-  const R: Ranges = preset === 'mtd' ? mtd : preset === 'full' ? full : {
+  const R: PeriodRanges = preset === 'mtd' ? mtd : preset === 'full' ? full : {
     A: [Math.min(dates.a0, dates.a1), Math.max(dates.a0, dates.a1)],
     B: [Math.min(dates.b0, dates.b1), Math.max(dates.b0, dates.b1)],
   };
