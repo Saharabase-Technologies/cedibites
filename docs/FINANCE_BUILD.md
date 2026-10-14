@@ -30,7 +30,7 @@ from Nii Mantse: monthly sales for each branch since it opened.
 | Phase | What | State |
 |---|---|---|
 | 0 | Branches cut, plan written | Done 2026-10-14 |
-| 1 | Backend: one endpoint that returns the finance data | Not started |
+| 1 | Backend: one endpoint that returns the finance data | In progress. Three of five boxes done: the worktree, the trait, the endpoint. Its tests and the full suite are next. |
 | 2 | Frontend: types, service, and the figures ported to TypeScript | Not started |
 | 3 | Overview screen | Not started |
 | 4 | Compare screen | Not started |
@@ -48,8 +48,8 @@ Branches, both cut 2026-10-14:
 Neither branch has an upstream. That is on purpose. A bare `git push` would
 otherwise go to `main` or `master`, and both deploy to prod.
 
-Last updated: 2026-10-14, end of the night session. Next: Phase 1 and Phase 2,
-which can run side by side.
+Last updated: 2026-10-14, during Phase 1. Next: the endpoint's tests, then the
+full suite. Phase 2 follows Phase 1 in this run.
 
 ---
 
@@ -274,8 +274,8 @@ One **Download** button in the header opens a sheet. A bottom sheet on a phone, 
 ### Phase 1. Backend endpoint
 
 - [x] Worktree on `feat/finance-section` (Section 4, Traps). (BE `1451004`, where the worktree starts. A worktree leaves nothing to commit.)
-- [ ] Move the branch scoping out of `AdminAnalyticsController` into a trait. Analytics still uses it. Its tests still pass.
-- [ ] `FinanceController::ledger`, route `GET admin/finance/ledger` under `permission:view_analytics`.
+- [x] Move the branch scoping out of `AdminAnalyticsController` into a trait. Analytics still uses it. Its tests still pass. (BE `675ac7e`) The trait is `ScopesToAssignedBranches`. See Q5.
+- [x] `FinanceController::ledger`, route `GET admin/finance/ledger` under `permission:view_analytics`. (BE `a6ea6fa`) The queries live in `FinanceLedgerService`. See Q6 to Q11.
 - [ ] Tests: a partner gets only their branches, even when asking for another by `branch_ids`. A cashier gets 403. Cancelled orders land in the right outcome. Soft-deleted orders are left out. Net excludes the delivery fee.
 - [ ] Run the full suite. Note the known failures from the baseline memory, and only those.
 
@@ -358,6 +358,13 @@ Each has a default. Build on the default until the user says otherwise.
 | Q2 | The partner phone bar would have six items. | If six do not fit at 360px, Finance takes the place of My Branch in the bar. My Branch stays in the side menu. |
 | Q3 | Where does Finance sit in the admin menu? | In Overview, after Analytics. |
 | Q4 | What does a fourth branch's colour become? | Pick from the dataviz palette, then run the validator. |
+| Q5 | Does the branch scoping trait ask `User::isCompanyWide()`? | No. It keeps admin and tech_admin only, as Analytics had it. `isCompanyWide()` is also true for the warehouse, purchasing and the call centre. Recommended, taken in Phase 1. |
+| Q6 | An order paid in two parts would join to two payments. | It counts once, under the method of its first completed payment. Recommended, taken in Phase 1. |
+| Q7 | Does `first_sale` follow `from` and `to`? | No. It is the day of the branch's first paid order ever. Recommended, taken in Phase 1. |
+| Q8 | Which branches does the endpoint list? | Every live branch in the caller's scope, with `first_sale` null if it never sold. A closed branch is listed only if it sold. Recommended, taken in Phase 1. |
+| Q9 | What comes back with no `from` and no `to`? | Everything since the first sale. Recommended, taken in Phase 1. |
+| Q10 | A line sold with no option. | It comes back under option id 0 and has no entry in `options`. Recommended, taken in Phase 1. |
+| Q11 | Are soft deleted payments counted? | No. Analytics leaves them out, so Finance does. The review page's SQL did not, so a total can differ from it by a deleted payment. Recommended, taken in Phase 1. |
 
 ---
 
@@ -372,3 +379,6 @@ Each has a default. Build on the default until the user says otherwise.
 - 2026-10-14. The backend worktree is `cedibites_api_finance`, beside the main tree. It needs its own `composer install` and a copy of the main tree's `.env`. Tests run on SQLite in memory, so it needs no database.
 - 2026-10-14. `composer install` unpacked every package in 21 seconds, then sat for ten minutes before writing the autoloader, most likely on a network call. Stopping it and running it again finished in seconds.
 - 2026-10-14. Backend test baseline, before any Finance change, at `1451004`, run at 02:07: 6 failed, 1371 passed. Two are the IAM `SecurityHardeningTest` failures (IAM-011 and IAM-016/017). Four are in `SmartCategoryTest`, and they swing with the clock because SQLite cannot read `EXTRACT(HOUR FROM ...)`. The last box of Phase 1 must show these and no others.
+- 2026-10-14. `PaymentController`, `AdminDashboardController` and `BranchController` each hold their own copy of the assigned branches rule. The plan does not ask to move them, so they are left. The owner decides.
+- 2026-10-14. The ledger was run read only on the local dev Postgres, never prod or beta. Net, paid orders, delivery fees and the cancelled count matched Analytics' own totals on three filter sets, in 350 ms. The month is `TO_CHAR` on Postgres and `strftime` on SQLite, so the tests cannot prove the Postgres line. This run did.
+- 2026-10-14. `php artisan tinker <file>` waits at a prompt and never exits when an agent runs it. Use `php artisan tinker --execute="require '<file>';" < /dev/null`.
