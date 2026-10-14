@@ -289,7 +289,7 @@ Done when: the endpoint returns the shape in Section 5 and the tests pass.
 
 ### Phase 3. Overview
 
-- [ ] Admin nav: **Finance** in the Overview group, after Analytics, with a money icon.
+- [x] Admin nav: **Finance** in the Overview group, after Analytics, with a money icon. (FE `dde7bc4`) The entry is in `ADMIN_GROUPS` in `app/admin/layout-client.tsx`, so it shows to everyone the admin portal lets in, as Analytics does. The staff portal's menu is untouched, so managers get no tab (Q1). Recommended, taken: Which money icon? `MoneyIcon`, a banknote. The dollar sign icons name the wrong currency. Recommended, taken: Is Finance in the admin phone bar? No. The bar keeps its five and Finance is in the menu drawer.
 - [ ] `app/admin/finance/layout.tsx` with the header, tabs and FilterBar.
 - [ ] Chart parts in `app/components/finance/charts/`: lines over months, columns, lines over days with zoom, donut. Ported from the review page and drawn in SVG.
 - [ ] The Overview sections in the order of Section 6.
