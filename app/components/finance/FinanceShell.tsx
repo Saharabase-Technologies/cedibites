@@ -1,9 +1,11 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
+import { DownloadSimpleIcon } from '@phosphor-icons/react';
 import { PageHeader, SegmentedTabsLink } from '@/app/inventory/_components';
 import { listAnd, rangeText, readAtText } from '@/lib/finance/format';
 import type { FinanceLedgerFilters } from '@/types/finance';
+import { FinanceDownload } from './FinanceDownload';
 import { FinanceFilterBar } from './FinanceFilterBar';
 import { FinanceNotice } from './FinanceNotice';
 import { FinanceProvider, useFinanceState } from './FinanceProvider';
@@ -47,6 +49,8 @@ function FinanceFrame({
   children: ReactNode;
 }) {
   const state = useFinanceState();
+  const [downloading, setDownloading] = useState(false);
+  const closeDownload = useCallback(() => setDownloading(false), []);
   const tabs = [
     { href: basePath, label: 'Overview', exact: true },
     { href: `${basePath}/compare`, label: 'Compare' },
@@ -60,7 +64,13 @@ function FinanceFrame({
   return (
     // The same width and padding as the Menu section and the inventory pages.
     <div className="p-6 pb-24 md:pb-6 max-w-6xl mx-auto w-full">
-      <PageHeader title="Finance" subtitle={subtitle} />
+      <PageHeader
+        title="Finance"
+        subtitle={subtitle}
+        secondaryAction={state.status === 'ready'
+          ? { label: 'Download', onClick: () => setDownloading(true), icon: <DownloadSimpleIcon size={16} weight="bold" /> }
+          : undefined}
+      />
       <div className="mb-5">
         <SegmentedTabsLink items={tabs} />
       </div>
@@ -77,6 +87,7 @@ function FinanceFrame({
       {state.status === 'ready' && (
         <>
           <FinanceFilterBar branchControl={branchControl} />
+          <FinanceDownload open={downloading} onClose={closeDownload} />
           {children}
           {/* The server's own stamp, from the ledger. Never this machine's clock. */}
           <p className="mt-8 text-xs font-body text-neutral-gray">
