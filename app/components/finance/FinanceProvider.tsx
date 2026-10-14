@@ -118,6 +118,7 @@ export function FinanceProvider({
     });
   }, []);
 
+  /* An outside branch wins over `Choice.branch`, so clearing the branch here leaves the partner's chooser as it was. */
   const clearFilter = useCallback((name: FinanceFilterName) => {
     setChoice(previous => (
       name === 'months' ? { ...previous, from: null, to: null }
