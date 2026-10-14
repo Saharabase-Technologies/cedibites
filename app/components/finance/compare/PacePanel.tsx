@@ -122,8 +122,8 @@ export function PacePanel() {
           />
 
           <ChartNote>
-            Change compares sales a day. Amounts are in Ghana cedis.
-            {opened.length > 0 && ` A hollow dot marks a part month. ${listAnd(opened.map(b => `${b.name} opened on ${dayAndMonth(b.openDay)}`))}, so the forecast against ${monthName(before)} reads as growth.`}
+            Change compares sales a day. Amounts in Ghana cedis.
+            {opened.length > 0 && ` A hollow dot marks a part month. ${listAnd(opened.map(b => `${b.name} opened on ${dayAndMonth(b.openDay)}`))}. ${opened.length === 1 ? 'Its forecast' : 'Their forecasts'} against ${monthName(before)} ${opened.length === 1 ? 'reads' : 'read'} as growth.`}
             {' '}This section always shows {monthName(month)}, whatever months are chosen above.
           </ChartNote>
         </>

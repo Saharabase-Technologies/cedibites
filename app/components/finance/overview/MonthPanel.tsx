@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { SegmentedTabs } from '@/app/inventory/_components';
-import { CategoryLineChart, ChartLegend, ColumnChart, TipNote, TipRow, TipRows, TipTitle, TipTotal, type BandSeries } from '../charts';
+import { CategoryLineChart, ChartLegend, ColumnChart, TipRow, TipRows, TipTitle, TipTotal, type BandSeries } from '../charts';
 import { DAY, iso, isPart, monthDays, monthEnd, monthStart, perDay, type BookBranch, type Day, type Sums } from '@/lib/finance/figures';
 import { compact, ghs, int, monthLong, monthShort, partReasons, weekdayDate } from '@/lib/finance/format';
 import { ChartNote, ChartPanel, ControlGroup, useChartFilter } from '../ChartPanel';
@@ -123,7 +123,6 @@ export function MonthPanel() {
               <TipTotal name="All branches" value={total == null ? 'None' : me.format(total)} extra={`${res.total[m].days} days`} />
             )}
           </TipRows>
-          <TipNote>Click to see the days of this month.</TipNote>
         </>
       );
     };
@@ -193,7 +192,7 @@ export function MonthPanel() {
   return (
     <ChartPanel
       title={drill ? `${me.dayTitle} in ${monthLong(drill)}` : me.title}
-      sub={drill ? undefined : `${me.sub} Click a month to see its days.`}
+      sub={drill ? undefined : `${me.sub} Choose a month to see its days.`}
       controls={controls}
       filter={filter}
     >

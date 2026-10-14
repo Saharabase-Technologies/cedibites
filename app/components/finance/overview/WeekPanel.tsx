@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { ChartLegend, ColumnChart, TipNote, TipRow, TipRows, TipTitle } from '../charts';
+import { ChartLegend, ColumnChart, TipRow, TipRows, TipTitle } from '../charts';
 import { DOW, DOW3, weekday } from '@/lib/finance/figures';
 import { compact, ghs, plural } from '@/lib/finance/format';
 import { ChartPanel, useChartFilter } from '../ChartPanel';
@@ -44,7 +44,6 @@ export function WeekPanel() {
                 );
               })}
             </TipRows>
-            <TipNote>Average net sales on that day of the week.</TipNote>
           </>
         )}
       />

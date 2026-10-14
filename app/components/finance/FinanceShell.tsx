@@ -90,7 +90,7 @@ function FinanceFrame({
       {state.status === 'loading' && <FinanceNotice title="Reading the order records" />}
       {state.status === 'error' && (
         <FinanceNotice title="The figures could not be read" action={{ label: 'Try again', onClick: state.retry }}>
-          Check the connection, then try again.
+          Check the connection.
         </FinanceNotice>
       )}
       {state.status === 'empty' && (

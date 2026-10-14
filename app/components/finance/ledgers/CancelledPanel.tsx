@@ -75,7 +75,7 @@ export function CancelledPanel() {
   return (
     <ChartPanel
       title="Cancelled after payment"
-      sub="Orders that were paid for and then cancelled. None of them is in net sales."
+      sub="None of these orders is in net sales."
       controls={(
         <>
           <SegmentedTabs<Kind>

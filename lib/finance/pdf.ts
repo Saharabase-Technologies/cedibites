@@ -420,7 +420,7 @@ export async function buildPdf({ book, figures: res, colours, sections, fonts, m
   }
 
   if (on.has('grid')) {
-    section('Month by month, branch by branch', 'Amounts in Ghana cedis. Change compares sales a day with the month before, so a part month compares fairly.');
+    section('Month by month, branch by branch', 'Amounts in Ghana cedis. Change compares sales a day with the month before. That way a part month compares fairly.');
     const head1: RowInput = [{ content: 'Month', rowSpan: 2, styles: { valign: 'bottom' } }];
     bs.forEach(b => head1.push({ content: name(b), colSpan: 4, styles: { halign: 'center', textColor: C.ink } }));
     if (multi) head1.push({ content: 'All branches', colSpan: 2, styles: { halign: 'center', textColor: C.ink } });
@@ -557,7 +557,7 @@ export async function buildPdf({ book, figures: res, colours, sections, fonts, m
 
   if (on.has('since')) {
     const list = since(book, f), n = Math.max(0, ...list.map(x => x.months.length));
-    section('Months since opening', 'Each branch from its first month, in sales a day, so their starts sit side by side. Amounts in Ghana cedis.');
+    section('Months since opening', 'Each branch from its first month, in sales a day. Their starts sit side by side. Amounts in Ghana cedis.');
     if (list.length > 1) legendRight(list.map(x => ({ name: name(x.branch), color: hex(x.branch.id) })), PW - MR, y);
     lines({
       x: ML, y: y + 3, w: CW, h: 58, cats: Array.from({ length: n }, (_, i) => `Month ${i + 1}`),
