@@ -1,5 +1,5 @@
-import { FinanceNotice } from '@/app/components/finance/FinanceNotice';
+import { FinanceCompare } from '@/app/components/finance/compare/FinanceCompare';
 
 export default function FinanceComparePage() {
-  return <FinanceNotice title="Compare is not built yet" />;
+  return <FinanceCompare />;
 }

@@ -1,11 +1,10 @@
 'use client';
 
 import { useId } from 'react';
-import { CaretDownIcon, CaretUpIcon } from '@phosphor-icons/react';
-import { TONE } from '@/app/inventory/_components/status-tokens';
 import { SeriesKey } from '../charts';
 import { change, iso, monthBefore, monthDays, monthEnd, monthStart, perDay, sumRange, type BookBranch, type Sums } from '@/lib/finance/figures';
-import { amt, int, monthLabel, monthShort, signedPct } from '@/lib/finance/format';
+import { amt, int, monthLabel, monthShort } from '@/lib/finance/format';
+import { ChangePill } from '../ChangePill';
 import { useFinance } from '../FinanceProvider';
 
 /**
@@ -18,21 +17,6 @@ import { useFinance } from '../FinanceProvider';
  */
 
 const COLUMNS = ['Net sales', 'Orders', 'Sales a day', 'Change'];
-
-/** Change in sales a day as a pill: up, down or flat (D7). */
-function ChangePill({ value }: { value: number | null }) {
-  if (value == null || !isFinite(value)) return null;
-  const tone = value > 0.0005 ? TONE.done : value < -0.0005 ? TONE.problem : TONE.neutral;
-  const Icon = value > 0.0005 ? CaretUpIcon : value < -0.0005 ? CaretDownIcon : null;
-  const words = value > 0.0005 ? 'Up' : value < -0.0005 ? 'Down' : 'Flat';
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${tone.bg} ${tone.text}`}>
-      {Icon && <Icon size={11} weight="fill" aria-hidden />}
-      <span className="sr-only">{words} </span>
-      {signedPct(value).replace(/^[+-]/, '')}
-    </span>
-  );
-}
 
 const th = 'text-[10px] font-bold uppercase tracking-wider text-neutral-gray py-3 px-4 whitespace-nowrap';
 const stick = 'sticky left-0 z-[1] bg-neutral-card';

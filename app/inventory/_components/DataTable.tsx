@@ -64,6 +64,12 @@ export type DataTableProps<T> = {
    * ignored.
    */
   expandOnRowClick?: boolean;
+  /**
+   * Draw the table on its own card. On by default. Turn it off for a table
+   * that sits inside a panel which is already a card, so there is never a
+   * card inside a card.
+   */
+  framed?: boolean;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -82,7 +88,9 @@ export function DataTable<T>({
   showIndex,
   expandedContent,
   expandOnRowClick,
+  framed = true,
 }: DataTableProps<T>) {
+  const frame = framed ? 'bg-neutral-card border border-[#f0e8d8] rounded-2xl' : '';
   const [sortKey, setSortKey] = useState<string | undefined>(defaultSortKey);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultSortDir);
   const [page, setPage] = useState(1);
@@ -142,7 +150,7 @@ export function DataTable<T>({
   // ── Empty / loading ──
   if (isLoading) {
     return (
-      <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl p-4">
+      <div className={`${frame} p-4`}>
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="h-10 bg-neutral-light rounded-lg animate-pulse" />
@@ -154,7 +162,7 @@ export function DataTable<T>({
 
   if (!data.length) {
     return (
-      <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl">
+      <div className={frame}>
         {emptyState ?? (
           <div className="flex items-center justify-center h-32 text-neutral-gray text-base font-body">
             No data
@@ -165,7 +173,7 @@ export function DataTable<T>({
   }
 
   return (
-    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden">
+    <div className={`${frame} overflow-hidden`}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm font-body">
           <thead>

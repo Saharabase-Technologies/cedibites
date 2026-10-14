@@ -23,6 +23,8 @@ export const ghs = (v: Amount): string => 'GHS ' + amt(v);
 export const ghs0 = (v: Amount): string => 'GHS ' + nf0.format(Math.round(v ?? 0) || 0);
 /** A whole number, `1,250`. */
 export const int = (v: Amount): string => nf0.format(Math.round(v ?? 0) || 0);
+/** A number with one decimal, `12.5`. For a count a day. */
+export const one = (v: Amount): string => nf1.format(v ?? 0);
 /** A share as a percentage, `12.5%`. Empty when there is none to show. */
 export const pct = (v: Amount): string => (v == null || !isFinite(v) ? '' : nf1.format(v * 100) + '%');
 /** A change as a percentage with its sign, `+12.5%`. */
