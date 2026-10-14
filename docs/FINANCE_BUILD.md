@@ -1,0 +1,371 @@
+# Finance section: the build plan
+
+This is the working plan for the Finance section. It spans both repos. Any
+agent, in any session, can pick it up, do the next unticked task, tick it, and
+leave the file better than it found it.
+
+Started 2026-10-14. Owner: Richard Somda (the user). It began with a request
+from Nii Mantse: monthly sales for each branch since it opened.
+
+---
+
+## How to use this file
+
+1. Read the whole file before touching code.
+2. Work one phase at a time, top to bottom, unless the user says otherwise.
+3. Tick a box (`- [x]`) only when the thing is done and checked. Put the commit
+   hash after it.
+4. Add anything the next agent needs to **Section 11, Learnings**, with a date.
+5. Keep **Section 1, Status** true. Update it at the end of every session.
+6. Ask the user before any push and any deploy. One approval covers one push.
+7. Write in the house style: plain words, one idea per sentence, no em or en
+   dashes. This covers this file, code comments, commits and screen copy.
+8. Never put real sales figures in this repo. Both repos are public. Check
+   figures against the review page instead (Section 4).
+
+---
+
+## 1. Status
+
+| Phase | What | State |
+|---|---|---|
+| 0 | Branches cut, plan written | Done 2026-10-14 |
+| 1 | Backend: one endpoint that returns the finance data | Not started |
+| 2 | Frontend: types, service, and the figures ported to TypeScript | Not started |
+| 3 | Overview screen | Not started |
+| 4 | Compare screen | Not started |
+| 5 | Ledgers screen | Not started |
+| 6 | Download: the sheet, the PDF and the CSV | Not started |
+| 7 | Partner portal: the same section, limited to the partner's branches | Not started |
+| 8 | Phone pass and design pass | Not started |
+| 9 | Ship to prod through `master` and `main` | Not started |
+
+Branches, both cut 2026-10-14:
+
+- Frontend: `feat/finance-section`, off `origin/main` at `85867a7`.
+- Backend: `feat/finance-section`, off `origin/master` at `1451004`.
+
+Neither branch has an upstream. That is on purpose. A bare `git push` would
+otherwise go to `main` or `master`, and both deploy to prod.
+
+Last updated: 2026-10-14, end of the night session. Next: Phase 1 and Phase 2,
+which can run side by side.
+
+---
+
+## 2. What we are building
+
+A **Finance** tab for admins and for branch partners.
+
+It shows money, not operations. How much each branch sold, month by month and
+day by day. How the months compare. How customers paid. What was cancelled
+after payment. It downloads as a proper PDF report and as a spreadsheet.
+
+A partner sees only the branches they fund. The server decides that, never the
+screen.
+
+The review page shows the look and the behaviour the user has already seen:
+https://claude.ai/artifact/Spg55L9eG6TMcPQFNDirzv
+
+It is shared with all four of the user's accounts. Read it with the Artifact
+tool, `action: "read"`. Its `<script id="core">` holds every figure as plain
+functions. Its `buildPdf` holds the PDF. Port both. Do not copy its data into
+this repo.
+
+---
+
+## 3. Decisions
+
+| # | Date | Decision |
+|---|---|---|
+| D1 | 2026-10-14 | Finance is its own tab, in the admin portal and the partner portal. It is not inside Analytics. |
+| D2 | 2026-10-14 | It ships straight to `master` and `main`, not through beta. Beta holds other work, and the user needs this fast. Each push still waits for the user's go. |
+| D3 | 2026-10-14 | Simple words. One sentence per idea. No helper line that repeats a title. |
+| D4 | 2026-10-14 | Built from the inventory kit: `PageHeader`, `SegmentedTabsLink`, `FilterBar`, `CustomSelect`, `DataTable`, `TONE`. Light only. |
+| D5 | 2026-10-14 | Three tabs: **Overview**, **Compare**, **Ledgers**. No Notes tab. The notes live on the last page of the PDF. |
+| D6 | 2026-10-14 | A sale is a paid order that was not cancelled. Net sales is `total_amount - delivery_fee`. This is the same rule as `AnalyticsQueryBuilder::revenueOrders`, so Finance and Analytics agree. |
+| D7 | 2026-10-14 | **Change** compares sales a day, not monthly totals. A part month must not look like a fall. |
+| D8 | 2026-10-14 | Orders cancelled after payment split three ways: refunded, money kept, no charge. None of them is in net sales. |
+| D9 | 2026-10-14 | Branch is the only series colour. Ashaiman `#2a78d6`, Lakeside `#eb6834`, East Legon `#1baf7a`. These pass the dataviz validator on the cream card. A fourth branch needs its colour checked with the validator first. |
+| D10 | 2026-10-14 | Partners see only their own branches. The backend enforces it. |
+| D11 | 2026-10-14 | Figures are live and include today. "So far" and the forecast use complete days only, up to yesterday. |
+| D12 | 2026-10-14 | Share of sales is a donut for the chosen months. The user found the 100% bars hard to read. |
+| D13 | 2026-10-14 | In Branch against branch, the best figure is bold in deep gold `#9a6410`. No "Best" pill. |
+| D14 | 2026-10-14 | The **Month by month, branch by branch** grid goes back on Overview. The user called it the best view. |
+| D15 | 2026-10-14 | Months since opening keeps "Month 1, 2, 3" on the chart. Each table cell also names the real month. |
+| D16 | 2026-10-14 | The month-so-far bars carry their own labels: "So far", "Forecast", and the last month's mark. |
+| D17 | 2026-10-14 | The download is redesigned. See Section 7. |
+| D18 | 2026-10-14 | No pattern views: no busy hours, no best and worst days, no channel mix. "We're focused on the financials." |
+| D19 | 2026-09-18 | Items are named by `receiptName()` from `lib/utils/receiptName.mjs`. Never join the item and the option. |
+| D20 | 2026-10-14 | The PDF keeps the Hubtel note and the test payments note. |
+
+---
+
+## 4. Facts that cost time to find
+
+**Data on prod.**
+- Three branches. First sales: Ashaiman 27 March 2026, Lakeside 2 August 2026, East Legon 3 August 2026.
+- Every order has at most one completed payment. There are no split payments yet.
+- `subtotal - discount + service_charge + delivery_fee = total_amount` holds on every order.
+- No discount has been given yet. The columns still belong in the statement.
+- Most delivery fees are collected by riders in cash, so the delivery figure is small.
+- 13 test payments of GHS 0.10 or GHS 0.20 are counted as sales.
+- 32 of the 70 options sold have no `display_name`. Option 8 on Noodles shows as a bare "Seafood". `php artisan menu:stamp-receipt-names` fixes it. The user runs it, not an agent.
+- The review page's figures are a snapshot read at 2026-10-14 00:14. To check the new screens, set the end date to 13 October 2026 and compare totals with the review page.
+
+**Code to reuse.**
+- Branch scoping: `AdminAnalyticsController::filters()`, `restrictBranchScope()` and `assignedBranchIds()`. Move them into a trait and use it in the new controller. Do not write a second copy.
+- `User::isCompanyWide()` must be asked before any branch-scoped query.
+- The revenue expression: `AnalyticsQueryBuilder::revenueExpr()`.
+- Partner scope: `PartnerScopeProvider` and `app/components/partner/BranchScopeSelector.tsx`.
+- Server time: `serverNow()` from `lib/utils/serverClock.ts` for the "read at" stamp and the PDF date.
+- `jspdf` is already a dependency (`^4.2.1`). The partner Order Ledger imports it dynamically. `jspdf-autotable` is not installed yet. Pick the version that supports jsPDF 4.
+
+**Traps.**
+- The backend working tree has uncommitted work on `fix/order-number-skips-deleted`. Do not switch branches in it. Use a worktree: `git worktree add ../cedibites_api_finance feat/finance-section`.
+- `view_analytics` is held by admin, tech_admin, manager and branch partner. Gate the endpoint on it, as Analytics does.
+- PDF fonts: the built-in Helvetica cannot draw "ɔ" (in Kɔkɔɔ). Embed a Noto Sans subset (about 22 KB a weight) holding U+0020 to U+017F, U+0186, U+0190, U+0254, U+025B, U+20B5 and the quote marks. The review page did this with `fontTools.subset`.
+- Never cancel a frontend deploy once `npm ci` has started. It wipes `.next/static`.
+- The deploy gate is `npm run lint:hooks`. It also runs the receipt name check.
+- `orders.created_at` is stored without a time zone. The database runs on Africa/Accra, which is UTC all year.
+- A local HTML file has no viewport tag. Test phone layouts in the real app, not a saved file.
+
+---
+
+## 5. The backend endpoint
+
+One endpoint. It returns compact rows. The frontend works out every figure, as
+the review page does.
+
+```
+GET /v1/admin/finance/ledger?from=2026-03-01&to=2026-10-31&branch_ids[]=1
+Middleware: permission:view_analytics
+Scope: the branch scoping trait (D10)
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "read_at": "2026-10-14T00:14:03Z",
+    "today": "2026-10-14",
+    "branches": [{ "id": 1, "name": "Ashaiman", "first_sale": "2026-03-27" }],
+    "sales": [["2026-03-27", 1, "pos", "pickup", "cash", 9, 1374.00, 0.00, 0.00, 1374.00, 0.00]],
+    "cancelled": [{ "order_number": "AC081", "placed_at": "2026-04-03 13:22", "cancelled_at": "2026-04-03 13:40",
+                    "branch_id": 1, "source": "pos", "type": "pickup", "method": "cash",
+                    "outcome": "refunded", "amount": 75.00, "reason": "Duplicate order" }],
+    "items": [["2026-03", 1, "pos", "pickup", "cash", 42, 18, 1710.00]],
+    "options": { "42": { "item": "Fried Rice / Jollof Rice / Noodles + 3 pieces of Chicken",
+                         "display_name": "Assorted Fried Rice + 3 pieces of Chicken",
+                         "label": "Assorted Fried Rice", "category": "Combos" } }
+  }
+}
+```
+
+- `sales` columns: date, branch, source, type, method, paid orders, gross, discount, service charge, net, delivery fee. Grouped by those five keys. Only orders with a `completed` payment and `status <> 'cancelled'`. Soft-deleted orders left out.
+- `cancelled`: every order with `status = 'cancelled'` and a payment of `completed`, `refunded` or `no_charge`. `outcome` maps `refunded` to refunded, `completed` to kept, `no_charge` to no_charge. `amount` is `total_amount - delivery_fee`.
+- `items` columns: month, branch, source, type, method, option id, quantity, sales. Same order filter as `sales`.
+- `options`: the current item name, receipt name, label and category for each option id. The frontend names each line with `receiptName(item, display_name || label)`. Lines that come out with the same name and category are added together.
+- `first_sale`: the date of the branch's first paid order.
+- The SQL from the review page is in the session notes. It ran read-only on prod in under a second.
+
+---
+
+## 6. The screens
+
+Routes are places. Each tab is its own route.
+
+- Admin: `/admin/finance`, `/admin/finance/compare`, `/admin/finance/ledgers`.
+- Partner: `/partner/finance`, `/partner/finance/compare`, `/partner/finance/ledgers`.
+- Both portals mount the same components from `app/components/finance/`.
+
+### The order on every Finance page
+
+The user could not tell where to look. Hold this order, top to bottom:
+
+1. **PageHeader.** Title "Finance". One line under it: the branches and the dates. One primary button: **Download**.
+2. **The tabs.** Overview, Compare, Ledgers. Right under the header. They are the first control the eye meets.
+3. **The FilterBar.** Branch, then From and To months. On a laptop, Channel, Order type and Payment sit in the same row. On a phone they fold behind **More filters**. Each active filter shows as a chip with a cross.
+4. **The page itself.**
+
+On a partner page, the branch filter is the existing `BranchScopeSelector`.
+
+### Controls on a chart
+
+Each chart has one control row under its title. Each group has a short caption:
+
+- **Show**: Net sales, Orders, Average order, Sales a day.
+- **Chart**: Lines, Bars, Stacked.
+
+The title says what is on screen. "Net sales by month" changes to "Orders by month" when Orders is chosen.
+
+A chart's own branch and payment choice hides behind a small **Filter this chart** button. When one is set, a chip says so, for example "Lakeside, MoMo". Its cross puts the chart back on the page filters.
+
+### Overview
+
+1. Four figures. **Net sales** is larger than the other three. Then Paid orders, Best month, Cancelled after payment.
+2. **Net sales by month.** Lines by default. Hollow dots mark part months. Click a month to see its days. "Back to all months" returns.
+3. **Month by month, branch by branch.** The grid from the first review page: for each branch, net sales, orders, sales a day and change. Totals at the foot.
+4. **Daily sales.** Seven day average or each day. 7 days, 30 days, 90 days, All. Drag across to zoom. Zoom out.
+5. **Average sales by day of the week.**
+
+### Compare
+
+1. **Period against period.** This month so far, Last full month, or Pick dates. One table, branches as rows. No cards inside the panel. Paired bars below it.
+2. **This month so far.** One labelled bar per branch (D16). Then the table: days so far, sales so far, same days last month, change, sales a day, forecast, last month, forecast against last month.
+3. **Months since opening** (D15).
+4. **Share of sales.** A donut for the chosen months, with a month picker. Each slice labelled with its share. A small table under it (D12).
+5. **Branch against branch.** Chips choose the branches. "Only the days every chosen branch was open" is on by default. The figures table marks the best in bold deep gold (D13). Then the menu items table and the category mix.
+
+### Ledgers
+
+1. **Monthly statement.** A month opens to show its days.
+2. **Daily takings.** Every open day for every branch. Sorts, pages, downloads as CSV.
+3. **Cancelled after payment.** All, Refunded, Money kept, No charge, each with a count. Sorts, pages, downloads as CSV.
+4. **How customers paid.**
+5. **What sold.** Sales or items sold.
+
+### Spacing and look
+
+The user said the spacing was a mess. Follow these:
+
+- Spacing comes from named steps. Nobody types a pixel value.
+- Tight inside a group. Open between groups.
+- A border or a shadow, never both. No card inside a card.
+- One thing is visibly first on each screen.
+- Surfaces are `bg-neutral-card`, border `#f0e8d8`, `rounded-2xl`. Controls are at least 44px tall. Columns of numbers use `tabular-nums`.
+
+### On a phone
+
+- A wide table becomes a list, one block per row. Only the month grid and the monthly statement scroll sideways, because comparing across columns is their point. Their first column stays fixed.
+- Pickers and the download open as bottom sheets.
+- Charts keep their tooltip on tap.
+- Nothing scrolls the page sideways at 360px.
+
+---
+
+## 7. The download
+
+One **Download** button in the header opens a sheet. A bottom sheet on a phone, a dialog on a laptop.
+
+1. **What do you want?** Report (PDF) or Spreadsheet (CSV).
+2. **For the PDF, how much?**
+   - **Short report.** Summary, month by month, monthly statement. About 4 pages.
+   - **Full report.** Every section except the two long lists.
+   - **Choose sections.** A checklist. The daily takings and the cancelled orders are unticked, with their page counts beside them.
+3. One line says the report follows the filters on screen.
+4. One primary button: **Download PDF** or **Download CSV**.
+5. After it, one line says what happened: saved, or what went wrong.
+
+**The PDF.** A4, wide pages. It is built with jsPDF and autotable, not a screenshot. Port `buildPdf` from the review page. It keeps:
+
+- A title block, a gold rule, and five summary boxes.
+- Charts drawn as vector shapes.
+- Tables with headers that repeat on each page.
+- A running header and footer with "Page x of y".
+- The notes on the last page (D5, D20).
+- The date from `serverNow()`.
+
+---
+
+## 8. Phases
+
+### Phase 1. Backend endpoint
+
+- [ ] Worktree on `feat/finance-section` (Section 4, Traps).
+- [ ] Move the branch scoping out of `AdminAnalyticsController` into a trait. Analytics still uses it. Its tests still pass.
+- [ ] `FinanceController::ledger`, route `GET admin/finance/ledger` under `permission:view_analytics`.
+- [ ] Tests: a partner gets only their branches, even when asking for another by `branch_ids`. A cashier gets 403. Cancelled orders land in the right outcome. Soft-deleted orders are left out. Net excludes the delivery fee.
+- [ ] Run the full suite. Note the known failures from the baseline memory, and only those.
+
+Done when: the endpoint returns the shape in Section 5 and the tests pass.
+
+### Phase 2. Frontend data
+
+- [ ] Types in `types/finance.ts`. Service in `lib/api/services/finance.service.ts`. Hook `useFinanceLedger(filters)`.
+- [ ] Port the review page's `core` script to `lib/finance/figures.ts`: `compute`, `periods`, `pace`, `since`, `versus`, `itemTable`, `weekday`, `dailySeries`, `bestMonth`. Pure functions, no DOM, no `new Date()` for "now".
+- [ ] Item names through `receiptName()`.
+- [ ] Check: with the end date set to 13 October 2026, the totals match the review page.
+
+### Phase 3. Overview
+
+- [ ] Admin nav: **Finance** in the Overview group, after Analytics, with a money icon.
+- [ ] `app/admin/finance/layout.tsx` with the header, tabs and FilterBar.
+- [ ] Chart parts in `app/components/finance/charts/`: lines over months, columns, lines over days with zoom, donut. Ported from the review page and drawn in SVG.
+- [ ] The Overview sections in the order of Section 6.
+
+### Phase 4. Compare
+
+- [ ] The five Compare sections in the order of Section 6.
+
+### Phase 5. Ledgers
+
+- [ ] The five Ledgers sections, on the kit's `DataTable`.
+
+### Phase 6. Download
+
+- [ ] The sheet from Section 7.
+- [ ] `lib/finance/pdf.ts`, ported from `buildPdf`, with the Noto Sans subset in `public/fonts/`.
+- [ ] CSVs for the statement, the daily takings and the cancelled orders.
+- [ ] Open the PDF and look at every section once.
+
+### Phase 7. Partner portal
+
+- [ ] **Finance** in `PARTNER_NAV`. Check the phone bar fits at 360px. See Q2.
+- [ ] `app/partner/finance/` routes mounting the shared components, with `BranchScopeSelector`.
+- [ ] Log in as a partner. Check that only their branches appear, on screen and in the PDF.
+
+### Phase 8. Phone and design pass
+
+- [ ] 360px and 390px wide: no sideways page scroll, lists instead of wide tables, sheets for pickers.
+- [ ] Read back every line of copy against the house rules. No dashes, one idea per sentence, no repeated labels.
+- [ ] Spacing from named steps only.
+
+### Phase 9. Ship
+
+- [ ] `npm run lint:hooks` and `npm run build` pass on the frontend branch.
+- [ ] Ask the user. Merge the backend branch into `master`. The deploy runs. Check the endpoint on prod with an admin login.
+- [ ] Ask the user. Merge the frontend branch into `main`. Do not cancel the deploy.
+- [ ] On prod: open Finance as an admin and as a partner. Compare the totals with the review page for the same end date.
+- [ ] Update Section 1 and the session memory.
+
+---
+
+## 9. Work that can run side by side
+
+For agents working at the same time. Each owns its files.
+
+| Stream | Phases | Owns | Waits for |
+|---|---|---|---|
+| A, backend | 1 | the backend worktree | nothing |
+| B, figures | 2 | `types/finance.ts`, `lib/finance/figures.ts`, the service and hook | the contract in Section 5 only |
+| C, charts | part of 3 | `app/components/finance/charts/` | nothing |
+| D, PDF | 6 | `lib/finance/pdf.ts`, the fonts | B |
+| E, screens | 3, 4, 5, 7 | `app/admin/finance/`, `app/partner/finance/`, the rest of `app/components/finance/` | B and C |
+
+A, B and C can start at once. E starts when B and C land. One agent merges.
+
+---
+
+## 10. Open questions
+
+Each has a default. Build on the default until the user says otherwise.
+
+| # | Question | Default |
+|---|---|---|
+| Q1 | Do managers get the Finance tab? They hold `view_analytics`. | No tab. The endpoint already limits them to their branch. |
+| Q2 | The partner phone bar would have six items. | If six do not fit at 360px, Finance takes the place of My Branch in the bar. My Branch stays in the side menu. |
+| Q3 | Where does Finance sit in the admin menu? | In Overview, after Analytics. |
+| Q4 | What does a fourth branch's colour become? | Pick from the dataviz palette, then run the validator. |
+
+---
+
+## 11. Learnings
+
+- 2026-10-14. The review page was built and checked in one night. These came out of it.
+- 2026-10-14. A grid or flex child holding a wide table needs `min-width: 0`. Without it the table pushes the whole page wider on a phone.
+- 2026-10-14. `[hidden]` loses to any class that sets `display`. Add `[hidden] { display: none !important; }`.
+- 2026-10-14. jsPDF's built-in fonts drop "ɔ". The Noto Sans subset fixed it and added the cedi sign.
+- 2026-10-14. Headless Edge over the debug protocol makes a good check: console errors, screenshots at two widths, and a full PDF build. PyMuPDF in a scratch venv renders PDF pages, since this machine has no poppler.
+- 2026-10-14. Four comparison cards in a row at laptop width cut off their last column. Two per row fits. A table is better still (Section 6).
