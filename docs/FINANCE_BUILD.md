@@ -273,7 +273,7 @@ One **Download** button in the header opens a sheet. A bottom sheet on a phone, 
 
 ### Phase 1. Backend endpoint
 
-- [ ] Worktree on `feat/finance-section` (Section 4, Traps).
+- [x] Worktree on `feat/finance-section` (Section 4, Traps). (BE `1451004`, where the worktree starts. A worktree leaves nothing to commit.)
 - [ ] Move the branch scoping out of `AdminAnalyticsController` into a trait. Analytics still uses it. Its tests still pass.
 - [ ] `FinanceController::ledger`, route `GET admin/finance/ledger` under `permission:view_analytics`.
 - [ ] Tests: a partner gets only their branches, even when asking for another by `branch_ids`. A cashier gets 403. Cancelled orders land in the right outcome. Soft-deleted orders are left out. Net excludes the delivery fee.
@@ -369,3 +369,6 @@ Each has a default. Build on the default until the user says otherwise.
 - 2026-10-14. jsPDF's built-in fonts drop "ɔ". The Noto Sans subset fixed it and added the cedi sign.
 - 2026-10-14. Headless Edge over the debug protocol makes a good check: console errors, screenshots at two widths, and a full PDF build. PyMuPDF in a scratch venv renders PDF pages, since this machine has no poppler.
 - 2026-10-14. Four comparison cards in a row at laptop width cut off their last column. Two per row fits. A table is better still (Section 6).
+- 2026-10-14. The backend worktree is `cedibites_api_finance`, beside the main tree. It needs its own `composer install` and a copy of the main tree's `.env`. Tests run on SQLite in memory, so it needs no database.
+- 2026-10-14. `composer install` unpacked every package in 21 seconds, then sat for ten minutes before writing the autoloader, most likely on a network call. Stopping it and running it again finished in seconds.
+- 2026-10-14. Backend test baseline, before any Finance change, at `1451004`, run at 02:07: 6 failed, 1371 passed. Two are the IAM `SecurityHardeningTest` failures (IAM-011 and IAM-016/017). Four are in `SmartCategoryTest`, and they swing with the clock because SQLite cannot read `EXTRACT(HOUR FROM ...)`. The last box of Phase 1 must show these and no others.
