@@ -80,6 +80,7 @@ import { useOnlineOrderArrivals } from '../hooks/useOnlineOrderArrivals';
 import { useMarkReceiptPrinted } from '@/lib/api/hooks/useOrders';
 import { isRemoteSource } from '@/lib/constants/order.constants';
 import { usePosCheckoutSessions } from '@/lib/api/hooks/useCheckoutSession';
+import { useMenuLiveUpdates } from '@/lib/api/hooks/useMenuLiveUpdates';
 
 interface ItemOption {
   key: string;
@@ -201,6 +202,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     removeFromCart,
     updateQuantity,
     clearCart,
+    syncCartPrices,
     customerName,
     setCustomerName,
     customerPhone,
@@ -230,6 +232,24 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   const { items: menuItems, categories: menuCategories, isLoading: menuLoading } = useMenuItems(
     session?.branchId ? { branch_id: Number(session.branchId), is_available: true } : undefined
   );
+
+  // New prices reload this menu the moment they go live.
+  useMenuLiveUpdates();
+
+  // And a basket already open follows them. The server charges the menu's
+  // price at the moment of the order, so a line left at the old price would
+  // have the cashier quote 90 while the receipt says 100.
+  useEffect(() => {
+    if (menuItems.length === 0) return;
+    const prices = new Map<number, number>();
+    for (const item of menuItems) {
+      for (const size of item.sizes ?? []) prices.set(size.id, size.price);
+    }
+    const changed = syncCartPrices(prices);
+    if (changed > 0) {
+      toast.info('Prices changed. The basket now shows the new prices.');
+    }
+  }, [menuItems, syncCartPrices]);
 
   // Which dishes the kitchen can still make. Advisory — the server decides at
   // the moment the order is written — but it is what stops a cashier promising

@@ -30,6 +30,7 @@ import { SignOutDialog } from '@/app/components/ui/SignOutDialog';
 import { InterruptionGateProvider } from '@/app/components/providers/InterruptionGate';
 import { CautionInterstitial } from '@/app/components/messaging/CautionInterstitial';
 import { ReleaseWalkthrough } from '@/app/components/messaging/ReleaseWalkthrough';
+import { MenuLiveUpdates } from '@/app/components/providers/MenuLiveUpdates';
 import { StaffMessageBell } from '@/app/components/messaging/StaffMessageBell';
 import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
 import { OpeningPrompt } from '@/app/components/opening/OpeningPrompt';
@@ -431,6 +432,8 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                 <StaffLayoutShell>{children}</StaffLayoutShell>
                 <CautionInterstitial />
                 <ReleaseWalkthrough />
+                {/* The call centre and the staff store quote prices too. */}
+                <MenuLiveUpdates />
             </InterruptionGateProvider>
         </StaffAuthProvider>
     );
