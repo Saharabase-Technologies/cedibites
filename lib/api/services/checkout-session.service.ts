@@ -20,13 +20,15 @@ export interface CreateCheckoutSessionRequest {
 
 /**
  * A payment a customer made by dialling the branch code, which Hubtel has
- * confirmed. Only the last four digits of the payer's number leave the server.
+ * confirmed. The number is local (0247879103). The name is the one the number
+ * is registered to on MoMo, and is null when Hubtel's lookup gave none.
  */
 export interface BranchCodePayment {
   id: number;
   amount: number;
   paid_at: string;
-  payer_last_four: string | null;
+  payer_number: string | null;
+  payer_name: string | null;
   network_transaction_id: string | null;
 }
 
@@ -40,7 +42,8 @@ export interface BranchCodePaymentCheck {
   outcome: 'paid' | 'ours' | 'not_paid' | 'not_found' | 'unavailable';
   amount: number | null;
   paid_at: string | null;
-  payer_last_four: string | null;
+  payer_number: string | null;
+  payer_name: string | null;
   /** Known only for a payment already on a branch's list. */
   branch: string | null;
   order_number: string | null;

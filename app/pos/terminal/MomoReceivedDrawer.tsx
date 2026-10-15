@@ -5,6 +5,7 @@ import { XIcon, SpinnerIcon, ArrowClockwiseIcon } from '@phosphor-icons/react';
 import { formatGHS } from '@/lib/utils/currency';
 import { toast } from '@/lib/utils/toast';
 import { serverNow } from '@/lib/utils/serverClock';
+import { formatGhanaPhone } from '@/app/lib/phone';
 import { TONE } from '@/app/inventory/_components/status-tokens';
 import {
   checkoutSessionService,
@@ -36,8 +37,13 @@ function isToday(iso: string): boolean {
   return dayOf(iso) === dayOf(serverNow().toISOString());
 }
 
-function fromNumber(lastFour: string | null): string {
-  return lastFour ? `from a number ending ${lastFour}` : 'number not given';
+/**
+ * Who paid, as the cashier checks it against the customer at the counter:
+ * "AMA MENSAH · 024 787 9103". The number alone when MoMo gave no name.
+ */
+function payerOf(name: string | null, number: string | null): string | null {
+  const parts = [name, number && formatGhanaPhone(number)].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 /**
@@ -60,7 +66,8 @@ export function useMomoArrivals(branchId?: number): BranchCodePayment[] {
     for (const p of payments) {
       if (known.current.has(p.id)) continue;
       known.current.add(p.id);
-      toast.success(`MoMo received: ${formatGHS(p.amount)} ${fromNumber(p.payer_last_four)}`, { duration: 8000 });
+      const payer = payerOf(p.payer_name, p.payer_number);
+      toast.success(`MoMo received: ${formatGHS(p.amount)}${payer ? ` from ${payer}` : ''}`, { duration: 8000 });
     }
   }, [payments]);
 
@@ -191,10 +198,12 @@ export default function MomoReceivedDrawer({ branchId, branchName, isOpen, onClo
                       <span className="text-lg font-semibold text-text-dark tabular-nums">{formatGHS(p.amount)}</span>
                       <span className="text-sm text-neutral-gray tabular-nums">{timeOf(p.paid_at)}</span>
                     </div>
-                    <div className="mt-0.5 flex flex-wrap items-baseline justify-between gap-x-3 text-xs text-neutral-gray tabular-nums">
-                      <span>{p.payer_last_four ? `Number ending ${p.payer_last_four}` : 'Number not given'}</span>
-                      {p.network_transaction_id && <span>ID {p.network_transaction_id}</span>}
-                    </div>
+                    <p className="mt-0.5 text-sm text-text-dark tabular-nums">
+                      {payerOf(p.payer_name, p.payer_number) ?? 'Number not given'}
+                    </p>
+                    {p.network_transaction_id && (
+                      <p className="text-xs text-neutral-gray tabular-nums">ID {p.network_transaction_id}</p>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -213,6 +222,7 @@ export default function MomoReceivedDrawer({ branchId, branchName, isOpen, onClo
  */
 function CheckResult({ result, branchName }: { result: BranchCodePaymentCheck; branchName?: string }) {
   const paid = result.outcome === 'paid' || result.outcome === 'ours';
+  const payer = payerOf(result.payer_name, result.payer_number);
 
   const answer = (() => {
     switch (result.outcome) {
@@ -221,7 +231,7 @@ function CheckResult({ result, branchName }: { result: BranchCodePaymentCheck; b
           tone: TONE.done,
           title: 'Paid',
           line: result.amount !== null && result.paid_at
-            ? `${formatGHS(result.amount)} at ${timeOf(result.paid_at)}, ${fromNumber(result.payer_last_four)}.`
+            ? `${formatGHS(result.amount)} at ${timeOf(result.paid_at)}${payer ? `, from ${payer}` : ''}.`
             : null,
         };
       case 'ours':
