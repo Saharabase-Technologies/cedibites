@@ -462,6 +462,8 @@ export function POSProvider({ children }: POSProviderProps) {
 
     // 3. Map checkout session result to local Order type
     const apiOrder = csSession.order;
+    // Placed with nothing paid (D1). The server confirms the order, not money.
+    const isPayLater = method === 'pay_later';
     const order: Order = {
       id: apiOrder ? String(apiOrder.id) : csSession.session_token,
       orderNumber: apiOrder?.order_number ?? csSession.session_token,
@@ -475,8 +477,14 @@ export function POSProvider({ children }: POSProviderProps) {
       source: isManualEntry ? 'manual_entry' : orderSource,
       fulfillmentType: orderType,
       paymentMethod: method,
-      paymentStatus: csSession.status === 'confirmed' ? 'completed' : 'pending',
-      isPaid: csSession.status === 'confirmed',
+      paymentStatus: csSession.status === 'confirmed' && !isPayLater ? 'completed' : 'pending',
+      isPaid: csSession.status === 'confirmed' && !isPayLater,
+      ...(isPayLater ? {
+        isPaidLater: true,
+        paymentState: 'not_paid' as const,
+        balanceDue: Number((apiOrder as { balance_due?: number } | undefined)?.balance_due ?? csSession.total_amount),
+        paymentParts: [],
+      } : {}),
       items: cart.map(item => ({
         id: item.id,
         menuItemId: item.menuItemId,

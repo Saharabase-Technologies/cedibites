@@ -1,4 +1,4 @@
-import type { Order, OrderItem } from '@/types/order';
+import type { Order, OrderItem, PaymentPart } from '@/types/order';
 import { FULFILLMENT_LABELS } from '@/lib/constants/order.constants';
 import { toast } from '@/lib/utils/toast';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
@@ -11,7 +11,12 @@ export interface ReceiptBranch {
   phone?: string;
 }
 
-export type ReceiptKind = 'original' | 'reprint';
+/**
+ * original and reprint are the customer's receipt. kitchen is the one slip a
+ * Pay later order gets until it is paid: FOR THE KITCHEN, NOT PAID, one copy,
+ * no QR, nothing on it saying paid (D5).
+ */
+export type ReceiptKind = 'original' | 'reprint' | 'kitchen';
 
 export interface PrintReceiptOptions {
   kind?: ReceiptKind;
@@ -60,7 +65,42 @@ const paymentLabel: Record<string, string> = {
   mobile_money: 'MOBILE MONEY',
   card: 'CARD',
   no_charge: 'NO CHARGE',
+  manual_momo: 'DIRECT MOMO',
 };
+
+/** A part's method in the payments block, as it reads aloud. */
+const partLabel: Record<string, string> = {
+  cash: 'Cash',
+  mobile_money: 'Mobile money',
+  manual_momo: 'Direct MoMo',
+  card: 'Card',
+};
+
+function timeOf(ms: number): string {
+  return new Date(ms).toLocaleTimeString('en-GH', { timeZone: 'Africa/Accra', hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+/**
+ * The payments block (D31): each part in the order it came, with its time,
+ * method and who took it, then Change and Left to pay. A part paid in cash
+ * with change shows what was handed over, as Amount Paid does on a single
+ * payment.
+ */
+function paymentsBlock(parts: PaymentPart[], leftToPay: number): string {
+  const lines = parts.map((part) => {
+    const when = part.paidAt ? timeOf(part.paidAt) : '';
+    const how = [partLabel[part.method] ?? part.method, part.takenBy].filter(Boolean).join(', ');
+    const shown = part.tendered ?? part.amount;
+    return `<tr><td colspan="3">${escapeHtml([when, how].filter(Boolean).join('  '))}</td><td class="amount">${shown.toFixed(2)}</td></tr>`;
+  }).join('');
+  const change = parts.reduce((sum, part) => sum + (part.tendered != null ? part.tendered - part.amount : 0), 0);
+
+  return `
+    <tr class="bold"><td colspan="4">PAYMENTS</td></tr>
+    ${lines}
+    ${change > 0.004 ? `<tr class="bold"><td colspan="3">Change</td><td class="amount">${change.toFixed(2)}</td></tr>` : ''}
+    <tr class="bold"><td colspan="3">Left to pay</td><td class="amount">${leftToPay.toFixed(2)}</td></tr>`;
+}
 
 function escapeHtml(text: string): string {
   return text
@@ -82,16 +122,30 @@ function slipHTML(
   kind: ReceiptKind,
   reprintNumber?: number,
   qrDataUrl?: string,
+  copyIndex = 0,
 ): string {
   const isPastOrder = order.source === 'manual_entry';
+  const isKitchen = kind === 'kitchen';
+  // Money in, in the order it came. More than one part prints the payments
+  // block in place of Pay Mode and Amount Paid (D31). One part prints as a
+  // sale always has.
+  const paidParts = (order.paymentParts ?? []).filter((part) => part.status === 'completed');
+  const inParts = paidParts.length > 1;
+  const leftToPay = order.balanceDue ?? 0;
+  // The second slip of an original is the cashier's. On a Pay later order it
+  // says so, and says the money came later (D2). The customer's never does.
+  const cashiersPaidLaterLine = !isKitchen && copyIndex === 1 && order.isPaidLater === true;
+  const payMode = paidParts.length === 1 ? paidParts[0].method : order.paymentMethod;
   // Numbered so a customer holding two slips for one order, or a supervisor
   // finding three in a drawer, can tell which came first and how many were run.
   const reprintLabel = reprintNumber && reprintNumber > 0
     ? `Reprint ${reprintNumber}`
     : 'Reprinted Receipt';
-  const sectionTitle = isPastOrder
-    ? 'Recorded Past Order'
-    : kind === 'reprint' ? reprintLabel : 'Original Receipt';
+  const sectionTitle = isKitchen
+    ? 'For the kitchen · Not paid'
+    : isPastOrder
+      ? 'Recorded Past Order'
+      : kind === 'reprint' ? reprintLabel : 'Original Receipt';
   const createdAt = new Date(order.placedAt);
 
   const itemRows = order.items.map(item => {
@@ -139,7 +193,7 @@ function slipHTML(
   // collects the delivery fee on delivery — shown so the customer knows exactly
   // what they pay each party.
   const paidLabel = hasDelivery ? 'Paid (goods)' : 'Amount Paid';
-  const amountPaidRow = amountPaid != null
+  const amountPaidRow = amountPaid != null && !isKitchen && !inParts
     ? `<tr><td colspan="3">${paidLabel}</td><td class="amount">${amountPaid.toFixed(2)}</td></tr>`
     : '';
 
@@ -147,9 +201,15 @@ function slipHTML(
     ? `<tr><td colspan="3">${order.deliveryFeeStatus === 'collected' ? 'Paid to rider' : 'Due to rider'}</td><td class="amount">${deliveryFee.toFixed(2)}</td></tr>`
     : '';
 
-  const changeRow = change > 0
+  const changeRow = change > 0 && !isKitchen && !inParts
     ? `<tr class="bold"><td colspan="3">Change</td><td class="amount">${change.toFixed(2)}</td></tr>`
     : '';
+
+  // What the kitchen slip carries in place of anything paid.
+  const leftToPayRow = isKitchen
+    ? `<tr class="grand-total"><td colspan="3">LEFT TO PAY</td><td class="amount">${(leftToPay || total).toFixed(2)}</td></tr>`
+    : '';
+  const partsRows = inParts && !isKitchen ? paymentsBlock(paidParts, leftToPay) : '';
 
   const customerNoteRow = order.contact.notes
     ? `<tr><td colspan="4" class="note">Note: ${order.contact.notes}</td></tr>`
@@ -176,9 +236,10 @@ function slipHTML(
        "RECEIPT" title up here and an "Original Receipt" heading again above the
        items. Two labels for one fact is one label too many. -->
   <div class="kind">${sectionTitle}</div>
+  ${cashiersPaidLaterLine ? '<div class="kind">Cashier&#39;s copy · Paid later</div>' : ''}
   <table class="meta-table">
     <tr>
-      <td class="label">Receipt No.:</td>
+      <td class="label">${isKitchen ? 'Order No.:' : 'Receipt No.:'}</td>
       <td>${order.orderNumber}</td>
     </tr>
     <tr>
@@ -190,10 +251,10 @@ function slipHTML(
       <td class="label">Cashier:</td>
       <td>${order.staffName ?? 'Staff'}</td>
     </tr>
-    <tr>
+    ${isKitchen || inParts ? '' : `<tr>
       <td class="label">Pay Mode:</td>
-      <td>${paymentLabel[order.paymentMethod] ?? order.paymentMethod.toUpperCase()}</td>
-    </tr>
+      <td>${paymentLabel[payMode] ?? payMode.toUpperCase()}</td>
+    </tr>`}
     ${order.momoNumber ? `<tr>
       <td class="label">MoMo #:</td>
       <td>${escapeHtml(order.momoNumber)}</td>
@@ -237,6 +298,8 @@ function slipHTML(
     ${amountPaidRow}
     ${riderRow}
     ${changeRow}
+    ${leftToPayRow}
+    ${partsRows}
   </table>
 
   <div class="divider"></div>
@@ -255,7 +318,7 @@ function slipHTML(
 
   <div class="divider"></div>
 
-  <div class="thank-you">Thank you for dining with us!</div>
+  ${isKitchen ? '' : '<div class="thank-you">Thank you for dining with us!</div>'}
 
   <div class="order-code-num">${order.orderNumber}</div>
   <div class="order-code-label">ORDER CODE</div>
@@ -269,8 +332,8 @@ function slipHTML(
   <!-- The number is given something to do. A bare phone number at the foot of a
        receipt is read by nobody; one attached to a reason to call is read by
        the person who needs it. -->
-  <div class="footer-line">Keep this receipt.</div>
-  <div class="footer-line">Any problem, call ${SUPPORT_PHONE}</div>
+  ${isKitchen ? '' : `<div class="footer-line">Keep this receipt.</div>
+  <div class="footer-line">Any problem, call ${SUPPORT_PHONE}</div>`}
 
   <div class="software-line">Software by Saharabase Technologies</div>
 `;
@@ -436,10 +499,11 @@ function receiptHTML(
   reprintNumber?: number,
   qrDataUrl?: string,
 ): string {
-  const slip = slipHTML(order, branch, kind, reprintNumber, qrDataUrl);
+  // Each copy is built on its own: the cashier's copy of a Pay later order
+  // carries one line the customer's does not (D2).
   const slips = Array.from(
     { length: Math.max(1, copies) },
-    () => `<div class="slip">${slip}</div>`,
+    (_, copyIndex) => `<div class="slip">${slipHTML(order, branch, kind, reprintNumber, qrDataUrl, copyIndex)}</div>`,
   ).join('\n');
 
   return `<!DOCTYPE html>
@@ -519,10 +583,11 @@ export async function printReceipt(
   options?: PrintReceiptOptions,
 ): Promise<void> {
   const resolvedBranch: ReceiptBranch = typeof branch === 'string' ? { name: branch } : branch;
-  const kind: ReceiptKind = options?.kind === 'reprint' ? 'reprint' : 'original';
+  const kind: ReceiptKind = options?.kind ?? 'original';
   // A reprint is always a single slip. Two copies is what an original hands to
-  // the customer and the till; running a spare of a spare just wastes roll.
-  const copies = kind === 'reprint' ? 1 : Math.max(1, Math.floor(options?.copies ?? 1));
+  // the customer and the till; running a spare of a spare just wastes roll. The
+  // kitchen slip is one copy, for the kitchen (D5).
+  const copies = kind === 'original' ? Math.max(1, Math.floor(options?.copies ?? 1)) : 1;
 
   // Opened first, before anything is awaited. A popup only counts as
   // user-initiated while the click that caused it is still on the stack, so
@@ -535,7 +600,8 @@ export async function printReceipt(
   }
 
   try {
-    const qrDataUrl = await buildVerifyQr(order);
+    // The QR checks a paid receipt. The kitchen slip is not one.
+    const qrDataUrl = kind === 'kitchen' ? undefined : await buildVerifyQr(order);
     win.document.write(
       receiptHTML(order, resolvedBranch, kind, copies, options?.reprintNumber, qrDataUrl),
     );

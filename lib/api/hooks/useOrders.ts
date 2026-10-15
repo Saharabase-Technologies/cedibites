@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { orderService } from '../services/order.service';
+import { orderService, type TakePaymentRequest } from '../services/order.service';
 import type { CreateOrderRequest, OrdersParams } from '../services/order.service';
 import { getPublicEcho } from '@/lib/echo';
 import type { Order } from '@/types/api';
@@ -181,12 +181,30 @@ export const useCancelOrder = () => {
   };
 };
 
+/**
+ * Take one part of what an order owes. The lists, the branch code payments and
+ * the person's own money all move with it, so all three are fetched again.
+ */
+export const useTakePayment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ orderId, body }: { orderId: number; body: TakePaymentRequest }) =>
+      orderService.takePayment(orderId, body),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['pos-branch-code-payments'] });
+      queryClient.invalidateQueries({ queryKey: ['my-money'] });
+    },
+  });
+};
+
 export const useMarkReceiptPrinted = () => {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: ({ id, source }: { id: number; source?: ReceiptPrintSource }) =>
-      orderService.markReceiptPrinted(id, source),
+    mutationFn: ({ id, source, slip }: { id: number; source?: ReceiptPrintSource; slip?: 'kitchen' }) =>
+      orderService.markReceiptPrinted(id, source, slip),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
     },

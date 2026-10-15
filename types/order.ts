@@ -23,7 +23,26 @@ export type OrderSource = 'online' | 'phone' | 'whatsapp' | 'social_media' | 'po
 
 export type FulfillmentType = 'delivery' | 'pickup' | 'dine_in' | 'takeaway';
 
-export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'no_charge' | 'manual_momo';
+// pay_later is a way to finish a sale, not a way money arrives: the order is
+// placed with nothing paid (D1), and its payments come afterwards.
+export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'no_charge' | 'manual_momo' | 'pay_later';
+
+/** Whether an order's payments cover it. */
+export type PaymentState = 'not_paid' | 'part_paid' | 'paid';
+
+/** One payment on an order, in the order they came (D31). */
+export interface PaymentPart {
+    id: number;
+    method: PaymentMethod;
+    status: PaymentStatus;
+    amount: number;
+    /** epoch ms; absent while a prompt waits. */
+    paidAt?: number;
+    /** Whoever took the money, which may not be whoever placed the order (D9). */
+    takenBy?: string;
+    /** Cash handed over, when there was change. */
+    tendered?: number;
+}
 
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 
@@ -100,6 +119,19 @@ export interface Order {
     paymentId?: number;         // DB payment record ID — used for polling (RMP mobile money)
     amountPaid?: number;        // POS: cash tendered by customer
     momoNumber?: string;        // POS: mobile money number used
+    /**
+     * Placed with Pay later (D1). Never cleared, even once paid. Staff screens
+     * and the cashier's slip say "Paid later"; the customer's slip never does (D2).
+     */
+    isPaidLater?: boolean;
+    /** What is still owed on the goods. 0 once paid. */
+    balanceDue?: number;
+    /** From the payments on the server. Absent on an older payload. */
+    paymentState?: PaymentState;
+    /** Every payment on the order, in the order they came. */
+    paymentParts?: PaymentPart[];
+    /** When the kitchen slip of a Pay later order was first printed, epoch ms (D5). */
+    kitchenSlipPrintedAt?: number;
 
     // Items & pricing
     items: OrderItem[];

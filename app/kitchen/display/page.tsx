@@ -21,6 +21,7 @@ import {
   StorefrontIcon,
   SignOutIcon,
 } from '@phosphor-icons/react';
+import { TONE } from '@/app/inventory/_components/status-tokens';
 
 // ─── Elapsed timer hook ────────────────────────────────────────────────────
 
@@ -99,6 +100,18 @@ function OrderCard({ order, playUrgent }: OrderCardProps) {
       <p className="text-xs font-bold uppercase tracking-widest text-black/40">
         {KDS_STAGE_LABELS[order.status] ?? order.status}
       </p>
+      {/* Cooked all the same (D4). Said so whoever hands it over knows. */}
+      {order.isPaidLater && order.paymentState !== 'paid' && (
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-bold ${
+            order.paymentState === 'part_paid'
+              ? `${TONE.partial.bg} ${TONE.partial.text}`
+              : `${TONE.waiting.bg} ${TONE.waiting.text}`
+          }`}
+        >
+          {order.paymentState === 'part_paid' ? 'Part paid' : 'Not paid'}
+        </span>
+      )}
       <p className={`text-3xl font-mono ${timerCls}`}>{timerStr}</p>
     </div>
   );

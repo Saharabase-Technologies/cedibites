@@ -42,6 +42,8 @@ export interface BranchCodePayment {
   order_number: string | null;
   /** Who took it from the shared list. */
   taken_by: string | null;
+  /** The order Take payment linked it to. A linked payment is spent. */
+  linked_order_number?: string | null;
 }
 
 /**

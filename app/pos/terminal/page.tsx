@@ -36,6 +36,7 @@ import { formatGHS } from '@/lib/utils/currency';
 import apiClient from '@/lib/api/client';
 import { toast } from '@/lib/utils/toast';
 import type { PaymentMethod, Order, OrderSource } from '@/types/order';
+import { TONE } from '@/app/inventory/_components/status-tokens';
 import {
   PhoneIcon,
   WhatsappLogoIcon,
@@ -2053,6 +2054,8 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
       await onPayment('manual_momo', undefined, manualMomoNum, manualOpts);
     } else if (selectedMethod === 'no_charge') {
       await onPayment('no_charge', undefined, undefined, manualOpts);
+    } else if (selectedMethod === 'pay_later') {
+      await onPayment('pay_later');
     } else {
       await onPayment('card', undefined, undefined, manualOpts);
     }
@@ -2158,12 +2161,20 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
                   ? [{ id: 'no_charge' as PaymentMethod, label: 'No Charge', icon: ProhibitIcon }]
                   : []
                 ),
+                // Not a way money arrives, so it sits on its own row. Everyone
+                // who can place an order can use it (D3). A recorded past
+                // order was paid at the time, so it is not offered there.
+                ...(isManualEntry
+                  ? []
+                  : [{ id: 'pay_later' as PaymentMethod, label: 'Pay later', icon: HourglassIcon, wide: true }]
+                ),
               ].filter(m => isMethodEnabled(m.id)).map(method => (
               <button
                 key={method.id}
                 onClick={() => setSelectedMethod(method.id)}
                 className={`
-                  py-4 rounded-2xl flex flex-col items-center gap-2
+                  ${'wide' in method && method.wide ? 'col-span-2 py-3 flex-row justify-center' : 'py-4 flex-col'}
+                  rounded-2xl flex items-center gap-2
                   transition-all duration-150
                   ${selectedMethod === method.id
 ? 'bg-primary text-brown ring-2 ring-primary ring-offset-2 ring-offset-white'
@@ -2317,6 +2328,13 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
             </div>
           )}
 
+          {selectedMethod === 'pay_later' && (
+            <div className="pt-2 text-center text-neutral-gray">
+              <p>The order goes to the kitchen now, marked Not paid.</p>
+              <p className="text-xs mt-1 opacity-60">Take the money on the Orders page when the customer pays.</p>
+            </div>
+          )}
+
           {selectedMethod === 'no_charge' && (
             <div className="pt-2 text-center text-neutral-gray">
               <p>Staff meal. No payment required.</p>
@@ -2354,7 +2372,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
               </>
             ) : (
               <>
-                Confirm Payment
+                {selectedMethod === 'pay_later' ? 'Send to the kitchen' : 'Confirm Payment'}
                 <CheckCircleIcon className="w-5 h-5" />
               </>
             )}
@@ -2406,7 +2424,11 @@ function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
    * One line that needs a pan keeps the whole order on the board, receipt and
    * all. A burger with a Coke is still a burger.
    */
-  const printsHere = order.status === 'completed';
+  //
+  // Never for an order still owing. Its paid receipt prints from the Orders
+  // page once the money is in (D6); until then nothing says it was paid.
+  const owes = order.isPaidLater === true && order.paymentState !== 'paid';
+  const printsHere = order.status === 'completed' && !owes;
 
   const printAndRecord = () => {
     // The original for this sale, and the only one it will ever get from here.
@@ -2437,11 +2459,16 @@ function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
         {/* Content */}
         <div className="px-6 pb-6">
           <h2 className="text-2xl font-bold text-text-dark mb-2">
-            Payment Complete
+            {owes ? 'Order placed' : 'Payment Complete'}
           </h2>
-          <p className="text-neutral-gray mb-6">
+          <p className={`text-neutral-gray ${owes ? 'mb-3' : 'mb-6'}`}>
             Order #{order.orderNumber} has been placed
           </p>
+          {owes && (
+            <span className={`inline-flex mb-6 px-3 py-1 rounded-full text-sm font-semibold ${TONE.waiting.bg} ${TONE.waiting.text}`}>
+              Not paid
+            </span>
+          )}
 
           {/* Order Summary */}
           <div className="bg-neutral-light rounded-2xl p-4 text-left mb-6">
@@ -2455,12 +2482,12 @@ function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
             </div>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-neutral-gray">Payment</span>
-              <span className="text-text-dark capitalize">{order.paymentMethod}</span>
+              <span className="text-text-dark capitalize">{owes ? 'Pay later' : order.paymentMethod}</span>
             </div>
             <div className="border-t border-neutral-gray/20 my-2" />
             <div className="flex justify-between font-semibold">
-              <span className="text-text-dark">Total</span>
-              <span className="text-primary">{formatGHS(order.total)}</span>
+              <span className="text-text-dark">{owes ? 'Owed' : 'Total'}</span>
+              <span className="text-primary">{formatGHS(owes ? (order.balanceDue ?? order.total) : order.total)}</span>
             </div>
           </div>
 

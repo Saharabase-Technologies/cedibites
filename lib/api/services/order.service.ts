@@ -23,7 +23,24 @@ export interface OrdersParams {
   per_page?: number;
 }
 
+/** One part of what an order owes (D7). */
+export type TakePaymentRequest =
+  | { method: 'cash'; handed_over: number }
+  | { method: 'card'; amount: number }
+  | { method: 'branch_code'; incoming_payment_id: number }
+  | { method: 'mobile_money'; amount: number; momo_number: string };
+
+export interface TakePaymentResult {
+  payment_id: number;
+  payment_status: string;
+  /** Cash only: what to hand back. */
+  change?: number | null;
+  order: Order;
+}
+
 export interface EmployeeOrdersParams {
+  /** Every Pay later order still owing at the branch, any day. Dates are ignored. */
+  owing?: 1;
   branch_id?: number;
   staff_id?: string | number;
   status?: string | string[];
@@ -108,11 +125,26 @@ export const orderService = {
    * kitchen. It exists so any till can tell a receipt already handed over from
    * one that has never been printed.
    */
-  markReceiptPrinted: (id: number, source?: ReceiptPrintSource): Promise<{ data: Order }> => {
+  markReceiptPrinted: (id: number, source?: ReceiptPrintSource, slip?: 'kitchen'): Promise<{ data: Order }> => {
     // `source` says which screen the button was on. The server records it
     // alongside the print so "how was this available?" can be answered from the
-    // log rather than by reading the frontend and guessing.
-    return apiClient.post(`/employee/orders/${id}/receipt-printed`, source ? { source } : {});
+    // log rather than by reading the frontend and guessing. `slip: 'kitchen'`
+    // is a Pay later order's kitchen slip, which the server keeps out of the
+    // receipt count so the paid receipt after it is still the original (D6).
+    return apiClient.post(`/employee/orders/${id}/receipt-printed`, { ...(source ? { source } : {}), ...(slip ? { slip } : {}) });
+  },
+
+  /** Take one part of what an order owes (D7). */
+  takePayment: (orderId: number, body: TakePaymentRequest): Promise<{ data: TakePaymentResult }> => {
+    return apiClient.post(`/pos/orders/${orderId}/payments`, body);
+  },
+
+  /**
+   * Where a part stands. Read from our own record unless `askHubtel`, which
+   * also asks Hubtel's status check for a prompt whose answer never came.
+   */
+  checkPayment: (orderId: number, paymentId: number, askHubtel = false): Promise<{ data: TakePaymentResult }> => {
+    return apiClient.post(`/pos/orders/${orderId}/payments/${paymentId}/check`, askHubtel ? { ask_hubtel: true } : {});
   },
 
   /**

@@ -40,6 +40,8 @@ import {
 import { useOrderStream, type ConnectionState } from '@/lib/hooks/useOrderStream';
 import type { EmployeeOrdersParams } from '@/lib/api/services/order.service';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
+import { TONE } from '@/app/inventory/_components/status-tokens';
+import TakePaymentSheet from './TakePaymentSheet';
 import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
 import {
   FULFILLMENT_LABELS,
@@ -66,7 +68,7 @@ import { roleOverseesOthers, type StaffRole } from '@/types/staff';
  * Which one a person lands on depends on whether they work a position or
  * oversee the floor; see `defaultChannelFor`.
  */
-type Channel = 'mine' | 'remote' | 'all';
+type Channel = 'mine' | 'remote' | 'all' | 'owing';
 
 /**
  * The tab this person should open on.
@@ -88,12 +90,14 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   mine: 'Mine',
   remote: 'Online',
   all: 'All',
+  owing: 'Not paid',
 };
 
 const CHANNEL_BLURB: Record<Channel, string> = {
   mine: 'Orders you took at the till, or accepted from another channel',
   remote: 'Orders from the website, phone and WhatsApp',
   all: 'Every order taken at this branch today',
+  owing: 'Orders placed with Pay later and still owing',
 };
 
 /**
@@ -205,8 +209,17 @@ export default function POSOrdersPage() {
     [baseParams, staffId],
   );
 
+  // Everything still owed at this branch, whichever day it was placed (D7).
+  // Kept apart from the day's lists: what is owed stays until it is paid.
+  const owingParams: EmployeeOrdersParams | undefined = useMemo(
+    () => (session ? { branch_id: branchId, owing: 1, per_page: 100 } : undefined),
+    [session, branchId],
+  );
+  const { orders: owingRaw } = useEmployeeOrders(owingParams, pollMs);
+
   const listParams: EmployeeOrdersParams | undefined = useMemo(() => {
     if (!baseParams) return undefined;
+    if (effectiveChannel === 'owing') return owingParams;
     if (effectiveChannel === 'mine') return myParams;
     if (effectiveChannel === 'remote') return { ...baseParams, order_source: [...REMOTE_ORDER_SOURCES] };
     // `all` sends no source and no staff filter. It is not a widening of
@@ -214,7 +227,7 @@ export default function POSOrdersPage() {
     // assigned to before any filter here is applied — and for a company-wide
     // role, to every branch. See OrderManagementService::getBranchOrders.
     return baseParams;
-  }, [baseParams, myParams, effectiveChannel]);
+  }, [baseParams, myParams, owingParams, effectiveChannel]);
 
   const { orders: rawOrders, isLoading } = useEmployeeOrders(listParams, pollMs);
   // On the `mine` tab these params are identical, so React Query serves both
@@ -347,6 +360,30 @@ export default function POSOrdersPage() {
     });
   };
 
+  /** The order whose Take payment sheet is open. */
+  const [payTarget, setPayTarget] = useState<Order | null>(null);
+
+  /**
+   * The paid receipt of a Pay later order, as the original, two slips (D6).
+   *
+   * The one deliberate original on this screen (T9). The order's only paper
+   * so far is its kitchen slip, which is not a receipt, so the server counts
+   * this print as the original too.
+   */
+  const printPaidOriginal = (order: Order) => {
+    void printReceipt(
+      order,
+      { name: branchInfo?.name ?? 'CediBites', address: branchInfo?.address },
+      { kind: 'original', copies: 2 },
+    );
+    void markPrinted({ id: Number(order.id), source: 'pos_orders' }).catch(() => {
+      toast.error('Printed, but could not record it. The print count may be short.');
+    });
+    setPayTarget(null);
+  };
+
+  const owes = (o: Order) => o.isPaidLater === true && o.paymentState !== 'paid';
+
   const canCancel = (o: Order) =>
     o.source !== 'manual_entry'
     && o.status !== 'cancelled'
@@ -426,7 +463,18 @@ export default function POSOrdersPage() {
       align: 'right',
       sortValue: (o) => o.total,
       cell: (o) => (
-        <span className="font-bold text-text-dark text-[15px] whitespace-nowrap tabular-nums">{formatGHS(o.total)}</span>
+        <div className="flex flex-col items-end gap-1">
+          <span className="font-bold text-text-dark text-[15px] whitespace-nowrap tabular-nums">{formatGHS(o.total)}</span>
+          {owes(o) && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap tabular-nums ${
+                o.paymentState === 'part_paid' ? `${TONE.partial.bg} ${TONE.partial.text}` : `${TONE.waiting.bg} ${TONE.waiting.text}`
+              }`}
+            >
+              {o.paymentState === 'part_paid' ? `Part paid · ${formatGHS(o.balanceDue ?? 0)} left` : 'Not paid'}
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -450,9 +498,36 @@ export default function POSOrdersPage() {
         // Ready — so if it left the pass unprinted this screen is the only
         // place left that can produce the slip at all. Without this the receipt
         // would simply be unobtainable, which is worse than a late one.
-        const canReprint = printCount > 0 || o.status === 'completed';
+        //
+        // A Pay later order owes its receipt to the money, not the pass: while
+        // it owes, it takes payment here; once paid, its original prints here
+        // (D6). Its kitchen slip is not a receipt and never counts.
+        const takesPayment = owes(o);
+        const originalDue = o.isPaidLater === true && !takesPayment && printCount === 0;
+        const canReprint = !takesPayment && !originalDue && (printCount > 0 || o.status === 'completed');
         return (
           <div className="flex items-center justify-end gap-1.5">
+            {takesPayment && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setPayTarget(o); }}
+                className="flex items-center gap-1.5 px-3 h-9 rounded-xl bg-primary text-brown text-sm font-semibold hover:bg-primary-hover transition-colors cursor-pointer whitespace-nowrap"
+              >
+                Take payment
+              </button>
+            )}
+
+            {originalDue && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); printPaidOriginal(o); }}
+                className="flex items-center gap-1.5 px-3 h-9 rounded-xl bg-primary text-brown text-sm font-semibold hover:bg-primary-hover transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <PrinterIcon size={14} />
+                Print receipt
+              </button>
+            )}
+
             {claimable && (
               <button
                 type="button"
@@ -568,7 +643,7 @@ export default function POSOrdersPage() {
           <SegmentedTabs
             value={effectiveChannel}
             onChange={setChannel}
-            options={(['mine', 'remote', 'all'] as const).map((key) => ({
+            options={(['mine', 'remote', 'all', 'owing'] as const).map((key) => ({
               value: key,
               label: CHANNEL_LABEL[key],
               icon: key === 'remote' && awaitingCount > 0
@@ -577,7 +652,13 @@ export default function POSOrdersPage() {
                     {awaitingCount}
                   </span>
                 )
-                : undefined,
+                : key === 'owing' && owingRaw.length > 0
+                  ? (
+                    <span className={`min-w-5 h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center ${TONE.waiting.bg} ${TONE.waiting.text}`}>
+                      {owingRaw.length}
+                    </span>
+                  )
+                  : undefined,
             }))}
           />
 
@@ -615,7 +696,7 @@ export default function POSOrdersPage() {
               <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
                 <ReceiptIcon size={40} className="text-neutral-gray/40 mb-3" />
                 <p className="text-text-dark font-semibold text-base mb-1">
-                  {query ? 'Nothing matches that search' : 'No orders yet today'}
+                  {query ? 'Nothing matches that search' : effectiveChannel === 'owing' ? 'Nothing is owed' : 'No orders yet today'}
                 </p>
                 <p className="text-neutral-gray text-sm max-w-sm">
                   {query
@@ -627,6 +708,16 @@ export default function POSOrdersPage() {
           />
         </div>
       </div>
+
+      {payTarget && branchId && (
+        <TakePaymentSheet
+          key={payTarget.id}
+          order={payTarget}
+          branchId={branchId}
+          onClose={() => setPayTarget(null)}
+          onPrintOriginal={printPaidOriginal}
+        />
+      )}
 
       {cancelTarget && (
         <CancelOrderModal

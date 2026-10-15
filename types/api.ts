@@ -249,7 +249,7 @@ export type OrderStatus =
 
 export type OrderType = 'delivery' | 'pickup';
 
-export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'manual_momo' | 'no_charge' | 'wallet' | 'ghqr';
+export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'manual_momo' | 'no_charge' | 'wallet' | 'ghqr' | 'pay_later';
 
 export type PaymentStatus = 'pending' | 'paid' | 'completed' | 'failed' | 'refunded' | 'no_charge';
 

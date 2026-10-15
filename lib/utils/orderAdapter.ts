@@ -1,5 +1,6 @@
 import type { Order as ApiOrder } from '@/types/api';
 import type { Order as UnifiedOrder, OrderItem, OrderStatus } from '@/types/order';
+import { orderMoneyFields } from '@/lib/utils/orderMoney';
 import type { PaymentMethod } from '@/types/order';
 
 function mapApiPaymentMethod(api?: string): PaymentMethod {
@@ -47,6 +48,9 @@ function resolveOptionLabel(item: ApiOrder['items'][0], sizeKey: string): string
 export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
   const placedAt = new Date(apiOrder.created_at).getTime();
   const payment = apiOrder.payment ?? apiOrder.payments?.[0];
+  const money = orderMoneyFields(apiOrder);
+  // A Pay later order is paid only when its payments cover it (D1).
+  const owesStill = money.isPaidLater && money.paymentState !== undefined && money.paymentState !== 'paid';
 
   const items: OrderItem[] = (apiOrder.items ?? []).map((item) => {
     const sizeKey = deriveSizeKey(item);
@@ -78,9 +82,10 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
     status: (apiOrder.status ?? 'received') as OrderStatus,
     source: mapApiSource(apiOrder.order_source) ?? 'online',
     fulfillmentType: (apiOrder.order_type ?? 'delivery') as UnifiedOrder['fulfillmentType'],
-    paymentMethod: mapApiPaymentMethod(payment?.payment_method),
-    isPaid: payment?.payment_status === 'paid' || payment?.payment_status === 'completed',
-    paymentStatus: (payment?.payment_status as UnifiedOrder['paymentStatus']) ?? 'pending',
+    ...money,
+    paymentMethod: payment?.payment_method ? mapApiPaymentMethod(payment.payment_method) : money.isPaidLater ? 'pay_later' : mapApiPaymentMethod(undefined),
+    isPaid: owesStill ? false : payment?.payment_status === 'paid' || payment?.payment_status === 'completed',
+    paymentStatus: owesStill ? 'pending' : (payment?.payment_status as UnifiedOrder['paymentStatus']) ?? 'pending',
     paymentId: payment?.id ? Number(payment.id) : undefined,
     items,
     subtotal: Number(apiOrder.subtotal) || 0,
@@ -90,7 +95,11 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
     promoCode: apiOrder.promo_name || undefined,
     tax: Number(apiOrder.tax_amount ?? apiOrder.tax) || 0,
     total: Number(apiOrder.total_amount ?? apiOrder.total) || 0,
-    amountPaid: apiOrder.amount_paid != null ? Number(apiOrder.amount_paid) : undefined,
+    // Cash handed over, for the receipt's Amount Paid and Change. Not the
+    // resource's amount_paid, which since Pay later is the money in so far:
+    // reading that would add an Amount Paid line to every receipt the board
+    // prints. Only a part taken with change records what was handed over.
+    amountPaid: money.paymentParts?.length === 1 ? money.paymentParts[0].tendered : undefined,
     contact: {
       name: apiOrder.contact_name ?? apiOrder.customer_name ?? '',
       phone: apiOrder.contact_phone ?? apiOrder.customer_phone ?? '',

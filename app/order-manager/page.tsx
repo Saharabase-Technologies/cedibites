@@ -361,6 +361,19 @@ export default function OrderManagerPage() {
   const printOrder = useCallback(
     (order: Order) => {
       const branch = operableBranches.find((b) => b.id === effectiveBranchId);
+
+      // A Pay later order gets its kitchen slip here, and only that: FOR THE
+      // KITCHEN, NOT PAID, one copy (D5). Its paid receipt prints from the
+      // till's Orders page once the money is in (D6).
+      if (order.isPaidLater) {
+        void printReceipt(order, { name: branch?.name ?? 'CediBites', address: branch?.address }, { kind: 'kitchen' });
+        setPrintedIds((prev) => new Set(prev).add(order.id));
+        void markPrinted({ id: Number(order.id), source: 'order_manager', slip: 'kitchen' }).catch(() => {
+          toast.error('Printed, but could not record it. It may still show as unprinted.');
+        });
+        return;
+      }
+
       void printReceipt(
         order,
         { name: branch?.name ?? 'CediBites', address: branch?.address },
@@ -544,7 +557,10 @@ export default function OrderManagerPage() {
         isSelected={selectedId === order.id}
         isBusy={pendingIds.has(order.id)}
         isLocked={isLocked}
-        isPrinted={(order.receiptPrintCount ?? 0) > 0 || printedIds.has(order.id)}
+        isPrinted={
+          printedIds.has(order.id)
+          || (order.isPaidLater ? order.kitchenSlipPrintedAt != null : (order.receiptPrintCount ?? 0) > 0)
+        }
         onSelect={select}
         onAdvance={advance}
         onPrint={printOrder}
