@@ -331,6 +331,8 @@ export interface OrderItem {
   menu_item_id: number;
   /** False when this line needs no cooking — a bottled drink. */
   requires_preparation?: boolean;
+  /** 1 for the order as placed, 2 onwards for an addition (Phase 4b). */
+  round?: number;
   /** Point-in-time menu fields from order_items.menu_item_snapshot */
   menu_item_snapshot?: { id?: number; name?: string; description?: string | null } | null;
   menu_item: MenuItem;

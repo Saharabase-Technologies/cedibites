@@ -9,6 +9,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   CloudSlashIcon,
+  PlusIcon,
   PrinterIcon,
   ProhibitIcon,
   ReceiptIcon,
@@ -41,6 +42,7 @@ import { useOrderStream, type ConnectionState } from '@/lib/hooks/useOrderStream
 import type { EmployeeOrdersParams } from '@/lib/api/services/order.service';
 import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
 import { TONE } from '@/app/inventory/_components/status-tokens';
+import { serverNow } from '@/lib/utils/serverClock';
 import TakePaymentSheet from './TakePaymentSheet';
 import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
 import {
@@ -113,6 +115,11 @@ const POLL_HEALTHY_MS = 300_000;
 /** Poll while the socket is down. This is then the only live path. */
 const POLL_DEGRADED_MS = 4_000;
 
+/** The calendar day in Ghana, to tell today's orders from older ones. */
+function accraDay(ms: number): string {
+  return new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Africa/Accra' });
+}
+
 function formatOrderTime(placedAt: number): string {
   if (!placedAt) return '—';
   return new Date(placedAt).toLocaleTimeString('en-GH', {
@@ -128,7 +135,7 @@ function formatOrderTime(placedAt: number): string {
 export default function POSOrdersPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { session, isSessionValid, isSessionLoaded, setIsManualEntry } = usePOS();
+  const { session, isSessionValid, isSessionLoaded, setIsManualEntry, startAdding } = usePOS();
   const { staffUser } = useStaffAuth();
   const { branches } = useBranch();
   const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
@@ -369,12 +376,15 @@ export default function POSOrdersPage() {
    * The one deliberate original on this screen (T9). The order's only paper
    * so far is its kitchen slip, which is not a receipt, so the server counts
    * this print as the original too.
+   *
+   * Once a receipt exists, items added since make this the Updated Receipt,
+   * two slips as well (Phase 4b, D31). The server decides the same way.
    */
   const printPaidOriginal = (order: Order) => {
     void printReceipt(
       order,
       { name: branchInfo?.name ?? 'CediBites', address: branchInfo?.address },
-      { kind: 'original', copies: 2 },
+      { kind: (order.receiptPrintCount ?? 0) === 0 ? 'original' : 'updated', copies: 2 },
     );
     void markPrinted({ id: Number(order.id), source: 'pos_orders' }).catch(() => {
       toast.error('Printed, but could not record it. The print count may be short.');
@@ -383,6 +393,36 @@ export default function POSOrdersPage() {
   };
 
   const owes = (o: Order) => o.isPaidLater === true && o.paymentState !== 'paid';
+
+  /** Items were added since the last customer receipt was printed (Phase 4b). */
+  const updatedReceiptDue = (o: Order) => (o.rounds ?? []).some((round) => round.receiptPrintedAt == null);
+
+  /**
+   * The bill for a table that pays at the end (Phase 4b): the whole order,
+   * what is paid so far, LEFT TO PAY. Not a receipt; logged as a bill.
+   */
+  const printBill = (order: Order) => {
+    void printReceipt(order, { name: branchInfo?.name ?? 'CediBites', address: branchInfo?.address }, { kind: 'bill' });
+    void markPrinted({ id: Number(order.id), source: 'pos_orders', slip: 'bill' }).catch(() => {
+      toast.error('Printed, but could not record it.');
+    });
+  };
+
+  /**
+   * Items can be added to a dine-in order of today, still standing, that was
+   * not a recorded past order (D29). The server checks the same.
+   */
+  const canAddTo = (o: Order) =>
+    o.fulfillmentType === 'dine_in'
+    && o.source !== 'manual_entry'
+    && o.status !== 'cancelled'
+    && o.status !== 'cancel_requested'
+    && accraDay(o.placedAt) === accraDay(serverNow().getTime());
+
+  const addItemsTo = (order: Order) => {
+    startAdding(order);
+    router.push('/pos/terminal');
+  };
 
   const canCancel = (o: Order) =>
     o.source !== 'manual_entry'
@@ -503,8 +543,25 @@ export default function POSOrdersPage() {
         // it owes, it takes payment here; once paid, its original prints here
         // (D6). Its kitchen slip is not a receipt and never counts.
         const takesPayment = owes(o);
-        const originalDue = o.isPaidLater === true && !takesPayment && printCount === 0;
+        // Items added after the last receipt make the next one an Updated
+        // Receipt, two slips, printed here like the original (Phase 4b, D31).
+        const originalDue = !takesPayment && (
+          (o.isPaidLater === true && printCount === 0) || (printCount > 0 && updatedReceiptDue(o))
+        );
         const canReprint = !takesPayment && !originalDue && (printCount > 0 || o.status === 'completed');
+        const rowActions = [
+          ...(takesPayment ? [{
+            label: 'Print bill',
+            icon: <PrinterIcon size={14} />,
+            onClick: () => printBill(o),
+          }] : []),
+          ...(canCancel(o) ? [{
+            label: isAdmin ? 'Cancel order' : 'Request cancel',
+            icon: <ProhibitIcon size={14} />,
+            onClick: () => setCancelTarget(o),
+            destructive: true,
+          }] : []),
+        ];
         return (
           <div className="flex items-center justify-end gap-1.5">
             {takesPayment && (
@@ -514,6 +571,24 @@ export default function POSOrdersPage() {
                 className="flex items-center gap-1.5 px-3 h-9 rounded-xl bg-primary text-brown text-sm font-semibold hover:bg-primary-hover transition-colors cursor-pointer whitespace-nowrap"
               >
                 Take payment
+              </button>
+            )}
+
+            {/* A table that wants more: the till's menu opens to add to this
+                order (Phase 4b, D29). */}
+            {canAddTo(o) && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); addItemsTo(o); }}
+                className="
+                  flex items-center gap-1.5 px-3 h-9 rounded-xl text-sm font-semibold
+                  transition-colors cursor-pointer whitespace-nowrap border
+                  bg-neutral-card border-[#e3ddd0] text-text-dark
+                  hover:border-neutral-gray/50
+                "
+              >
+                <PlusIcon size={14} weight="bold" />
+                Add items
               </button>
             )}
 
@@ -567,16 +642,7 @@ export default function POSOrdersPage() {
             </button>
             )}
 
-            {canCancel(o) && (
-              <RowActionsMenu
-                actions={[{
-                  label: isAdmin ? 'Cancel order' : 'Request cancel',
-                  icon: <ProhibitIcon size={14} />,
-                  onClick: () => setCancelTarget(o),
-                  destructive: true,
-                }]}
-              />
-            )}
+            {rowActions.length > 0 && <RowActionsMenu actions={rowActions} />}
           </div>
         );
       },

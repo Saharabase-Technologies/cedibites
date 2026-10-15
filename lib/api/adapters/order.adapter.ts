@@ -309,6 +309,7 @@ export function mapApiOrderToOrder(api: any): import('@/types/order').Order {
           ?? live?.option_key,
         notes: item.special_instructions,
         category: item.menu_item?.category,
+        round: item.round != null ? Number(item.round) : 1,
       };
     }),
     subtotal: Number(api.subtotal ?? 0),

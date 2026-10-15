@@ -16,6 +16,9 @@ import { useKitchenSounds } from './hooks/useSounds';
 import { useOrderAlerts, type OrderAlerts } from '@/lib/hooks/useOrderAlerts';
 import { STAGE_SLA_S as KITCHEN_SLA_S } from '@/lib/constants/order.constants';
 import { useSwitchKitchenBranch } from './branch-context';
+import apiClient from '@/lib/api/client';
+import { parseTicketId } from '@/lib/utils/orderRounds';
+import { toast } from '@/lib/utils/toast';
 
 // ─── Kitchen-specific stats (UI only) ──────────────────────────────────────
 
@@ -159,32 +162,54 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
     };
   }, [kitchenOrders, ordersByStatus]);
 
+  /**
+   * Move a ticket. A ticket of items added to an order (Phase 4b) moves its
+   * round alone, through the round's own endpoint; the order's status is left
+   * as it is. The screen catches up on the broadcast the server sends.
+   */
+  const moveTicket = useCallback((
+    ticketId: string,
+    status: OrderStatus,
+    timestamps: Partial<Pick<Order, 'acceptedAt' | 'startedAt' | 'readyAt' | 'completedAt'>>,
+  ) => {
+    const { orderId, round } = parseTicketId(ticketId);
+    if (!round) {
+      void updateOrderStatus(ticketId, status, timestamps);
+      return;
+    }
+    const roundId = kitchenOrders.find((t) => t.id === ticketId)?.rounds?.find((r) => r.number === round)?.id;
+    if (!roundId) return;
+    void apiClient.patch(`/employee/orders/${orderId}/rounds/${roundId}/status`, { status }).catch(() => {
+      toast.error('Could not move that ticket. Try again.');
+    });
+  }, [kitchenOrders, updateOrderStatus]);
+
   const acceptOrder = useCallback((orderId: string) => {
     sounds.playTap();
-    updateOrderStatus(orderId, 'accepted', { acceptedAt: Date.now() });
-  }, [sounds, updateOrderStatus]);
+    moveTicket(orderId, 'accepted', { acceptedAt: Date.now() });
+  }, [sounds, moveTicket]);
 
   const startOrder = useCallback((orderId: string) => {
     sounds.playOrderStarted();
-    updateOrderStatus(orderId, 'preparing', { startedAt: Date.now() });
-  }, [sounds, updateOrderStatus]);
+    moveTicket(orderId, 'preparing', { startedAt: Date.now() });
+  }, [sounds, moveTicket]);
 
   const markReady = useCallback((orderId: string) => {
     sounds.playOrderReady();
-    updateOrderStatus(orderId, 'ready', { readyAt: Date.now() });
-  }, [sounds, updateOrderStatus]);
+    moveTicket(orderId, 'ready', { readyAt: Date.now() });
+  }, [sounds, moveTicket]);
 
   const completeOrder = useCallback((orderId: string) => {
     sounds.playTap();
-    updateOrderStatus(orderId, 'completed', { completedAt: Date.now() });
-  }, [sounds, updateOrderStatus]);
+    moveTicket(orderId, 'completed', { completedAt: Date.now() });
+  }, [sounds, moveTicket]);
 
   const completeAllReady = useCallback(() => {
     sounds.playTap();
     ordersByStatus.ready.forEach(order => {
-      updateOrderStatus(order.id, 'completed', { completedAt: Date.now() });
+      moveTicket(order.id, 'completed', { completedAt: Date.now() });
     });
-  }, [sounds, ordersByStatus.ready, updateOrderStatus]);
+  }, [sounds, ordersByStatus.ready, moveTicket]);
 
   const approveCancel = useCallback((orderId: string) => {
     sounds.playTap();

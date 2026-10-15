@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import apiClient from '@/lib/api/client';
 import { useOrderStream, type ConnectionState, type OrderStreamEvent } from '@/lib/hooks/useOrderStream';
 import { apiOrderToUnifiedOrder } from '@/lib/utils/orderAdapter';
+import { isOnBoard, orderTickets, parseTicketId } from '@/lib/utils/orderRounds';
 import type { Order as ApiOrder } from '@/types/api';
 import type { Order, OrderStatus } from '@/types/order';
 
@@ -45,6 +46,26 @@ export const BOARD_STATUSES: OrderStatus[] = [
 ];
 
 const BOARD_STATUS_SET = new Set<OrderStatus>(BOARD_STATUSES);
+
+/** Kept in the board's state while the order, or a round added to it, is live (Phase 4b). */
+const onBoard = (order: Order) => isOnBoard(order, (status) => BOARD_STATUS_SET.has(status));
+
+/**
+ * Drop the optimistic overlay of every ticket of this order the server now
+ * agrees with. Pending moves are keyed by ticket, and one order can be
+ * several tickets once items are added to it.
+ */
+function settlePending(pending: Record<string, PendingWrite>, order: Order): Record<string, PendingWrite> {
+  let next = pending;
+  for (const ticket of orderTickets(order)) {
+    const p = next[ticket.id];
+    if (p && p.status === ticket.status) {
+      if (next === pending) next = { ...pending };
+      delete next[ticket.id];
+    }
+  }
+  return next;
+}
 
 /** Safety-net poll while the socket is up. Reverb is doing the real work. */
 const POLL_HEALTHY_MS = 20_000;
@@ -117,6 +138,8 @@ export interface OrderBoard {
   moveOrder: (orderId: string, to: OrderStatus) => Promise<boolean>;
   /** Drop an order off the board without a status write (cancel approval). */
   removeOrder: (orderId: string) => void;
+  /** The whole order behind a ticket, every round in it (Phase 4b). */
+  fullOrder: (ticketId: string) => Order | undefined;
   refresh: () => void;
 }
 
@@ -193,15 +216,12 @@ export function useOrderBoard(branchId: string | null): OrderBoard {
         const order = apiOrderToUnifiedOrder(event.order);
         updateBranch(branchId, (prev) => {
           const orders = prev.orders.filter((o) => o.id !== order.id);
-          if (BOARD_STATUS_SET.has(order.status)) orders.push(order);
+          if (onBoard(order)) orders.push(order);
 
           // A frame from the server is the authority. If it agrees with what we
           // optimistically drew, the write is confirmed and the overlay can go.
-          const p = prev.pending[order.id];
-          if (!p || p.status !== order.status) return { ...prev, orders };
-          const pending = { ...prev.pending };
-          delete pending[order.id];
-          return { ...prev, orders, pending };
+          const pending = settlePending(prev.pending, order);
+          return pending === prev.pending ? { ...prev, orders } : { ...prev, orders, pending };
         });
       },
       [branchId, updateBranch],
@@ -270,14 +290,18 @@ export function useOrderBoard(branchId: string | null): OrderBoard {
     for (const order of active.orders) {
       if (order.id in active.dismissed) continue;
 
-      const p = active.pending[order.id];
-      // A pending entry the server has already caught up with is simply not
-      // applied. Resolving it here rather than by writing state back means no
-      // extra render, and no window where the two disagree.
-      const status = p && p.status !== order.status ? p.status : order.status;
+      // One ticket per round once items have been added (Phase 4b). An order
+      // with none is a single ticket, as before.
+      for (const ticket of orderTickets(order)) {
+        const p = active.pending[ticket.id];
+        // A pending entry the server has already caught up with is simply not
+        // applied. Resolving it here rather than by writing state back means no
+        // extra render, and no window where the two disagree.
+        const status = p && p.status !== ticket.status ? p.status : ticket.status;
 
-      if (!BOARD_STATUS_SET.has(status)) continue; // completed, cancelled: off the board
-      merged.push(status === order.status ? order : { ...order, status });
+        if (!BOARD_STATUS_SET.has(status)) continue; // completed, cancelled: off the board
+        merged.push(status === ticket.status ? ticket : { ...ticket, status });
+      }
     }
 
     // Oldest first. Position within a column is by the clock and nothing else,
@@ -287,29 +311,45 @@ export function useOrderBoard(branchId: string | null): OrderBoard {
 
   // ── Writes ────────────────────────────────────────────────────────────────
 
+  // The latest state, for a write that needs to look a round up by its number.
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  /** `ticketId` is an order's id, or a round's ticket id (`${orderId}:r${n}`). */
   const moveOrder = useCallback(
-    async (orderId: string, to: OrderStatus): Promise<boolean> => {
+    async (ticketId: string, to: OrderStatus): Promise<boolean> => {
       const branch = branchRef.current;
       if (!branch) return false;
+
+      const { orderId, round } = parseTicketId(ticketId);
+      const roundId = round
+        ? stateRef.current.orders.find((o) => o.id === orderId)?.rounds?.find((r) => r.number === round)?.id
+        : undefined;
+      if (round && !roundId) return false;
 
       // Draw it first. This is the whole point — the tap has to land on screen
       // in the same frame it was made, not one round trip later.
       updateBranch(branch, (prev) => ({
         ...prev,
-        pending: { ...prev.pending, [orderId]: { status: to, at: Date.now() } },
-        stageEnteredAt: { ...prev.stageEnteredAt, [orderId]: Date.now() },
+        pending: { ...prev.pending, [ticketId]: { status: to, at: Date.now() } },
+        stageEnteredAt: { ...prev.stageEnteredAt, [ticketId]: Date.now() },
       }));
 
       try {
-        const response = await apiClient.patch(`/employee/orders/${orderId}/status`, { status: to });
+        // A round moves on its own; the order's status is left alone (Phase 4b).
+        const response = round
+          ? await apiClient.patch(`/employee/orders/${orderId}/rounds/${roundId}/status`, { status: to })
+          : await apiClient.patch(`/employee/orders/${orderId}/status`, { status: to });
         const body = (response as { data?: ApiOrder })?.data ?? response;
         const updated = apiOrderToUnifiedOrder(body as ApiOrder);
 
         updateBranch(branch, (prev) => {
           const orders = prev.orders.filter((o) => o.id !== orderId);
-          if (BOARD_STATUS_SET.has(updated.status)) orders.push(updated);
+          if (onBoard(updated)) orders.push(updated);
           const pending = { ...prev.pending };
-          delete pending[orderId];
+          delete pending[ticketId];
           return { ...prev, orders, pending };
         });
         return true;
@@ -318,9 +358,9 @@ export function useOrderBoard(branchId: string | null): OrderBoard {
         // must not leave the kitchen believing the ticket moved.
         updateBranch(branch, (prev) => {
           const pending = { ...prev.pending };
-          delete pending[orderId];
+          delete pending[ticketId];
           const stageEnteredAt = { ...prev.stageEnteredAt };
-          delete stageEnteredAt[orderId];
+          delete stageEnteredAt[ticketId];
           return { ...prev, pending, stageEnteredAt };
         });
         return false;
@@ -330,9 +370,11 @@ export function useOrderBoard(branchId: string | null): OrderBoard {
   );
 
   const removeOrder = useCallback(
-    (orderId: string) => {
+    (ticketId: string) => {
       const branch = branchRef.current;
       if (!branch) return;
+      // A cancel takes the whole order off, every round with it.
+      const { orderId } = parseTicketId(ticketId);
       updateBranch(branch, (prev) => ({
         ...prev,
         dismissed: { ...prev.dismissed, [orderId]: Date.now() },
@@ -344,6 +386,14 @@ export function useOrderBoard(branchId: string | null): OrderBoard {
   const refresh = useCallback(() => {
     void fetchOrders();
   }, [fetchOrders]);
+
+  const fullOrder = useCallback(
+    (ticketId: string) => {
+      const { orderId } = parseTicketId(ticketId);
+      return active.orders.find((o) => o.id === orderId);
+    },
+    [active.orders],
+  );
 
   /**
    * How long this order has been in the stage it is showing.
@@ -383,6 +433,7 @@ export function useOrderBoard(branchId: string | null): OrderBoard {
     stageSinceFor,
     moveOrder,
     removeOrder,
+    fullOrder,
     refresh,
   };
 }

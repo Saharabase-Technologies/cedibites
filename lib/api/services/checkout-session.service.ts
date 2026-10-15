@@ -125,6 +125,8 @@ export const checkoutSessionService = {
     delivery_fee?: number;
     /** Channel the order came in on. Omitted means the till. */
     order_source?: string;
+    /** The sale is a round of this order: items added to it (Phase 4b). */
+    add_to_order_id?: number;
   }): Promise<CheckoutSession> => {
     return apiClient.post('/pos/checkout-sessions', data);
   },

@@ -203,8 +203,8 @@ export const useMarkReceiptPrinted = () => {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: ({ id, source, slip }: { id: number; source?: ReceiptPrintSource; slip?: 'kitchen' }) =>
-      orderService.markReceiptPrinted(id, source, slip),
+    mutationFn: ({ id, source, slip, round }: { id: number; source?: ReceiptPrintSource; slip?: 'kitchen' | 'bill'; round?: number }) =>
+      orderService.markReceiptPrinted(id, source, slip, round),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
     },

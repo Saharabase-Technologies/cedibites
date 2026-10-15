@@ -22,6 +22,7 @@ import {
   SignOutIcon,
 } from '@phosphor-icons/react';
 import { TONE } from '@/app/inventory/_components/status-tokens';
+import { roundLabel } from '@/lib/utils/orderRounds';
 
 // ─── Elapsed timer hook ────────────────────────────────────────────────────
 
@@ -90,6 +91,12 @@ function OrderCard({ order, playUrgent }: OrderCardProps) {
       <p className={`text-5xl font-black tracking-tight leading-none ${numCls}`}>
         {order.orderNumber}
       </p>
+      {/* Only the items added to an order already served (Phase 4b). */}
+      {order.roundNumber != null && (
+        <span className={`rounded-full px-3 py-1 text-xs font-bold tabular-nums ${TONE.moving.bg} ${TONE.moving.text}`}>
+          {roundLabel(order)}
+        </span>
+      )}
       <p className="text-sm font-medium text-black/50 text-center truncate w-full">
         {order.contact.name} · {itemCount} item{itemCount !== 1 ? 's' : ''}
       </p>

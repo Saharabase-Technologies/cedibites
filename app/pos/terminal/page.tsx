@@ -223,6 +223,8 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     isManualEntry,
     setIsManualEntry,
     todayOrders,
+    addTarget,
+    stopAdding,
   } = usePOS();
   const { staffUser, logout, can } = useStaffAuth();
   const { branches } = useBranch();
@@ -266,6 +268,8 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
+  /** The order the last sale was added to, if it was a round (Phase 4b). */
+  const [roundSaleOf, setRoundSaleOf] = useState<string | null>(null);
   const [pendingMomoOrder, setPendingMomoOrder] = useState<Order | null>(null);
   const [showCart, setShowCart] = useState(false);
   const [activePromo, setActivePromo] = useState<Promo | null>(null);
@@ -561,8 +565,11 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
       .reduce((sum, c) => sum + c.quantity, 0);
   }, [cart]);
 
-  // Effective total after any promo discount
-  const effectiveTotal = Math.max(0, cartTotal - promoDiscount);
+  // Effective total after any promo discount. A round of an order takes no
+  // promo (Phase 4b): the server gives it none, so the till shows none.
+  const appliedDiscount = addTarget ? 0 : promoDiscount;
+  const effectiveTotal = Math.max(0, cartTotal - appliedDiscount);
+
   // Delivery fee only counts on delivery orders
   const currentDeliveryFee = orderType === 'delivery' ? deliveryFee : 0;
   // Grand total the customer pays (items − discount + delivery)
@@ -570,8 +577,12 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
 
   // Handle payment complete
   const handlePaymentComplete = async (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string; reason: string }) => {
+    // The sale clears the order being added to, so it is noted first. The
+    // confirmation for a round says so, and never prints (Phase 4b).
+    const addingTo = addTarget?.id ?? null;
     try {
       const order = await processPayment(method, amountPaid, momoNumber, { code: codeInForce, discount: promoDiscount }, manualOpts);
+      setRoundSaleOf(addingTo);
       setShowCode(false);
       setCodeInput('');
       if (method === 'mobile_money' && order.paymentStatus === 'pending') {
@@ -1044,6 +1055,28 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
           </div>
         </header>
 
+        {/* Adding to an order already placed (Phase 4b). The one new thing on
+            the screen: which order the basket joins. Everything else is the
+            till as it always is. */}
+        {addTarget && (
+          <div className={`shrink-0 px-4 py-2.5 flex items-center justify-between gap-3 ${TONE.moving.bg}`}>
+            <p className={`min-w-0 truncate text-sm font-semibold tabular-nums ${TONE.moving.text}`}>
+              Adding to #{addTarget.orderNumber}
+              {' · '}{addTarget.contact.name || 'Walk-in'}
+              {' · '}{addTarget.paymentState === 'paid' || (addTarget.balanceDue ?? 0) <= 0
+                ? `paid ${formatGHS(addTarget.total)}`
+                : `owes ${formatGHS(addTarget.balanceDue ?? 0)}`}
+            </p>
+            <button
+              type="button"
+              onClick={() => { clearCart(); stopAdding(); }}
+              className={`shrink-0 min-h-11 px-3 rounded-xl text-sm font-semibold bg-white/70 hover:bg-white transition-colors ${TONE.moving.text}`}
+            >
+              Stop adding
+            </button>
+          </div>
+        )}
+
         {/* Category Tabs */}
         <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15 bg-white">
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
@@ -1227,7 +1260,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
         <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ReceiptIcon className="w-5 h-5 text-primary" />
-            <span className="font-medium text-text-dark">Current Order</span>
+            <span className="font-medium text-text-dark">{addTarget ? `Adding to #${addTarget.orderNumber}` : 'Current Order'}</span>
             {cartCount > 0 && (
               <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-xs font-medium">
                 {cartCount}
@@ -1258,7 +1291,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
             pickup or delivery, the only two a phone order has — and all that is
             left here is the fee that follows from choosing delivery. */}
         <div className={`shrink-0 px-4 py-3 border-b border-neutral-gray/15 ${
-          isRemoteOrder && orderType !== 'delivery' ? 'hidden' : ''
+          (isRemoteOrder && orderType !== 'delivery') || addTarget ? 'hidden' : ''
         }`}>
           <div className={`flex gap-2 ${isRemoteOrder ? 'hidden' : ''}`}>
             {/* Map POS order types to DB keys: dine_in→dine_in, takeaway→pickup */}
@@ -1338,7 +1371,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
             and number move to the top bar. That is why it stays on
             isCompanyWide while everything else here reads isRemoteOrder — this
             is the control, not the consequence. */}
-        {isCompanyWide && (
+        {isCompanyWide && !addTarget && (
           <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15">
             <p className="text-[10px] font-bold text-neutral-gray uppercase tracking-wider mb-2">
               How did this order come in?
@@ -1365,7 +1398,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
 
         {/* Customer Info — in the panel for a till, in the top bar for the call
             centre, who are typing it while the caller is talking. */}
-        <div className={`shrink-0 px-4 py-3 border-b border-neutral-gray/15 space-y-2 ${isRemoteOrder ? 'hidden' : ''}`}>
+        <div className={`shrink-0 px-4 py-3 border-b border-neutral-gray/15 space-y-2 ${isRemoteOrder || addTarget ? 'hidden' : ''}`}>
           <div className="relative">
             <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
             <input
@@ -1450,8 +1483,9 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
           )}
         </div>
 
-        {/* Promo code and notes (collapsible, kept minimal) */}
-        {cart.length > 0 && (
+        {/* Promo code and notes (collapsible, kept minimal). Not for a round:
+            it takes no promo. */}
+        {cart.length > 0 && !addTarget && (
           <div className="shrink-0 px-4 py-2 border-t border-neutral-gray/15">
             <button
               onClick={() => setShowCode(!showCode)}
@@ -1539,19 +1573,19 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
 
         {/* Total & Pay Button */}
         <div className="shrink-0 p-4 border-t border-neutral-gray/20 bg-neutral-light">
-          {(promoDiscount > 0 || currentDeliveryFee > 0) ? (
+          {(appliedDiscount > 0 || currentDeliveryFee > 0) ? (
             <>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-neutral-gray text-sm">Subtotal</span>
                 <span className="text-sm text-neutral-gray">{formatGHS(cartTotal)}</span>
               </div>
-              {activePromo && promoDiscount > 0 && (
+              {activePromo && appliedDiscount > 0 && (
                 <div className="flex items-center justify-between mb-1">
                   <span className="flex items-center gap-1.5 text-secondary text-sm">
                     <TagIcon size={12} weight="fill" />
                     {activePromo.name}
                   </span>
-                  <span className="text-secondary text-sm font-semibold">-{formatGHS(promoDiscount)}</span>
+                  <span className="text-secondary text-sm font-semibold">-{formatGHS(appliedDiscount)}</span>
                 </div>
               )}
               {currentDeliveryFee > 0 && (
@@ -1593,7 +1627,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
 
           <button
             onClick={openPayment}
-            disabled={cart.length === 0 || !customerName.trim() || !isValidGhanaPhone(customerPhone)}
+            disabled={cart.length === 0 || (!addTarget && (!customerName.trim() || !isValidGhanaPhone(customerPhone)))}
             className="
               w-full h-14 rounded-2xl font-semibold text-lg
               bg-primary text-brown
@@ -1652,6 +1686,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
           onClose={closePayment}
           onPayment={handlePaymentComplete}
           isManualEntry={isManualEntry}
+          isAdding={addTarget != null}
           branchPaymentMethods={branchInfo?.paymentMethods}
         />
       )}
@@ -1691,9 +1726,11 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
       {completedOrder && (
         <OrderSuccessModal
           order={completedOrder}
+          addedTo={roundSaleOf != null && roundSaleOf === completedOrder.id}
           branch={{ name: branchInfo?.name ?? 'CediBites', address: branchInfo?.address, phone: branchInfo?.phone }}
           onClose={() => {
             setCompletedOrder(null);
+            setRoundSaleOf(null);
             // Now, not at payment time. Clearing the branch mid-transaction
             // swapped the terminal for the branch picker and the confirmation
             // never got read.
@@ -1940,9 +1977,11 @@ interface PaymentModalProps {
   onPayment: (method: PaymentMethod, amountPaid?: number, momoNumber?: string, manualOpts?: { recordedAt: string; momoReference?: string; reason: string }) => void;
   isManualEntry?: boolean;
   branchPaymentMethods?: Record<string, { is_enabled: boolean }>;
+  /** Items added to an order (Phase 4b): cash, card, MoMo or Pay later, no No Charge. */
+  isAdding?: boolean;
 }
 
-function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentMethods }: PaymentModalProps) {
+function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentMethods, isAdding }: PaymentModalProps) {
   const { staffUser } = useStaffAuth();
   const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
@@ -2157,7 +2196,7 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
                   : [{ id: 'mobile_money' as PaymentMethod, label: 'MoMo', icon: DeviceMobileIcon }]
                 ),
                 { id: 'card' as PaymentMethod, label: 'Card', icon: CreditCardIcon },
-                ...(isAdmin
+                ...(isAdmin && !isAdding
                   ? [{ id: 'no_charge' as PaymentMethod, label: 'No Charge', icon: ProhibitIcon }]
                   : []
                 ),
@@ -2389,6 +2428,13 @@ interface OrderSuccessModalProps {
   order: Order;
   branch: { name: string; address?: string; phone?: string };
   onClose: () => void;
+  /**
+   * The sale was items added to this order (Phase 4b). `order` then holds the
+   * round's items and amount, and the order's own money state. Its receipt is
+   * the whole order's, printed from the Order Manager ticket or the Orders
+   * page, so nothing prints here.
+   */
+  addedTo?: boolean;
 }
 
 /**
@@ -2397,7 +2443,7 @@ interface OrderSuccessModalProps {
  */
 const SUCCESS_AUTO_CLOSE_MS = 5000;
 
-function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
+function OrderSuccessModal({ order, branch, onClose, addedTo = false }: OrderSuccessModalProps) {
   const { markPrinted } = useMarkReceiptPrinted();
 
   /**
@@ -2428,7 +2474,7 @@ function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
   // Never for an order still owing. Its paid receipt prints from the Orders
   // page once the money is in (D6); until then nothing says it was paid.
   const owes = order.isPaidLater === true && order.paymentState !== 'paid';
-  const printsHere = order.status === 'completed' && !owes;
+  const printsHere = order.status === 'completed' && !owes && !addedTo;
 
   const printAndRecord = () => {
     // The original for this sale, and the only one it will ever get from here.
@@ -2459,14 +2505,18 @@ function OrderSuccessModal({ order, branch, onClose }: OrderSuccessModalProps) {
         {/* Content */}
         <div className="px-6 pb-6">
           <h2 className="text-2xl font-bold text-text-dark mb-2">
-            {owes ? 'Order placed' : 'Payment Complete'}
+            {addedTo ? `Added to #${order.orderNumber}` : owes ? 'Order placed' : 'Payment Complete'}
           </h2>
           <p className={`text-neutral-gray ${owes ? 'mb-3' : 'mb-6'}`}>
-            Order #{order.orderNumber} has been placed
+            {addedTo
+              ? 'The kitchen gets the new items on a ticket of their own.'
+              : `Order #${order.orderNumber} has been placed`}
           </p>
           {owes && (
-            <span className={`inline-flex mb-6 px-3 py-1 rounded-full text-sm font-semibold ${TONE.waiting.bg} ${TONE.waiting.text}`}>
-              Not paid
+            <span className={`inline-flex mb-6 px-3 py-1 rounded-full text-sm font-semibold ${
+              order.paymentState === 'part_paid' ? `${TONE.partial.bg} ${TONE.partial.text}` : `${TONE.waiting.bg} ${TONE.waiting.text}`
+            }`}>
+              {order.paymentState === 'part_paid' ? 'Part paid' : 'Not paid'}
             </span>
           )}
 
@@ -2615,7 +2665,16 @@ function MomoWaitingModal({ order, onConfirmed, onTimeout, onCancel }: MomoWaiti
           if (session.status === 'confirmed') {
             clearInterval(poll);
             clearInterval(countdown);
-            handlersRef.current.onConfirmed({ ...order, paymentStatus: 'completed', isPaid: true, orderNumber: session.order?.order_number ?? order.orderNumber });
+            handlersRef.current.onConfirmed({
+              ...order,
+              // The order's own id once it exists. Until then the pending
+              // order carried the session token, and a round's confirmation
+              // is matched by the order's id (Phase 4b).
+              id: session.order?.id != null ? String(session.order.id) : order.id,
+              paymentStatus: 'completed',
+              isPaid: true,
+              orderNumber: session.order?.order_number ?? order.orderNumber,
+            });
           } else if (session.status === 'failed' || session.status === 'expired') {
             clearInterval(poll);
             clearInterval(countdown);

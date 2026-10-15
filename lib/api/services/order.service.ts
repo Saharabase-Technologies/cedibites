@@ -125,13 +125,19 @@ export const orderService = {
    * kitchen. It exists so any till can tell a receipt already handed over from
    * one that has never been printed.
    */
-  markReceiptPrinted: (id: number, source?: ReceiptPrintSource, slip?: 'kitchen'): Promise<{ data: Order }> => {
+  markReceiptPrinted: (id: number, source?: ReceiptPrintSource, slip?: 'kitchen' | 'bill', round?: number): Promise<{ data: Order }> => {
     // `source` says which screen the button was on. The server records it
     // alongside the print so "how was this available?" can be answered from the
     // log rather than by reading the frontend and guessing. `slip: 'kitchen'`
     // is a Pay later order's kitchen slip, which the server keeps out of the
     // receipt count so the paid receipt after it is still the original (D6).
-    return apiClient.post(`/employee/orders/${id}/receipt-printed`, { ...(source ? { source } : {}), ...(slip ? { slip } : {}) });
+    // `slip: 'bill'` is the bill of a table paying at the end, and `round` a
+    // round's own kitchen slip (Phase 4b). Neither is a receipt.
+    return apiClient.post(`/employee/orders/${id}/receipt-printed`, {
+      ...(source ? { source } : {}),
+      ...(slip ? { slip } : {}),
+      ...(round ? { round } : {}),
+    });
   },
 
   /** Take one part of what an order owes (D7). */

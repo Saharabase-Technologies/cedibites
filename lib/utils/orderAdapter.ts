@@ -73,6 +73,7 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
       notes: item.special_instructions,
       requiresPreparation: item.requires_preparation ?? true,
       category: item.menu_item?.category?.name ?? item.menu_item?.category as string | undefined,
+      round: item.round != null ? Number(item.round) : 1,
     };
   });
 

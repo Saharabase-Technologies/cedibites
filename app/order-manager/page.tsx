@@ -27,6 +27,7 @@ import { useOrderBoard } from '@/lib/hooks/useOrderBoard';
 import { useOrderAlerts } from '@/lib/hooks/useOrderAlerts';
 import { toast } from '@/lib/utils/toast';
 import { printReceipt } from '@/lib/utils/printReceipt';
+import { orderTickets, parseTicketId } from '@/lib/utils/orderRounds';
 import { useMarkReceiptPrinted } from '@/lib/api/hooks/useOrders';
 import apiClient from '@/lib/api/client';
 import type { Order } from '@/types/order';
@@ -89,7 +90,7 @@ export default function OrderManagerPage() {
 
   // ── Board ─────────────────────────────────────────────────────────────────
 
-  const { orders, isLoading, connection, pendingIds, stageSinceFor, moveOrder, removeOrder, refresh } =
+  const { orders, isLoading, connection, pendingIds, stageSinceFor, moveOrder, removeOrder, fullOrder, refresh } =
     useOrderBoard(effectiveBranchId);
 
   // Nothing may take this screen over while it is carrying tickets, and nothing
@@ -305,7 +306,7 @@ export default function OrderManagerPage() {
       removeOrder(order.id);
       setSelectedId((id) => (id === order.id ? null : id));
       try {
-        await apiClient.post(`/admin/orders/${order.id}/approve-cancel`);
+        await apiClient.post(`/admin/orders/${parseTicketId(order.id).orderId}/approve-cancel`);
         toast.success(`${order.orderNumber} cancelled`);
       } catch (err: unknown) {
         toast.error(err instanceof Error ? err.message : 'Could not cancel that order');
@@ -319,7 +320,7 @@ export default function OrderManagerPage() {
     async (order: Order) => {
       lockBoard();
       try {
-        await apiClient.post(`/admin/orders/${order.id}/reject-cancel`);
+        await apiClient.post(`/admin/orders/${parseTicketId(order.id).orderId}/reject-cancel`);
         toast.success(`${order.orderNumber} kept`);
       } catch (err: unknown) {
         toast.error(err instanceof Error ? err.message : 'Could not keep that order');
@@ -359,35 +360,62 @@ export default function OrderManagerPage() {
    * customer still has their receipt; the worst case is that the count is short.
    */
   const printOrder = useCallback(
-    (order: Order) => {
+    (ticket: Order) => {
       const branch = operableBranches.find((b) => b.id === effectiveBranchId);
+      // A round's ticket id is not the order's (Phase 4b). The server is
+      // always told the order's.
+      const { orderId, round } = parseTicketId(ticket.id);
 
       // A Pay later order gets its kitchen slip here, and only that: FOR THE
       // KITCHEN, NOT PAID, one copy (D5). Its paid receipt prints from the
-      // till's Orders page once the money is in (D6).
-      if (order.isPaidLater) {
-        void printReceipt(order, { name: branch?.name ?? 'CediBites', address: branch?.address }, { kind: 'kitchen' });
-        setPrintedIds((prev) => new Set(prev).add(order.id));
-        void markPrinted({ id: Number(order.id), source: 'order_manager', slip: 'kitchen' }).catch(() => {
+      // till's Orders page once the money is in (D6). A round's ticket prints
+      // a slip of that round's items alone.
+      if (ticket.isPaidLater) {
+        void printReceipt(ticket, { name: branch?.name ?? 'CediBites', address: branch?.address }, { kind: 'kitchen' });
+        setPrintedIds((prev) => new Set(prev).add(ticket.id));
+        void markPrinted({ id: Number(orderId), source: 'order_manager', slip: 'kitchen', round }).catch(() => {
           toast.error('Printed, but could not record it. It may still show as unprinted.');
         });
         return;
       }
 
+      // The customer's receipt is always the whole order, whichever ticket
+      // the press was on. Once one was printed, items added after it make
+      // this one the Updated Receipt (D31).
+      const whole = fullOrder(ticket.id) ?? ticket;
       void printReceipt(
-        order,
+        whole,
         { name: branch?.name ?? 'CediBites', address: branch?.address },
         // Two slips, one job, one press. The button is gone the moment this
-        // lands, so this screen can only ever produce the original; a second
-        // copy of it is a reprint and belongs to /pos/orders.
-        { kind: 'original', copies: 2 },
+        // lands, so this screen can only ever produce the original or the
+        // Updated Receipt; a second copy of either is a reprint and belongs to
+        // /pos/orders.
+        { kind: (whole.receiptPrintCount ?? 0) === 0 ? 'original' : 'updated', copies: 2 },
       );
-      setPrintedIds((prev) => new Set(prev).add(order.id));
-      void markPrinted({ id: Number(order.id), source: 'order_manager' }).catch(() => {
+      // One slip covers every ticket of the order.
+      setPrintedIds((prev) => {
+        const next = new Set(prev);
+        for (const t of orderTickets(whole)) next.add(t.id);
+        return next;
+      });
+      void markPrinted({ id: Number(orderId), source: 'order_manager' }).catch(() => {
         toast.error('Printed, but could not record it. It may still show as unprinted.');
       });
     },
-    [operableBranches, effectiveBranchId, markPrinted],
+    [operableBranches, effectiveBranchId, markPrinted, fullOrder],
+  );
+
+  /** Whether a ticket's printer has done its job, so its button can go. */
+  const ticketPrinted = useCallback(
+    (ticket: Order): boolean => {
+      if (printedIds.has(ticket.id)) return true;
+      if (ticket.roundNumber) {
+        const round = ticket.rounds?.find((r) => r.number === ticket.roundNumber);
+        return ticket.isPaidLater ? round?.kitchenSlipPrintedAt != null : round?.receiptPrintedAt != null;
+      }
+      return ticket.isPaidLater ? ticket.kitchenSlipPrintedAt != null : (ticket.receiptPrintCount ?? 0) > 0;
+    },
+    [printedIds],
   );
 
   // ── Move animation ────────────────────────────────────────────────────────
@@ -557,10 +585,7 @@ export default function OrderManagerPage() {
         isSelected={selectedId === order.id}
         isBusy={pendingIds.has(order.id)}
         isLocked={isLocked}
-        isPrinted={
-          printedIds.has(order.id)
-          || (order.isPaidLater ? order.kitchenSlipPrintedAt != null : (order.receiptPrintCount ?? 0) > 0)
-        }
+        isPrinted={ticketPrinted(order)}
         onSelect={select}
         onAdvance={advance}
         onPrint={printOrder}

@@ -93,10 +93,11 @@ export function useOrderChannel(branchId: string | null) {
 
         setOrders((prev) => {
           const rest = prev.filter((o) => o.id !== order.id);
-          if (TERMINAL_STATUSES.includes(order.status)) {
-            return rest;
-          }
-          return [...rest, order];
+          // An order served long ago stays while items added to it are still
+          // being made (Phase 4b).
+          const live = !TERMINAL_STATUSES.includes(order.status)
+            || (order.rounds ?? []).some((round) => !TERMINAL_STATUSES.includes(round.status));
+          return live ? [...rest, order] : rest;
         });
       });
 

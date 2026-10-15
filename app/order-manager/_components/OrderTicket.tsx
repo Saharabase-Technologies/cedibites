@@ -13,6 +13,7 @@ import {
 import type { Order, FulfillmentType } from '@/types/order';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { TONE } from '@/app/inventory/_components/status-tokens';
+import { roundLabel } from '@/lib/utils/orderRounds';
 import {
   STAGE,
   URGENCY_TEXT,
@@ -184,6 +185,13 @@ function OrderTicketBase({
             <p className="font-brand text-xl font-bold leading-none text-text-dark tabular-nums">
               {order.orderNumber}
             </p>
+            {/* Items added to an order already served: only the new items
+                are on this ticket (Phase 4b). */}
+            {order.roundNumber != null && (
+              <p className={`mt-1 inline-flex rounded-full px-2 py-0.5 font-body text-[11px] font-semibold tabular-nums ${TONE.moving.bg} ${TONE.moving.text}`}>
+                {roundLabel(order)}
+              </p>
+            )}
             {order.contact.name ? (
               <p className="mt-1 truncate font-body text-sm text-text-dark">{order.contact.name}</p>
             ) : (

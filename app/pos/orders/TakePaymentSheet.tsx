@@ -225,7 +225,9 @@ export default function TakePaymentSheet({ order, branchId, onClose, onPrintOrig
 
           {paid ? (
             <div className="px-5 py-5">
-              {(current.receiptPrintCount ?? 0) === 0 ? (
+              {/* The original, or the Updated Receipt when items were added
+                  after the last one (Phase 4b, D31). */}
+              {(current.receiptPrintCount ?? 0) === 0 || (current.rounds ?? []).some((round) => round.receiptPrintedAt == null) ? (
                 <button
                   type="button"
                   onClick={() => onPrintOriginal(current)}

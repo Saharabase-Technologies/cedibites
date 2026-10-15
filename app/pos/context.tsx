@@ -115,6 +115,16 @@ interface POSContextValue {
   isManualEntry: boolean;
   setIsManualEntry: (v: boolean) => void;
 
+  /**
+   * The order the basket is being added to, when it is (Phase 4b, D29). The
+   * next sale becomes a round of that order: its customer, dine-in, no promo.
+   * Set from the Orders page's Add items; cleared by the sale or by Stop
+   * adding.
+   */
+  addTarget: Order | null;
+  startAdding: (order: Order) => void;
+  stopAdding: () => void;
+
   // Order history (today)
   todayOrders: Order[];
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
@@ -164,6 +174,9 @@ export function POSProvider({ children }: POSProviderProps) {
 
   // Manual entry mode
   const [isManualEntry, setIsManualEntry] = useState(false);
+
+  // The order being added to (Phase 4b).
+  const [addTarget, setAddTarget] = useState<Order | null>(null);
 
   // OrderStore
   const {
@@ -418,6 +431,11 @@ export function POSProvider({ children }: POSProviderProps) {
     // Delivery fee only applies to delivery orders
     const effectiveDeliveryFee = orderType === 'delivery' && deliveryFee > 0 ? deliveryFee : 0;
 
+    // Items added to an order already placed are a round of it (Phase 4b).
+    // The server takes the customer and the table from that order, and gives
+    // the round no promo; it is sent the same here so nothing disagrees.
+    const adding = addTarget;
+
     // Build API request for checkout session
     const sessionData = {
       branch_id: Number(session?.branchId),
@@ -428,19 +446,22 @@ export function POSProvider({ children }: POSProviderProps) {
         unit_price: item.price,
         special_instructions: undefined as string | undefined,
       })),
-      fulfillment_type: orderType as string,
-      contact_name: customerName || 'Walk-in',
-      contact_phone: customerPhone ? normalizeGhanaPhone(customerPhone) : '0000000000',
+      fulfillment_type: adding ? 'dine_in' : orderType as string,
+      contact_name: adding ? adding.contact.name || 'Walk-in' : customerName || 'Walk-in',
+      contact_phone: adding
+        ? adding.contact.phone || '0000000000'
+        : customerPhone ? normalizeGhanaPhone(customerPhone) : '0000000000',
       payment_method: method,
       momo_number: momoNumber ? normalizeGhanaPhone(momoNumber) : undefined,
-      is_manual_entry: isManualEntry || undefined,
-      recorded_at: manualOpts?.recordedAt,
-      manual_entry_reason: manualOpts?.reason,
-      customer_notes: orderNotes || undefined,
-      promo_code: promo?.code || undefined,
-      delivery_fee: effectiveDeliveryFee > 0 ? effectiveDeliveryFee : undefined,
+      is_manual_entry: (!adding && isManualEntry) || undefined,
+      recorded_at: adding ? undefined : manualOpts?.recordedAt,
+      manual_entry_reason: adding ? undefined : manualOpts?.reason,
+      customer_notes: adding ? undefined : orderNotes || undefined,
+      promo_code: adding ? undefined : promo?.code || undefined,
+      delivery_fee: !adding && effectiveDeliveryFee > 0 ? effectiveDeliveryFee : undefined,
       // The channel, so the order is not filed as a walk-in at the counter.
       order_source: orderSource,
+      add_to_order_id: adding ? Number(adding.id) : undefined,
     };
 
     // 1. Create checkout session via API
@@ -481,7 +502,8 @@ export function POSProvider({ children }: POSProviderProps) {
       isPaid: csSession.status === 'confirmed' && !isPayLater,
       ...(isPayLater ? {
         isPaidLater: true,
-        paymentState: 'not_paid' as const,
+        // A round makes a paid order Part paid, not Not paid. The server says which.
+        paymentState: ((apiOrder as { payment_state?: Order['paymentState'] } | undefined)?.payment_state ?? 'not_paid'),
         balanceDue: Number((apiOrder as { balance_due?: number } | undefined)?.balance_due ?? csSession.total_amount),
         paymentParts: [],
       } : {}),
@@ -529,17 +551,35 @@ export function POSProvider({ children }: POSProviderProps) {
     // The sale goes on the cashier's shift on the server, when the payment is
     // recorded. The till used to send it from here, and skipped every MoMo
     // prompt sale (T12).
-    if (csSession.status === 'confirmed') {
+    //
+    // Not for a round: this object holds only the round's items, and the
+    // order it joins is already in the list. Refreshed instead.
+    if (csSession.status === 'confirmed' && !adding) {
       addLocalOrder(order);
+    } else if (adding) {
+      refreshOrders();
     }
 
     // Clear cart and reset manual entry mode
     clearCart();
     setIsPaymentOpen(false);
     if (isManualEntry) setIsManualEntry(false);
+    setAddTarget(null);
 
     return order;
-  }, [cart, customerName, customerPhone, orderNotes, orderType, orderSource, deliveryFee, session, branches, addLocalOrder, clearCart, isManualEntry]);
+  }, [cart, customerName, customerPhone, orderNotes, orderType, orderSource, deliveryFee, session, branches, addLocalOrder, clearCart, isManualEntry, addTarget, refreshOrders]);
+
+  // Adding to an order starts a fresh basket, and leaves the till's own
+  // details alone for the next new sale (Phase 4b).
+  const startAdding = useCallback((order: Order) => {
+    setCart([]);
+    setIsManualEntry(false);
+    setAddTarget(order);
+  }, []);
+
+  const stopAdding = useCallback(() => {
+    setAddTarget(null);
+  }, []);
 
   /**
    * Forget the branch so the next order has to name its own.
@@ -672,6 +712,9 @@ export function POSProvider({ children }: POSProviderProps) {
     processPayment,
     isManualEntry,
     setIsManualEntry,
+    addTarget,
+    startAdding,
+    stopAdding,
     todayOrders,
     updateOrderStatus,
     seedTestOrders,

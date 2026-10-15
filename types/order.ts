@@ -46,6 +46,29 @@ export interface PaymentPart {
 
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 
+/**
+ * Items added to an order after it was placed (Phase 4b, D29). Round 1 is the
+ * order as placed and is not listed. Each round has its own kitchen status, so
+ * it reaches the boards as its own ticket.
+ */
+export interface OrderRound {
+    id: number;
+    number: number;
+    status: OrderStatus;
+    /** Placed with Pay later. */
+    paidLater: boolean;
+    total: number;
+    addedBy?: string;
+    /** epoch ms */
+    addedAt: number;
+    /** When it entered its current status, epoch ms: a round's last move. */
+    stageChangedAt?: number;
+    /** When a customer's receipt listing this round was first printed. */
+    receiptPrintedAt?: number;
+    /** When this round's kitchen slip was first printed, on an order that owes. */
+    kitchenSlipPrintedAt?: number;
+}
+
 // ─── Sub-types ───────────────────────────────────────────────────────────────
 
 export interface OrderItem {
@@ -66,6 +89,8 @@ export interface OrderItem {
      */
     requiresPreparation?: boolean;
     category?: string;          // menu category for grouping
+    /** 1 for the order as placed, 2 onwards for an addition (Phase 4b). */
+    round?: number;
 }
 
 export interface OrderContact {
@@ -132,6 +157,16 @@ export interface Order {
     paymentParts?: PaymentPart[];
     /** When the kitchen slip of a Pay later order was first printed, epoch ms (D5). */
     kitchenSlipPrintedAt?: number;
+    /** When it last started owing, epoch ms. Absent when nothing is owed. */
+    owingSince?: number;
+    /** Items added after it was placed, round 2 onwards (Phase 4b). */
+    rounds?: OrderRound[];
+    /**
+     * Set only on a board ticket that stands for one round of an order. The
+     * ticket's id is then `${orderId}:r${n}`, its items and status the
+     * round's. See `lib/utils/orderRounds.ts`.
+     */
+    roundNumber?: number;
 
     // Items & pricing
     items: OrderItem[];
