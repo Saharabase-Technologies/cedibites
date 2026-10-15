@@ -106,6 +106,25 @@ export const useBranchCodePayments = (branchId?: number) => {
   });
 };
 
+/**
+ * Take a branch code payment no branch has yet, or send one that is not this
+ * branch's back. Either way the list is fetched again, since another till may
+ * have moved it first.
+ */
+export const useMoveBranchCodePayment = (branchId: number) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ paymentId, move }: { paymentId: number; move: 'take' | 'give-back' }) =>
+      move === 'take'
+        ? checkoutSessionService.posTakeBranchCodePayment(paymentId, branchId)
+        : checkoutSessionService.posGiveBackBranchCodePayment(paymentId, branchId),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['pos-branch-code-payments', branchId] });
+    },
+  });
+};
+
 /** Create a POS checkout session. */
 export const useCreatePosCheckoutSession = () => {
   const queryClient = useQueryClient();

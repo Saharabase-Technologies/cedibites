@@ -30,6 +30,18 @@ export interface BranchCodePayment {
   payer_number: string | null;
   payer_name: string | null;
   network_transaction_id: string | null;
+  /** No branch yet. It is on every till's list until a cashier takes it. */
+  shared: boolean;
+  /**
+   * Why it is on this till: an order with the payer's number and the amount,
+   * an order of the amount, the number's own history here, or a cashier took
+   * it. Null while shared, and on payments from before routing.
+   */
+  routed_by: 'number_amount' | 'amount' | 'history' | 'cashier' | null;
+  /** The order the rule matched, for number_amount and amount. */
+  order_number: string | null;
+  /** Who took it from the shared list. */
+  taken_by: string | null;
 }
 
 /**
@@ -128,6 +140,16 @@ export const checkoutSessionService = {
 
   posCheckBranchCodePayment: (branchId: number, transactionId: string): Promise<{ data: BranchCodePaymentCheck }> => {
     return apiClient.post('/pos/branch-code-payments/check', { branch_id: branchId, transaction_id: transactionId });
+  },
+
+  /** A payment no branch has yet is this branch's. Refused if another till took it first. */
+  posTakeBranchCodePayment: (paymentId: number, branchId: number): Promise<{ data: BranchCodePayment }> => {
+    return apiClient.post(`/pos/branch-code-payments/${paymentId}/take`, { branch_id: branchId });
+  },
+
+  /** A payment on this till is not this branch's. It goes back to every till's list. */
+  posGiveBackBranchCodePayment: (paymentId: number, branchId: number): Promise<{ data: BranchCodePayment }> => {
+    return apiClient.post(`/pos/branch-code-payments/${paymentId}/give-back`, { branch_id: branchId });
   },
 
   posGetStatus: (token: string): Promise<CheckoutSession> => {

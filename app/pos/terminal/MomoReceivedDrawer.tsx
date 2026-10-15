@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { XIcon, SpinnerIcon, ArrowClockwiseIcon } from '@phosphor-icons/react';
 import { formatGHS } from '@/lib/utils/currency';
 import { toast } from '@/lib/utils/toast';
@@ -12,13 +12,17 @@ import {
   type BranchCodePayment,
   type BranchCodePaymentCheck,
 } from '@/lib/api/services/checkout-session.service';
-import { useBranchCodePayments } from '@/lib/api/hooks/useCheckoutSession';
+import { useBranchCodePayments, useMoveBranchCodePayment } from '@/lib/api/hooks/useCheckoutSession';
 
 /*
  * The cashier rings a sale, often as cash, and the customer then pays by
  * dialling the branch code. This is where the cashier makes sure the money
  * arrived: today's payments as Hubtel confirms them, and a check of the
  * transaction ID on the customer's MoMo message.
+ *
+ * Hubtel does not say which branch a payment was for, so the server places
+ * each one by matching it to an order (D26, D35). The ones it cannot place
+ * are on every till's list until a cashier takes one.
  */
 
 /** Hubtel stamps payments in UTC, which is Ghana's time all year. */
@@ -46,6 +50,22 @@ function payerOf(name: string | null, number: string | null): string | null {
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 
+/** Why a payment is on this till, in the words the cashier checks it by. */
+function reasonOf(p: BranchCodePayment): string | null {
+  switch (p.routed_by) {
+    case 'number_amount':
+      return p.order_number ? `Order ${p.order_number}` : null;
+    case 'amount':
+      return p.order_number ? `Same amount as ${p.order_number}` : 'Same amount as an order here';
+    case 'history':
+      return 'This number orders here';
+    case 'cashier':
+      return p.taken_by ? `Taken by ${p.taken_by}` : 'Taken at this till';
+    default:
+      return null;
+  }
+}
+
 /**
  * A notice on the till as each payment lands. The first answer after the
  * till opens is taken as already seen, so a reload does not replay the day.
@@ -67,7 +87,8 @@ export function useMomoArrivals(branchId?: number): BranchCodePayment[] {
       if (known.current.has(p.id)) continue;
       known.current.add(p.id);
       const payer = payerOf(p.payer_name, p.payer_number);
-      toast.success(`MoMo received: ${formatGHS(p.amount)}${payer ? ` from ${payer}` : ''}`, { duration: 8000 });
+      const heading = p.shared ? 'MoMo received, branch not known' : 'MoMo received';
+      toast.success(`${heading}: ${formatGHS(p.amount)}${payer ? ` from ${payer}` : ''}`, { duration: 8000 });
     }
   }, [payments]);
 
@@ -90,7 +111,24 @@ export default function MomoReceivedDrawer({ branchId, branchName, isOpen, onClo
   const [result, setResult] = useState<BranchCodePaymentCheck | null>(null);
   const [checkError, setCheckError] = useState<string | null>(null);
 
+  const move = useMoveBranchCodePayment(branchId);
+  const [movingId, setMovingId] = useState<number | null>(null);
+
   if (!isOpen) return null;
+
+  const mine = payments?.filter(p => !p.shared) ?? [];
+  const shared = payments?.filter(p => p.shared) ?? [];
+
+  const runMove = (p: BranchCodePayment, kind: 'take' | 'give-back') => {
+    setMovingId(p.id);
+    move.mutate({ paymentId: p.id, move: kind }, {
+      onSuccess: () => toast.success(kind === 'take'
+        ? `${formatGHS(p.amount)} is now on this till.`
+        : `${formatGHS(p.amount)} sent back to Branch not known.`),
+      onError: err => toast.error((err as { message?: string }).message || 'That did not go through. Refresh and try again.'),
+      onSettled: () => setMovingId(null),
+    });
+  };
 
   const runCheck = async (e: FormEvent) => {
     e.preventDefault();
@@ -158,11 +196,36 @@ export default function MomoReceivedDrawer({ branchId, branchName, isOpen, onClo
             {result && <CheckResult result={result} branchName={branchName} />}
           </form>
 
+          {/* Payments no branch has yet: whichever till's customer it is takes it */}
+          {shared.length > 0 && (
+            <div className="border-t border-neutral-gray/15 px-5 pt-4 pb-6">
+              <h3 className="text-sm font-medium text-text-dark">Branch not known, {shared.length}</h3>
+              <p className="mt-0.5 mb-2 text-xs text-neutral-gray">
+                Hubtel did not say which branch these were paid to. Take the one your customer paid.
+              </p>
+              <ul className="divide-y divide-neutral-gray/15">
+                {shared.map(p => (
+                  <PaymentRow key={p.id} payment={p} reason={null}>
+                    <button
+                      type="button"
+                      onClick={() => runMove(p, 'take')}
+                      disabled={movingId !== null}
+                      className="min-h-11 px-4 rounded-xl text-sm font-semibold bg-primary text-brown hover:bg-primary-hover disabled:opacity-40 transition-colors flex items-center gap-2"
+                    >
+                      {movingId === p.id && <SpinnerIcon className="w-4 h-4 animate-spin" />}
+                      Take
+                    </button>
+                  </PaymentRow>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Today's list */}
           <div className="border-t border-neutral-gray/15 px-5 pt-4 pb-6">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-text-dark">
-                Today{payments && payments.length > 0 ? `, ${payments.length}` : ''}
+                Today{mine.length > 0 ? `, ${mine.length}` : ''}
               </h3>
               <button
                 type="button"
@@ -186,25 +249,24 @@ export default function MomoReceivedDrawer({ branchId, branchName, isOpen, onClo
               </p>
             )}
 
-            {payments?.length === 0 && (
-              <p className="py-6 text-sm text-center text-neutral-gray">No branch code payment has come in today.</p>
+            {payments && mine.length === 0 && (
+              <p className="py-6 text-sm text-center text-neutral-gray">No branch code payment has come in for this branch today.</p>
             )}
 
-            {payments && payments.length > 0 && (
+            {mine.length > 0 && (
               <ul className="divide-y divide-neutral-gray/15">
-                {payments.map(p => (
-                  <li key={p.id} className="py-3">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-lg font-semibold text-text-dark tabular-nums">{formatGHS(p.amount)}</span>
-                      <span className="text-sm text-neutral-gray tabular-nums">{timeOf(p.paid_at)}</span>
-                    </div>
-                    <p className="mt-0.5 text-sm text-text-dark tabular-nums">
-                      {payerOf(p.payer_name, p.payer_number) ?? 'Number not given'}
-                    </p>
-                    {p.network_transaction_id && (
-                      <p className="text-xs text-neutral-gray tabular-nums">ID {p.network_transaction_id}</p>
-                    )}
-                  </li>
+                {mine.map(p => (
+                  <PaymentRow key={p.id} payment={p} reason={reasonOf(p)}>
+                    <button
+                      type="button"
+                      onClick={() => runMove(p, 'give-back')}
+                      disabled={movingId !== null}
+                      className="min-h-11 px-3 -mr-3 rounded-xl text-sm font-medium text-neutral-gray hover:text-text-dark hover:bg-neutral-gray/10 disabled:opacity-40 transition-colors flex items-center gap-2"
+                    >
+                      {movingId === p.id && <SpinnerIcon className="w-4 h-4 animate-spin" />}
+                      Not ours
+                    </button>
+                  </PaymentRow>
                 ))}
               </ul>
             )}
@@ -212,6 +274,29 @@ export default function MomoReceivedDrawer({ branchId, branchName, isOpen, onClo
         </div>
       </div>
     </>
+  );
+}
+
+/** One payment in a list, with the one thing the cashier can do about it. */
+function PaymentRow({ payment: p, reason, children }: { payment: BranchCodePayment; reason: string | null; children: ReactNode }) {
+  const meta = [reason, p.network_transaction_id && `ID ${p.network_transaction_id}`].filter(Boolean).join(' · ');
+
+  return (
+    <li className="py-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-lg font-semibold text-text-dark tabular-nums">{formatGHS(p.amount)}</span>
+        <span className="text-sm text-neutral-gray tabular-nums">{timeOf(p.paid_at)}</span>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="mt-0.5 text-sm text-text-dark tabular-nums">
+            {payerOf(p.payer_name, p.payer_number) ?? 'Number not given'}
+          </p>
+          {meta && <p className="text-xs text-neutral-gray tabular-nums">{meta}</p>}
+        </div>
+        <div className="shrink-0">{children}</div>
+      </div>
+    </li>
   );
 }
 
@@ -256,7 +341,7 @@ function CheckResult({ result, branchName }: { result: BranchCodePaymentCheck; b
     warnings.push(`This payment was made on ${dayOf(result.paid_at)}, not today.`);
   }
   if (paid && result.branch && branchName && result.branch !== branchName) {
-    warnings.push(`It was paid to ${result.branch}, not this branch.`);
+    warnings.push(`It is on ${result.branch}'s till, not this one.`);
   }
   if (result.first_checked) {
     const { at, branch, by } = result.first_checked;
