@@ -17,7 +17,6 @@ import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { roleNeedsBranch } from '@/types/staff';
 import { useOperableBranches } from '@/lib/hooks/useOperableBranches';
 import { useOrderStream } from '@/lib/hooks/useOrderStream';
-import { getShiftService } from '@/lib/services/shifts/shift.service';
 import { checkoutSessionService } from '@/lib/api/services/checkout-session.service';
 import { normalizeGhanaPhone } from '@/app/lib/phone';
 
@@ -519,20 +518,11 @@ export function POSProvider({ children }: POSProviderProps) {
     };
 
     // Add to local order store for today's tracking (no API call - order already created via checkout session)
+    // The sale goes on the cashier's shift on the server, when the payment is
+    // recorded. The till used to send it from here, and skipped every MoMo
+    // prompt sale (T12).
     if (csSession.status === 'confirmed') {
       addLocalOrder(order);
-
-      // Track shift order
-      if (staffUser && staffUser.role !== 'kitchen' && staffUser.role !== 'rider') {
-        getShiftService()
-          .getActive(String(staffUser.id))
-          .then((shift) => {
-            if (shift) {
-              getShiftService().addOrder(shift.id, order.orderNumber, order.total).catch(() => {});
-            }
-          })
-          .catch(() => {});
-      }
     }
 
     // Clear cart and reset manual entry mode
@@ -541,7 +531,7 @@ export function POSProvider({ children }: POSProviderProps) {
     if (isManualEntry) setIsManualEntry(false);
 
     return order;
-  }, [cart, customerName, customerPhone, orderNotes, orderType, orderSource, deliveryFee, session, branches, addLocalOrder, clearCart, staffUser, isManualEntry]);
+  }, [cart, customerName, customerPhone, orderNotes, orderType, orderSource, deliveryFee, session, branches, addLocalOrder, clearCart, isManualEntry]);
 
   /**
    * Forget the branch so the next order has to name its own.

@@ -32,6 +32,29 @@ export interface StaffUser {
   must_reset_password?: boolean;
 }
 
+/** One method's money: what was taken, in how many payments. */
+export interface MoneyLine {
+  amount: number;
+  count: number;
+}
+
+/**
+ * What the signed-in person took today, by method, from the payments they
+ * took, whoever placed the order (D9). Never one mixed total. `momo` is the
+ * prompts Hubtel confirmed; `manual_momo` is references a cashier typed.
+ */
+export interface MyMoney {
+  /** The server's today, which a till with a wrong clock cannot shift. */
+  date: string;
+  money: {
+    cash: MoneyLine;
+    momo: MoneyLine;
+    manual_momo: MoneyLine;
+    card: MoneyLine;
+    other: MoneyLine;
+  };
+}
+
 export interface StaffLoginResponse {
   token: string;
   user: StaffUser;
@@ -118,6 +141,12 @@ export const staffService = {
       password,
       password_confirmation: password,
     });
+  },
+
+  /** The money the signed-in person took today, from the server's payments. */
+  myMoney: async (): Promise<MyMoney> => {
+    const response = await apiClient.get('/my-money') as unknown as { data: MyMoney };
+    return response.data;
   },
 
   /**

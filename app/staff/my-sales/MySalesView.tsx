@@ -20,6 +20,7 @@ import type { Order, PaymentMethod } from '@/types/order';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useMySalesOrders } from '@/app/staff/hooks/useStaffOrders';
+import { useMyMoney } from '@/lib/api/hooks/useMyMoney';
 import { formatGHS, formatDate } from './utils';
 import StatCard from './components/StatCard';
 import SourcePills from './components/SourcePills';
@@ -45,6 +46,7 @@ export default function MySalesView() {
     const { staffUser } = useStaffAuth();
     const { isLoading } = useOrderStore();
     const rawMySales = useMySalesOrders(staffUser?.id ?? '');
+    const { data: myMoney } = useMyMoney();
     const myOrders = useMemo(
         () => [...rawMySales].sort((a, b) => b.placedAt - a.placedAt),
         [rawMySales],
@@ -66,14 +68,22 @@ export default function MySalesView() {
     const totalRevenue = useMemo(() => activeOrders.filter(o => o.paymentMethod !== 'no_charge').reduce((s, o) => s + goodsRevenue(o), 0), [activeOrders]);
     const deliveryFeesCollected = useMemo(() => activeOrders.filter(o => o.paymentMethod !== 'no_charge').reduce((s, o) => s + (o.deliveryFee ?? 0), 0), [activeOrders]);
 
-    // Revenue breakdown by payment method (goods only, consistent with revenue above)
-    const paymentBreakdown = useMemo(() => {
-        const map: Record<string, number> = {};
-        activeOrders.forEach(o => {
-            map[o.paymentMethod] = (map[o.paymentMethod] ?? 0) + goodsRevenue(o);
-        });
-        return map;
-    }, [activeOrders]);
+    // The money this person took today, from the server's payments (D9): a
+    // payment they took on someone else's order counts here, and one somebody
+    // else took on their order does not. Staff count their cash against these.
+    // No Charge is not money. It is the value given away on their own orders.
+    const paymentBreakdown = useMemo((): Record<string, number> => {
+        const taken = myMoney?.money;
+        return {
+            cash: taken?.cash.amount ?? 0,
+            mobile_money: taken?.momo.amount ?? 0,
+            manual_momo: taken?.manual_momo.amount ?? 0,
+            card: taken?.card.amount ?? 0,
+            no_charge: activeOrders
+                .filter(o => o.paymentMethod === 'no_charge')
+                .reduce((s, o) => s + goodsRevenue(o), 0),
+        };
+    }, [myMoney, activeOrders]);
 
     const sourceBreakdown = useMemo(() => {
         const map: Record<string, number> = {};
@@ -157,7 +167,7 @@ export default function MySalesView() {
                 {visiblePaymentCards.length > 0 && (
                     <div className="mb-6">
                         <p className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-widest mb-3">
-                            Revenue Breakdown
+                            Money you took today
                         </p>
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                             {visiblePaymentCards.map(({ key, label, sub, icon: Icon }) => (
