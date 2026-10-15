@@ -1,13 +1,11 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { preload } from 'react-dom';
 import InventoryLayoutClient from './layout-client';
+import { GOOGLE_FONT_PRELOADS } from '../fonts/google-fonts-preload';
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-  weight: ['400', '500', '600', '700'],
-});
+// Inter is served from our own files with the other Google fonts, and
+// --font-inter is set in app/fonts/google-fonts.css. See
+// scripts/fetch-google-fonts.mjs.
 
 export const metadata: Metadata = {
   title: {
@@ -21,9 +19,12 @@ export const metadata: Metadata = {
 };
 
 export default function InventoryLayout({ children }: { children: React.ReactNode }) {
+  for (const href of GOOGLE_FONT_PRELOADS.inventory) {
+    preload(href, { as: 'font', type: 'font/woff2', crossOrigin: '' });
+  }
+
   return (
     <div
-      className={inter.variable}
       style={
         {
           '--font-family-brand': 'var(--font-inter), sans-serif',
