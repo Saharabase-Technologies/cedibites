@@ -93,6 +93,18 @@ export default function TakePaymentSheet({ order, branchId, onClose, onPrintOrig
   const { data: branchCode } = useBranchCodePayments(branchId);
   const unspent = (branchCode?.data ?? []).filter((p) => !p.linked_order_number && p.amount <= owed + 0.004);
 
+  // A branch code payment is put on the order only after the cashier has seen
+  // whose it is. A link cannot be undone, and the list can hold several of
+  // the same amount. Kept as an id, so a payment another till takes in the
+  // meantime drops out of the question rather than staying on screen.
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const confirming = unspent.find((p) => p.id === confirmId) ?? null;
+  const matchedElsewhere = confirming?.order_number && confirming.order_number !== current.orderNumber
+    ? confirming.routed_by === 'number_amount'
+      ? `Its number and amount match #${confirming.order_number}.`
+      : `Its amount matches #${confirming.order_number}.`
+    : null;
+
   const take = async (body: TakePaymentRequest, done: (change: number) => string) => {
     try {
       const res = await takePayment({ orderId: Number(order.id), body });
@@ -228,7 +240,7 @@ export default function TakePaymentSheet({ order, branchId, onClose, onPrintOrig
             </div>
           ) : (
             <div className="px-5 pt-4 pb-6 space-y-4">
-              <SegmentedTabs value={method} onChange={setMethod} options={METHOD_TABS} />
+              <SegmentedTabs value={method} onChange={(next) => { setMethod(next); setConfirmId(null); }} options={METHOD_TABS} />
 
               {method === 'cash' && (
                 <div className="space-y-3">
@@ -298,7 +310,65 @@ export default function TakePaymentSheet({ order, branchId, onClose, onPrintOrig
 
               {method === 'branch_code' && (
                 <div>
-                  {unspent.length === 0 ? (
+                  {confirming ? (
+                    <div className="rounded-2xl border border-neutral-gray/20 p-4 space-y-4">
+                      <div>
+                        <p className="text-sm text-neutral-gray">Put this payment on #{current.orderNumber}?</p>
+                        <p className="mt-1 text-3xl font-bold text-text-dark tabular-nums">{formatGHS(confirming.amount)}</p>
+                      </div>
+                      <dl className="space-y-2 text-sm">
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-neutral-gray">Paid by</dt>
+                          <dd className="text-right font-medium text-text-dark">{confirming.payer_name ?? 'Name not given'}</dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-neutral-gray">Number</dt>
+                          <dd className="text-right font-medium text-text-dark tabular-nums">
+                            {confirming.payer_number ? formatGhanaPhone(confirming.payer_number) : 'Not given'}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-neutral-gray">Paid at</dt>
+                          <dd className="text-right font-medium text-text-dark tabular-nums">{timeOf(new Date(confirming.paid_at).getTime())}</dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-neutral-gray">Order for</dt>
+                          <dd className="text-right font-medium text-text-dark tabular-nums">
+                            {[current.contact.name || 'Walk-in', current.contact.phone && formatGhanaPhone(current.contact.phone)].filter(Boolean).join(' · ')}
+                          </dd>
+                        </div>
+                      </dl>
+                      {matchedElsewhere && (
+                        <p className={`px-3 py-2 rounded-xl text-sm font-medium ${TONE.waiting.bg} ${TONE.waiting.text}`}>{matchedElsewhere}</p>
+                      )}
+                      <p className="text-xs text-neutral-gray">Once it is on the order, it cannot be moved.</p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setConfirmId(null)}
+                          disabled={taking}
+                          className="flex-1 min-h-12 rounded-xl text-sm font-semibold bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20 disabled:opacity-40 transition-colors"
+                        >
+                          Back
+                        </button>
+                        <button
+                          type="button"
+                          disabled={taking}
+                          onClick={async () => {
+                            await take(
+                              { method: 'branch_code', incoming_payment_id: confirming.id },
+                              () => `${formatGHS(confirming.amount)} by branch code is on #${current.orderNumber}.`,
+                            );
+                            setConfirmId(null);
+                          }}
+                          className="flex-2 min-h-12 rounded-xl text-sm font-semibold bg-primary text-brown hover:bg-primary-hover disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
+                        >
+                          {taking && <SpinnerIcon className="w-4 h-4 animate-spin" />}
+                          Yes, put it on #{current.orderNumber}
+                        </button>
+                      </div>
+                    </div>
+                  ) : unspent.length === 0 ? (
                     <p className="py-4 text-sm text-center text-neutral-gray">
                       No branch code payment of {formatGHS(owed)} or less has come in unused today.
                     </p>
@@ -316,7 +386,7 @@ export default function TakePaymentSheet({ order, branchId, onClose, onPrintOrig
                           <button
                             type="button"
                             disabled={taking}
-                            onClick={() => void take({ method: 'branch_code', incoming_payment_id: p.id }, () => `${formatGHS(p.amount)} by branch code is on #${current.orderNumber}.`)}
+                            onClick={() => setConfirmId(p.id)}
                             className="shrink-0 min-h-11 px-4 rounded-xl text-sm font-semibold bg-primary text-brown hover:bg-primary-hover disabled:opacity-40 transition-colors"
                           >
                             Use
