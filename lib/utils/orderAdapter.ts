@@ -1,6 +1,6 @@
 import type { Order as ApiOrder } from '@/types/api';
 import type { Order as UnifiedOrder, OrderItem, OrderStatus } from '@/types/order';
-import { orderMoneyFields } from '@/lib/utils/orderMoney';
+import { orderMoneyFields, placedUnpaid } from '@/lib/utils/orderMoney';
 import type { PaymentMethod } from '@/types/order';
 
 function mapApiPaymentMethod(api?: string): PaymentMethod {
@@ -49,8 +49,8 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
   const placedAt = new Date(apiOrder.created_at).getTime();
   const payment = apiOrder.payment ?? apiOrder.payments?.[0];
   const money = orderMoneyFields(apiOrder);
-  // A Pay later order is paid only when its payments cover it (D1).
-  const owesStill = money.isPaidLater && money.paymentState !== undefined && money.paymentState !== 'paid';
+  // A Pay later or split order is paid only when its payments cover it (D1, D41).
+  const owesStill = placedUnpaid(money) && money.paymentState !== undefined && money.paymentState !== 'paid';
 
   const items: OrderItem[] = (apiOrder.items ?? []).map((item) => {
     const sizeKey = deriveSizeKey(item);
@@ -84,7 +84,7 @@ export function apiOrderToUnifiedOrder(apiOrder: ApiOrder): UnifiedOrder {
     source: mapApiSource(apiOrder.order_source) ?? 'online',
     fulfillmentType: (apiOrder.order_type ?? 'delivery') as UnifiedOrder['fulfillmentType'],
     ...money,
-    paymentMethod: payment?.payment_method ? mapApiPaymentMethod(payment.payment_method) : money.isPaidLater ? 'pay_later' : mapApiPaymentMethod(undefined),
+    paymentMethod: payment?.payment_method ? mapApiPaymentMethod(payment.payment_method) : money.isPaidLater ? 'pay_later' : money.isSplitPayment ? 'split' : mapApiPaymentMethod(undefined),
     isPaid: owesStill ? false : payment?.payment_status === 'paid' || payment?.payment_status === 'completed',
     paymentStatus: owesStill ? 'pending' : (payment?.payment_status as UnifiedOrder['paymentStatus']) ?? 'pending',
     paymentId: payment?.id ? Number(payment.id) : undefined,

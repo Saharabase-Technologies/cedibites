@@ -484,7 +484,9 @@ export function POSProvider({ children }: POSProviderProps) {
     // 3. Map checkout session result to local Order type
     const apiOrder = csSession.order;
     // Placed with nothing paid (D1). The server confirms the order, not money.
+    // A split sale is placed the same way, and its parts follow at once (D41).
     const isPayLater = method === 'pay_later';
+    const placedUnpaid = isPayLater || method === 'split';
     const order: Order = {
       id: apiOrder ? String(apiOrder.id) : csSession.session_token,
       orderNumber: apiOrder?.order_number ?? csSession.session_token,
@@ -498,10 +500,11 @@ export function POSProvider({ children }: POSProviderProps) {
       source: isManualEntry ? 'manual_entry' : orderSource,
       fulfillmentType: orderType,
       paymentMethod: method,
-      paymentStatus: csSession.status === 'confirmed' && !isPayLater ? 'completed' : 'pending',
-      isPaid: csSession.status === 'confirmed' && !isPayLater,
-      ...(isPayLater ? {
-        isPaidLater: true,
+      paymentStatus: csSession.status === 'confirmed' && !placedUnpaid ? 'completed' : 'pending',
+      isPaid: csSession.status === 'confirmed' && !placedUnpaid,
+      ...(placedUnpaid ? {
+        isPaidLater: isPayLater,
+        isSplitPayment: !isPayLater,
         // A round makes a paid order Part paid, not Not paid. The server says which.
         paymentState: ((apiOrder as { payment_state?: Order['paymentState'] } | undefined)?.payment_state ?? 'not_paid'),
         balanceDue: Number((apiOrder as { balance_due?: number } | undefined)?.balance_due ?? csSession.total_amount),

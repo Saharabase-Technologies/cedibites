@@ -1,4 +1,4 @@
-import { orderMoneyFields } from '@/lib/utils/orderMoney';
+import { orderMoneyFields, placedUnpaid } from '@/lib/utils/orderMoney';
 import type { Order, OrderItem, Payment } from '@/types/api';
 
 export type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone' | 'Past Order';
@@ -268,9 +268,9 @@ export function mapApiOrderToOrder(api: any): import('@/types/order').Order {
 
   const primaryPayment = api.payments?.[0] ?? api.payment;
   const money = orderMoneyFields(api);
-  // A Pay later order is paid only when its payments cover it, whatever its
-  // first part says (D1).
-  const owesStill = money.isPaidLater && money.paymentState !== undefined && money.paymentState !== 'paid';
+  // A Pay later or split order is paid only when its payments cover it,
+  // whatever its first part says (D1, D41).
+  const owesStill = placedUnpaid(money) && money.paymentState !== undefined && money.paymentState !== 'paid';
 
   return {
     ...money,
@@ -279,7 +279,7 @@ export function mapApiOrderToOrder(api: any): import('@/types/order').Order {
     status: api.status ?? 'received',
     source: (api.order_source ?? 'pos') as import('@/types/order').OrderSource,
     fulfillmentType: (api.order_type ?? 'pickup') as import('@/types/order').FulfillmentType,
-    paymentMethod: (primaryPayment?.payment_method ?? (api.paid_later ? 'pay_later' : api.payment_method) ?? 'cash') as import('@/types/order').PaymentMethod,
+    paymentMethod: (primaryPayment?.payment_method ?? (api.paid_later ? 'pay_later' : api.split_payment ? 'split' : api.payment_method) ?? 'cash') as import('@/types/order').PaymentMethod,
     isPaid: owesStill ? false : primaryPayment?.payment_status === 'completed' || primaryPayment?.payment_status === 'no_charge',
     paymentStatus: (owesStill ? 'pending' : primaryPayment?.payment_status === 'completed' || primaryPayment?.payment_status === 'no_charge' ? 'completed' : primaryPayment?.payment_status ?? 'pending') as import('@/types/order').PaymentStatus,
     paymentId: primaryPayment?.id,

@@ -27,6 +27,7 @@ import {
   PrinterIcon,
   TagIcon,
   HourglassIcon,
+  ArrowsSplitIcon,
   WarningCircleIcon,
   HandCoinsIcon,
 } from '@phosphor-icons/react';
@@ -81,6 +82,8 @@ import PendingPaymentsDrawer from './PendingPaymentsDrawer';
 import MomoReceivedDrawer, { useMomoArrivals } from './MomoReceivedDrawer';
 import { useOnlineOrderArrivals } from '../hooks/useOnlineOrderArrivals';
 import { useMarkReceiptPrinted } from '@/lib/api/hooks/useOrders';
+import { stillOwes } from '@/lib/utils/orderMoney';
+import TakePaymentSheet from '../orders/TakePaymentSheet';
 import { isRemoteSource } from '@/lib/constants/order.constants';
 import { usePosCheckoutSessions } from '@/lib/api/hooks/useCheckoutSession';
 import { useMenuLiveUpdates } from '@/lib/api/hooks/useMenuLiveUpdates';
@@ -270,6 +273,9 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
   /** The order the last sale was added to, if it was a round (Phase 4b). */
   const [roundSaleOf, setRoundSaleOf] = useState<string | null>(null);
+  /** A split sale just placed, its parts being taken (D41). */
+  const [splitOrder, setSplitOrder] = useState<Order | null>(null);
+  const { markPrinted } = useMarkReceiptPrinted();
   const [pendingMomoOrder, setPendingMomoOrder] = useState<Order | null>(null);
   const [showCart, setShowCart] = useState(false);
   const [activePromo, setActivePromo] = useState<Promo | null>(null);
@@ -588,6 +594,10 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
       if (method === 'mobile_money' && order.paymentStatus === 'pending') {
         // RMP: show waiting UI — payment is pending customer USSD approval
         setPendingMomoOrder(order);
+      } else if (method === 'split') {
+        // Placed and in the kitchen. Its parts are taken now, on the sheet
+        // the Orders page uses for any order that owes (D41).
+        setSplitOrder(order);
       } else {
         setCompletedOrder(order);
       }
@@ -1739,6 +1749,36 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
         />
       )}
 
+      {/* A split sale: its parts, then its receipt from the same sheet (D42).
+          Closed with money still owed, the order waits on the Not paid list
+          like any other that owes (D43). */}
+      {splitOrder && session?.branchId && (
+        <TakePaymentSheet
+          key={splitOrder.id}
+          order={splitOrder}
+          branchId={Number(session.branchId)}
+          onClose={(latest) => {
+            setSplitOrder(null);
+            if (stillOwes(latest)) {
+              toast.info(`#${latest.orderNumber} still owes ${formatGHS(latest.balanceDue ?? 0)}. It is on the Not paid list on the Orders page.`);
+            }
+            resetBranchForNextOrder();
+          }}
+          onPrintOriginal={(paid) => {
+            void printReceipt(
+              paid,
+              { name: branchInfo?.name ?? 'CediBites', address: branchInfo?.address },
+              { kind: (paid.receiptPrintCount ?? 0) === 0 ? 'original' : 'updated', copies: 2 },
+            );
+            void markPrinted({ id: Number(paid.id), source: 'pos_terminal' }).catch(() => {
+              toast.error('Printed, but could not record it. The print count may be short.');
+            });
+            setSplitOrder(null);
+            resetBranchForNextOrder();
+          }}
+        />
+      )}
+
       {/* Background MoMo Payment Confirmed Overlay */}
       {backgroundConfirmedOrder && (
         <PaymentConfirmedOverlay
@@ -2095,6 +2135,8 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
       await onPayment('no_charge', undefined, undefined, manualOpts);
     } else if (selectedMethod === 'pay_later') {
       await onPayment('pay_later');
+    } else if (selectedMethod === 'split') {
+      await onPayment('split');
     } else {
       await onPayment('card', undefined, undefined, manualOpts);
     }
@@ -2200,19 +2242,24 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
                   ? [{ id: 'no_charge' as PaymentMethod, label: 'No Charge', icon: ProhibitIcon }]
                   : []
                 ),
-                // Not a way money arrives, so it sits on its own row. Everyone
-                // who can place an order can use it (D3). A recorded past
-                // order was paid at the time, so it is not offered there.
+                // Not ways money arrives, so they sit on their own row. Everyone
+                // who can place an order can use them (D3). A recorded past
+                // order was paid at the time, so neither is offered there.
+                // Split is a new sale's: added items are not split (D41).
+                ...(isManualEntry || isAdding
+                  ? []
+                  : [{ id: 'split' as PaymentMethod, label: 'Split', icon: ArrowsSplitIcon, row: true }]
+                ),
                 ...(isManualEntry
                   ? []
-                  : [{ id: 'pay_later' as PaymentMethod, label: 'Pay later', icon: HourglassIcon, wide: true }]
+                  : [{ id: 'pay_later' as PaymentMethod, label: 'Pay later', icon: HourglassIcon, row: true, wide: isAdding }]
                 ),
               ].filter(m => isMethodEnabled(m.id)).map(method => (
               <button
                 key={method.id}
                 onClick={() => setSelectedMethod(method.id)}
                 className={`
-                  ${'wide' in method && method.wide ? 'col-span-2 py-3 flex-row justify-center' : 'py-4 flex-col'}
+                  ${'row' in method && method.row ? `${method.wide ? 'col-span-2' : ''} py-3 flex-row justify-center` : 'py-4 flex-col'}
                   rounded-2xl flex items-center gap-2
                   transition-all duration-150
                   ${selectedMethod === method.id
@@ -2374,6 +2421,13 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
             </div>
           )}
 
+          {selectedMethod === 'split' && (
+            <div className="pt-2 text-center text-neutral-gray">
+              <p>The order goes to the kitchen now.</p>
+              <p className="text-xs mt-1 opacity-60">Take each part on the next screen: cash, card, MoMo or branch code.</p>
+            </div>
+          )}
+
           {selectedMethod === 'no_charge' && (
             <div className="pt-2 text-center text-neutral-gray">
               <p>Staff meal. No payment required.</p>
@@ -2411,7 +2465,9 @@ function PaymentModal({ total, onClose, onPayment, isManualEntry, branchPaymentM
               </>
             ) : (
               <>
-                {selectedMethod === 'pay_later' ? 'Send to the kitchen' : 'Confirm Payment'}
+                {selectedMethod === 'pay_later'
+                  ? 'Send to the kitchen'
+                  : selectedMethod === 'split' ? 'Send to the kitchen and take payment' : 'Confirm Payment'}
                 <CheckCircleIcon className="w-5 h-5" />
               </>
             )}

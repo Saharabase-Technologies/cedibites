@@ -100,6 +100,7 @@ export const PAYMENT_LABELS: Record<PaymentMethod, { short: string; full: string
     no_charge:    { short: 'No Charge', full: 'No Charge (Staff)' },
     manual_momo:  { short: 'Direct MoMo', full: 'Direct MoMo Transfer' },
     pay_later:    { short: 'Pay later', full: 'Pay later' },
+    split:        { short: 'Split', full: 'Split payment' },
 };
 
 // ─── Fulfillment labels ─────────────────────────────────────────────────────

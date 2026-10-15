@@ -13,6 +13,7 @@ import {
 import type { Order, FulfillmentType } from '@/types/order';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { TONE } from '@/app/inventory/_components/status-tokens';
+import { stillOwes } from '@/lib/utils/orderMoney';
 import { roundLabel } from '@/lib/utils/orderRounds';
 import {
   STAGE,
@@ -205,9 +206,9 @@ function OrderTicketBase({
               <FulfilmentIcon className="h-3.5 w-3.5" />
               {fulfilment.label}
             </span>
-            {/* Cooked before it is paid for (D4). The kitchen makes it all the
-                same; the badge is for whoever hands it over. */}
-            {order.isPaidLater && order.paymentState !== 'paid' && (
+            {/* Cooked before it is paid for (D4, D41). The kitchen makes it
+                all the same; the badge is for whoever hands it over. */}
+            {stillOwes(order) && (
               <span
                 className={`rounded-full px-2 py-0.5 font-body text-[11px] font-semibold ${
                   order.paymentState === 'part_paid'

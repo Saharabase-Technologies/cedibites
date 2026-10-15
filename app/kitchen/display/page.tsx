@@ -22,6 +22,7 @@ import {
   SignOutIcon,
 } from '@phosphor-icons/react';
 import { TONE } from '@/app/inventory/_components/status-tokens';
+import { stillOwes } from '@/lib/utils/orderMoney';
 import { roundLabel } from '@/lib/utils/orderRounds';
 
 // ─── Elapsed timer hook ────────────────────────────────────────────────────
@@ -107,8 +108,8 @@ function OrderCard({ order, playUrgent }: OrderCardProps) {
       <p className="text-xs font-bold uppercase tracking-widest text-black/40">
         {KDS_STAGE_LABELS[order.status] ?? order.status}
       </p>
-      {/* Cooked all the same (D4). Said so whoever hands it over knows. */}
-      {order.isPaidLater && order.paymentState !== 'paid' && (
+      {/* Cooked all the same (D4, D41). Said so whoever hands it over knows. */}
+      {stillOwes(order) && (
         <span
           className={`rounded-full px-3 py-1 text-xs font-bold ${
             order.paymentState === 'part_paid'

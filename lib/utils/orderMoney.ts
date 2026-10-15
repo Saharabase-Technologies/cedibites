@@ -3,6 +3,7 @@ import type { Order, OrderRound, OrderStatus, PaymentPart, PaymentState } from '
 /** The money fields of an OrderResource, as the API sends them. */
 interface ApiOrderMoney {
   paid_later?: boolean;
+  split_payment?: boolean;
   kitchen_slip_printed_at?: string | null;
   owing_since?: string | null;
   rounds?: Array<{
@@ -38,7 +39,7 @@ interface ApiOrderMoney {
  * An older payload without the fields reads as an ordinary order: not Pay
  * later, nothing owed recorded, no parts.
  */
-export function orderMoneyFields(api: unknown): Pick<Order, 'isPaidLater' | 'balanceDue' | 'paymentState' | 'paymentParts' | 'kitchenSlipPrintedAt' | 'owingSince' | 'rounds'> {
+export function orderMoneyFields(api: unknown): Pick<Order, 'isPaidLater' | 'isSplitPayment' | 'balanceDue' | 'paymentState' | 'paymentParts' | 'kitchenSlipPrintedAt' | 'owingSince' | 'rounds'> {
   const money = (api ?? {}) as ApiOrderMoney;
   const ms = (iso?: string | null) => (iso ? new Date(iso).getTime() : undefined);
 
@@ -69,6 +70,7 @@ export function orderMoneyFields(api: unknown): Pick<Order, 'isPaidLater' | 'bal
 
   return {
     isPaidLater: Boolean(money.paid_later),
+    isSplitPayment: Boolean(money.split_payment),
     balanceDue: money.balance_due != null ? Number(money.balance_due) : undefined,
     paymentState: money.payment_state ?? undefined,
     paymentParts: parts,
@@ -76,6 +78,20 @@ export function orderMoneyFields(api: unknown): Pick<Order, 'isPaidLater' | 'bal
     owingSince: ms(money.owing_since),
     rounds,
   };
+}
+
+/**
+ * Placed by staff before any money came in: Pay later, or a split sale whose
+ * parts are taken at the counter (D41). The boards and the till show such an
+ * order's Not paid or Part paid badge, and take its money on Take payment.
+ */
+export function placedUnpaid(order: Pick<Order, 'isPaidLater' | 'isSplitPayment'>): boolean {
+  return order.isPaidLater === true || order.isSplitPayment === true;
+}
+
+/** Placed unpaid and not yet covered: the order still owes. */
+export function stillOwes(order: Pick<Order, 'isPaidLater' | 'isSplitPayment' | 'paymentState'>): boolean {
+  return placedUnpaid(order) && order.paymentState !== 'paid';
 }
 
 /** Owes money: Not paid or Part paid. */

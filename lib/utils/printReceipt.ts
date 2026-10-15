@@ -165,8 +165,14 @@ function slipHTML(
   const inParts = paidParts.length > 1;
   const leftToPay = order.balanceDue ?? 0;
   // The second slip of an original is the cashier's. On a Pay later order it
-  // says so, and says the money came later (D2). The customer's never does.
-  const cashiersPaidLaterLine = !isKitchen && !isBill && copyIndex === 1 && order.isPaidLater === true;
+  // says so, and says the money came later (D2). On a split sale it says the
+  // money came in parts (D42). Paid later wins when both are true: it is the
+  // one somebody may need to look into. The customer's slip never says either.
+  const cashiersCopyLine = isKitchen || isBill || copyIndex !== 1
+    ? null
+    : order.isPaidLater === true
+      ? 'Paid later'
+      : order.isSplitPayment === true ? 'Split payment' : null;
   const payMode = paidParts.length === 1 ? paidParts[0].method : order.paymentMethod;
   // Numbered so a customer holding two slips for one order, or a supervisor
   // finding three in a drawer, can tell which came first and how many were run.
@@ -272,7 +278,7 @@ function slipHTML(
        items. Two labels for one fact is one label too many. -->
   <div class="kind">${sectionTitle}</div>
   ${roundLine ? `<div class="kind">${roundLine}</div>` : ''}
-  ${cashiersPaidLaterLine ? '<div class="kind">Cashier&#39;s copy · Paid later</div>' : ''}
+  ${cashiersCopyLine ? `<div class="kind">Cashier&#39;s copy · ${cashiersCopyLine}</div>` : ''}
   <table class="meta-table">
     <tr>
       <td class="label">${isKitchen || isBill ? 'Order No.:' : 'Receipt No.:'}</td>

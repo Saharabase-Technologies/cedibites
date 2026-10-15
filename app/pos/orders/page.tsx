@@ -53,6 +53,7 @@ import {
 } from '@/lib/constants/order.constants';
 import { formatGHS } from '@/lib/utils/currency';
 import { printReceipt } from '@/lib/utils/printReceipt';
+import { placedUnpaid, stillOwes } from '@/lib/utils/orderMoney';
 import { formatOrderLineItemSummary } from '@/lib/utils/orderItemDisplay';
 import { toast } from '@/lib/utils/toast';
 import type { Order } from '@/types/order';
@@ -99,7 +100,7 @@ const CHANNEL_BLURB: Record<Channel, string> = {
   mine: 'Orders you took at the till, or accepted from another channel',
   remote: 'Orders from the website, phone and WhatsApp',
   all: 'Every order taken at this branch today',
-  owing: 'Orders placed with Pay later and still owing',
+  owing: 'Orders that still owe money',
 };
 
 /**
@@ -371,7 +372,8 @@ export default function POSOrdersPage() {
   const [payTarget, setPayTarget] = useState<Order | null>(null);
 
   /**
-   * The paid receipt of a Pay later order, as the original, two slips (D6).
+   * The paid receipt of a Pay later order or a split sale, as the original,
+   * two slips (D6, D42).
    *
    * The one deliberate original on this screen (T9). The order's only paper
    * so far is its kitchen slip, which is not a receipt, so the server counts
@@ -391,8 +393,6 @@ export default function POSOrdersPage() {
     });
     setPayTarget(null);
   };
-
-  const owes = (o: Order) => o.isPaidLater === true && o.paymentState !== 'paid';
 
   /** Items were added since the last customer receipt was printed (Phase 4b). */
   const updatedReceiptDue = (o: Order) => (o.rounds ?? []).some((round) => round.receiptPrintedAt == null);
@@ -505,7 +505,7 @@ export default function POSOrdersPage() {
       cell: (o) => (
         <div className="flex flex-col items-end gap-1">
           <span className="font-bold text-text-dark text-[15px] whitespace-nowrap tabular-nums">{formatGHS(o.total)}</span>
-          {owes(o) && (
+          {stillOwes(o) && (
             <span
               className={`rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap tabular-nums ${
                 o.paymentState === 'part_paid' ? `${TONE.partial.bg} ${TONE.partial.text}` : `${TONE.waiting.bg} ${TONE.waiting.text}`
@@ -541,12 +541,13 @@ export default function POSOrdersPage() {
         //
         // A Pay later order owes its receipt to the money, not the pass: while
         // it owes, it takes payment here; once paid, its original prints here
-        // (D6). Its kitchen slip is not a receipt and never counts.
-        const takesPayment = owes(o);
+        // (D6). Its kitchen slip is not a receipt and never counts. A split
+        // sale is the same (D42).
+        const takesPayment = stillOwes(o);
         // Items added after the last receipt make the next one an Updated
         // Receipt, two slips, printed here like the original (Phase 4b, D31).
         const originalDue = !takesPayment && (
-          (o.isPaidLater === true && printCount === 0) || (printCount > 0 && updatedReceiptDue(o))
+          (placedUnpaid(o) && printCount === 0) || (printCount > 0 && updatedReceiptDue(o))
         );
         const canReprint = !takesPayment && !originalDue && (printCount > 0 || o.status === 'completed');
         const rowActions = [

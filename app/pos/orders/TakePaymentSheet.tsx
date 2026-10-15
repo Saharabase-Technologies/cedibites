@@ -52,7 +52,8 @@ function quickAmounts(owed: number): number[] {
 interface TakePaymentSheetProps {
   order: Order;
   branchId: number;
-  onClose: () => void;
+  /** Told what the sheet last heard, so the caller can say what is still owed. */
+  onClose: (latest: Order) => void;
   /** Print the paid receipt as the original, two slips (D6). */
   onPrintOriginal: (order: Order) => void;
 }
@@ -150,7 +151,7 @@ export default function TakePaymentSheet({ order, branchId, onClose, onPrintOrig
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/30" onClick={() => onClose(current)} />
 
       <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-200 motion-reduce:animate-none">
         <div className="shrink-0 px-5 py-4 border-b border-neutral-gray/20 flex items-center justify-between">
@@ -159,7 +160,7 @@ export default function TakePaymentSheet({ order, branchId, onClose, onPrintOrig
             <p className="text-xs text-neutral-gray truncate">#{current.orderNumber} · {current.contact.name || 'Walk-in'}</p>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => onClose(current)}
             className="w-11 h-11 rounded-xl bg-neutral-gray/10 flex items-center justify-center text-neutral-gray hover:bg-neutral-gray/20 transition-colors"
             title="Close"
           >

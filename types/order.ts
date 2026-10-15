@@ -24,8 +24,9 @@ export type OrderSource = 'online' | 'phone' | 'whatsapp' | 'social_media' | 'po
 export type FulfillmentType = 'delivery' | 'pickup' | 'dine_in' | 'takeaway';
 
 // pay_later is a way to finish a sale, not a way money arrives: the order is
-// placed with nothing paid (D1), and its payments come afterwards.
-export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'no_charge' | 'manual_momo' | 'pay_later';
+// placed with nothing paid (D1), and its payments come afterwards. split is
+// the same, with its parts taken at the counter straight away (D41).
+export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'no_charge' | 'manual_momo' | 'pay_later' | 'split';
 
 /** Whether an order's payments cover it. */
 export type PaymentState = 'not_paid' | 'part_paid' | 'paid';
@@ -149,6 +150,11 @@ export interface Order {
      * and the cashier's slip say "Paid later"; the customer's slip never does (D2).
      */
     isPaidLater?: boolean;
+    /**
+     * A new sale paid in parts at the counter (D41). Never cleared. Only the
+     * cashier's slip says "Split payment"; the customer's never does (D42).
+     */
+    isSplitPayment?: boolean;
     /** What is still owed on the goods. 0 once paid. */
     balanceDue?: number;
     /** From the payments on the server. Absent on an older payload. */

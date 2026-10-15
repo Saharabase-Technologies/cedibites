@@ -28,6 +28,7 @@ import { useOrderAlerts } from '@/lib/hooks/useOrderAlerts';
 import { toast } from '@/lib/utils/toast';
 import { printReceipt } from '@/lib/utils/printReceipt';
 import { orderTickets, parseTicketId } from '@/lib/utils/orderRounds';
+import { stillOwes } from '@/lib/utils/orderMoney';
 import { useMarkReceiptPrinted } from '@/lib/api/hooks/useOrders';
 import apiClient from '@/lib/api/client';
 import type { Order } from '@/types/order';
@@ -418,6 +419,14 @@ export default function OrderManagerPage() {
     [printedIds],
   );
 
+  /**
+   * A split sale prints nothing here while its parts are still coming in. It
+   * has no kitchen slip (D42), and its receipt waits for the last part, which
+   * the till prints from Take payment. Paid in full and still unprinted, it
+   * prints here like any order.
+   */
+  const waitsForParts = (ticket: Order): boolean => ticket.isPaidLater !== true && ticket.isSplitPayment === true && stillOwes(ticket);
+
   // ── Move animation ────────────────────────────────────────────────────────
   // Keyed on the whole board's shape, so a ticket changing column replays and a
   // poll that changes nothing does not.
@@ -585,7 +594,7 @@ export default function OrderManagerPage() {
         isSelected={selectedId === order.id}
         isBusy={pendingIds.has(order.id)}
         isLocked={isLocked}
-        isPrinted={ticketPrinted(order)}
+        isPrinted={ticketPrinted(order) || waitsForParts(order)}
         onSelect={select}
         onAdvance={advance}
         onPrint={printOrder}
