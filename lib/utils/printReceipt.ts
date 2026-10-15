@@ -608,8 +608,13 @@ export async function printReceipt(
     win.document.close();
     win.focus();
     await imagesReady(win);
+    // Closed when the print dialog is done with, never on the line after
+    // print(). Chrome's print() waits for the dialog. Edge's can return at
+    // once, and closing then took the dialog with it: it flashed and was gone,
+    // with no error (beta, 2026-10-15). A browser that never says it is done
+    // leaves the window open, which costs a click, not a receipt.
+    win.addEventListener('afterprint', () => win.close(), { once: true });
     win.print();
-    win.close();
   } catch (err) {
     console.error('[Receipt] Failed to generate receipt:', err);
     win.close();

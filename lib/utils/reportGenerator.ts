@@ -312,8 +312,10 @@ export function printReport(html: string): void {
   win.document.close();
   win.focus();
   setTimeout(() => {
+    // Closed once printing is done with, not straight after print(): in Edge
+    // that took the dialog away before anyone could press Print.
+    win.addEventListener('afterprint', () => win.close(), { once: true });
     win.print();
-    win.close();
   }, 400);
 }
 
