@@ -76,6 +76,13 @@ interface POSContextValue {
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
+  /**
+   * Bring the basket's prices into line with the menu just loaded, keyed by
+   * option id. Returns how many lines changed. The server charges the menu's
+   * price at the moment of the order, so a basket that kept an old price
+   * would quote the customer one figure and print another.
+   */
+  syncCartPrices: (prices: Map<number, number>) => number;
 
   // Order details
   customerName: string;
@@ -365,6 +372,21 @@ export function POSProvider({ children }: POSProviderProps) {
     ));
   }, [removeFromCart]);
 
+  const syncCartPrices = useCallback((prices: Map<number, number>) => {
+    const isStale = (item: POSCartItem) => {
+      const price = item.sizeId ? prices.get(Number(item.sizeId)) : undefined;
+      return price !== undefined && price !== item.price;
+    };
+
+    const stale = cart.filter(isStale).length;
+    if (stale === 0) return 0;
+
+    setCart(prev => prev.map(item =>
+      isStale(item) ? { ...item, price: prices.get(Number(item.sizeId)) as number } : item
+    ));
+    return stale;
+  }, [cart]);
+
   const clearCart = useCallback(() => {
     setCart([]);
     setCustomerName('');
@@ -635,6 +657,7 @@ export function POSProvider({ children }: POSProviderProps) {
     removeFromCart,
     updateQuantity,
     clearCart,
+    syncCartPrices,
     customerName,
     setCustomerName,
     customerPhone,

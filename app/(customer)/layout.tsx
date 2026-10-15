@@ -9,6 +9,7 @@ import BottomNav, { BottomNavSpacer } from '../components/layout/BottomNav';
 import CartDrawer from '../components/ui/CartDrawer';
 import AuthModal from '../components/ui/AuthModal';
 import SearchSheet from '../components/ui/SearchSheet';
+import { MenuLiveUpdates } from '../components/providers/MenuLiveUpdates';
 
 export const metadata: Metadata = {
   description: 'Browse and order authentic Ghanaian food from CediBites.',
@@ -99,6 +100,8 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
                             <AuthModal />
                             <SearchSheet />
                             <LocationSheet />
+                            {/* New prices reach an open menu and basket the moment they go live. */}
+                            <MenuLiveUpdates />
                         </CartProvider>
                     </MenuDiscoveryProvider>
                 </AuthProvider>
