@@ -68,6 +68,11 @@ export interface OrderRound {
     receiptPrintedAt?: number;
     /** When this round's kitchen slip was first printed, on an order that owes. */
     kitchenSlipPrintedAt?: number;
+    /** Its own cancel (D45): when it was asked for, and why. */
+    cancelRequestedAt?: number;
+    cancelRequestReason?: string;
+    /** When it was cancelled. Its lines stay on the order, struck through. */
+    cancelledAt?: number;
 }
 
 // ─── Sub-types ───────────────────────────────────────────────────────────────
@@ -165,6 +170,8 @@ export interface Order {
     kitchenSlipPrintedAt?: number;
     /** When it last started owing, epoch ms. Absent when nothing is owed. */
     owingSince?: number;
+    /** Paid more than it now costs, after a round was cancelled (D45). */
+    toGiveBack?: number;
     /** Items added after it was placed, round 2 onwards (Phase 4b). */
     rounds?: OrderRound[];
     /**

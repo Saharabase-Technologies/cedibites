@@ -30,6 +30,25 @@ export type TakePaymentRequest =
   | { method: 'branch_code'; incoming_payment_id: number }
   | { method: 'mobile_money'; amount: number; momo_number: string };
 
+/** A round with a cancel waiting, as the admin's Cancel requests page lists it. */
+export interface RoundCancelRequest {
+  id: number;
+  order_id: number;
+  order_number: string;
+  branch: string | null;
+  customer: string | null;
+  round: number;
+  status: string;
+  total: number;
+  paid_later: boolean;
+  added_by_name: string | null;
+  added_at: string | null;
+  reason: string | null;
+  requested_by_name: string | null;
+  requested_at: string | null;
+  items: Array<{ quantity: number; unit_price: number; name: string | null; option_snapshot: { display_name?: string | null; option_label?: string | null } | null }>;
+}
+
 export interface TakePaymentResult {
   payment_id: number;
   payment_status: string;
@@ -105,6 +124,35 @@ export const orderService = {
    */
   requestCancel: (id: number, reason: string): Promise<{ data: Order }> => {
     return apiClient.post(`/employee/orders/${id}/request-cancel`, { reason });
+  },
+
+  /** Ask for one round of added items to be cancelled (D45). Head office approves. */
+  requestRoundCancel: (orderId: number, roundId: number, reason: string): Promise<{ data: Order }> => {
+    return apiClient.post(`/employee/orders/${orderId}/rounds/${roundId}/request-cancel`, { reason });
+  },
+
+  /** Cancel one round outright, or approve or reject its request (admin, D45). */
+  cancelRound: (orderId: number, roundId: number, reason: string): Promise<{ data: Order }> => {
+    return apiClient.post(`/admin/orders/${orderId}/rounds/${roundId}/cancel`, { reason });
+  },
+  approveRoundCancel: (orderId: number, roundId: number): Promise<{ data: Order }> => {
+    return apiClient.post(`/admin/orders/${orderId}/rounds/${roundId}/approve-cancel`);
+  },
+  rejectRoundCancel: (orderId: number, roundId: number): Promise<{ data: Order }> => {
+    return apiClient.post(`/admin/orders/${orderId}/rounds/${roundId}/reject-cancel`);
+  },
+
+  /** Every round with a cancel waiting on head office, oldest first. */
+  getRoundCancelRequests: (): Promise<{ data: RoundCancelRequest[] }> => {
+    return apiClient.get('/admin/round-cancel-requests');
+  },
+
+  /**
+   * Record the cash handed back after a cancelled round left the order
+   * overpaid (D45). It counts against whoever hands it over.
+   */
+  giveBack: (orderId: number): Promise<{ data: { payment_id: number; given_back: number; order: Order } }> => {
+    return apiClient.post(`/pos/orders/${orderId}/give-back`);
   },
 
   /**

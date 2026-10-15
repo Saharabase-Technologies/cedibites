@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   BicycleIcon,
   CheckIcon,
@@ -15,6 +16,11 @@ import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { SOURCE_CONFIG, PAYMENT_LABELS } from '@/lib/constants/order.constants';
 import { STAGE, formatElapsed, type BoardStage } from './board.constants';
 import { useBoardClock } from './useBoardClock';
+import CancelOrderModal from '@/app/components/ui/CancelOrderModal';
+import { useRoundCancel } from '@/lib/api/hooks/useOrders';
+import { parseTicketId } from '@/lib/utils/orderRounds';
+import { roundCancelAsked } from '@/lib/utils/orderMoney';
+import { toast } from '@/lib/utils/toast';
 
 const FULFILMENT: Record<FulfillmentType, { icon: React.ElementType; label: string }> = {
   dine_in: { icon: ForkKnifeIcon, label: 'Dine In' },
@@ -69,6 +75,26 @@ export function OrderDetailSheet({
   const SourceIcon = source?.icon ?? StorefrontIcon;
   const isCancelReq = stage === 'cancel_requested';
 
+  // A round's own ticket can have its own cancel (D45): asked for here, and
+  // decided here by an admin, as an order's is.
+  const round = order.roundNumber != null ? order.rounds?.find((r) => r.number === order.roundNumber) : undefined;
+  const roundAsked = round ? roundCancelAsked(round) : false;
+  const roundCancellable = round != null && !roundAsked
+    && (isAdmin ? ['received', 'accepted', 'preparing', 'ready'] : ['received', 'accepted', 'preparing']).includes(round.status);
+  const [askingRoundCancel, setAskingRoundCancel] = useState(false);
+  const { requestRoundCancel, cancelRound, approveRoundCancel, rejectRoundCancel, isBusy: roundBusy } = useRoundCancel();
+  const roundIds = round ? { orderId: Number(parseTicketId(order.id).orderId), roundId: round.id } : null;
+
+  const decideRound = async (approve: boolean) => {
+    if (!roundIds || !round) return;
+    try {
+      await (approve ? approveRoundCancel(roundIds) : rejectRoundCancel(roundIds));
+      toast.success(approve ? `Round ${round.number} cancelled` : `Round ${round.number} carries on`);
+    } catch (err) {
+      toast.error((err as { message?: string }).message || 'That did not go through. Try again.');
+    }
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-neutral-card">
 
@@ -116,6 +142,17 @@ export function OrderDetailSheet({
 
       {/* Body */}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+
+        {roundAsked && round && (
+          <div className={`mb-4 rounded-xl p-3 ${STAGE.cancel_requested.bg}`}>
+            <p className={`font-body text-[11px] font-bold uppercase tracking-wide ${STAGE.cancel_requested.text}`}>
+              Cancel asked for round {round.number}
+            </p>
+            <p className={`mt-1 font-body text-sm ${STAGE.cancel_requested.text}`}>
+              {round.cancelRequestReason ?? 'No reason given'}
+            </p>
+          </div>
+        )}
 
         {isCancelReq && (
           <div className={`mb-4 rounded-xl p-3 ${tone.bg}`}>
@@ -227,7 +264,34 @@ export function OrderDetailSheet({
 
       {/* Action */}
       <footer className="shrink-0 border-t border-[#f0e8d8] p-3">
-        {isCancelReq ? (
+        {roundAsked ? (
+          isAdmin ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={roundBusy}
+                onClick={() => void decideRound(false)}
+                className="flex h-14 flex-1 items-center justify-center gap-2 rounded-xl border border-[#e3ddd0] bg-neutral-light font-body text-base font-bold text-text-dark transition-transform touch-manipulation active:scale-[0.97] disabled:opacity-50"
+              >
+                <XIcon weight="bold" className="h-5 w-5" />
+                Keep round
+              </button>
+              <button
+                type="button"
+                disabled={roundBusy}
+                onClick={() => void decideRound(true)}
+                className={`flex h-14 flex-1 items-center justify-center gap-2 rounded-xl font-body text-base font-bold transition-transform touch-manipulation active:scale-[0.97] disabled:opacity-50 ${STAGE.cancel_requested.action}`}
+              >
+                <ProhibitIcon weight="bold" className="h-5 w-5" />
+                Cancel round
+              </button>
+            </div>
+          ) : (
+            <p className={`rounded-xl py-4 text-center font-body text-sm font-semibold ${STAGE.cancel_requested.bg} ${STAGE.cancel_requested.text}`}>
+              Waiting for head office to decide
+            </p>
+          )
+        ) : isCancelReq ? (
           isAdmin ? (
             <div className="flex gap-2">
               <button
@@ -269,7 +333,35 @@ export function OrderDetailSheet({
             {tone.actionLabel}
           </button>
         ) : null}
+
+        {roundCancellable && round && (
+          <button
+            type="button"
+            disabled={roundBusy}
+            onClick={() => setAskingRoundCancel(true)}
+            className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl font-body text-sm font-semibold text-neutral-gray transition-colors hover:text-text-dark disabled:opacity-50"
+          >
+            <ProhibitIcon weight="bold" className="h-4 w-4" />
+            {isAdmin ? `Cancel round ${round.number}` : `Ask to cancel round ${round.number}`}
+          </button>
+        )}
       </footer>
+
+      {askingRoundCancel && round && roundIds && (
+        <CancelOrderModal
+          orderNumber={`${order.orderNumber} · round ${round.number}`}
+          theme="light"
+          context={isAdmin ? 'self' : 'staff'}
+          onCancel={() => setAskingRoundCancel(false)}
+          onConfirm={async (reason) => {
+            if (isAdmin) {
+              await cancelRound({ ...roundIds, reason: reason || 'Cancelled at the Order Manager' });
+            } else {
+              await requestRoundCancel({ ...roundIds, reason: reason || 'Asked at the Order Manager' });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

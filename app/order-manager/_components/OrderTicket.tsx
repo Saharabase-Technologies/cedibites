@@ -13,7 +13,7 @@ import {
 import type { Order, FulfillmentType } from '@/types/order';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { TONE } from '@/app/inventory/_components/status-tokens';
-import { stillOwes } from '@/lib/utils/orderMoney';
+import { roundCancelAsked, stillOwes } from '@/lib/utils/orderMoney';
 import { roundLabel } from '@/lib/utils/orderRounds';
 import {
   STAGE,
@@ -191,6 +191,12 @@ function OrderTicketBase({
             {order.roundNumber != null && (
               <p className={`mt-1 inline-flex rounded-full px-2 py-0.5 font-body text-[11px] font-semibold tabular-nums ${TONE.moving.bg} ${TONE.moving.text}`}>
                 {roundLabel(order)}
+              </p>
+            )}
+            {/* Held in the kitchen while head office decides (D45). */}
+            {order.rounds?.some((r) => r.number === order.roundNumber && roundCancelAsked(r)) && (
+              <p className={`mt-1 ml-1 inline-flex rounded-full px-2 py-0.5 font-body text-[11px] font-semibold ${TONE.waiting.bg} ${TONE.waiting.text}`}>
+                Cancel asked
               </p>
             )}
             {order.contact.name ? (
@@ -399,6 +405,8 @@ export const OrderTicket = memo(OrderTicketBase, (a, b) => {
     a.isPrinted === b.isPrinted &&
     x.paymentState === y.paymentState &&
     x.kitchenSlipPrintedAt === y.kitchenSlipPrintedAt &&
+    // A round's Cancel asked pill comes and goes with its request (D45).
+    (x.rounds ?? []).filter(roundCancelAsked).length === (y.rounds ?? []).filter(roundCancelAsked).length &&
     sameItems(x.items, y.items)
   );
 });

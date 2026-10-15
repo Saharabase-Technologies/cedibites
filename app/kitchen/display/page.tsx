@@ -22,7 +22,7 @@ import {
   SignOutIcon,
 } from '@phosphor-icons/react';
 import { TONE } from '@/app/inventory/_components/status-tokens';
-import { stillOwes } from '@/lib/utils/orderMoney';
+import { roundCancelAsked, stillOwes } from '@/lib/utils/orderMoney';
 import { roundLabel } from '@/lib/utils/orderRounds';
 
 // ─── Elapsed timer hook ────────────────────────────────────────────────────
@@ -96,6 +96,12 @@ function OrderCard({ order, playUrgent }: OrderCardProps) {
       {order.roundNumber != null && (
         <span className={`rounded-full px-3 py-1 text-xs font-bold tabular-nums ${TONE.moving.bg} ${TONE.moving.text}`}>
           {roundLabel(order)}
+        </span>
+      )}
+      {/* Held while head office decides whether it is cancelled (D45). */}
+      {order.rounds?.some((r) => r.number === order.roundNumber && roundCancelAsked(r)) && (
+        <span className={`rounded-full px-3 py-1 text-xs font-bold ${TONE.waiting.bg} ${TONE.waiting.text}`}>
+          Cancel asked
         </span>
       )}
       <p className="text-sm font-medium text-black/50 text-center truncate w-full">

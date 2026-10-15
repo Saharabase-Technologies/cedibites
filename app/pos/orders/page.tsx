@@ -37,6 +37,7 @@ import {
   useCancelOrder,
   useUpdateEmployeeOrderStatus,
   useMarkReceiptPrinted,
+  useRoundCancel,
 } from '@/lib/api/hooks/useOrders';
 import { useOrderStream, type ConnectionState } from '@/lib/hooks/useOrderStream';
 import type { EmployeeOrdersParams } from '@/lib/api/services/order.service';
@@ -53,10 +54,10 @@ import {
 } from '@/lib/constants/order.constants';
 import { formatGHS } from '@/lib/utils/currency';
 import { printReceipt } from '@/lib/utils/printReceipt';
-import { placedUnpaid, stillOwes } from '@/lib/utils/orderMoney';
+import { placedUnpaid, roundCancelAsked, stillOwes } from '@/lib/utils/orderMoney';
 import { formatOrderLineItemSummary } from '@/lib/utils/orderItemDisplay';
 import { toast } from '@/lib/utils/toast';
-import type { Order } from '@/types/order';
+import type { Order, OrderRound } from '@/types/order';
 import { roleOverseesOthers, type StaffRole } from '@/types/staff';
 
 /**
@@ -142,6 +143,10 @@ export default function POSOrdersPage() {
   const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
 
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  /** A round of added items to cancel on its own (D45). */
+  const [roundCancelTarget, setRoundCancelTarget] = useState<{ order: Order; round: OrderRound } | null>(null);
+  /** An order a cancelled round left overpaid, its cash being handed back (D45). */
+  const [giveBackTarget, setGiveBackTarget] = useState<Order | null>(null);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
@@ -149,6 +154,7 @@ export default function POSOrdersPage() {
   const { cancelOrder } = useCancelOrder();
   const { updateStatus } = useUpdateEmployeeOrderStatus();
   const { markPrinted } = useMarkReceiptPrinted();
+  const { requestRoundCancel, cancelRound, giveBack, isBusy: roundBusy } = useRoundCancel();
 
   useEffect(() => {
     if (isSessionLoaded && !isSessionValid) router.replace('/pos');
@@ -430,6 +436,17 @@ export default function POSOrdersPage() {
     && o.status !== 'completed'
     && o.status !== 'cancel_requested';
 
+  /**
+   * The rounds that can be cancelled on their own (D45): staff may ask until a
+   * round is ready, an admin may cancel it up to the pass. Not while the whole
+   * order is being cancelled, and not twice.
+   */
+  const cancellableRounds = (o: Order) => (o.status === 'cancelled' || o.status === 'cancel_requested')
+    ? []
+    : (o.rounds ?? []).filter((round) => !roundCancelAsked(round) && (isAdmin
+      ? ['received', 'accepted', 'preparing', 'ready'].includes(round.status)
+      : ['received', 'accepted', 'preparing'].includes(round.status)));
+
   // ── Columns ───────────────────────────────────────────────────────────────
 
   const columns: DataTableColumn<Order>[] = useMemo(() => [
@@ -514,6 +531,16 @@ export default function POSOrdersPage() {
               {o.paymentState === 'part_paid' ? `Part paid · ${formatGHS(o.balanceDue ?? 0)} left` : 'Not paid'}
             </span>
           )}
+          {(o.toGiveBack ?? 0) > 0 && (
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap tabular-nums ${TONE.waiting.bg} ${TONE.waiting.text}`}>
+              {formatGHS(o.toGiveBack ?? 0)} to give back
+            </span>
+          )}
+          {(o.rounds ?? []).some(roundCancelAsked) && (
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${TONE.waiting.bg} ${TONE.waiting.text}`}>
+              Cancel asked
+            </span>
+          )}
         </div>
       ),
     },
@@ -556,6 +583,12 @@ export default function POSOrdersPage() {
             icon: <PrinterIcon size={14} />,
             onClick: () => printBill(o),
           }] : []),
+          ...cancellableRounds(o).map((round) => ({
+            label: `${isAdmin ? 'Cancel' : 'Request cancel of'} round ${round.number} (${formatGHS(round.total)})`,
+            icon: <ProhibitIcon size={14} />,
+            onClick: () => setRoundCancelTarget({ order: o, round }),
+            destructive: true,
+          })),
           ...(canCancel(o) ? [{
             label: isAdmin ? 'Cancel order' : 'Request cancel',
             icon: <ProhibitIcon size={14} />,
@@ -565,6 +598,16 @@ export default function POSOrdersPage() {
         ];
         return (
           <div className="flex items-center justify-end gap-1.5">
+            {/* A cancelled round left more paid than the order costs (D45). */}
+            {(o.toGiveBack ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setGiveBackTarget(o); }}
+                className="flex items-center gap-1.5 px-3 h-9 rounded-xl bg-primary text-brown text-sm font-semibold hover:bg-primary-hover transition-colors cursor-pointer whitespace-nowrap"
+              >
+                Give back {formatGHS(o.toGiveBack ?? 0)}
+              </button>
+            )}
             {takesPayment && (
               <button
                 type="button"
@@ -786,6 +829,42 @@ export default function POSOrdersPage() {
         />
       )}
 
+      {roundCancelTarget && (
+        <CancelOrderModal
+          orderNumber={`${roundCancelTarget.order.orderNumber} · round ${roundCancelTarget.round.number}`}
+          theme="light"
+          context={isAdmin ? 'self' : 'staff'}
+          onCancel={() => setRoundCancelTarget(null)}
+          onConfirm={async (reason) => {
+            const ids = { orderId: Number(roundCancelTarget.order.id), roundId: roundCancelTarget.round.id };
+            if (isAdmin) {
+              await cancelRound({ ...ids, reason: reason || 'Cancelled at the till' });
+              toast.success(`Round ${roundCancelTarget.round.number} cancelled`);
+            } else {
+              await requestRoundCancel({ ...ids, reason: reason || 'Asked at the till' });
+              toast.success('Cancel request sent. Head office will approve or reject it.');
+            }
+          }}
+        />
+      )}
+
+      {giveBackTarget && (
+        <GiveBackDialog
+          order={giveBackTarget}
+          busy={roundBusy}
+          onClose={() => setGiveBackTarget(null)}
+          onConfirm={async () => {
+            try {
+              const res = await giveBack(Number(giveBackTarget.id));
+              toast.success(`${formatGHS(res.data.given_back)} given back on #${giveBackTarget.orderNumber}.`);
+              setGiveBackTarget(null);
+            } catch (err) {
+              toast.error((err as { message?: string }).message || 'That did not go through. Try again.');
+            }
+          }}
+        />
+      )}
+
       {cancelTarget && (
         <CancelOrderModal
           orderNumber={cancelTarget.orderNumber}
@@ -866,20 +945,46 @@ function Figure({ label, value, accent }: { label: string; value: string; accent
 }
 
 function OrderDetail({ order }: { order: Order }) {
+  const rounds = order.rounds ?? [];
+  // Items added later sit under their round, with its cancel if it has one
+  // (D45). A cancelled round stays on the list, struck through.
+  const groups = [1, ...rounds.map((round) => round.number)].map((n) => ({
+    n,
+    round: rounds.find((round) => round.number === n),
+    items: order.items.filter((item) => (item.round ?? 1) === n),
+  })).filter((group) => group.items.length > 0);
+
   return (
     <div className="px-4 py-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
       <div>
         <p className="text-neutral-gray text-[11px] font-bold uppercase tracking-wider mb-2">Items</p>
-        <ul className="space-y-1.5">
-          {order.items.map((item) => (
-            <li key={item.id} className="flex items-baseline justify-between gap-4 text-sm">
-              <span className="text-text-dark">{formatOrderLineItemSummary(item)}</span>
-              <span className="text-neutral-gray whitespace-nowrap">
-                {formatGHS(item.unitPrice * item.quantity)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        {groups.map(({ n, round, items }) => {
+          const cancelled = round?.status === 'cancelled';
+          return (
+            <div key={n} className={n > 1 ? 'mt-3' : ''}>
+              {round && (
+                <p className="flex items-center gap-2 text-neutral-gray text-xs mb-1.5">
+                  Round {round.number}{round.addedBy ? `, added by ${round.addedBy}` : ''}
+                  {cancelled ? (
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${TONE.neutral.bg} ${TONE.neutral.text}`}>Cancelled</span>
+                  ) : roundCancelAsked(round) ? (
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${TONE.waiting.bg} ${TONE.waiting.text}`}>Cancel asked</span>
+                  ) : null}
+                </p>
+              )}
+              <ul className="space-y-1.5">
+                {items.map((item) => (
+                  <li key={item.id} className={`flex items-baseline justify-between gap-4 text-sm ${cancelled ? 'line-through text-neutral-gray' : ''}`}>
+                    <span className={cancelled ? '' : 'text-text-dark'}>{formatOrderLineItemSummary(item)}</span>
+                    <span className="text-neutral-gray whitespace-nowrap tabular-nums">
+                      {formatGHS(item.unitPrice * item.quantity)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </div>
 
       <dl className="space-y-2.5 text-sm">
@@ -891,6 +996,49 @@ function OrderDetail({ order }: { order: Order }) {
         {order.contact.address && <DetailRow label="Address" value={order.contact.address} />}
       </dl>
     </div>
+  );
+}
+
+/**
+ * Cash handed back after a cancelled round left the order overpaid (D45).
+ * Whoever presses it is the one holding the drawer, so it counts against them.
+ */
+function GiveBackDialog({ order, busy, onClose, onConfirm }: {
+  order: Order;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const amount = formatGHS(order.toGiveBack ?? 0);
+  return (
+    <>
+      <div className="fixed inset-0 z-60 bg-black/40" onClick={busy ? undefined : onClose} />
+      <div className="fixed z-70 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-sm bg-white border border-[#f0e8d8] rounded-3xl p-6 shadow-2xl">
+        <p className="text-sm text-neutral-gray">#{order.orderNumber} · {order.contact.name || 'Walk-in'}</p>
+        <p className="mt-1 text-3xl font-bold text-text-dark tabular-nums">{amount}</p>
+        <p className="mt-3 text-sm text-text-dark">Hand this back to the customer in cash.</p>
+        <p className="mt-1 text-xs text-neutral-gray">It comes off the cash you are counted against.</p>
+        <div className="flex gap-2 mt-5">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="flex-1 min-h-12 rounded-xl text-sm font-semibold bg-neutral-gray/10 text-text-dark hover:bg-neutral-gray/20 disabled:opacity-40 transition-colors"
+          >
+            Back
+          </button>
+          <button
+            type="button"
+            onClick={() => void onConfirm()}
+            disabled={busy}
+            className="flex-2 min-h-12 rounded-xl text-sm font-semibold bg-primary text-brown hover:bg-primary-hover disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
+          >
+            {busy && <SpinnerIcon className="w-4 h-4 animate-spin" />}
+            I have handed back {amount}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 

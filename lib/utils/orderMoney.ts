@@ -17,7 +17,11 @@ interface ApiOrderMoney {
     updated_at?: string | null;
     receipt_printed_at?: string | null;
     kitchen_slip_printed_at?: string | null;
+    cancel_requested_at?: string | null;
+    cancel_request_reason?: string | null;
+    cancelled_at?: string | null;
   }>;
+  to_give_back?: number | string | null;
   balance_due?: number | string | null;
   payment_state?: PaymentState | null;
   payments?: Array<{
@@ -39,7 +43,7 @@ interface ApiOrderMoney {
  * An older payload without the fields reads as an ordinary order: not Pay
  * later, nothing owed recorded, no parts.
  */
-export function orderMoneyFields(api: unknown): Pick<Order, 'isPaidLater' | 'isSplitPayment' | 'balanceDue' | 'paymentState' | 'paymentParts' | 'kitchenSlipPrintedAt' | 'owingSince' | 'rounds'> {
+export function orderMoneyFields(api: unknown): Pick<Order, 'isPaidLater' | 'isSplitPayment' | 'balanceDue' | 'paymentState' | 'paymentParts' | 'kitchenSlipPrintedAt' | 'owingSince' | 'rounds' | 'toGiveBack'> {
   const money = (api ?? {}) as ApiOrderMoney;
   const ms = (iso?: string | null) => (iso ? new Date(iso).getTime() : undefined);
 
@@ -56,6 +60,9 @@ export function orderMoneyFields(api: unknown): Pick<Order, 'isPaidLater' | 'isS
     stageChangedAt: ms(r.updated_at),
     receiptPrintedAt: ms(r.receipt_printed_at),
     kitchenSlipPrintedAt: ms(r.kitchen_slip_printed_at),
+    cancelRequestedAt: ms(r.cancel_requested_at),
+    cancelRequestReason: r.cancel_request_reason ?? undefined,
+    cancelledAt: ms(r.cancelled_at),
   }));
 
   const parts: PaymentPart[] = (money.payments ?? []).map(p => ({
@@ -77,7 +84,18 @@ export function orderMoneyFields(api: unknown): Pick<Order, 'isPaidLater' | 'isS
     kitchenSlipPrintedAt: money.kitchen_slip_printed_at ? new Date(money.kitchen_slip_printed_at).getTime() : undefined,
     owingSince: ms(money.owing_since),
     rounds,
+    toGiveBack: Number(money.to_give_back ?? 0) || 0,
   };
+}
+
+/** The round numbers cancelled on their own (D45). Their lines were never sold. */
+export function cancelledRounds(order: Pick<Order, 'rounds'>): Set<number> {
+  return new Set((order.rounds ?? []).filter((r) => r.status === 'cancelled').map((r) => r.number));
+}
+
+/** A round still standing whose cancel is waiting on head office (D45). */
+export function roundCancelAsked(round: OrderRound): boolean {
+  return round.cancelRequestedAt != null && round.status !== 'cancelled';
 }
 
 /**

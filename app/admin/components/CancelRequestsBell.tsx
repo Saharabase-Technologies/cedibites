@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { BellIcon } from '@phosphor-icons/react';
 import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
+import { useRoundCancelRequests } from '@/lib/api/hooks/useOrders';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -12,7 +14,13 @@ export function CancelRequestsBell({ className }: { className?: string }) {
     per_page: 50,
   });
 
-  const count = rawOrders?.length ?? 0;
+  // Rounds asked to be cancelled on their own wait on the same page (D45).
+  // Only an admin can decide them, so only an admin's bell counts them.
+  const { staffUser } = useStaffAuth();
+  const isAdmin = staffUser?.role === 'admin' || staffUser?.role === 'tech_admin';
+  const { data: rounds } = useRoundCancelRequests(isAdmin);
+
+  const count = (rawOrders?.length ?? 0) + (rounds?.data?.length ?? 0);
 
   return (
     <Link

@@ -238,6 +238,60 @@ export const useUpdateEmployeeOrderStatus = () => {
   };
 };
 
+/**
+ * A round's own cancel and the cash handed back after it (D45). Every list
+ * of orders, the person's money and the admin's waiting list move with it.
+ */
+export const useRoundCancel = () => {
+  const queryClient = useQueryClient();
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['orders'] });
+    queryClient.invalidateQueries({ queryKey: ['employee-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['round-cancel-requests'] });
+    queryClient.invalidateQueries({ queryKey: ['my-money'] });
+  };
+
+  const request = useMutation({
+    mutationFn: ({ orderId, roundId, reason }: { orderId: number; roundId: number; reason: string }) =>
+      orderService.requestRoundCancel(orderId, roundId, reason),
+    onSuccess: refresh,
+  });
+  const cancel = useMutation({
+    mutationFn: ({ orderId, roundId, reason }: { orderId: number; roundId: number; reason: string }) =>
+      orderService.cancelRound(orderId, roundId, reason),
+    onSuccess: refresh,
+  });
+  const approve = useMutation({
+    mutationFn: ({ orderId, roundId }: { orderId: number; roundId: number }) => orderService.approveRoundCancel(orderId, roundId),
+    onSuccess: refresh,
+  });
+  const reject = useMutation({
+    mutationFn: ({ orderId, roundId }: { orderId: number; roundId: number }) => orderService.rejectRoundCancel(orderId, roundId),
+    onSuccess: refresh,
+  });
+  const giveBack = useMutation({
+    mutationFn: (orderId: number) => orderService.giveBack(orderId),
+    onSuccess: refresh,
+  });
+
+  return {
+    requestRoundCancel: request.mutateAsync,
+    cancelRound: cancel.mutateAsync,
+    approveRoundCancel: approve.mutateAsync,
+    rejectRoundCancel: reject.mutateAsync,
+    giveBack: giveBack.mutateAsync,
+    isBusy: request.isPending || cancel.isPending || approve.isPending || reject.isPending || giveBack.isPending,
+  };
+};
+
+/** Every round with a cancel waiting on head office (D45). */
+export const useRoundCancelRequests = (enabled = true) => useQuery({
+  queryKey: ['round-cancel-requests'],
+  queryFn: () => orderService.getRoundCancelRequests(),
+  enabled,
+  refetchInterval: 30_000,
+});
+
 export const useRequestCancel = () => {
   const queryClient = useQueryClient();
 

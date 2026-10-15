@@ -193,7 +193,7 @@ export default function TakePaymentSheet({ order, branchId, onClose, onPrintOrig
                   <li key={part.id} className="py-2.5 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className={`text-sm ${part.status === 'failed' ? 'text-neutral-gray line-through' : 'text-text-dark'}`}>
-                        {[PART_LABEL[part.method] ?? part.method, part.takenBy].filter(Boolean).join(', ')}
+                        {[part.amount < 0 ? 'Given back' : PART_LABEL[part.method] ?? part.method, part.takenBy].filter(Boolean).join(', ')}
                       </p>
                       <p className="text-xs text-neutral-gray tabular-nums">
                         {part.status === 'pending'

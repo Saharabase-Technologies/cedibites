@@ -23,6 +23,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/lib/api/client';
 import { toast } from '@/lib/utils/toast';
 import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
+import { useRoundCancel, useRoundCancelRequests } from '@/lib/api/hooks/useOrders';
+import type { RoundCancelRequest } from '@/lib/api/services/order.service';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -349,6 +351,9 @@ export default function CancelRequestsPage() {
                 </div>
             </div>
 
+            {/* Rounds of added items asked to be cancelled on their own (D45) */}
+            <RoundCancelRequests />
+
             {/* Table */}
             <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden mb-4">
                 {/* Desktop header */}
@@ -440,6 +445,80 @@ export default function CancelRequestsPage() {
             {selectedOrder && (
                 <CancelRequestDrawer order={selectedOrder} onClose={handleDrawerClose} />
             )}
+        </div>
+    );
+}
+
+// ─── Rounds ───────────────────────────────────────────────────────────────────
+
+/**
+ * Items added to an order after it was placed, asked to be cancelled without
+ * the rest of the order (D45). Approving takes the round's price off the
+ * order and gives its stock back. Money paid with it is refunded; money paid
+ * inside a bigger payment is handed back at the till.
+ */
+function RoundCancelRequests() {
+    const { data, isLoading } = useRoundCancelRequests();
+    const { approveRoundCancel, rejectRoundCancel, isBusy } = useRoundCancel();
+    const rounds = data?.data ?? [];
+
+    if (isLoading || rounds.length === 0) return null;
+
+    const decide = async (r: RoundCancelRequest, approve: boolean) => {
+        try {
+            await (approve ? approveRoundCancel : rejectRoundCancel)({ orderId: r.order_id, roundId: r.id });
+            toast.success(approve ? `Round ${r.round} of #${r.order_number} cancelled` : `Round ${r.round} of #${r.order_number} kept`);
+        } catch (err) {
+            toast.error((err as { message?: string }).message || 'That did not go through. Try again.');
+        }
+    };
+
+    return (
+        <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden mb-4">
+            <div className="px-4 py-3 border-b border-[#f0e8d8] bg-[#faf6f0]">
+                <p className="text-text-dark text-sm font-bold font-body">Added items to cancel</p>
+                <p className="text-neutral-gray text-xs font-body">{rounds.length} {rounds.length === 1 ? 'round' : 'rounds'} waiting</p>
+            </div>
+            {rounds.map((r, i) => (
+                <div
+                    key={`${r.order_id}-${r.round}`}
+                    className={`px-4 py-3.5 flex flex-col md:flex-row md:items-center gap-3 ${i < rounds.length - 1 ? 'border-b border-[#f0e8d8]' : ''}`}
+                >
+                    <div className="min-w-0 flex-1">
+                        <p className="text-text-dark text-sm font-bold font-body tabular-nums">
+                            #{r.order_number} · round {r.round}
+                            <span className="ml-2 text-neutral-gray text-xs font-normal">{r.branch ?? ''}{r.customer ? ` · ${r.customer}` : ''}</span>
+                        </p>
+                        <p className="text-text-dark text-xs font-body mt-0.5 truncate">
+                            {r.items.map((item) => `${item.quantity}× ${getOrderItemLineLabel({ name: item.name ?? 'Item', sizeLabel: item.option_snapshot?.display_name ?? item.option_snapshot?.option_label ?? undefined })}`).join(', ')}
+                        </p>
+                        <p className="text-neutral-gray text-xs font-body italic mt-0.5">
+                            {r.reason ? `"${r.reason}"` : 'No reason given'}
+                            {r.requested_by_name ? `, asked by ${r.requested_by_name}` : ''}
+                            {r.requested_at ? ` ${timeAgo(r.requested_at)}` : ''}
+                        </p>
+                    </div>
+                    <span className="text-text-dark text-sm font-bold font-body tabular-nums shrink-0">{formatGHS(r.total)}</span>
+                    <div className="flex gap-2 shrink-0">
+                        <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => void decide(r, false)}
+                            className="min-h-11 px-3 rounded-xl bg-neutral-light text-text-dark text-sm font-medium font-body hover:bg-[#f0e8d8] transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                            Keep round
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => void decide(r, true)}
+                            className="min-h-11 px-3 rounded-xl bg-error text-white text-sm font-medium font-body hover:bg-error/90 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                            Cancel round
+                        </button>
+                    </div>
+                </div>
+            ))}
         </div>
     );
 }

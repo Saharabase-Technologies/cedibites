@@ -5,6 +5,7 @@ import { getOrderItemLineLabel } from '@/lib/utils/orderItemDisplay';
 import { RECEIPT_LOGO_DATA_URI } from '@/lib/utils/receiptLogo';
 import { serverNow } from '@/lib/utils/serverClock';
 import { roundLabel } from '@/lib/utils/orderRounds';
+import { cancelledRounds } from '@/lib/utils/orderMoney';
 
 export interface ReceiptBranch {
   name: string;
@@ -95,7 +96,8 @@ function timeOf(ms: number): string {
 function paymentsBlock(parts: PaymentPart[], leftToPay: number, withLeftToPay = true): string {
   const lines = parts.map((part) => {
     const when = part.paidAt ? timeOf(part.paidAt) : '';
-    const how = [partLabel[part.method] ?? part.method, part.takenBy].filter(Boolean).join(', ');
+    // Cash handed back after a round was cancelled is a negative part (D45).
+    const how = [part.amount < 0 ? 'Given back' : partLabel[part.method] ?? part.method, part.takenBy].filter(Boolean).join(', ');
     const shown = part.tendered ?? part.amount;
     return `<tr><td colspan="3">${escapeHtml([when, how].filter(Boolean).join('  '))}</td><td class="amount">${shown.toFixed(2)}</td></tr>`;
   }).join('');
@@ -537,6 +539,11 @@ function receiptHTML(
   reprintNumber?: number,
   qrDataUrl?: string,
 ): string {
+  // A round cancelled on its own was never sold, so it is not on the paper
+  // (D45). The order's subtotal and total already leave it out.
+  const gone = cancelledRounds(order);
+  if (gone.size > 0) order = { ...order, items: order.items.filter((item) => !gone.has(item.round ?? 1)) };
+
   // Each copy is built on its own: the cashier's copy of a Pay later order
   // carries one line the customer's does not (D2).
   const slips = Array.from(
