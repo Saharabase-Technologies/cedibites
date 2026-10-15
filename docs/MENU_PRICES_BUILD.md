@@ -29,11 +29,11 @@ list: a handwritten note, then the printed menu marked up by hand.
 | Phase | What | State |
 |---|---|---|
 | 0 | Branches cut, plan written | Done 2026-10-15 |
-| 1 | Backend: drafts, publish, schedule, undo, live signal | Not started |
-| 2 | Backend: stage the October price list | Not started |
-| 3 | Frontend: the New prices page | Not started |
-| 4 | Frontend: tills and menus reload on the signal | Not started |
-| 5 | Check end to end on a local stack | Not started |
+| 1 | Backend: drafts, publish, schedule, undo, live signal | Done 2026-10-15. `202e94f` on the backend branch. Not pushed. |
+| 2 | Backend: stage the October price list | Done 2026-10-15. `6dd608f`. Not pushed. |
+| 3 | Frontend: the New prices page | Done 2026-10-15. `19058d9`. Not pushed. |
+| 4 | Frontend: tills and menus reload on the signal | Done 2026-10-15. `19058d9`. Not pushed. |
+| 5 | Check end to end on a local stack | Done 2026-10-15, but for the till's basket, which was checked by reading. See 5.2. |
 | 6 | Ship, stage the list on prod, owner presses the button | Not started |
 
 Branches, both cut 2026-10-15 with no upstream on purpose:
@@ -42,6 +42,10 @@ Branches, both cut 2026-10-15 with no upstream on purpose:
 - Backend: `feat/menu-price-publish`, off `origin/master` at `0cd79c2`, in the
   worktree `cedibites_api/menu-prices`. The main backend tree has unrelated
   uncommitted work on `fix/order-number-skips-deleted`. Do not touch it.
+
+Last updated: 2026-10-15, at the end of Phase 5. Next: Phase 6, with the
+owner's go. Ship the backend first: the page calls endpoints that only exist
+after it.
 
 ---
 
@@ -211,36 +215,36 @@ rest. The owner sees them on the page and can add a draft in seconds.
 
 ### Phase 1, backend
 
-- [ ] 1.1 Migration and models: `MenuDraft`, `MenuPublication`, `MenuPublicationChange`.
-- [ ] 1.2 `MenuPublisher`: publish, undo, cart repricing, the signal after commit.
-- [ ] 1.3 Controller, requests, routes under `permission:manage_menu`.
-- [ ] 1.4 `menu:publish-due` and its schedule line.
-- [ ] 1.5 Tests: drafts, publish now, scheduled publish, cancel, undo with a
+- [x] 1.1 Migration and models: `MenuDraft`, `MenuPublication`, `MenuPublicationChange`. `202e94f`
+- [x] 1.2 `MenuPublisher`: publish, undo, cart repricing, the signal after commit. `202e94f`
+- [x] 1.3 Controller and routes under `permission:manage_menu`. Validation is inline in `MenuPriceController`. `202e94f`
+- [x] 1.4 `menu:publish-due` and its schedule line. `202e94f`
+- [x] 1.5 Tests: drafts, publish now, scheduled publish, cancel, undo with a
       skipped value, new option created, dish off sale, cart repriced, a
-      manager refused.
+      manager refused. `tests/Feature/Menu/MenuPricePublishTest.php`, 18 pass. All 58 menu tests pass. `202e94f`, `6dd608f`
 
 ### Phase 2, the October list
 
-- [ ] 2.1 `menu:stage-october-prices` with `--dry-run`. Each line names the
-      value it expects today and skips with a warning when prod differs.
+- [x] 2.1 `menu:stage-october-prices` with `--dry-run`. Each line names the
+      value it expects today and skips with a warning when prod differs. `6dd608f`
 
 ### Phase 3, frontend page
 
-- [ ] 3.1 Types and `menuPrices.service.ts`.
-- [ ] 3.2 The page, the status card and the rows.
-- [ ] 3.3 Changes at publish (per dish).
-- [ ] 3.4 The review and the schedule.
-- [ ] 3.5 History and Undo.
+- [x] 3.1 Types and `menuPrices.service.ts`. `19058d9`
+- [x] 3.2 The page, the status card and the rows. `19058d9`
+- [x] 3.3 Names and options, per dish. `19058d9`
+- [x] 3.4 The review and the schedule. `19058d9`
+- [x] 3.5 History and Undo. `19058d9`
 
 ### Phase 4, live reload
 
-- [ ] 4.1 `menu.updated` listener, mounted on the till, the staff store and the customer layout.
-- [ ] 4.2 The till reprices its basket by option id.
+- [x] 4.1 `menu.updated` listener, mounted on the till, the staff layout and the customer layout. A socket reconnect reloads too. `19058d9`
+- [x] 4.2 The till reprices its basket by option id. `19058d9`. Checked by reading and `tsc`, not on a running till.
 
 ### Phase 5, check
 
-- [ ] 5.1 Backend tests green. `npm run lint:hooks` and `tsc` green.
-- [ ] 5.2 Local stack: stage, review, publish now, see a till reload, undo.
+- [x] 5.1 Backend tests green. `npm run lint:hooks`, `tsc` and eslint on the new files green.
+- [x] 5.2 Local stack, 2026-10-15, on a copy of the local database with prod's menu rows loaded: the dry run staged 34 of 34. The page showed them, set a time, then Go live now. A public socket client got `menu.updated`, and the branch's on-sale menu showed the new prices, the wings and one Banku dish in two sizes. Undo put every value back, the double-spaced Banku name included, and signalled again. Phone width has no sideways scroll.
 
 ### Phase 6, ship
 
@@ -275,3 +279,15 @@ rest. The owner sees them on the page and can add a draft in seconds.
 
 - 2026-10-15: the owner's chat answers changed twice before the printed menu
   settled them. When a marked-up menu exists, it wins.
+- 2026-10-15: the frontend had no `node_modules` (lost on 2026-10-14, see the
+  memory on `.next` links). `npm ci` restores it in about a minute.
+- 2026-10-15: the local database's menu is an old seeded copy, not unified,
+  with other names, so the staging command rightly skips every line there. To
+  test against the real menu, clone the local database
+  (`createdb -T cedibites_api cedibites_prices`, Postgres 18 is in
+  `C:/Program Files/PostgreSQL/18/bin`) and load prod's menu rows into the
+  clone with ids offset by 1000 and branches mapped 1, 3, 4 to 40, 41, 42.
+- 2026-10-15: when the Chrome extension is not connected, headless Edge over
+  CDP with Node 22's built-in WebSocket is enough to sign in and take shots.
+- 2026-10-15: `option()` cannot be a private helper on an Artisan command.
+  It clashes with `Command::option()` and the class will not load.
