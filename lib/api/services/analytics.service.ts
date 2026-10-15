@@ -207,7 +207,11 @@ export interface AdminStaffSalesRow {
   no_charge_count: number;
   card_total: number;
   card_count: number;
+  /** The money they took, every method but no charge (D44). */
   total_revenue: number;
+  /** What they rang up: their orders' first items and the rounds they added (D44). */
+  sales_total?: number;
+  rounds_added?: number;
 }
 
 // ─── Menu comparison ────────────────────────────────────────────────────────

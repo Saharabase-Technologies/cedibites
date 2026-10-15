@@ -49,6 +49,9 @@ interface StaffSalesRow {
     card_total: number;
     card_count: number;
     total_revenue: number;
+    /** What they rang up: their orders' first items and the rounds they added (D44). */
+    sales_total?: number;
+    rounds_added?: number;
 }
 
 // ─── Payment method config ────────────────────────────────────────────────────
@@ -190,14 +193,18 @@ export default function StaffSalesPage() {
                                     </div>
                                     <div>
                                         <p className="text-text-dark text-sm font-semibold font-body">{row.staff_name}</p>
-                                        <p className="text-neutral-gray text-xs font-body">
+                                        {/* Sales are theirs by who rang them up; the money below
+                                            by who took it (D44). */}
+                                        <p className="text-neutral-gray text-xs font-body tabular-nums">
                                             {row.total_orders} order{row.total_orders !== 1 ? 's' : ''}
+                                            {(row.rounds_added ?? 0) > 0 ? ` and ${row.rounds_added} added round${row.rounds_added !== 1 ? 's' : ''}` : ''}
+                                            {' · rang up '}{formatGHS(row.sales_total ?? 0)}
                                         </p>
                                     </div>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-primary text-lg font-bold font-body">{formatGHS(row.total_revenue)}</p>
-                                    <p className="text-neutral-gray text-[10px] font-body">total revenue</p>
+                                    <p className="text-neutral-gray text-[10px] font-body">money taken</p>
                                 </div>
                             </div>
 
