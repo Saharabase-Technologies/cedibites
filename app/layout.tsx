@@ -1,7 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import Script from 'next/script';
-import { Cabin, Caprasimo, Manrope, Montserrat } from 'next/font/google';
+import { preload } from 'react-dom';
 import localFont from 'next/font/local';
+// Caprasimo, Cabin, Manrope and Montserrat are served from our own files, not
+// fetched from Google at build time. See scripts/fetch-google-fonts.mjs for
+// why, and run it to change a font, a weight or a style.
+import "./fonts/google-fonts.css";
+import { GOOGLE_FONT_PRELOADS } from './fonts/google-fonts-preload';
 import "./globals.css";
 import { LocationProvider } from "./components/providers/LocationProvider";
 import { BranchProvider } from "./components/providers/BranchProvider";
@@ -13,28 +18,6 @@ import { FeedbackWidget } from "./components/feedback/feedback-widget";
 import { FEATURES } from "@/lib/constants/features";
 import { ThemeProvider } from "./components/providers/ThemeProvider";
 
-const caprasimo = Caprasimo({
-  weight: '400',
-  subsets: ['latin'],
-  variable: '--font-caprasimo',
-  display: 'swap',
-});
-
-const cabin = Cabin({
-  weight: ['400', '500', '600', '700'],
-  style: ['normal', 'italic'],
-  subsets: ['latin'],
-  variable: '--font-cabin',
-  display: 'swap',
-});
-
-const manrope = Manrope({
-  weight: ['400', '500', '600', '700', '800'],
-  subsets: ['latin'],
-  variable: '--font-manrope',
-  display: 'swap',
-});
-
 const abeezee = localFont({
   src: [
     { path: '../fonts/ABeeZee-Regular.ttf', weight: '400', style: 'normal' },
@@ -45,15 +28,10 @@ const abeezee = localFont({
 });
 
 // ── Customer brand faces ────────────────────────────────────────────────────
-// Montserrat stands in for Mont, the brand's body face. Only two demo weights
-// of Mont are licensed, so the full family is not shippable. Swap it here when
-// the licence lands: nothing else references the family by name.
-const montserrat = Montserrat({
-  weight: ['400', '500', '600', '700', '800'],
-  subsets: ['latin'],
-  variable: '--font-montserrat',
-  display: 'swap',
-});
+// Montserrat (in fonts/google-fonts.css) stands in for Mont, the brand's body
+// face. Only two demo weights of Mont are licensed, so the full family is not
+// shippable. Swap it when the licence lands: everything reads it through
+// --font-montserrat.
 
 // American Captain is all-caps and condensed. It carries the wordmark and
 // section headers on the customer side, never item names or body copy.
@@ -125,13 +103,18 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // The latin file of each font, as next/font preloaded them.
+  for (const href of GOOGLE_FONT_PRELOADS.root) {
+    preload(href, { as: 'font', type: 'font/woff2', crossOrigin: '' });
+  }
+
   return (
     // next-themes writes the `.dark` class onto <html> before paint, so the
     // hydration warning has to be suppressed here rather than on <body>.
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${cabin.variable} ${manrope.variable} ${caprasimo.variable} ${montserrat.variable} ${americanCaptain.variable} bg-bg antialiased`}
+      className={`${americanCaptain.variable} bg-bg antialiased`}
     >
       <body className={abeezee.variable}>
         <Script

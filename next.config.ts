@@ -20,6 +20,17 @@ const nextConfig: NextConfig = {
    * routing layer — a real 308 before any layout renders, rather than a page
    * that streams a client-side hop. Keeps existing partner bookmarks working.
    */
+  // The self-hosted Google font files are named by Google's own path, version
+  // included, so a file never changes under its name and can be kept a year,
+  // as the /_next/static/media copies next/font made were.
+  async headers() {
+    return [
+      {
+        source: '/fonts/google/:file*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+    ];
+  },
   async redirects() {
     return [
       { source: '/staff/partner', destination: '/partner/dashboard', permanent: true },
