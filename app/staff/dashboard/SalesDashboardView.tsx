@@ -1,217 +1,160 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
-import { CashRegisterIcon, ListIcon } from '@phosphor-icons/react';
-import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
-import { mapApiOrderToAdminOrder, mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
+import { ArrowRightIcon, CaretRightIcon, CashRegisterIcon } from '@phosphor-icons/react';
+import type { Order, OrderStatus } from '@/types/order';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
-import { STATUS_CONFIG } from '@/app/staff/orders/constants';
-import OrderDrawer from '@/app/staff/my-sales/components/OrderDrawer';
-import type { Order } from '@/types/order';
+import { useEmployeeOrders } from '@/lib/api/hooks/useEmployeeOrders';
+import { mapApiOrderToOrder } from '@/lib/api/adapters/order.adapter';
+import { formatGHS } from '@/lib/utils/currency';
+import { serverNow, serverToday } from '@/lib/utils/serverClock';
+import { DataTable, type DataTableColumn } from '@/app/inventory/_components';
+import { useMySalesOrders } from '@/app/staff/hooks/useStaffOrders';
+import { QuietRow } from '@/app/staff/_components/QuietRow';
+import { OrderStatusPill } from '@/app/staff/_components/OrderStatusPill';
+import { OpenedOrder, OPENED_PANEL, OPENED_ROW } from '@/app/staff/_components/OpenedOrder';
+import { dayLabel, firstName, goodsOf, paidBy, sourceLabel, timeOf } from '@/app/staff/_components/orderFormat';
+import { OWES } from '@/app/staff/_components/salesTones';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// The Dashboard, for sales staff (staff portal Section 6). Open POS leads, in
+// the full red. A quiet row says where the branch's food is, then the active
+// orders, each opening in place. The greeting and the day go by the server's
+// clock (D21).
 
-function startOfToday(): number {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+const WAITING: OrderStatus[] = ['received', 'accepted'];
+const PREPARING: OrderStatus[] = ['preparing'];
+const READY: OrderStatus[] = ['ready', 'ready_for_pickup', 'out_for_delivery'];
+const ACTIVE: OrderStatus[] = [...WAITING, ...PREPARING, ...READY];
+
+/** Morning before 12, afternoon to 5 pm, evening after. Ghana is UTC+0. */
+function greeting(): string {
+    const hour = serverNow().getUTCHours();
+    return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 }
-
-function endOfToday(): number {
-  const d = new Date();
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
-}
-
-// ─── Source badge ─────────────────────────────────────────────────────────────
-
-function SourceBadge({ source }: { source: string }) {
-  return (
-    <span className="text-[10px] font-medium font-body text-text-dark dark:text-text-light border border-brown-light/20 dark:border-neutral-gray px-2 py-0.5 rounded-full">
-      {source}
-    </span>
-  );
-}
-
-// ─── Status badge ─────────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { status: string }) {
-  const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.received;
-  return (
-    <span className="inline-flex items-center font-bold gap-1.5 py-2 text-xs text-text-dark dark:text-text-light font-body px-2.5">
-      <span className={`h-2 w-2 rounded-full shrink-0 ${config.dot} ${config.pulse ? 'animate-pulse' : ''}`} />
-      {config.label}
-    </span>
-  );
-}
-
-// ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export default function SalesDashboardView() {
-  const { staffUser } = useStaffAuth();
-  const { getOrdersByFilter } = useOrderStore();
-  const { orders: rawOrders } = useEmployeeOrders({
-    status: ['received', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery'],
-    per_page: 10,
-  });
+    const { staffUser } = useStaffAuth();
+    const branch = staffUser?.branches[0];
+    const branchId = branch?.id ? Number(branch.id) : undefined;
+    const today = serverToday();
 
-  const orders = useMemo(() => rawOrders.map(mapApiOrderToAdminOrder), [rawOrders]);
+    const { orders: apiOrders, isLoading } = useEmployeeOrders(
+        branchId ? { branch_id: branchId, status: ACTIVE, date_from: today, date_to: today, per_page: 100 } : undefined,
+    );
+    const active = useMemo(
+        () => apiOrders.map(mapApiOrderToOrder).filter(o => ACTIVE.includes(o.status)).sort((a, b) => b.placedAt - a.placedAt),
+        [apiOrders],
+    );
 
-  // Orders mapped for the detail drawer (needs Order type, not AdminOrder)
-  const drawerOrders = useMemo(() => rawOrders.map(mapApiOrderToOrder), [rawOrders]);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const selectedOrder = useMemo(
-    () => drawerOrders.find(o => o.id === selectedOrderId) ?? null,
-    [drawerOrders, selectedOrderId],
-  );
-  const handleOrderClick = useCallback((dbId: number) => setSelectedOrderId(String(dbId)), []);
-  const handleDrawerClose = useCallback(() => setSelectedOrderId(null), []);
+    const mine = useMySalesOrders(staffUser?.id ?? '', today);
+    const attended = mine.filter(o => o.status !== 'cancelled').length;
+    const count = (statuses: OrderStatus[]) => active.filter(o => statuses.includes(o.status)).length;
 
-  // Staff's own orders today (for personal stats on the dashboard)
-  const myOrders = useMemo(() => {
-    if (!staffUser?.id) return [];
-    return getOrdersByFilter({
-      staffId: staffUser.id,
-      dateFrom: startOfToday(),
-      dateTo: endOfToday(),
-    });
-  }, [getOrdersByFilter, staffUser?.id]);
+    const columns: DataTableColumn<Order>[] = [
+        {
+            key: 'order',
+            header: 'Order',
+            cell: o => (
+                <>
+                    <div className="font-bold">#{o.orderNumber}</div>
+                    <div className="text-xs text-neutral-gray tabular-nums">{timeOf(o.placedAt)}</div>
+                </>
+            ),
+        },
+        {
+            key: 'customer',
+            header: 'Customer',
+            cell: o => (
+                <>
+                    <div className="font-semibold">{o.contact.name || 'Walk-in'}</div>
+                    <div className="text-xs text-neutral-gray">{sourceLabel(o)}</div>
+                </>
+            ),
+        },
+        {
+            key: 'paid',
+            header: 'Paid by',
+            cell: o => {
+                const p = paidBy(o);
+                return (
+                    <>
+                        <div className={p.owes ? `font-bold ${OWES}` : ''}>{p.label}</div>
+                        {p.sub && <div className={`text-xs tabular-nums ${p.owes ? OWES : 'text-neutral-gray'}`}>{p.sub}</div>}
+                    </>
+                );
+            },
+        },
+        {
+            key: 'total',
+            header: 'Total',
+            align: 'right',
+            cell: o => <span className="font-bold tabular-nums">{formatGHS(goodsOf(o))}</span>,
+        },
+        { key: 'status', header: 'Status', cell: o => <OrderStatusPill status={o.status} /> },
+    ];
 
-  const myActiveOrders = useMemo(() => myOrders.filter(o => o.status !== 'cancelled'), [myOrders]);
-  const myReceivedCount = useMemo(() => myActiveOrders.filter(o => o.status === 'received').length, [myActiveOrders]);
-  const myPreparingCount = useMemo(() => myActiveOrders.filter(o => o.status === 'preparing').length, [myActiveOrders]);
+    const name = firstName(staffUser?.name);
 
-  const staffName = staffUser?.name ?? 'Staff';
-  const h = new Date().getHours();
-  const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-  const displayStats = [
-    { label: 'Received', value: String(myReceivedCount), sub: 'awaiting preparation' },
-    { label: 'Preparing', value: String(myPreparingCount), sub: 'in progress' },
-    { label: 'My Orders Today', value: String(myActiveOrders.length), sub: 'placed by you' },
-  ];
-
-  return (
-    <div className="md:px-8 py-6 max-w-4xl mx-auto">
-
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="mb-8">
-        <h1 className="text-text-dark font-bold dark:text-text-light text-xl font-body">
-          {greeting}, {staffName}.
-        </h1>
-        <p className="text-neutral-gray text-sm font-body mt-0.5">
-          Here&apos;s what&apos;s happening across the branches today.
-        </p>
-      </div>
-
-      {/* ── Primary CTA — Open POS ─────────────────────────────────────── */}
-      <Link
-        href="/pos/terminal"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="
-          flex items-center justify-between
-          bg-primary hover:bg-primary-hover
-          text-brand-darker
-          px-6 py-4 rounded-2xl mb-6
-          transition-all duration-150 active:scale-[0.99]
-          group
-        "
-      >
-        <div className="flex items-center gap-3">
-          <CashRegisterIcon size={24} weight="fill" className="shrink-0" />
-          <div>
-            <p className="font-semibold font-body text-base leading-none">Open POS Terminal</p>
-            <p className="text-brand-darker/60 text-xs font-body mt-0.5">
-              Place walk-in, phone, or delivery orders
-            </p>
-          </div>
-        </div>
-        <span className="text-brand-darker/60 group-hover:translate-x-0.5 transition-transform text-sm font-body font-medium">
-          Start →
-        </span>
-      </Link>
-
-      {/* ── Stats row ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-3 mb-8">
-        {displayStats.map(stat => (
-          <div
-            key={stat.label}
-            className="bg-brown dark:bg-brown border-brown-light/15 rounded-2xl px-4 py-4"
-          >
-            <p className="text-text-light text-2xl font-semibold font-body leading-none">
-              {stat.value}
-            </p>
-            <p className="text-neutral-gray text-sm font-body mt-1 leading-snug">
-              {stat.label}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Recent orders ───────────────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-text-dark font-bold dark:text-text-light text-base font-body">Active Orders</h2>
-          <Link
-            href="/staff/sales/orders"
-            className="text-text-brown dark:text-primary text-xs font-body hover:text-brown-light dark:hover:text-primary-hover transition-colors flex items-center gap-1"
-          >
-            <ListIcon size={14} weight="bold" />
-            View all
-          </Link>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          {orders?.filter(o => o.status !== 'completed').map(order => (
-            <button
-              key={order.id}
-              type="button"
-              onClick={() => handleOrderClick(order.dbId)}
-              className="
-                bg-neutral-card dark:bg-brand-dark
-                border-brown-light/30 border rounded-2xl
-                px-4 py-3.5
-                flex items-center hover:bg-brown-light/5 justify-between gap-4
-                hover:border-brown-light/75 transition-colors
-                group text-left w-full cursor-pointer
-              "
-            >
-              {/* Left */}
-              <div className="min-w-0 flex-1">
-                <div className="flex text-text-dark dark:text-text-light items-center gap-2 mb-1">
-                  <span className="text-text-dark dark:text-text-light text-base font-bold font-body">
-                    {order.customer || 'Guest Customer'}
-                  </span> ·
-                  <SourceBadge source={order.source || 'Unknown'} />
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="dark:text-text-light/75 text-xs font-body">#{order.id}</span>
-                  <span className="text-brown-light/40 text-xs">·</span>
-                  <span className="dark:text-text-light/75 text-xs font-body">{order.branch || 'Unknown Branch'}</span>
-                  <span className="text-brown-light/40 text-xs">·</span>
-                  <span className="dark:text-text-light/75 text-xs font-body">{order.placedAt}</span>
-                </div>
-              </div>
-
-              {/* Right */}
-              <div className="flex items-center gap-3 shrink-0">
-                <StatusBadge status={order.status} />
-                <span className="text-neutral-gray/80 group-hover:text-neutral-gray transition-colors text-base">
-                  →
-                </span>
-              </div>
-            </button>
-          )) || (
-            <div className="text-center py-8 text-neutral-gray">
-              <p className="text-sm font-body">No active orders at the moment</p>
+    return (
+        <div className="px-4 py-4 md:px-6 md:py-5 xl:px-10 xl:py-7 flex flex-col gap-4.5">
+            <div>
+                <h1 className="text-2xl font-bold font-brand text-text-dark">{greeting()}{name ? `, ${name}` : ''}</h1>
+                <p className="text-neutral-gray text-sm mt-1">
+                    {branch?.name ? `${branch.name} · ` : ''}{dayLabel(today)}
+                </p>
             </div>
-          )}
-        </div>
-      </div>
 
-      <OrderDrawer order={selectedOrder} onClose={handleDrawerClose} />
-    </div>
-  );
+            <Link
+                href="/pos/terminal"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group min-h-19 flex items-center justify-between gap-4 px-5 py-3.5 mb-2.5 rounded-2xl bg-primary hover:bg-primary-hover text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+                <span className="flex items-center gap-3.5">
+                    <CashRegisterIcon size={28} aria-hidden />
+                    <span className="flex flex-col gap-1">
+                        <span className="text-lg font-extrabold leading-none">Open POS</span>
+                        <span className="text-xs text-[#ffe3e3]">Walk-in, phone and delivery orders</span>
+                    </span>
+                </span>
+                <ArrowRightIcon size={22} weight="bold" aria-hidden className="transition-transform group-hover:translate-x-0.5" />
+            </Link>
+
+            <QuietRow
+                label="Food at the branch now"
+                figures={[
+                    { label: 'Waiting', value: String(count(WAITING)) },
+                    { label: 'Preparing', value: String(count(PREPARING)) },
+                    { label: 'Ready', value: String(count(READY)) },
+                    { label: 'Attended today', value: String(attended) },
+                ]}
+            />
+
+            <section aria-labelledby="active-orders" className="flex flex-col gap-2.5">
+                <div className="flex items-center justify-between gap-3">
+                    <h2 id="active-orders" className="text-[15px] font-bold text-text-dark">Active orders</h2>
+                    <Link href="/staff/sales/orders" className="min-h-11 flex items-center gap-1.5 text-[13px] font-semibold text-primary hover:underline">
+                        View all
+                        <CaretRightIcon size={14} weight="bold" aria-hidden />
+                    </Link>
+                </div>
+
+                <DataTable<Order>
+                    data={active}
+                    columns={columns}
+                    rowKey={o => o.id}
+                    pageSize={7}
+                    isLoading={isLoading && active.length === 0}
+                    expandedContent={o => <OpenedOrder order={o} />}
+                    expandOnRowClick
+                    caretAt="end"
+                    oneOpenAtATime
+                    openRowClassName={OPENED_ROW}
+                    openPanelClassName={OPENED_PANEL}
+                    emptyState={<p className="py-12 text-center text-sm text-neutral-gray">No orders waiting on the kitchen.</p>}
+                />
+            </section>
+        </div>
+    );
 }

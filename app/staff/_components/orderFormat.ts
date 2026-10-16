@@ -37,6 +37,19 @@ export function phoneOf(order: Order): string {
     return order.contact.phone ? formatGhanaPhone(order.contact.phone) : '';
 }
 
+/** Where the order came in: "Walk-in", "Online", "Phone". */
+export function sourceLabel(order: Order): string {
+    switch (order.source) {
+        case 'pos': return 'Walk-in';
+        case 'online': return 'Online';
+        case 'phone': return 'Phone';
+        case 'whatsapp': return 'WhatsApp';
+        case 'social_media': return 'Social media';
+        case 'manual_entry': return 'Recorded';
+        default: return '';
+    }
+}
+
 /** The food on an order. Delivery is the rider's money, never the restaurant's. */
 export function goodsOf(order: Order): number {
     return Math.round((order.total - (order.deliveryFee ?? 0)) * 100) / 100;
