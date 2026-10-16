@@ -12,8 +12,8 @@ export type DataTableColumn<T> = {
   header: string;
   /** When provided, header becomes click-sortable. Should return a comparable value. */
   sortValue?: (row: T) => string | number;
-  /** Render the cell content. */
-  cell: (row: T, index: number) => ReactNode;
+  /** Render the cell content. `open` is true while the row's detail is open. */
+  cell: (row: T, index: number, open?: boolean) => ReactNode;
   /** Right-align both header and cell. */
   align?: 'left' | 'right';
   /** Optional fixed/min width as Tailwind class fragment, e.g. 'w-12'. */
@@ -309,7 +309,7 @@ export function DataTable<T>({
                           ${stick(i)}
                         `}
                       >
-                        {col.cell(row, sliceStart + idx)}
+                        {col.cell(row, sliceStart + idx, isExpanded)}
                       </td>
                     ))}
                     {caretAt === 'end' && caretCell}

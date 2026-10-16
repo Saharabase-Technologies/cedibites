@@ -124,6 +124,16 @@ export function paidBy(order: Order): PaidBy {
     };
 }
 
+/**
+ * The Money column on Orders: one line. "Cash", "Cash and USSD", "₵115.00 due",
+ * "Not paid".
+ */
+export function moneyLine(order: Order): { label: string; owes: boolean } {
+    const p = paidBy(order);
+    if (p.label === 'Part paid') return { label: `${formatGHS(owedOn(order))} due`, owes: true };
+    return { label: p.label, owes: p.owes };
+}
+
 /** Waiting on the admin to decide a cancel. */
 export function isCancelAsked(order: Order): boolean {
     return order.status === 'cancel_requested';
