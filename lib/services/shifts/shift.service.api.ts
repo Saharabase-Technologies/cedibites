@@ -1,5 +1,6 @@
 import apiClient from '@/lib/api/client';
-import type { ShiftService, StaffShift } from './shift.service';
+import type { ClockOutView, ShiftService, StaffShift } from './shift.service';
+import type { MoneyGroup, MoneyLine } from '@/lib/api/services/staff.service';
 
 interface ApiShift {
   id: string;
@@ -14,6 +15,11 @@ interface ApiShift {
   goodsSales?: number;
   deliveryFees?: number;
   orderCount: number;
+  clockedOutAt?: number | null;
+  clockOut?: StaffShift['clockOut'];
+  managerConfirmedAt?: number | null;
+  managerConfirmedBy?: string | null;
+  managerNote?: string | null;
 }
 
 function extractData<T>(response: unknown): T {
@@ -42,6 +48,11 @@ function toStaffShift(raw: ApiShift): StaffShift {
     goodsSales: Number.isFinite(goodsSales) ? goodsSales : totalSales,
     deliveryFees,
     orderCount: Number(raw.orderCount) || 0,
+    clockedOutAt: raw.clockedOutAt ? Number(raw.clockedOutAt) : undefined,
+    clockOut: raw.clockOut ?? null,
+    managerConfirmedAt: raw.managerConfirmedAt ? Number(raw.managerConfirmedAt) : undefined,
+    managerConfirmedBy: raw.managerConfirmedBy ?? null,
+    managerNote: raw.managerNote ?? null,
   };
 }
 
@@ -101,5 +112,20 @@ export class ApiShiftService implements ShiftService {
     const payload = extractData<ApiShift[] | { data?: ApiShift[] }>(response);
     const list = Array.isArray(payload) ? payload : (payload as { data?: ApiShift[] })?.data ?? [];
     return (list as ApiShift[]).map(toStaffShift);
+  }
+
+  async getMoney(shiftId: string): Promise<Record<MoneyGroup, MoneyLine>> {
+    const response = await apiClient.get(`/shifts/${shiftId}/money`);
+    return extractData<{ money: Record<MoneyGroup, MoneyLine> }>(response).money;
+  }
+
+  async getClockOut(shiftId: string): Promise<ClockOutView> {
+    const response = await apiClient.get(`/shifts/${shiftId}/clock-out`);
+    return extractData<ClockOutView>(response);
+  }
+
+  async clockOut(shiftId: string, note: string, seenTotal: number): Promise<StaffShift> {
+    const response = await apiClient.post(`/shifts/${shiftId}/clock-out`, { note, seen_total: seenTotal });
+    return toStaffShift(extractData<ApiShift>(response));
   }
 }

@@ -36,6 +36,7 @@ import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
 import { OpeningPrompt } from '@/app/components/opening/OpeningPrompt';
 import { SalesFrame } from './_components/SalesFrame';
 import { isSalesStaff } from './_components/isSalesStaff';
+import { SalesSignOutDialog } from './_components/ClockOut';
 
 // ─── Nav configs (permission-gated) ───────────────────────────────────────────
 
@@ -265,10 +266,11 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                 >
                     {children}
                 </SalesFrame>
-                <SignOutDialog
+                {/* Clock out first, Sign out only second (staff portal Q1). */}
+                <SalesSignOutDialog
                     isOpen={isSignOutOpen}
                     onCancel={() => setIsSignOutOpen(false)}
-                    onConfirm={() => logout()}
+                    onSignOutOnly={() => logout()}
                 />
             </>
         );

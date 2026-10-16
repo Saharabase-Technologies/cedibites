@@ -35,7 +35,8 @@ interface StaffAuthContextValue {
     staffUser: StaffUser | null;
     isLoading: boolean;
     login: (user: StaffUser) => void;
-    logout: (redirectTo?: string) => Promise<void>;
+    /** `serverDone`: the server has already signed the person out, as Clock out does. */
+    logout: (redirectTo?: string, opts?: { serverDone?: boolean }) => Promise<void>;
     can: (permission: string) => boolean;
 }
 
@@ -150,16 +151,18 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
-    const logout = useCallback(async (redirectTo = '/staff/login') => {
+    const logout = useCallback(async (redirectTo = '/staff/login', opts?: { serverDone?: boolean }) => {
         // The server ends the open shift and revokes the token (staff portal
         // Phase 6). It has to be asked while the token is still here: the API
         // client reads the token as the request leaves, and clearing it first
         // sent the call unsigned, so no shift ever ended and no token was
         // revoked. Four seconds at most, so a dead connection still signs out.
-        await Promise.race([
-            staffService.logout().catch(() => {}),
-            new Promise(resolve => setTimeout(resolve, 4000)),
-        ]);
+        if (!opts?.serverDone) {
+            await Promise.race([
+                staffService.logout().catch(() => {}),
+                new Promise(resolve => setTimeout(resolve, 4000)),
+            ]);
+        }
         clearStaffToken();
         disconnectEcho();
         localStorage.removeItem(STORAGE_KEY);
