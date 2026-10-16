@@ -130,6 +130,7 @@ export function OrderDetailSheet({
           <span className="flex items-center gap-1.5 rounded-lg bg-neutral-light px-2.5 py-1 font-body text-xs text-text-dark">
             <SourceIcon className="h-3.5 w-3.5" />
             {source?.label ?? 'Online'}
+            {order.platformReference && <span className="font-semibold tabular-nums">{order.platformReference}</span>}
           </span>
           <span className="font-body text-xs tabular-nums text-neutral-gray">
             <Age since={stageSince} /> in {tone.label.toLowerCase()}

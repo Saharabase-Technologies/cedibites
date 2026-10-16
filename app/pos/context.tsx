@@ -67,6 +67,16 @@ interface POSContextValue {
   orderSource: OrderSource;
   setOrderSource: (source: OrderSource) => void;
 
+  /**
+   * A Bolt order, rung off Bolt's tablet. The menu shows Bolt's prices, the
+   * order is collected by Bolt's rider, and the customer has already paid
+   * Bolt, so nothing is taken at the till.
+   */
+  isBolt: boolean;
+  /** Bolt's code for the order, as the tablet shows it (WWJ98). */
+  boltReference: string;
+  setBoltReference: (code: string) => void;
+
   // Cart
   cart: POSCartItem[];
   cartTotal: number;
@@ -167,6 +177,7 @@ export function POSProvider({ children }: POSProviderProps) {
   // operator without an effect syncing one piece of state to another — there is
   // no render where the source disagrees with who is looking at the screen.
   const [chosenSource, setOrderSource] = useState<OrderSource | null>(null);
+  const [boltReference, setBoltReference] = useState('');
   const [deliveryFee, setDeliveryFee] = useState(0);
 
   // Payment modal
@@ -250,13 +261,17 @@ export function POSProvider({ children }: POSProviderProps) {
    * just as much as an agent does, and a warehouse manager ringing up a staff
    * lunch at the till does not.
    */
-  const isRemoteOrder = orderSource !== 'pos';
+  // A Bolt order is rung at the counter off Bolt's tablet. Nobody is on the
+  // other end of a call, so it keeps the till's layout, not the call centre's.
+  const isBolt = orderSource === 'bolt';
+  const isRemoteOrder = orderSource !== 'pos' && !isBolt;
 
   // A caller either collects it themselves or has it delivered. Dine-in and
   // takeaway are things you pick while standing in the shop, so they are not
   // where a phone order starts. Derived rather than synced, so there is no
-  // render where the default disagrees with the channel on screen.
-  const orderType = chosenType ?? (isRemoteOrder ? 'pickup' : 'dine_in');
+  // render where the default disagrees with the channel on screen. A Bolt
+  // order is always collected by Bolt's rider.
+  const orderType = isBolt ? 'pickup' : chosenType ?? (isRemoteOrder ? 'pickup' : 'dine_in');
 
   /**
    * Switching channel re-asks the fulfilment question.
@@ -268,10 +283,11 @@ export function POSProvider({ children }: POSProviderProps) {
    * Pickup and Delivery, with neither lit.
    */
   const changeOrderSource = useCallback((next: OrderSource) => {
-    const wasRemote = (chosenSource ?? (takesCallsByDefault ? 'phone' : 'pos')) !== 'pos';
-    const willBeRemote = next !== 'pos';
+    const current = chosenSource ?? (takesCallsByDefault ? 'phone' : 'pos');
+    const wasRemote = current !== 'pos' && current !== 'bolt';
+    const willBeRemote = next !== 'pos' && next !== 'bolt';
 
-    if (wasRemote !== willBeRemote) {
+    if (wasRemote !== willBeRemote || (current === 'bolt') !== (next === 'bolt')) {
       setOrderType(null);
     }
 
@@ -406,6 +422,7 @@ export function POSProvider({ children }: POSProviderProps) {
     setOrderNotes('');
     setOrderType('dine_in');
     setDeliveryFee(0);
+    setBoltReference('');
   }, []);
 
   // Payment actions
@@ -431,6 +448,10 @@ export function POSProvider({ children }: POSProviderProps) {
     // Delivery fee only applies to delivery orders
     const effectiveDeliveryFee = orderType === 'delivery' && deliveryFee > 0 ? deliveryFee : 0;
 
+    // A Bolt order: Bolt's code, no phone (Bolt keeps the customer's), no
+    // promo of ours. The server prices it from the menu's Bolt prices.
+    const bolt = isBolt && !addTarget;
+
     // Items added to an order already placed are a round of it (Phase 4b).
     // The server takes the customer and the table from that order, and gives
     // the round no promo; it is sent the same here so nothing disagrees.
@@ -447,7 +468,7 @@ export function POSProvider({ children }: POSProviderProps) {
         special_instructions: undefined as string | undefined,
       })),
       fulfillment_type: adding ? 'dine_in' : orderType as string,
-      contact_name: adding ? adding.contact.name || 'Walk-in' : customerName || 'Walk-in',
+      contact_name: adding ? adding.contact.name || 'Walk-in' : customerName || (bolt ? 'Bolt customer' : 'Walk-in'),
       contact_phone: adding
         ? adding.contact.phone || '0000000000'
         : customerPhone ? normalizeGhanaPhone(customerPhone) : '0000000000',
@@ -457,10 +478,11 @@ export function POSProvider({ children }: POSProviderProps) {
       recorded_at: adding ? undefined : manualOpts?.recordedAt,
       manual_entry_reason: adding ? undefined : manualOpts?.reason,
       customer_notes: adding ? undefined : orderNotes || undefined,
-      promo_code: adding ? undefined : promo?.code || undefined,
-      delivery_fee: !adding && effectiveDeliveryFee > 0 ? effectiveDeliveryFee : undefined,
+      promo_code: adding || bolt ? undefined : promo?.code || undefined,
+      delivery_fee: !adding && !bolt && effectiveDeliveryFee > 0 ? effectiveDeliveryFee : undefined,
       // The channel, so the order is not filed as a walk-in at the counter.
       order_source: orderSource,
+      platform_reference: bolt ? boltReference.replace(/\s+/g, '').toUpperCase() : undefined,
       add_to_order_id: adding ? Number(adding.id) : undefined,
     };
 
@@ -524,14 +546,18 @@ export function POSProvider({ children }: POSProviderProps) {
       // The server's figure, which is the one on the order. The till's own is
       // only there if an older response carried no order.
       discount: Number(apiOrder?.discount ?? discount),
+      promoName: apiOrder?.promo_name ?? undefined,
+      platformReference: apiOrder?.platform_reference ?? undefined,
+      platformCommission: Number(apiOrder?.platform_commission ?? 0) || 0,
+      netAmount: apiOrder?.net_amount != null ? Number(apiOrder.net_amount) : undefined,
       tax: 0,
       serviceCharge: Number(csSession.service_charge ?? apiOrder?.service_charge ?? 0),
       total: Number(csSession.total_amount ?? apiOrder?.total ?? cart.reduce((sum, item) => sum + item.price * item.quantity, 0) - (discount ?? 0) + effectiveDeliveryFee),
       amountPaid: amountPaid,
       momoNumber: momoNumber,
       contact: {
-        name: customerName || 'Walk-in',
-        phone: customerPhone || '',
+        name: customerName || (bolt ? 'Bolt customer' : 'Walk-in'),
+        phone: bolt ? '' : customerPhone || '',
         notes: orderNotes || undefined,
       },
       branch: {
@@ -570,15 +596,17 @@ export function POSProvider({ children }: POSProviderProps) {
     setAddTarget(null);
 
     return order;
-  }, [cart, customerName, customerPhone, orderNotes, orderType, orderSource, deliveryFee, session, branches, addLocalOrder, clearCart, isManualEntry, addTarget, refreshOrders]);
+  }, [cart, customerName, customerPhone, orderNotes, orderType, orderSource, isBolt, boltReference, deliveryFee, session, branches, addLocalOrder, clearCart, isManualEntry, addTarget, refreshOrders]);
 
   // Adding to an order starts a fresh basket, and leaves the till's own
   // details alone for the next new sale (Phase 4b).
   const startAdding = useCallback((order: Order) => {
     setCart([]);
     setIsManualEntry(false);
+    // A round is rung at counter prices, whatever the till was last set to.
+    if (chosenSource === 'bolt') setOrderSource(null);
     setAddTarget(order);
-  }, []);
+  }, [chosenSource]);
 
   const stopAdding = useCallback(() => {
     setAddTarget(null);
@@ -691,6 +719,9 @@ export function POSProvider({ children }: POSProviderProps) {
     resetBranchForNextOrder,
     orderSource,
     setOrderSource: changeOrderSource,
+    isBolt,
+    boltReference,
+    setBoltReference,
     cart,
     cartTotal,
     cartCount,

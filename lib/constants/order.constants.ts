@@ -9,6 +9,7 @@ import {
     GlobeIcon,
     DeviceMobileIcon,
     ClockIcon,
+    LightningIcon,
 } from '@phosphor-icons/react';
 import type { OrderStatus, OrderSource, PaymentMethod, FulfillmentType, KanbanColumn } from '@/types/order';
 
@@ -58,6 +59,7 @@ export const SOURCE_CONFIG: Record<OrderSource, SourceDisplayConfig> = {
     social_media: { label: 'Social Media', icon: ShareNetworkIcon },
     pos:          { label: 'Walk-in',      icon: DeviceMobileIcon },
     manual_entry: { label: 'Manual Entry', icon: ClockIcon },
+    bolt:         { label: 'Bolt',         icon: LightningIcon },
 };
 
 // Convenience re-exports for backward compat
@@ -83,8 +85,11 @@ export const REMOTE_ORDER_SOURCES: readonly string[] = [
     'online', 'phone', 'whatsapp', 'social_media', 'instagram', 'facebook',
 ];
 
-/** Orders rung up at the counter, by a person, on this POS. */
-export const TILL_ORDER_SOURCES: readonly string[] = ['pos', 'manual_entry'];
+/**
+ * Orders rung up at the counter, by a person, on this POS. A Bolt order is
+ * rung off Bolt's tablet by the cashier, so it is one of these.
+ */
+export const TILL_ORDER_SOURCES: readonly string[] = ['pos', 'manual_entry', 'bolt'];
 
 /** True for anything that arrived without a cashier keying it in. */
 export function isRemoteSource(source: string | null | undefined): boolean {
@@ -101,6 +106,7 @@ export const PAYMENT_LABELS: Record<PaymentMethod, { short: string; full: string
     manual_momo:  { short: 'Direct MoMo', full: 'Direct MoMo Transfer' },
     pay_later:    { short: 'Pay later', full: 'Pay later' },
     split:        { short: 'Split', full: 'Split payment' },
+    bolt:         { short: 'Bolt', full: 'Paid on Bolt' },
 };
 
 // ─── Fulfillment labels ─────────────────────────────────────────────────────

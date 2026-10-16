@@ -8,11 +8,12 @@ function mapApiPaymentMethod(api?: string): PaymentMethod {
   if (api === 'cash_delivery' || api === 'cash_pickup') return 'cash';
   if (api === 'card') return 'card';
   if (api === 'no_charge') return 'no_charge';
+  if (api === 'bolt') return 'bolt';
   return 'cash';
 }
 
 function mapApiSource(api?: string): UnifiedOrder['source'] {
-  if (api === 'online' || api === 'phone' || api === 'whatsapp' || api === 'pos') return api;
+  if (api === 'online' || api === 'phone' || api === 'whatsapp' || api === 'pos' || api === 'bolt') return api;
   if (api === 'instagram' || api === 'facebook') return 'social_media';
   return 'online';
 }

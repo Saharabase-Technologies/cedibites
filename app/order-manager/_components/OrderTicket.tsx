@@ -212,6 +212,12 @@ function OrderTicketBase({
               <FulfilmentIcon className="h-3.5 w-3.5" />
               {fulfilment.label}
             </span>
+            {/* Bolt's rider collects it. The code is what the rider reads out. */}
+            {order.source === 'bolt' && (
+              <span className={`rounded-full px-2 py-0.5 font-body text-[11px] font-semibold tabular-nums ${TONE.decided.bg} ${TONE.decided.text}`}>
+                Bolt{order.platformReference ? ` ${order.platformReference}` : ''}
+              </span>
+            )}
             {/* Cooked before it is paid for (D4, D41). The kitchen makes it
                 all the same; the badge is for whoever hands it over. */}
             {stillOwes(order) && (

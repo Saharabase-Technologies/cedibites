@@ -34,9 +34,9 @@ export const DOW3 = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 /** What the stored values are called on screen. A value with no entry shows as it is stored. */
 export const LABEL: Record<'source' | 'type' | 'method' | 'outcome', Record<string, string>> = {
-  source: { pos: 'At the till', online: 'Online', whatsapp: 'WhatsApp', manual_entry: 'Entered by hand' },
+  source: { pos: 'At the till', online: 'Online', whatsapp: 'WhatsApp', manual_entry: 'Entered by hand', bolt: 'Bolt' },
   type: { dine_in: 'Dine in', takeaway: 'Takeaway', pickup: 'Pickup', delivery: 'Delivery' },
-  method: { cash: 'Cash', mobile_money: 'MoMo', card: 'Card', no_charge: 'No charge' },
+  method: { cash: 'Cash', mobile_money: 'MoMo', card: 'Card', no_charge: 'No charge', bolt: 'Paid on Bolt' },
   outcome: { refunded: 'Refunded', kept: 'Money kept', no_charge: 'No charge' },
 };
 
@@ -55,9 +55,11 @@ export interface Sums {
   gross: number;
   discount: number;
   serviceCharge: number;
-  /** Net sales: `total_amount - delivery_fee`. */
+  /** Net sales: `total_amount - delivery_fee`, less what Bolt keeps of a Bolt order. */
   net: number;
   deliveryFee: number;
+  /** What Bolt kept of its orders. Gross less discount, plus service charge, less this, is net. */
+  platformCut: number;
   /** Net sales taken in cash, by MoMo and by card. Any other method counts in `net` alone. */
   cash: number;
   momo: number;
@@ -85,7 +87,7 @@ type GroupKey = 'bySource' | 'byType' | 'ordersBySource' | 'ordersByType';
 type SumKey = Exclude<keyof Sums, GroupKey | 'days' | 'partDays'>;
 
 const SUMS: SumKey[] = [
-  'orders', 'gross', 'discount', 'serviceCharge', 'net', 'deliveryFee',
+  'orders', 'gross', 'discount', 'serviceCharge', 'net', 'deliveryFee', 'platformCut',
   'cash', 'momo', 'card', 'cashOrders', 'momoOrders', 'cardOrders',
   'refundedOrders', 'refundedAmount', 'keptOrders', 'keptAmount', 'noChargeOrders', 'noChargeAmount',
   'partNet',
@@ -179,7 +181,7 @@ export const daysOpen = (book: FinanceBook, branches: BookBranch[], m: string): 
 
 const blank = (): Sums => ({
   days: 0, partDays: 0,
-  orders: 0, gross: 0, discount: 0, serviceCharge: 0, net: 0, deliveryFee: 0,
+  orders: 0, gross: 0, discount: 0, serviceCharge: 0, net: 0, deliveryFee: 0, platformCut: 0,
   cash: 0, momo: 0, card: 0, cashOrders: 0, momoOrders: 0, cardOrders: 0,
   refundedOrders: 0, refundedAmount: 0, keptOrders: 0, keptAmount: 0, noChargeOrders: 0, noChargeAmount: 0,
   partNet: 0,
@@ -278,11 +280,12 @@ export function dayMap(book: FinanceBook, source: string, type: string, method: 
     const ofBranch = days[branch];
     return ofBranch ? ofBranch[day] || (ofBranch[day] = blank()) : null;
   };
-  for (const [day, branch, s, t, p, orders, gross, discount, serviceCharge, net, deliveryFee] of book.ledger.sales) {
+  for (const [day, branch, s, t, p, orders, gross, discount, serviceCharge, net, deliveryFee, platformCut = 0] of book.ledger.sales) {
     if (!ok(s, t, p)) continue;
     const a = at(branch, day);
     if (!a) continue;
     a.orders += orders; a.gross += gross; a.discount += discount; a.serviceCharge += serviceCharge; a.net += net; a.deliveryFee += deliveryFee;
+    a.platformCut += platformCut;
     if (p === 'cash') { a.cash += net; a.cashOrders += orders; }
     else if (p === 'mobile_money') { a.momo += net; a.momoOrders += orders; }
     else if (p === 'card') { a.card += net; a.cardOrders += orders; }

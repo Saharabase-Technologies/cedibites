@@ -23,6 +23,10 @@ interface ApiOrderMoney {
   }>;
   to_give_back?: number | string | null;
   balance_due?: number | string | null;
+  promo_name?: string | null;
+  platform_reference?: string | null;
+  platform_commission?: number | string | null;
+  net_amount?: number | string | null;
   payment_state?: PaymentState | null;
   payments?: Array<{
     id: number | string;
@@ -43,7 +47,7 @@ interface ApiOrderMoney {
  * An older payload without the fields reads as an ordinary order: not Pay
  * later, nothing owed recorded, no parts.
  */
-export function orderMoneyFields(api: unknown): Pick<Order, 'isPaidLater' | 'isSplitPayment' | 'balanceDue' | 'paymentState' | 'paymentParts' | 'kitchenSlipPrintedAt' | 'owingSince' | 'rounds' | 'toGiveBack'> {
+export function orderMoneyFields(api: unknown): Pick<Order, 'isPaidLater' | 'isSplitPayment' | 'balanceDue' | 'paymentState' | 'paymentParts' | 'kitchenSlipPrintedAt' | 'owingSince' | 'rounds' | 'toGiveBack' | 'promoName' | 'platformReference' | 'platformCommission' | 'netAmount'> {
   const money = (api ?? {}) as ApiOrderMoney;
   const ms = (iso?: string | null) => (iso ? new Date(iso).getTime() : undefined);
 
@@ -85,6 +89,12 @@ export function orderMoneyFields(api: unknown): Pick<Order, 'isPaidLater' | 'isS
     owingSince: ms(money.owing_since),
     rounds,
     toGiveBack: Number(money.to_give_back ?? 0) || 0,
+    // A Bolt order's code and what Bolt keeps, carried here for the same
+    // reason as the money above: every adapter spreads this.
+    promoName: money.promo_name ?? undefined,
+    platformReference: money.platform_reference ?? undefined,
+    platformCommission: Number(money.platform_commission ?? 0) || 0,
+    netAmount: money.net_amount != null ? Number(money.net_amount) : undefined,
   };
 }
 
