@@ -18,6 +18,8 @@ import {
 import { getShiftService, type StaffShift } from '@/lib/services/shifts/shift.service';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import ShiftsCalendar, { type DayShiftSummary } from './ShiftsCalendar';
+import { StatePill } from '@/app/staff/_components/StatePill';
+import { TONE } from '@/app/inventory/_components/status-tokens';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,7 +67,7 @@ function getMonthDates(year: number, month: number): string[] {
 
 // ─── Shift Card ───────────────────────────────────────────────────────────────
 
-function ShiftCard({ shift, showName, isLast }: { shift: StaffShift; showName: boolean; isLast: boolean }) {
+function ShiftCard({ shift, showName, isLast, isOwn = false }: { shift: StaffShift; showName: boolean; isLast: boolean; isOwn?: boolean }) {
     const active = !shift.logoutAt;
     return (
         <div className={`px-5 py-4 ${!isLast ? 'border-b border-[#f0e8d8]' : ''}`}>
@@ -110,6 +112,23 @@ function ShiftCard({ shift, showName, isLast }: { shift: StaffShift; showName: b
                         </span>
                         <span>{shift.branchName}</span>
                     </div>
+                    {/* The two sign-offs (staff portal D29, D30). */}
+                    {shift.logoutAt && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                            <StatePill
+                                state={shift.clockedOutAt
+                                    ? { label: `Clocked out ${formatTime(shift.clockedOutAt)}`, ...TONE.done }
+                                    : { label: 'Not clocked out', ...TONE.waiting }}
+                            />
+                            {showName && !isOwn && (
+                                <StatePill
+                                    state={shift.managerConfirmedAt
+                                        ? { label: `Manager confirmed ${formatTime(shift.managerConfirmedAt)}`, ...TONE.done }
+                                        : { label: 'Manager to confirm', ...TONE.waiting }}
+                                />
+                            )}
+                        </div>
+                    )}
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
                     <div className="text-center">
@@ -124,7 +143,7 @@ function ShiftCard({ shift, showName, isLast }: { shift: StaffShift; showName: b
                             <CurrencyCircleDollarIcon size={12} weight="fill" className="text-primary" />
                             <p className="text-primary text-sm font-bold font-body">{formatGHS(shift.goodsSales)}</p>
                         </div>
-                        <p className="text-neutral-gray text-[10px] font-body">revenue</p>
+                        <p className="text-neutral-gray text-[10px] font-body">order value</p>
                     </div>
                     {shift.deliveryFees > 0 && (
                         <div className="text-center">
@@ -345,7 +364,7 @@ export default function ShiftsPage() {
                                     </div>
                                     <div className="bg-white/50 rounded-xl px-3 py-2.5 text-center">
                                         <p className="text-primary text-lg font-bold font-body">{formatGHS(activeShifts.reduce((s, sh) => s + sh.goodsSales, 0))}</p>
-                                        <p className="text-neutral-gray text-[10px] font-body">Revenue</p>
+                                        <p className="text-neutral-gray text-[10px] font-body">Order Value</p>
                                     </div>
                                 </div>
                                 {activeShifts.reduce((s, sh) => s + sh.deliveryFees, 0) > 0 && (
@@ -374,7 +393,7 @@ export default function ShiftsPage() {
                                 {[
                                     { label: 'Sessions', value: shifts.length.toString(), icon: ClockIcon },
                                     { label: 'Orders', value: todayOrders.toString(), icon: ShoppingBagIcon },
-                                    { label: 'Revenue', value: formatGHS(todaySales), icon: CurrencyCircleDollarIcon },
+                                    { label: 'Order Value', value: formatGHS(todaySales), icon: CurrencyCircleDollarIcon },
                                     { label: 'Delivery', value: formatGHS(todayDelivery), icon: TruckIcon },
                                 ].map(({ label, value, icon: Icon }) => (
                                     <div key={label} className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3.5 text-center">
@@ -435,7 +454,7 @@ export default function ShiftsPage() {
                             ) : (
                                 <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden">
                                     {shifts.map((shift, i) => (
-                                        <ShiftCard key={shift.id} shift={shift} showName isLast={i === shifts.length - 1} />
+                                        <ShiftCard key={shift.id} shift={shift} showName isLast={i === shifts.length - 1} isOwn={shift.staffId === staffUser?.id} />
                                     ))}
                                 </div>
                             )}
@@ -485,7 +504,7 @@ export default function ShiftsPage() {
                                     </div>
                                     <div className="bg-white/50 rounded-xl px-3 py-2.5 text-center">
                                         <p className="text-primary text-lg font-bold font-body">{formatGHS(myActiveShift.goodsSales)}</p>
-                                        <p className="text-neutral-gray text-[10px] font-body">Revenue</p>
+                                        <p className="text-neutral-gray text-[10px] font-body">Order Value</p>
                                     </div>
                                 </div>
                                 {myActiveShift.deliveryFees > 0 && (
@@ -514,7 +533,7 @@ export default function ShiftsPage() {
                                 {[
                                     { label: 'Sessions', value: myTodayShifts.length.toString(), icon: ClockIcon },
                                     { label: 'Orders', value: myTodayOrders.toString(), icon: ShoppingBagIcon },
-                                    { label: 'Revenue', value: formatGHS(myTodaySales), icon: CurrencyCircleDollarIcon },
+                                    { label: 'Order Value', value: formatGHS(myTodaySales), icon: CurrencyCircleDollarIcon },
                                     { label: 'Delivery', value: formatGHS(myTodayDelivery), icon: TruckIcon },
                                 ].map(({ label, value, icon: Icon }) => (
                                     <div key={label} className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3.5 text-center">

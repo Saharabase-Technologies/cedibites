@@ -36,7 +36,7 @@ import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
 import { OpeningPrompt } from '@/app/components/opening/OpeningPrompt';
 import { SalesFrame } from './_components/SalesFrame';
 import { isSalesStaff } from './_components/isSalesStaff';
-import { SalesSignOutDialog } from './_components/ClockOut';
+import { ClockOutSignOutDialog } from './_components/ClockOut';
 
 // ─── Nav configs (permission-gated) ───────────────────────────────────────────
 
@@ -267,7 +267,7 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                     {children}
                 </SalesFrame>
                 {/* Clock out first, Sign out only second (staff portal Q1). */}
-                <SalesSignOutDialog
+                <ClockOutSignOutDialog
                     isOpen={isSignOutOpen}
                     onCancel={() => setIsSignOutOpen(false)}
                     onSignOutOnly={() => logout()}
@@ -439,11 +439,20 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
                 </button>
             </nav>
 
-            <SignOutDialog
-                isOpen={isSignOutOpen}
-                onCancel={() => setIsSignOutOpen(false)}
-                onConfirm={() => logout()}
-            />
+            {/* The branch manager clocks out too, with their own sales (D30). */}
+            {staffUser.role === 'manager' ? (
+                <ClockOutSignOutDialog
+                    isOpen={isSignOutOpen}
+                    onCancel={() => setIsSignOutOpen(false)}
+                    onSignOutOnly={() => logout()}
+                />
+            ) : (
+                <SignOutDialog
+                    isOpen={isSignOutOpen}
+                    onCancel={() => setIsSignOutOpen(false)}
+                    onConfirm={() => logout()}
+                />
+            )}
         </div>
     );
 }

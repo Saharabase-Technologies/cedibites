@@ -5,12 +5,14 @@ import { createPortal } from 'react-dom';
 import { SignOutIcon, SpinnerGapIcon, XIcon } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { getShiftService, type ClockOutView, type StaffShift } from '@/lib/services/shifts/shift.service';
-import type { MoneyGroup } from '@/lib/api/services/staff.service';
+import type { MoneyGroup, MoneyLine, MoneyOnOthersOrder } from '@/lib/api/services/staff.service';
 import { ApiError } from '@/lib/api/client';
 import { formatGHS } from '@/lib/utils/currency';
-import { serverNow } from '@/lib/utils/serverClock';
+import { serverNow, serverToday } from '@/lib/utils/serverClock';
+import { useConfirmShift, useManagerShiftSales } from '@/lib/api/hooks/useShiftSales';
 import { timeOf } from './orderFormat';
 import { OWES } from './salesTones';
+import { spanOf, waitsOn } from './shiftSalesFormat';
 
 // Clock out (staff portal D29). A confirmation, not a count: the person sees
 // the money they took by method and what is still owed, may leave a note, and
@@ -42,6 +44,53 @@ function payments(n: number): string {
     return `${n} ${n === 1 ? 'payment' : 'payments'}`;
 }
 
+/**
+ * The money by method, one line each, with how many payments and whether
+ * Hubtel checked them. Card and Other only when there is some (D23); No
+ * Charge after them, never in the total. Clock out, and the manager's and
+ * admin's review of a shift, show the same lines.
+ */
+export function MoneyLines({ money, noCharge }: { money: Record<MoneyGroup, MoneyLine>; noCharge?: MoneyLine }) {
+    return (
+        <>
+            {LINE.filter(l => l.always || (money[l.group]?.count ?? 0) > 0).map(l => {
+                const line = money[l.group] ?? { amount: 0, count: 0 };
+                return (
+                    <div key={l.group} className="flex justify-between gap-3 py-2 border-b border-row-line">
+                        <span>
+                            <span className="font-semibold">{l.label}</span>
+                            <span className="text-neutral-gray"> · {payments(line.count)}</span>
+                            {l.proof && line.count > 0 && (
+                                <span className={l.proof === 'checked' ? 'text-success-ink' : OWES}> · {l.proof}</span>
+                            )}
+                        </span>
+                        <span className="font-semibold">{formatGHS(line.amount)}</span>
+                    </div>
+                );
+            })}
+            {noCharge && noCharge.count > 0 && (
+                <div className="flex justify-between gap-3 py-2 border-b border-row-line text-neutral-gray">
+                    <span><span className="font-semibold">No Charge</span> · not in the total</span>
+                    <span>{formatGHS(noCharge.amount)}</span>
+                </div>
+            )}
+        </>
+    );
+}
+
+/** "₵50.00 of the cash came from Kofi's order #A398." One line each (D24). */
+export function FromOthers({ lines }: { lines: MoneyOnOthersOrder[] }) {
+    return (
+        <>
+            {lines.map(o => (
+                <p key={`${o.order_id}-${o.group}`} className="pt-2 text-xs text-neutral-gray">
+                    {formatGHS(o.amount)} of {OF_THE[o.group]} came from {o.assigned_to ? `${o.assigned_to}'s order` : 'order'} #{o.order_number}.
+                </p>
+            ))}
+        </>
+    );
+}
+
 type State =
     | { kind: 'loading' }
     | { kind: 'none' }
@@ -49,8 +98,59 @@ type State =
     | { kind: 'failed'; message: string };
 
 /** The sheet from the right. Finds the person's open shift itself. */
+/**
+ * The manager's own Clock out lists the staff shifts they have not confirmed,
+ * each with a Confirm button. A reminder, not a block (Q4).
+ */
+function NotConfirmed({ branchId, meId }: { branchId: number | null; meId: number | null }) {
+    const { data } = useManagerShiftSales(branchId, serverToday());
+    const confirm = useConfirmShift();
+    const [problem, setProblem] = useState<string | null>(null);
+    const waiting = (data ?? []).filter(r => waitsOn(r, meId, 'manager'));
+
+    if (waiting.length === 0) return null;
+
+    const send = async (id: number) => {
+        setProblem(null);
+        try {
+            await confirm.mutateAsync({ shiftId: id, note: '' });
+        } catch (error) {
+            setProblem(error instanceof ApiError ? error.message : 'The confirm did not go through. Try again.');
+        }
+    };
+
+    return (
+        <section aria-labelledby="not-confirmed" className="flex flex-col">
+            <h3 id="not-confirmed" className="pb-2 border-b border-hairline text-[13px] font-bold text-neutral-gray">Shifts you have not confirmed</h3>
+            {waiting.map(r => (
+                <div key={r.id} className="flex items-center justify-between gap-3 py-1.5 border-b border-row-line">
+                    <span className="min-w-0">
+                        <span className="font-semibold">{r.staff_name}</span>
+                        <span className="text-neutral-gray"> · {spanOf(r)}</span>
+                    </span>
+                    <span className="flex items-center gap-2 shrink-0">
+                        <span className="font-semibold">{formatGHS(r.total)}</span>
+                        <button
+                            type="button"
+                            onClick={() => send(r.id)}
+                            disabled={confirm.isPending}
+                            className="min-h-11 px-3 rounded-xl border border-hairline-mid text-[13px] font-bold text-text-dark hover:bg-neutral-light cursor-pointer disabled:opacity-60"
+                        >
+                            Confirm
+                        </button>
+                    </span>
+                </div>
+            ))}
+            {problem && <p role="alert" className="pt-2 text-[13px] font-semibold text-danger-ink">{problem}</p>}
+        </section>
+    );
+}
+
 export function ClockOutSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
     const { staffUser, logout } = useStaffAuth();
+    const isManager = staffUser?.role === 'manager';
+    const branchId = isManager && staffUser?.branches[0]?.id ? Number(staffUser.branches[0].id) : null;
+    const meId = staffUser?.id ? Number(staffUser.id) : null;
     const [state, setState] = useState<State>({ kind: 'loading' });
     const [note, setNote] = useState('');
     const [sending, setSending] = useState(false);
@@ -151,32 +251,8 @@ export function ClockOutSheet({ open, onClose }: { open: boolean; onClose: () =>
                                     <h3 id="money-took" className="text-[13px] font-bold text-neutral-gray">Money you took</h3>
                                     <span className="text-[28px] font-extrabold leading-none text-text-dark">{formatGHS(state.view.total)}</span>
                                 </div>
-                                {LINE.filter(l => l.always || state.view.money[l.group].count > 0).map(l => {
-                                    const line = state.view.money[l.group] ?? { amount: 0, count: 0 };
-                                    return (
-                                        <div key={l.group} className="flex justify-between gap-3 py-2 border-b border-row-line">
-                                            <span>
-                                                <span className="font-semibold">{l.label}</span>
-                                                <span className="text-neutral-gray"> · {payments(line.count)}</span>
-                                                {l.proof && line.count > 0 && (
-                                                    <span className={l.proof === 'checked' ? 'text-success-ink' : OWES}> · {l.proof}</span>
-                                                )}
-                                            </span>
-                                            <span className="font-semibold">{formatGHS(line.amount)}</span>
-                                        </div>
-                                    );
-                                })}
-                                {state.view.no_charge.count > 0 && (
-                                    <div className="flex justify-between gap-3 py-2 border-b border-row-line text-neutral-gray">
-                                        <span><span className="font-semibold">No Charge</span> · not in the total</span>
-                                        <span>{formatGHS(state.view.no_charge.amount)}</span>
-                                    </div>
-                                )}
-                                {state.view.on_others_orders.map(o => (
-                                    <p key={`${o.order_id}-${o.group}`} className="pt-2 text-xs text-neutral-gray">
-                                        {formatGHS(o.amount)} of {OF_THE[o.group]} came from {o.assigned_to ? `${o.assigned_to}'s order` : 'order'} #{o.order_number}.
-                                    </p>
-                                ))}
+                                <MoneyLines money={state.view.money} noCharge={state.view.no_charge} />
+                                <FromOthers lines={state.view.on_others_orders} />
                             </section>
 
                             <section aria-labelledby="still-owed" className="flex flex-col">
@@ -194,6 +270,8 @@ export function ClockOutSheet({ open, onClose }: { open: boolean; onClose: () =>
                                     </div>
                                 ))}
                             </section>
+
+                            {isManager && <NotConfirmed branchId={branchId} meId={meId} />}
 
                             <label className="flex flex-col gap-1.5">
                                 <span className="text-[13px] font-bold text-neutral-gray">Leave a note</span>
@@ -235,7 +313,7 @@ export function ClockOutSheet({ open, onClose }: { open: boolean; onClose: () =>
  * Sign out for sales staff (Q1): Clock out first, Sign out only second. Sign
  * out only ends the shift with no confirmation, and the admin sees that.
  */
-export function SalesSignOutDialog({ isOpen, onCancel, onSignOutOnly }: {
+export function ClockOutSignOutDialog({ isOpen, onCancel, onSignOutOnly }: {
     isOpen: boolean;
     onCancel: () => void;
     onSignOutOnly: () => void;

@@ -16,6 +16,7 @@ import {
 import { getShiftService, type StaffShift } from '@/lib/services/shifts/shift.service';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import ShiftsCalendar, { type DayShiftSummary } from '@/app/staff/manager/shifts/ShiftsCalendar';
+import { ClockOutSheet } from '@/app/staff/_components/ClockOut';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,8 @@ function dateLabel(iso: string): string {
 
 export default function MyShiftsView() {
     const { staffUser } = useStaffAuth();
+    const isManager = staffUser?.role === 'manager';
+    const [clockingOut, setClockingOut] = useState(false);
     const [allShifts, setAllShifts] = useState<StaffShift[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCalendar, setShowCalendar] = useState(false);
@@ -169,6 +172,16 @@ export default function MyShiftsView() {
                                         Started {formatTime(activeShift.loginAt)} · {activeShift.branchName}
                                     </p>
                                 </div>
+                                {/* The branch manager clocks out too (staff portal D30). */}
+                                {isManager && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setClockingOut(true)}
+                                        className="ml-auto min-h-11 px-3 rounded-xl text-sm font-bold text-primary-ink hover:bg-primary/10 cursor-pointer"
+                                    >
+                                        Clock out
+                                    </button>
+                                )}
                             </div>
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="bg-white/50 dark:bg-brand-dark/50 rounded-xl px-3 py-2.5 text-center">
@@ -181,7 +194,7 @@ export default function MyShiftsView() {
                                 </div>
                                 <div className="bg-white/50 dark:bg-brand-dark/50 rounded-xl px-3 py-2.5 text-center">
                                     <p className="text-primary text-lg font-bold font-body">{formatGHS(activeShift.goodsSales)}</p>
-                                    <p className="text-neutral-gray text-[10px] font-body">Revenue</p>
+                                    <p className="text-neutral-gray text-[10px] font-body">Order Value</p>
                                 </div>
                             </div>
                             {activeShift.deliveryFees > 0 && (
@@ -210,7 +223,7 @@ export default function MyShiftsView() {
                             {[
                                 { label: 'Sessions', value: todayShifts.length.toString(), icon: ClockIcon },
                                 { label: 'Orders', value: todayOrders.toString(), icon: ShoppingBagIcon },
-                                { label: 'Revenue', value: formatGHS(todaySales), icon: CurrencyCircleDollarIcon },
+                                { label: 'Order Value', value: formatGHS(todaySales), icon: CurrencyCircleDollarIcon },
                                 { label: 'Delivery', value: formatGHS(todayDelivery), icon: TruckIcon },
                             ].map(({ label, value, icon: Icon }) => (
                                 <div key={label} className="bg-brown dark:bg-brand-dark border border-brown-light/15 rounded-2xl px-4 py-3.5 text-center">
@@ -324,7 +337,7 @@ export default function MyShiftsView() {
                                                             <CurrencyCircleDollarIcon size={12} weight="fill" className="text-primary" />
                                                             <p className="text-primary text-sm font-bold font-body">{formatGHS(shift.goodsSales)}</p>
                                                         </div>
-                                                        <p className="text-neutral-gray text-[10px] font-body">revenue</p>
+                                                        <p className="text-neutral-gray text-[10px] font-body">order value</p>
                                                     </div>
                                                     {shift.deliveryFees > 0 && (
                                                         <div className="text-center">
@@ -345,6 +358,7 @@ export default function MyShiftsView() {
                     </div>
                 </div>
             )}
+            <ClockOutSheet open={clockingOut} onClose={() => { setClockingOut(false); load(); }} />
         </div>
     );
 }

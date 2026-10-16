@@ -1,126 +1,81 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import {
-    CaretLeftIcon,
-    CaretRightIcon,
-    UsersThreeIcon,
-    CurrencyCircleDollarIcon,
-    ShoppingBagIcon,
-    SpinnerGapIcon,
-    UserCircleIcon,
-    DeviceMobileIcon,
-    MoneyIcon,
-    ProhibitIcon,
-    CreditCardIcon,
-    HandCoinsIcon,
-} from '@phosphor-icons/react';
+import { useMemo, useState } from 'react';
+import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
-import { useBranchStaffSales } from '@/lib/api/hooks/useBranches';
+import { useManagerShiftSales, type ShiftSalesRow } from '@/lib/api/hooks/useShiftSales';
+import { formatGHS } from '@/lib/utils/currency';
+import { serverToday } from '@/lib/utils/serverClock';
+import { DataTable, SegmentedTabs, type DataTableColumn } from '@/app/inventory/_components';
+import { BranchMoneyBlock } from '@/app/staff/_components/BranchMoneyBlock';
+import { ShiftReview } from '@/app/staff/_components/ShiftReview';
+import { StatePill } from '@/app/staff/_components/StatePill';
+import { dayLabel } from '@/app/staff/_components/orderFormat';
+import { clockOutState, managerState, spanOf, waitsOn } from '@/app/staff/_components/shiftSalesFormat';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Staff Sales, the branch manager's end (staff portal Section 6, D30), in the
+// manager's own look and kit. One line a shift. The manager opens a shift that
+// ended, reads what its person confirmed at Clock out, and confirms it.
 
-function formatGHS(n: number): string {
-    return `₵${n.toFixed(2)}`;
-}
+type Tab = 'all' | 'confirm' | 'confirmed' | 'on';
 
-function dateLabel(iso: string): string {
-    const today = new Date().toISOString().slice(0, 10);
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    if (iso === today) return 'Today';
-    if (iso === yesterday) return 'Yesterday';
-    return new Date(iso).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface StaffSalesRow {
-    employee_id: number;
-    staff_name: string;
-    total_orders: number;
-    momo_total: number;
-    momo_count: number;
-    cash_total: number;
-    cash_count: number;
-    manual_momo_total: number;
-    manual_momo_count: number;
-    no_charge_total: number;
-    no_charge_count: number;
-    card_total: number;
-    card_count: number;
-    total_revenue: number;
-    /** What they rang up: their orders' first items and the rounds they added (D44). */
-    sales_total?: number;
-    rounds_added?: number;
-}
-
-// ─── Payment method config ────────────────────────────────────────────────────
-
-const METHODS = [
-    { key: 'momo',         label: 'MoMo',        icon: DeviceMobileIcon, color: 'text-yellow-600',  bg: 'bg-yellow-600/8' },
-    { key: 'cash',         label: 'Cash',        icon: MoneyIcon,        color: 'text-secondary',   bg: 'bg-secondary/8' },
-    { key: 'manual_momo',  label: 'Direct MoMo', icon: HandCoinsIcon,    color: 'text-orange-600',  bg: 'bg-orange-600/8' },
-    { key: 'no_charge',    label: 'No Charge',   icon: ProhibitIcon,     color: 'text-teal-600',    bg: 'bg-teal-600/8' },
-    { key: 'card',         label: 'Card',        icon: CreditCardIcon,   color: 'text-blue-600',    bg: 'bg-blue-600/8' },
-] as const;
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+const DAY_MS = 86_400_000;
+const shiftDay = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
 
 export default function StaffSalesPage() {
     const { staffUser } = useStaffAuth();
-    const branchId = staffUser?.branches?.[0]?.id ? Number(staffUser.branches[0].id) : null;
+    const branch = staffUser?.branches?.[0];
+    const branchId = branch?.id ? Number(branch.id) : null;
+    const meId = staffUser?.id ? Number(staffUser.id) : null;
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = serverToday();
     const [date, setDate] = useState(today);
+    const [tab, setTab] = useState<Tab>('all');
 
-    const { staffSales, isLoading } = useBranchStaffSales(branchId, date);
-    const rows = staffSales as StaffSalesRow[];
+    const { data, isLoading } = useManagerShiftSales(branchId, date);
+    const rows = useMemo(() => data ?? [], [data]);
 
-    const prevDay = () => {
-        const d = new Date(date);
-        d.setDate(d.getDate() - 1);
-        setDate(d.toISOString().slice(0, 10));
-    };
+    const waiting = rows.filter(r => waitsOn(r, meId, 'manager'));
+    const shown = useMemo(() => {
+        if (tab === 'confirm') return rows.filter(r => waitsOn(r, meId, 'manager'));
+        if (tab === 'confirmed') return rows.filter(r => r.manager_confirm);
+        if (tab === 'on') return rows.filter(r => r.on_shift);
+        return rows;
+    }, [tab, rows, meId]);
 
-    const nextDay = () => {
-        if (date >= today) return;
-        const d = new Date(date);
-        d.setDate(d.getDate() + 1);
-        setDate(d.toISOString().slice(0, 10));
-    };
+    const columns: DataTableColumn<ShiftSalesRow>[] = [
+        {
+            key: 'staff',
+            header: 'Staff',
+            cell: r => (
+                <span className="whitespace-nowrap">
+                    <span className="font-semibold">{r.staff_name}</span>
+                    {r.employee_id === meId && <span className="text-neutral-gray"> · You</span>}
+                    {r.clock_out?.note && <span className="text-amber-700 font-semibold"> · Note</span>}
+                </span>
+            ),
+        },
+        { key: 'shift', header: 'Shift', cell: r => <span className="tabular-nums whitespace-nowrap">{spanOf(r)}</span> },
+        { key: 'total', header: 'Total', align: 'right', cell: r => <span className="font-bold tabular-nums">{formatGHS(r.total)}</span> },
+        { key: 'clock', header: 'Clock out', cell: r => <StatePill state={clockOutState(r)} /> },
+        { key: 'manager', header: 'Manager', cell: r => <StatePill state={managerState(r, meId, 'manager')} /> },
+    ];
 
-    // Grand totals
-    const totals = useMemo(() => {
-        return rows.reduce(
-            (acc, r) => ({
-                orders: acc.orders + r.total_orders,
-                revenue: acc.revenue + r.total_revenue,
-                momo: acc.momo + r.momo_total,
-                cash: acc.cash + r.cash_total,
-                manualMomo: acc.manualMomo + r.manual_momo_total,
-                noCharge: acc.noCharge + r.no_charge_total,
-                card: acc.card + r.card_total,
-            }),
-            { orders: 0, revenue: 0, momo: 0, cash: 0, manualMomo: 0, noCharge: 0, card: 0 },
-        );
-    }, [rows]);
+    const where = branch?.name ?? 'the branch';
 
     return (
-        <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto">
-
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                    <UsersThreeIcon size={20} weight="fill" className="text-primary" />
-                    <h1 className="text-text-dark text-2xl font-bold font-body">Staff Sales</h1>
+        <div className="px-4 md:px-8 py-6 max-w-6xl mx-auto flex flex-col gap-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold font-brand text-text-dark">Staff Sales</h1>
+                    <p className="text-neutral-gray text-sm font-body mt-1">{branch?.name ? `${branch.name} · ` : ''}{dayLabel(date)}</p>
                 </div>
-
-                {/* Date nav */}
                 <div className="flex items-center gap-2">
                     <button
                         type="button"
-                        onClick={prevDay}
-                        className="w-8 h-8 rounded-lg bg-neutral-light flex items-center justify-center text-neutral-gray hover:text-text-dark cursor-pointer"
+                        onClick={() => setDate(d => shiftDay(d, -1))}
+                        aria-label="The day before"
+                        className="min-w-11 min-h-11 rounded-xl bg-neutral-card border border-hairline-mid flex items-center justify-center text-text-dark cursor-pointer"
                     >
                         <CaretLeftIcon size={14} weight="bold" />
                     </button>
@@ -128,153 +83,56 @@ export default function StaffSalesPage() {
                         type="date"
                         value={date}
                         max={today}
-                        onChange={e => setDate(e.target.value)}
-                        className="text-text-dark text-sm font-semibold font-body bg-transparent border-none cursor-pointer text-center"
+                        onChange={e => e.target.value && setDate(e.target.value)}
+                        aria-label="Day"
+                        className="min-h-11 px-3 rounded-xl bg-neutral-card border border-hairline-mid text-sm font-semibold text-text-dark cursor-pointer"
                     />
-                    <span className="text-neutral-gray text-xs font-body">{dateLabel(date)}</span>
                     <button
                         type="button"
-                        onClick={nextDay}
+                        onClick={() => setDate(d => shiftDay(d, 1))}
                         disabled={date >= today}
-                        className="w-8 h-8 rounded-lg bg-neutral-light flex items-center justify-center text-neutral-gray hover:text-text-dark disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                        aria-label="The day after"
+                        className="min-w-11 min-h-11 rounded-xl bg-neutral-card border border-hairline-mid flex items-center justify-center text-text-dark cursor-pointer disabled:opacity-30 disabled:cursor-default"
                     >
                         <CaretRightIcon size={14} weight="bold" />
                     </button>
                 </div>
             </div>
 
-            {/* Summary row */}
-            {!isLoading && rows.length > 0 && (
-                <div className="grid grid-cols-3 gap-3 mb-6">
-                    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3 text-center">
-                        <p className="text-text-dark text-xl font-bold font-body">{rows.length}</p>
-                        <p className="text-neutral-gray text-xs font-body mt-0.5">Staff Members</p>
-                    </div>
-                    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3 text-center">
-                        <p className="text-text-dark text-xl font-bold font-body">{totals.orders}</p>
-                        <p className="text-neutral-gray text-xs font-body mt-0.5">Total Orders</p>
-                    </div>
-                    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3 text-center">
-                        <p className="text-primary text-xl font-bold font-body">{formatGHS(totals.revenue)}</p>
-                        <p className="text-neutral-gray text-xs font-body mt-0.5">Revenue</p>
-                        {totals.noCharge > 0 && (
-                            <p className="text-teal-600 text-[10px] font-body mt-0.5">+ {formatGHS(totals.noCharge)} no-charge</p>
-                        )}
-                    </div>
-                </div>
-            )}
+            <BranchMoneyBlock
+                title={`Money taken at ${where} ${date === today ? 'today' : `on ${dayLabel(date).split(' ').slice(0, 3).join(' ')}`}`}
+                note={waiting.length > 0 ? `${waiting.length} ${waiting.length === 1 ? 'shift waits' : 'shifts wait'} for you to confirm` : undefined}
+                rows={rows}
+            />
 
-            {/* Content */}
-            {isLoading ? (
-                <div className="py-16 flex items-center justify-center gap-2 text-neutral-gray text-sm font-body">
-                    <SpinnerGapIcon size={18} className="animate-spin" />
-                    Loading staff sales...
-                </div>
-            ) : rows.length === 0 ? (
-                <div className="py-16 text-center">
-                    <UsersThreeIcon size={32} weight="thin" className="text-neutral-gray/30 mx-auto mb-3" />
-                    <p className="text-text-dark text-sm font-medium font-body">No sales recorded</p>
-                    <p className="text-neutral-gray text-sm font-body mt-1">
-                        {date === today ? 'No staff sales today yet.' : `No sales data for ${dateLabel(date)}.`}
+            <div className="self-start">
+                <SegmentedTabs<Tab>
+                    value={tab}
+                    onChange={setTab}
+                    options={[
+                        { value: 'all', label: `All ${rows.length}` },
+                        { value: 'confirm', label: `To confirm ${waiting.length}` },
+                        { value: 'confirmed', label: `Confirmed ${rows.filter(r => r.manager_confirm).length}` },
+                        { value: 'on', label: `On shift ${rows.filter(r => r.on_shift).length}` },
+                    ]}
+                />
+            </div>
+
+            <DataTable<ShiftSalesRow>
+                key={`${tab}|${date}`}
+                data={shown}
+                columns={columns}
+                rowKey={r => r.id}
+                isLoading={isLoading}
+                expandedContent={r => <ShiftReview row={r} meId={meId} viewer="manager" />}
+                expandOnRowClick
+                oneOpenAtATime
+                emptyState={
+                    <p className="py-12 text-center text-sm text-neutral-gray">
+                        {tab === 'confirm' ? 'Nothing waits for you to confirm.' : 'No shifts that day.'}
                     </p>
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    {rows.map((row) => (
-                        <div
-                            key={row.employee_id}
-                            className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-5 py-4"
-                        >
-                            {/* Staff header */}
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                                        <UserCircleIcon size={22} weight="fill" className="text-primary" />
-                                    </div>
-                                    <div>
-                                        <p className="text-text-dark text-sm font-semibold font-body">{row.staff_name}</p>
-                                        {/* Sales are theirs by who rang them up; the money below
-                                            by who took it (D44). */}
-                                        <p className="text-neutral-gray text-xs font-body tabular-nums">
-                                            {row.total_orders} order{row.total_orders !== 1 ? 's' : ''}
-                                            {(row.rounds_added ?? 0) > 0 ? ` and ${row.rounds_added} added round${row.rounds_added !== 1 ? 's' : ''}` : ''}
-                                            {' · rang up '}{formatGHS(row.sales_total ?? 0)}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-primary text-lg font-bold font-body">{formatGHS(row.total_revenue)}</p>
-                                    <p className="text-neutral-gray text-[10px] font-body">money taken</p>
-                                </div>
-                            </div>
-
-                            {/* Payment breakdown */}
-                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                                {METHODS.map(m => {
-                                    const total = row[`${m.key}_total` as keyof StaffSalesRow] as number;
-                                    const count = row[`${m.key}_count` as keyof StaffSalesRow] as number;
-                                    if (count === 0) return (
-                                        <div key={m.key} className="rounded-xl bg-neutral-light/60 px-3 py-2">
-                                            <div className="flex items-center gap-1.5 mb-1">
-                                                <m.icon size={12} weight="fill" className="text-neutral-gray/40" />
-                                                <span className="text-neutral-gray/40 text-[10px] font-body">{m.label}</span>
-                                            </div>
-                                            <p className="text-neutral-gray/40 text-xs font-body">—</p>
-                                        </div>
-                                    );
-                                    return (
-                                        <div key={m.key} className={`rounded-xl ${m.bg} px-3 py-2`}>
-                                            <div className="flex items-center gap-1.5 mb-1">
-                                                <m.icon size={12} weight="fill" className={m.color} />
-                                                <span className={`${m.color} text-[10px] font-bold font-body`}>{m.label}</span>
-                                                <span className="text-neutral-gray text-[10px] font-body ml-auto">×{count}</span>
-                                            </div>
-                                            <p className={`${m.color} text-sm font-bold font-body`}>{formatGHS(total)}</p>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    ))}
-
-                    {/* Grand total footer */}
-                    <div className="bg-brown/5 border border-brown/15 rounded-2xl px-5 py-4">
-                        <div className="flex items-center justify-between mb-3">
-                            <p className="text-text-dark text-sm font-bold font-body">Revenue</p>
-                            <p className="text-primary text-lg font-bold font-body">{formatGHS(totals.revenue)}</p>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-body">
-                            <div className="flex items-center gap-1.5">
-                                <DeviceMobileIcon size={12} weight="fill" className="text-yellow-600" />
-                                <span className="text-text-dark">MoMo: {formatGHS(totals.momo)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <MoneyIcon size={12} weight="fill" className="text-secondary" />
-                                <span className="text-text-dark">Cash: {formatGHS(totals.cash)}</span>
-                            </div>
-                            {totals.manualMomo > 0 && (
-                                <div className="flex items-center gap-1.5">
-                                    <HandCoinsIcon size={12} weight="fill" className="text-orange-600" />
-                                    <span className="text-text-dark">Direct MoMo: {formatGHS(totals.manualMomo)}</span>
-                                </div>
-                            )}
-                            <div className="flex items-center gap-1.5">
-                                <CreditCardIcon size={12} weight="fill" className="text-blue-600" />
-                                <span className="text-text-dark">Card: {formatGHS(totals.card)}</span>
-                            </div>
-                        </div>
-                        {totals.noCharge > 0 && (
-                            <div className="mt-3 pt-3 border-t border-brown/10 flex items-center justify-between">
-                                <div className="flex items-center gap-1.5 text-xs font-body">
-                                    <ProhibitIcon size={12} weight="fill" className="text-teal-600" />
-                                    <span className="text-teal-600 font-medium">No Charge (Loss)</span>
-                                </div>
-                                <span className="text-teal-600 text-sm font-bold font-body">{formatGHS(totals.noCharge)}</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
+                }
+            />
         </div>
     );
 }
