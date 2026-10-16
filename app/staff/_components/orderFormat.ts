@@ -46,6 +46,7 @@ export function sourceLabel(order: Order): string {
         case 'whatsapp': return 'WhatsApp';
         case 'social_media': return 'Social media';
         case 'manual_entry': return 'Recorded';
+        case 'bolt': return 'Bolt';
         default: return '';
     }
 }
@@ -68,6 +69,8 @@ export function methodLabel(part: Pick<PaymentPart, 'method' | 'via'>): string {
         case 'manual_momo': return 'Direct MoMo';
         case 'card': return 'Card';
         case 'no_charge': return 'No Charge';
+        // The customer paid Bolt. Nobody on staff took it.
+        case 'bolt': return 'Bolt';
         default: return 'Other';
     }
 }
