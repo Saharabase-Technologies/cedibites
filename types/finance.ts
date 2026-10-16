@@ -29,7 +29,9 @@ export interface FinanceBranch {
  * Paid orders that were not cancelled, grouped by the day the order was
  * placed and by branch, source, type and payment method.
  *
- * `net` is `total_amount - delivery_fee`: the delivery fee is never in it.
+ * `net` is `total_amount - delivery_fee - platform_commission`: the delivery
+ * fee is never in it, and neither is what Bolt keeps of a Bolt order.
+ * `platformCommission` came later, so an older payload has no twelfth value.
  */
 export type FinanceSaleRow = [
   date: string,
@@ -43,6 +45,7 @@ export type FinanceSaleRow = [
   serviceCharge: number,
   net: number,
   deliveryFee: number,
+  platformCommission?: number,
 ];
 
 /**

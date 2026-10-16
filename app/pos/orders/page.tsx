@@ -988,9 +988,10 @@ function OrderDetail({ order }: { order: Order }) {
       </div>
 
       <dl className="space-y-2.5 text-sm">
-        <DetailRow label="Payment" value={order.paymentMethod.replace(/_/g, ' ')} />
+        <DetailRow label="Payment" value={order.paymentMethod === 'bolt' ? 'Paid on Bolt' : order.paymentMethod.replace(/_/g, ' ')} />
         <DetailRow label="Fulfilment" value={FULFILLMENT_LABELS[order.fulfillmentType]} />
         <DetailRow label="Channel" value={SOURCE_LABEL[order.source] ?? order.source} />
+        {order.platformReference && <DetailRow label="Bolt order" value={order.platformReference} />}
         <DetailRow label="Handled by" value={order.staffName ?? 'Unclaimed'} />
         {order.contact.notes && <DetailRow label="Note" value={order.contact.notes} />}
         {order.contact.address && <DetailRow label="Address" value={order.contact.address} />}

@@ -20,6 +20,7 @@ const MENU_TABS = [
     { href: '/admin/menu/tags', label: 'Tags' },
     { href: '/admin/menu/configure', label: 'Configure' },
     { href: '/admin/menu/prices', label: 'New prices' },
+    { href: '/admin/menu/bolt', label: 'Bolt' },
 ];
 
 export function MenuShell({ children }: { children: React.ReactNode }) {

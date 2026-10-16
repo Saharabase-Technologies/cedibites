@@ -38,6 +38,7 @@ import apiClient from '@/lib/api/client';
 import { toast } from '@/lib/utils/toast';
 import type { PaymentMethod, Order, OrderSource } from '@/types/order';
 import { TONE } from '@/app/inventory/_components/status-tokens';
+import { BoltMarkIcon } from '@/app/components/icons/BoltMarkIcon';
 import {
   PhoneIcon,
   WhatsappLogoIcon,
@@ -61,7 +62,19 @@ const ORDER_SOURCE_OPTIONS: { id: OrderSource; label: string; icon: React.Elemen
   { id: 'phone', label: 'Phone', icon: PhoneIcon },
   { id: 'whatsapp', label: 'WhatsApp', icon: WhatsappLogoIcon },
   { id: 'social_media', label: 'Social', icon: ShareNetworkIcon },
+  { id: 'bolt', label: 'Bolt', icon: BoltMarkIcon },
 ];
+
+/** A branch till takes walk-ins and Bolt's tablet. The call centre takes the rest. */
+const TILL_SOURCE_OPTIONS = ORDER_SOURCE_OPTIONS.filter(opt => opt.id === 'pos' || opt.id === 'bolt');
+
+/** Bolt's order code, as the tablet shows it: WWJ98. */
+const BOLT_CODE = /^[A-Z0-9-]{3,40}$/;
+
+/** To the pesewa, the way the server rounds. */
+function roundMoney(amount: number): number {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
 import type { DisplayMenuItem } from '@/lib/api/adapters/menu.adapter';
 import { useBranch } from '@/app/components/providers/BranchProvider';
 import { useMenuItems } from '@/lib/api/hooks/useMenuItems';
@@ -201,6 +214,9 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     resetBranchForNextOrder,
     orderSource,
     setOrderSource,
+    isBolt,
+    boltReference,
+    setBoltReference,
     cart,
     cartTotal,
     cartCount,
@@ -244,20 +260,55 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   // New prices reload this menu the moment they go live.
   useMenuLiveUpdates();
 
+  // A Bolt order is charged Bolt's prices, and a dish with no Bolt price is
+  // not offered. The server charges the same prices whatever the till sends.
+  const pricedMenuItems = useMemo(() => {
+    if (!isBolt) return menuItems;
+    return menuItems
+      .map(item => {
+        const sizes = (item.sizes ?? [])
+          .filter(size => size.boltPrice != null)
+          .map(size => ({ ...size, price: size.boltPrice as number }));
+        return { ...item, sizes, price: sizes[0]?.price };
+      })
+      .filter(item => item.sizes.length > 0);
+  }, [menuItems, isBolt]);
+
+  // Bolt's promo on each option, which we pay for. Worked line by line, as
+  // the server does; the server's figure is the one on the order.
+  const boltPromoByOption = useMemo(() => {
+    const promos = new Map<number, number>();
+    for (const item of menuItems) {
+      for (const size of item.sizes ?? []) {
+        if (size.boltPromoPercent) promos.set(size.id, size.boltPromoPercent);
+      }
+    }
+    return promos;
+  }, [menuItems]);
+
   // And a basket already open follows them. The server charges the menu's
   // price at the moment of the order, so a line left at the old price would
-  // have the cashier quote 90 while the receipt says 100.
+  // have the cashier quote 90 while the receipt says 100. Switching to or
+  // from Bolt reprices it the same way, and a dish not on Bolt comes off.
+  const pricedForBolt = useRef(isBolt);
   useEffect(() => {
     if (menuItems.length === 0) return;
     const prices = new Map<number, number>();
-    for (const item of menuItems) {
+    for (const item of pricedMenuItems) {
       for (const size of item.sizes ?? []) prices.set(size.id, size.price);
     }
+    const switched = pricedForBolt.current !== isBolt;
+    pricedForBolt.current = isBolt;
+    const notOnBolt = isBolt ? cart.filter(line => !line.sizeId || !prices.has(Number(line.sizeId))) : [];
+    notOnBolt.forEach(line => removeFromCart(line.id));
     const changed = syncCartPrices(prices);
-    if (changed > 0) {
+    if (switched && (changed > 0 || notOnBolt.length > 0)) {
+      const offBolt = notOnBolt.length === 1 ? ' 1 dish is not on Bolt and came off.' : notOnBolt.length > 1 ? ` ${notOnBolt.length} dishes are not on Bolt and came off.` : '';
+      toast.info(isBolt ? `The basket now shows Bolt prices.${offBolt}` : 'The basket now shows counter prices.');
+    } else if (changed > 0) {
       toast.info('Prices changed. The basket now shows the new prices.');
     }
-  }, [menuItems, syncCartPrices]);
+  }, [menuItems, pricedMenuItems, isBolt, cart, removeFromCart, syncCartPrices]);
 
   // Which dishes the kitchen can still make. Advisory — the server decides at
   // the moment the order is written — but it is what stops a cashier promising
@@ -354,8 +405,9 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   }), [session?.branchId, cartLinesKey, cartTotal, offerPhone]);
 
   useEffect(() => {
-    if (!session?.branchId || !cartLinesKey) {
-      // An empty cart is the start of the next customer, and their code.
+    if (!session?.branchId || !cartLinesKey || isBolt) {
+      // An empty cart is the start of the next customer, and their code. A
+      // Bolt order takes Bolt's promo, never ours.
       setActivePromo(null); setPromoDiscount(0);
       setPromoCode(null); setCodeMessage(null);
       return;
@@ -388,7 +440,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     }, 250);
 
     return () => { live = false; clearTimeout(t); };
-  }, [session?.branchId, cartLinesKey, promoCode, askOffer]);
+  }, [session?.branchId, cartLinesKey, promoCode, askOffer, isBolt]);
 
   const applyCode = async () => {
     const code = codeInput.replace(/\s+/g, '').toUpperCase();
@@ -475,10 +527,10 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     [branchInfo, menuItems]
   );
 
-  // All menu items available at this branch
+  // All menu items available at this branch, at Bolt's prices on a Bolt order
   const branchMenuItems = useMemo(
-    () => menuItems.filter(item => branchMenuIds.includes(item.id)),
-    [branchMenuIds, menuItems]
+    () => pricedMenuItems.filter(item => branchMenuIds.includes(item.id)),
+    [branchMenuIds, pricedMenuItems]
   );
 
   const allCategories = useMemo(
@@ -572,8 +624,34 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
   }, [cart]);
 
   // Effective total after any promo discount. A round of an order takes no
-  // promo (Phase 4b): the server gives it none, so the till shows none.
-  const appliedDiscount = addTarget ? 0 : promoDiscount;
+  // promo (Phase 4b): the server gives it none, so the till shows none. A
+  // Bolt order takes Bolt's promo.
+  const boltDiscount = isBolt
+    ? roundMoney(cart.reduce((sum, line) => {
+      const percent = line.sizeId ? boltPromoByOption.get(Number(line.sizeId)) ?? 0 : 0;
+      return sum + roundMoney(line.price * line.quantity * percent / 100);
+    }, 0))
+    : 0;
+  const appliedDiscount = isBolt ? boltDiscount : addTarget ? 0 : promoDiscount;
+
+  // Head office has five channels. As icons they fit one row, and the one
+  // chosen is named beside the heading. A till has two, which keep their names.
+  const sourceOptions = isCompanyWide ? ORDER_SOURCE_OPTIONS : TILL_SOURCE_OPTIONS;
+  const sourcesAsIcons = sourceOptions.length > 2;
+  const chosenSource = sourceOptions.find(opt => opt.id === orderSource);
+  const boltCodeReady = BOLT_CODE.test(boltReference.replace(/\s+/g, '').toUpperCase());
+
+  // A Bolt order is paid already, to Bolt, so it skips the payment step.
+  const [placingBolt, setPlacingBolt] = useState(false);
+  const placeBoltOrder = async () => {
+    if (placingBolt) return;
+    setPlacingBolt(true);
+    try {
+      await handlePaymentComplete('bolt');
+    } finally {
+      setPlacingBolt(false);
+    }
+  };
   const effectiveTotal = Math.max(0, cartTotal - appliedDiscount);
 
   // Delivery fee only counts on delivery orders
@@ -1087,6 +1165,22 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
           </div>
         )}
 
+        {/* A Bolt order changes every price on the screen, so the screen says so. */}
+        {isBolt && !addTarget && (
+          <div className={`shrink-0 px-4 py-2.5 flex items-center justify-between gap-3 ${TONE.waiting.bg}`}>
+            <p className={`min-w-0 truncate text-sm font-semibold ${TONE.waiting.text}`}>
+              Bolt order · Bolt prices · paid on Bolt
+            </p>
+            <button
+              type="button"
+              onClick={() => setOrderSource('pos')}
+              className={`shrink-0 min-h-11 px-3 rounded-xl text-sm font-semibold bg-white/70 hover:bg-white transition-colors ${TONE.waiting.text}`}
+            >
+              Back to counter
+            </button>
+          </div>
+        )}
+
         {/* Category Tabs */}
         <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15 bg-white">
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
@@ -1230,6 +1324,14 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
               <p className="font-medium text-text-dark">Loading menu…</p>
               <p className="mt-1 text-sm">Fetching what this branch is serving.</p>
             </div>
+          ) : isBolt && branchMenuItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-6 text-center text-neutral-gray">
+              <BoltMarkIcon className="w-12 h-12 mb-4 opacity-40" />
+              <p className="font-medium text-text-dark">No dish has a Bolt price yet</p>
+              <p className="mt-1 text-sm max-w-xs">
+                An administrator sets them on Menu, Bolt.
+              </p>
+            </div>
           ) : branchMenuItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-6 text-center text-neutral-gray">
               <StorefrontIcon className="w-12 h-12 mb-4 opacity-40" />
@@ -1301,7 +1403,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
             pickup or delivery, the only two a phone order has — and all that is
             left here is the fee that follows from choosing delivery. */}
         <div className={`shrink-0 px-4 py-3 border-b border-neutral-gray/15 ${
-          (isRemoteOrder && orderType !== 'delivery') || addTarget ? 'hidden' : ''
+          (isRemoteOrder && orderType !== 'delivery') || addTarget || isBolt ? 'hidden' : ''
         }`}>
           <div className={`flex gap-2 ${isRemoteOrder ? 'hidden' : ''}`}>
             {/* Map POS order types to DB keys: dine_in→dine_in, takeaway→pickup */}
@@ -1373,42 +1475,87 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
           )}
         </div>
 
-        {/* Where the order came in on. Still only asked of someone working
-            across the whole company — a cashier's answer is always the till,
-            and it would be a question with one answer.
+        {/* Where the order came in on. Someone working across the whole
+            company gets every channel. A branch cashier gets the two a till
+            has: the counter, and Bolt's tablet.
 
-            This now also chooses the layout: pick Phone and the caller's name
-            and number move to the top bar. That is why it stays on
-            isCompanyWide while everything else here reads isRemoteOrder — this
-            is the control, not the consequence. */}
-        {isCompanyWide && !addTarget && (
-          <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15">
-            <p className="text-[10px] font-bold text-neutral-gray uppercase tracking-wider mb-2">
-              How did this order come in?
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {ORDER_SOURCE_OPTIONS.map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setOrderSource(opt.id)}
-                  className={`flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${
-                    orderSource === opt.id
-                      ? 'bg-primary text-white border-primary'
-                      : 'bg-neutral-light text-neutral-gray border-neutral-gray/20 hover:border-primary/40'
-                  }`}
-                >
-                  <opt.icon className="w-4 h-4" />
-                  {opt.label}
-                </button>
-              ))}
+            This also chooses the layout: pick Phone and the caller's name and
+            number move to the top bar, pick Bolt and the prices become Bolt's.
+            That is why the options follow isCompanyWide while everything else
+            here reads isRemoteOrder: this is the control, not the consequence. */}
+        {!addTarget && (
+          <div className="shrink-0 px-4 py-2.5 border-b border-neutral-gray/15">
+            <div className="flex items-baseline justify-between gap-2 mb-2">
+              <p className="text-[10px] font-bold text-neutral-gray uppercase tracking-wider">
+                How did this order come in?
+              </p>
+              {sourcesAsIcons && chosenSource && (
+                <p className="text-xs font-semibold text-text-dark">{chosenSource.label}</p>
+              )}
+            </div>
+            <div className={`grid gap-1.5 ${sourcesAsIcons ? 'grid-cols-5' : 'grid-cols-2'}`}>
+              {sourceOptions.map(opt => {
+                // A Bolt order is rung as it comes in, never recorded afterwards.
+                const unavailable = opt.id === 'bolt' && isManualEntry;
+                const chosen = orderSource === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setOrderSource(opt.id)}
+                    disabled={unavailable}
+                    aria-label={opt.label}
+                    aria-pressed={chosen}
+                    title={unavailable ? 'A Bolt order is rung as it comes in, not recorded afterwards.' : opt.label}
+                    className={`flex items-center justify-center gap-1.5 min-h-11 rounded-lg text-xs font-semibold transition-colors cursor-pointer border disabled:opacity-40 disabled:cursor-not-allowed ${
+                      chosen
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-neutral-light text-neutral-gray border-neutral-gray/20 hover:border-primary/40'
+                    }`}
+                  >
+                    <opt.icon className={sourcesAsIcons ? 'w-5 h-5' : 'w-4 h-4'} />
+                    {!sourcesAsIcons && opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* A Bolt order: the code from the tablet, which matches it to Bolt's
+            report, and the name if the tablet shows one. Bolt keeps the
+            customer's number. */}
+        {isBolt && !addTarget && (
+          <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15 space-y-2">
+            <div className="relative">
+              <BoltMarkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
+              <input
+                type="text"
+                placeholder="Bolt order code * (e.g. WWJ98)"
+                value={boltReference}
+                onChange={e => setBoltReference(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 40))}
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                className="w-full h-11 pl-9 pr-3 rounded-lg bg-neutral-light text-text-dark font-semibold tracking-wider placeholder:font-normal placeholder:tracking-normal placeholder:text-neutral-gray/60 border border-neutral-gray/20 focus:border-primary/50 outline-none text-sm transition-colors"
+              />
+            </div>
+            <div className="relative">
+              <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
+              <input
+                type="text"
+                placeholder="Customer name, if the tablet shows one"
+                value={customerName}
+                onChange={e => setCustomerName(e.target.value)}
+                className="w-full h-11 pl-9 pr-3 rounded-lg bg-neutral-light text-text-dark placeholder:text-neutral-gray/60 border border-neutral-gray/20 focus:border-primary/50 outline-none text-sm transition-colors"
+              />
             </div>
           </div>
         )}
 
         {/* Customer Info — in the panel for a till, in the top bar for the call
             centre, who are typing it while the caller is talking. */}
-        <div className={`shrink-0 px-4 py-3 border-b border-neutral-gray/15 space-y-2 ${isRemoteOrder || addTarget ? 'hidden' : ''}`}>
+        <div className={`shrink-0 px-4 py-3 border-b border-neutral-gray/15 space-y-2 ${isRemoteOrder || addTarget || isBolt ? 'hidden' : ''}`}>
           <div className="relative">
             <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
             <input
@@ -1497,6 +1644,8 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
             it takes no promo. */}
         {cart.length > 0 && !addTarget && (
           <div className="shrink-0 px-4 py-2 border-t border-neutral-gray/15">
+            {/* A Bolt order takes Bolt's promo, never a code of ours. */}
+            {!isBolt && (<>
             <button
               onClick={() => setShowCode(!showCode)}
               className="w-full flex items-center justify-between gap-2 py-1.5 text-neutral-gray hover:text-text-dark transition-colors text-sm"
@@ -1556,6 +1705,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
                 )}
               </div>
             )}
+            </>)}
 
             <button
               onClick={() => setShowOrderDetails(!showOrderDetails)}
@@ -1589,7 +1739,16 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
                 <span className="text-neutral-gray text-sm">Subtotal</span>
                 <span className="text-sm text-neutral-gray">{formatGHS(cartTotal)}</span>
               </div>
-              {activePromo && appliedDiscount > 0 && (
+              {isBolt && appliedDiscount > 0 && (
+                <div className="flex items-center justify-between mb-1">
+                  <span className="flex items-center gap-1.5 text-secondary text-sm">
+                    <TagIcon size={12} weight="fill" />
+                    Bolt promo
+                  </span>
+                  <span className="text-secondary text-sm font-semibold">-{formatGHS(appliedDiscount)}</span>
+                </div>
+              )}
+              {!isBolt && activePromo && appliedDiscount > 0 && (
                 <div className="flex items-center justify-between mb-1">
                   <span className="flex items-center gap-1.5 text-secondary text-sm">
                     <TagIcon size={12} weight="fill" />
@@ -1636,8 +1795,10 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
           )}
 
           <button
-            onClick={openPayment}
-            disabled={cart.length === 0 || (!addTarget && (!customerName.trim() || !isValidGhanaPhone(customerPhone)))}
+            onClick={isBolt && !addTarget ? placeBoltOrder : openPayment}
+            disabled={cart.length === 0 || (isBolt && !addTarget
+              ? !boltCodeReady || placingBolt
+              : !addTarget && (!customerName.trim() || !isValidGhanaPhone(customerPhone)))}
             className="
               w-full h-14 rounded-2xl font-semibold text-lg
               bg-primary text-brown
@@ -1647,7 +1808,9 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
               flex items-center justify-center gap-2
             "
           >
-            Pay {formatGHS(grandTotal)}
+            {isBolt && !addTarget
+              ? placingBolt ? 'Placing…' : `Place Bolt order ${formatGHS(grandTotal)}`
+              : `Pay ${formatGHS(grandTotal)}`}
             <CaretRightIcon className="w-5 h-5" />
           </button>
         </div>

@@ -19,14 +19,16 @@ export type OrderStatus =
     | 'cancel_requested'    // call_center requested; awaiting manager approval
     | 'cancelled';
 
-export type OrderSource = 'online' | 'phone' | 'whatsapp' | 'social_media' | 'pos' | 'manual_entry';
+// bolt: a Bolt Food order, rung at the till off Bolt's tablet.
+export type OrderSource = 'online' | 'phone' | 'whatsapp' | 'social_media' | 'pos' | 'manual_entry' | 'bolt';
 
 export type FulfillmentType = 'delivery' | 'pickup' | 'dine_in' | 'takeaway';
 
 // pay_later is a way to finish a sale, not a way money arrives: the order is
 // placed with nothing paid (D1), and its payments come afterwards. split is
 // the same, with its parts taken at the counter straight away (D41).
-export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'no_charge' | 'manual_momo' | 'pay_later' | 'split';
+// bolt: the customer paid Bolt, and Bolt pays us later. Nothing reaches the till.
+export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'no_charge' | 'manual_momo' | 'pay_later' | 'split' | 'bolt';
 
 /** Whether an order's payments cover it. */
 export type PaymentState = 'not_paid' | 'part_paid' | 'paid';
@@ -192,9 +194,17 @@ export interface Order {
     deliveryFeeStatus?: 'not_applicable' | 'pending' | 'collected';
     discount: number;
     promoCode?: string;
+    /** The promo's name, as the server wrote it ("Bolt promo" on a Bolt order). */
+    promoName?: string;
     tax: number;
     serviceCharge?: number;
     total: number;
+    /** Bolt's code for a Bolt order, as the tablet shows it (WWJ98). */
+    platformReference?: string;
+    /** What Bolt keeps of a Bolt order. 0 on every other order. */
+    platformCommission?: number;
+    /** What the order counts for in net sales: the total less delivery and Bolt's cut. */
+    netAmount?: number;
 
     // People
     contact: OrderContact;

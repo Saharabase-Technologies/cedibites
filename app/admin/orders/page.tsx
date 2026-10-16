@@ -30,7 +30,7 @@ import apiClient from '@/lib/api/client';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type OrderStatus = 'received' | 'preparing' | 'ready' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'completed' | 'cancelled' | 'cancel_requested';
-type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone' | 'Past Order';
+type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone' | 'Past Order' | 'Bolt';
 type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
 type PaymentStatus = 'Paid' | 'Pending' | 'Failed' | 'Refunded' | 'No Charge';
 
@@ -63,7 +63,7 @@ const ADMIN_OVERRIDE_TARGETS: Record<string, OrderStatus[]> = {
     cancel_requested: ['preparing', 'cancelled'],
     cancelled:        [],
 };
-const ALL_SOURCES: OrderSource[] = ['Online', 'POS', 'WhatsApp', 'Instagram', 'Facebook', 'Phone', 'Past Order'];
+const ALL_SOURCES: OrderSource[] = ['Online', 'POS', 'WhatsApp', 'Instagram', 'Facebook', 'Phone', 'Past Order', 'Bolt'];
 const ALL_PAYMENTS: PaymentMethod[] = ['Mobile Money', 'Cash', 'Card', 'Wallet', 'GhQR', 'No Charge'];
 const ALL_PAYMENT_STATUSES: PaymentStatus[] = ['Paid', 'Pending', 'Failed', 'Refunded', 'No Charge'];
 
@@ -75,6 +75,7 @@ const SOURCE_TO_API: Record<OrderSource, string> = {
     Facebook: 'facebook',
     Phone: 'phone',
     'Past Order': 'manual_entry',
+    Bolt: 'bolt',
 };
 
 const PAYMENT_STATUS_TO_API: Record<PaymentStatus, string> = {

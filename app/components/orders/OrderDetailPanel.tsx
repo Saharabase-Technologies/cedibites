@@ -168,7 +168,10 @@ export default function OrderDetailPanel({
               <p className="text-[11px] font-bold font-body text-neutral-gray uppercase tracking-wider mb-1.5">
                 Source
               </p>
-              <p className="text-text-dark text-base font-semibold font-body">{order.source}</p>
+              <p className="text-text-dark text-base font-semibold font-body">
+                {order.source}
+                {order.platformReference && <span className="tabular-nums"> {order.platformReference}</span>}
+              </p>
               {/* The channel says how; this says who. On a call-centre order
                   there is a person answerable for what was typed in. */}
               <p className="text-neutral-gray text-sm font-body mt-1 leading-snug">{placedBy}</p>
@@ -242,6 +245,10 @@ export default function OrderDetailPanel({
               </div>
 
               <div className="px-4 py-3 bg-neutral-card border-t border-[#f0e8d8]">
+                {/* Without it the lines and the total disagree on any order with a promo. */}
+                {order.discount > 0 && (
+                  <KeyValue label={order.promoName || 'Discount'} value={`-${formatGHS(order.discount)}`} />
+                )}
                 {order.deliveryFee > 0 && (
                   <>
                     <KeyValue label="Goods" value={formatGHS(goodsTotal)} />
@@ -257,6 +264,13 @@ export default function OrderDetailPanel({
                     {formatGHS(order.amount)}
                   </span>
                 </div>
+                {/* Bolt's cut, and what this order counts for in net sales. */}
+                {order.platformCommission > 0 && (
+                  <>
+                    <KeyValue label="Kept by Bolt" value={`-${formatGHS(order.platformCommission)}`} />
+                    <KeyValue label="We keep" value={formatGHS(goodsTotal - order.platformCommission)} accent />
+                  </>
+                )}
               </div>
             </Card>
           </div>

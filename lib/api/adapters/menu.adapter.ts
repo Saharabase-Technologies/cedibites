@@ -12,7 +12,7 @@ export interface DisplayMenuItem {
   description: string;
   category: string;
   price?: number;
-  sizes?: { id: number; key: string; label: string; displayName?: string; price: number; image?: string }[];
+  sizes?: { id: number; key: string; label: string; displayName?: string; price: number; image?: string; boltPrice?: number | null; boltPromoPercent?: number | null }[];
   hasVariants?: boolean;
   variants?: { plain?: number; assorted?: number };
   image?: string;
@@ -42,7 +42,7 @@ function toNum(v: unknown): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-function mapApiOptionToDisplay(option: ApiMenuItemOption): { id: number; key: string; label: string; displayName?: string; price: number; image?: string } {
+function mapApiOptionToDisplay(option: ApiMenuItemOption): NonNullable<DisplayMenuItem['sizes']>[number] {
   return {
     id: option.id,
     key: option.option_key,
@@ -50,6 +50,9 @@ function mapApiOptionToDisplay(option: ApiMenuItemOption): { id: number; key: st
     displayName: option.display_name ?? undefined,
     price: toNum(option.price),
     image: option.image_url ?? undefined,
+    // What the till charges when the order comes from Bolt.
+    boltPrice: option.bolt_price != null ? toNum(option.bolt_price) : null,
+    boltPromoPercent: option.bolt_promo_percent != null ? toNum(option.bolt_promo_percent) : null,
   };
 }
 

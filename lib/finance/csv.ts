@@ -36,7 +36,7 @@ const BOM = String.fromCharCode(0xfeff);
 const csvFile = (lines: Cell[][]): Blob => new Blob([BOM + toCsv(lines)], { type: 'text/csv;charset=utf-8' });
 
 const SALES_HEAD = [
-  'Branch', 'Month', 'Days open', 'Paid orders', 'Gross sales', 'Discounts', 'Service charge', 'Net sales', 'Sales a day',
+  'Branch', 'Month', 'Days open', 'Paid orders', 'Gross sales', 'Discounts', 'Service charge', 'Kept by Bolt', 'Net sales', 'Sales a day',
   'Delivery fees to riders', LABEL.method.cash, LABEL.method.mobile_money, LABEL.method.card,
   'Cancelled and refunded (orders)', 'Cancelled and refunded (GHS)', 'Cancelled, money kept (orders)', 'Cancelled, money kept (GHS)',
   'Cancelled, no charge (orders)', 'Cancelled, no charge (GHS)',
@@ -51,7 +51,7 @@ export function salesByMonthCsv(res: Figures): Blob {
   const row = (name: string, m: string, a: Sums): Cell[] => {
     const day = perDay(a);
     return [
-      text(name), m, a.days, a.orders, money(a.gross), money(a.discount), money(a.serviceCharge), money(a.net),
+      text(name), m, a.days, a.orders, money(a.gross), money(a.discount), money(a.serviceCharge), money(a.platformCut), money(a.net),
       day == null ? '' : money(day), money(a.deliveryFee), money(a.cash), money(a.momo), money(a.card),
       a.refundedOrders, money(a.refundedAmount), a.keptOrders, money(a.keptAmount), a.noChargeOrders, money(a.noChargeAmount),
     ];

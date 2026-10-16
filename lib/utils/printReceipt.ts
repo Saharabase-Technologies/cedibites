@@ -73,6 +73,7 @@ const paymentLabel: Record<string, string> = {
   card: 'CARD',
   no_charge: 'NO CHARGE',
   manual_momo: 'DIRECT MOMO',
+  bolt: 'PAID ON BOLT',
 };
 
 /** A part's method in the payments block, as it reads aloud. */
@@ -207,8 +208,9 @@ function slipHTML(
   // from the goods total so the rider fee is never mistaken for restaurant revenue.
   const hasDelivery = deliveryFee > 0;
 
+  // A Bolt order's discount is Bolt's promo, and the slip says so.
   const discountRow = discount > 0
-    ? `<tr><td colspan="3">Discount</td><td class="amount">-${discount.toFixed(2)}</td></tr>`
+    ? `<tr><td colspan="3">${order.source === 'bolt' ? 'Bolt promo' : 'Discount'}</td><td class="amount">-${discount.toFixed(2)}</td></tr>`
     : '';
 
   // When a delivery fee applies, the goods total is broken out explicitly and the
@@ -305,8 +307,12 @@ function slipHTML(
     </tr>` : ''}
     <tr>
       <td class="label">Order Type:</td>
-      <td>${FULFILLMENT_LABELS[order.fulfillmentType]}</td>
+      <td>${order.source === 'bolt' ? 'Bolt pickup' : FULFILLMENT_LABELS[order.fulfillmentType]}</td>
     </tr>
+    ${order.platformReference ? `<tr>
+      <td class="label">Bolt order:</td>
+      <td>${escapeHtml(order.platformReference)}</td>
+    </tr>` : ''}
   </table>
 
   <div class="thin-divider"></div>

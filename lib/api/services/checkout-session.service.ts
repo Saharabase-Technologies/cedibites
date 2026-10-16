@@ -125,6 +125,8 @@ export const checkoutSessionService = {
     delivery_fee?: number;
     /** Channel the order came in on. Omitted means the till. */
     order_source?: string;
+    /** Bolt's code for a Bolt order, from the tablet (WWJ98). */
+    platform_reference?: string;
     /** The sale is a round of this order: items added to it (Phase 4b). */
     add_to_order_id?: number;
   }): Promise<CheckoutSession> => {

@@ -1,8 +1,8 @@
 import { orderMoneyFields, placedUnpaid } from '@/lib/utils/orderMoney';
 import type { Order, OrderItem, Payment } from '@/types/api';
 
-export type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone' | 'Past Order';
-export type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge';
+export type OrderSource = 'Online' | 'POS' | 'WhatsApp' | 'Instagram' | 'Facebook' | 'Phone' | 'Past Order' | 'Bolt';
+export type PaymentMethod = 'Mobile Money' | 'Cash on Delivery' | 'Cash' | 'Card' | 'Wallet' | 'GhQR' | 'No Charge' | 'Paid on Bolt';
 
 export interface AdminOrderItem {
   name: string;
@@ -31,8 +31,15 @@ export interface AdminOrder {
   items: AdminOrderItem[];
   subtotal: number;
   deliveryFee: number;
+  /** Taken off the order: a promo of ours, or Bolt's promo on a Bolt order. */
+  discount: number;
+  promoName?: string;
   amount: number;
   amountPaid: number;
+  /** Bolt's code for a Bolt order (WWJ98). */
+  platformReference?: string;
+  /** What Bolt keeps of a Bolt order. 0 on every other order. */
+  platformCommission: number;
   payment: PaymentMethod;
   paymentStatus: 'paid' | 'pending' | 'failed' | 'refunded' | 'no_charge';
   hubtelRef?: string;
@@ -62,6 +69,7 @@ const SOURCE_MAP: Record<string, string> = {
   facebook: 'Facebook',
   phone: 'Phone',
   manual_entry: 'Past Order',
+  bolt: 'Bolt',
 };
 
 const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
@@ -72,6 +80,7 @@ const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
   cash_pickup: 'Cash on Delivery',
   cash: 'Cash',
   card: 'Card',
+  bolt: 'Paid on Bolt',
   wallet: 'Wallet',
   ghqr: 'GhQR',
   no_charge: 'No Charge',
@@ -234,8 +243,12 @@ export function mapApiOrderToAdminOrder(api: Order): AdminOrder {
     items,
     subtotal,
     deliveryFee,
+    discount: Number(api.discount ?? 0),
+    promoName: api.promo_name ?? undefined,
     amount,
     amountPaid,
+    platformReference: api.platform_reference ?? undefined,
+    platformCommission: Number(api.platform_commission ?? 0) || 0,
     payment,
     paymentStatus,
     hubtelRef: primaryPayment?.transaction_id,
@@ -314,7 +327,9 @@ export function mapApiOrderToOrder(api: any): import('@/types/order').Order {
     }),
     subtotal: Number(api.subtotal ?? 0),
     deliveryFee: Number(api.delivery_fee ?? 0),
-    discount: 0,
+    // The order's own discount. It was a fixed 0 here, so a reprint from the
+    // till's Orders page showed a subtotal and a total that disagreed.
+    discount: Number(api.discount ?? 0),
     tax: Number(api.tax_amount ?? 0),
     total: Number(api.total_amount ?? 0),
     contact: {

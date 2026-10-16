@@ -108,6 +108,12 @@ function OrderCard({ order, playUrgent }: OrderCardProps) {
         {order.contact.name} · {itemCount} item{itemCount !== 1 ? 's' : ''}
       </p>
       <FulfillmentIcon size={22} weight="fill" className="text-black/30" />
+      {/* Packed for Bolt's rider, who reads out this code. */}
+      {order.source === 'bolt' && (
+        <span className={`rounded-full px-3 py-1 text-xs font-bold tabular-nums ${TONE.decided.bg} ${TONE.decided.text}`}>
+          Bolt{order.platformReference ? ` ${order.platformReference}` : ''}
+        </span>
+      )}
       {/* Which stage this is at. Needed from the moment `received` joined the
           board — three statuses share it now, and without a word on the card a
           new order and one already on the stove look identical. */}

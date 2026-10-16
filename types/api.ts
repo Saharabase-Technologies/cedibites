@@ -117,6 +117,10 @@ export interface MenuItemOption {
   price: number;
   /** Always the admin-set global base price, never overridden */
   base_price?: number;
+  /** Bolt's own price for this option. Null means it is not on Bolt. */
+  bolt_price?: number | null;
+  /** Bolt's promo on this option, which we pay for. Null means none. */
+  bolt_promo_percent?: number | null;
   is_available: boolean;
   image_url?: string | null;
   thumbnail_url?: string | null;
@@ -249,7 +253,7 @@ export type OrderStatus =
 
 export type OrderType = 'delivery' | 'pickup';
 
-export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'manual_momo' | 'no_charge' | 'wallet' | 'ghqr' | 'pay_later' | 'split';
+export type PaymentMethod = 'mobile_money' | 'cash' | 'card' | 'manual_momo' | 'no_charge' | 'wallet' | 'ghqr' | 'pay_later' | 'split' | 'bolt';
 
 export type PaymentStatus = 'pending' | 'paid' | 'completed' | 'failed' | 'refunded' | 'no_charge';
 
@@ -388,6 +392,12 @@ export interface Order {
   receipt_verification_code?: string | null;
   order_type: OrderType;
   order_source?: string;
+  /** Bolt's code for a Bolt order (WWJ98). */
+  platform_reference?: string | null;
+  /** What Bolt keeps of a Bolt order. 0 on every other order. */
+  platform_commission?: number;
+  /** What the order counts for in net sales. */
+  net_amount?: number;
   status: OrderStatus;
   /** ISO time the order entered its CURRENT status, from order_status_history. */
   stage_changed_at?: string | null;
