@@ -32,6 +32,7 @@ interface ApiOrderMoney {
     paid_at?: string | null;
     collected_by_name?: string | null;
     amount_tendered?: number | string | null;
+    via?: 'prompt' | 'ussd' | null;
   }>;
 }
 
@@ -73,6 +74,7 @@ export function orderMoneyFields(api: unknown): Pick<Order, 'isPaidLater' | 'isS
     paidAt: p.paid_at ? new Date(p.paid_at).getTime() : undefined,
     takenBy: p.collected_by_name ?? undefined,
     tendered: p.amount_tendered != null ? Number(p.amount_tendered) : undefined,
+    via: p.via ?? undefined,
   }));
 
   return {

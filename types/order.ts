@@ -43,6 +43,8 @@ export interface PaymentPart {
     takenBy?: string;
     /** Cash handed over, when there was change. */
     tendered?: number;
+    /** How a MoMo payment came: a prompt from the POS, or the customer dialling the branch code. */
+    via?: 'prompt' | 'ussd';
 }
 
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';

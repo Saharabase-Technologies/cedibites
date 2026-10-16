@@ -76,7 +76,9 @@ export default function MySalesView() {
         const taken = myMoney?.money;
         return {
             cash: taken?.cash.amount ?? 0,
-            mobile_money: taken?.momo.amount ?? 0,
+            // USSD has its own group since the staff portal's Phase 2. This
+            // screen has no column for it until Phase 3 replaces it.
+            mobile_money: (taken?.momo.amount ?? 0) + (taken?.ussd?.amount ?? 0),
             manual_momo: taken?.manual_momo.amount ?? 0,
             card: taken?.card.amount ?? 0,
             no_charge: activeOrders

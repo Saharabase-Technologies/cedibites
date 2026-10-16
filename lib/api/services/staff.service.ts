@@ -38,21 +38,47 @@ export interface MoneyLine {
   count: number;
 }
 
+/** The group a payment counts in, on every end (staff portal D15). */
+export type MoneyGroup = 'cash' | 'momo' | 'ussd' | 'manual_momo' | 'card' | 'other';
+
+/**
+ * Money the person took on an order that is not theirs. One line for each
+ * order and group, so a cash part and a USSD part on one order are two.
+ */
+export interface MoneyOnOthersOrder {
+  order_id: number;
+  order_number: string;
+  /** First name of whoever holds the order. Null when nobody does. */
+  assigned_to: string | null;
+  group: MoneyGroup;
+  amount: number;
+  count: number;
+}
+
 /**
  * What the signed-in person took today, by method, from the payments they
  * took, whoever placed the order (D9). Never one mixed total. `momo` is the
- * prompts Hubtel confirmed; `manual_momo` is references a cashier typed.
+ * prompts sent from the POS, `ussd` the payments made by dialling the branch
+ * code, both confirmed by Hubtel; `manual_momo` is references a cashier typed.
+ *
+ * `ussd`, `no_charge` and `on_others_orders` came with the staff portal's
+ * Phase 2. An older backend leaves them out, so read them with a fallback.
  */
 export interface MyMoney {
-  /** The server's today, which a till with a wrong clock cannot shift. */
+  /** The server's today, which a POS with a wrong clock cannot shift. */
   date: string;
   money: {
     cash: MoneyLine;
     momo: MoneyLine;
+    ussd?: MoneyLine;
     manual_momo: MoneyLine;
     card: MoneyLine;
     other: MoneyLine;
   };
+  /** Food given free on the person's own orders today. Not money, never in a total. */
+  no_charge?: MoneyLine;
+  /** The part of `money` taken on other people's orders, in the order it came. */
+  on_others_orders?: MoneyOnOthersOrder[];
 }
 
 export interface StaffLoginResponse {
