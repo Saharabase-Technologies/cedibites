@@ -35,6 +35,7 @@ import { StaffMessageBell } from '@/app/components/messaging/StaffMessageBell';
 import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
 import { OpeningPrompt } from '@/app/components/opening/OpeningPrompt';
 import { SalesFrame } from './_components/SalesFrame';
+import { isSalesStaff } from './_components/isSalesStaff';
 
 // ─── Nav configs (permission-gated) ───────────────────────────────────────────
 
@@ -250,7 +251,7 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
     // Sales staff get their own frame, white with the sales red. The look
     // follows the person, not the address, so a manager on /staff/messages
     // keeps the frame below. Everyone else, the call centre included, too.
-    if (staffUser.role === 'sales_staff') {
+    if (isSalesStaff(staffUser)) {
         return (
             <>
                 <SalesFrame
