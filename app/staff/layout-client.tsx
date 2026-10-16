@@ -34,6 +34,7 @@ import { MenuLiveUpdates } from '@/app/components/providers/MenuLiveUpdates';
 import { StaffMessageBell } from '@/app/components/messaging/StaffMessageBell';
 import { useStaffInbox } from '@/lib/api/hooks/useStaffInbox';
 import { OpeningPrompt } from '@/app/components/opening/OpeningPrompt';
+import { SalesFrame } from './_components/SalesFrame';
 
 // ─── Nav configs (permission-gated) ───────────────────────────────────────────
 
@@ -78,7 +79,7 @@ const SALES_NAV = [
 ];
 
 const DISPLAYS_NAV = [
-    { href: '/pos/terminal',       label: 'POS Terminal',    icon: CashRegisterIcon,  permission: 'access_pos',              external: true  },
+    { href: '/pos/terminal',       label: 'POS Terminal',    icon: CashRegisterIcon,  permission: 'access_pos',              external: true, railLabel: 'POS' },
     { href: '/kitchen/display',    label: 'Kitchen Display', icon: MonitorIcon,       permission: 'access_kitchen',          external: true  },
     { href: '/order-manager',      label: 'Order Manager',   icon: ClipboardTextIcon, permission: 'access_order_manager',    external: true  },
     // A separate portal, like the three above it: you go to inventory to do a
@@ -187,7 +188,7 @@ function roleLabel(role: StaffRole | string): string {
         branch_partner: 'Branch Partner',
         manager:        'Branch Manager',
         call_center:    'Call Center',
-        employee:       'Sales Staff',
+        sales_staff:    'Sales Staff',
         kitchen:        'Kitchen',
         rider:          'Rider',
     };
@@ -245,6 +246,32 @@ function StaffLayoutShell({ children }: { children: React.ReactNode }) {
     const displaysNav = DISPLAYS_NAV.filter(i => can(i.permission));
 
     const allMobileNav = [...mainNav, ...toolsNav];
+
+    // Sales staff get their own frame, white with the sales red. The look
+    // follows the person, not the address, so a manager on /staff/messages
+    // keeps the frame below. Everyone else, the call centre included, too.
+    if (staffUser.role === 'sales_staff') {
+        return (
+            <>
+                <SalesFrame
+                    staffUser={staffUser}
+                    pathname={pathname}
+                    mainNav={mainNav}
+                    displaysNav={displaysNav}
+                    unreadMessages={unreadMessages}
+                    pendingCautions={pendingCautions}
+                    onSignOut={() => setIsSignOutOpen(true)}
+                >
+                    {children}
+                </SalesFrame>
+                <SignOutDialog
+                    isOpen={isSignOutOpen}
+                    onCancel={() => setIsSignOutOpen(false)}
+                    onConfirm={() => logout()}
+                />
+            </>
+        );
+    }
 
     return (
         <div className="h-screen overflow-hidden bg-neutral-light dark:bg-brand-darker w-full flex">

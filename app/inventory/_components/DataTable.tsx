@@ -109,7 +109,7 @@ export function DataTable<T>({
   stickyFirst,
   stackOnPhone,
 }: DataTableProps<T>) {
-  const frame = framed ? 'bg-neutral-card border border-[#f0e8d8] rounded-2xl' : '';
+  const frame = framed ? 'bg-neutral-card border border-hairline rounded-2xl' : '';
   const sortId = useId();
   const hasFoot = columns.some((c) => c.foot !== undefined);
   const stick = (i: number, bg = 'bg-neutral-card') => (stickyFirst && i === 0 ? `sticky left-0 z-[1] ${bg}` : '');
@@ -199,7 +199,7 @@ export function DataTable<T>({
       <div className={stackOnPhone ? 'hidden md:block overflow-x-auto' : 'overflow-x-auto'}>
         <table className="w-full text-sm font-body">
           <thead>
-            <tr className="border-b border-[#f0e8d8]">
+            <tr className="border-b border-row-line">
               {expandedContent && <th className="w-9 py-3 px-2" aria-label="Expand" />}
               {showIndex && (
                 <th className="text-neutral-gray text-[10px] font-bold uppercase tracking-wider py-3 px-4 text-left w-10 select-none">
@@ -247,7 +247,7 @@ export function DataTable<T>({
                           : undefined
                     }
                     className={`
-                      border-b border-[#f0e8d8] transition-colors
+                      border-b border-row-line transition-colors
                       ${isExpanded ? 'bg-primary/5' : ''}
                       ${onRowClick || (expandOnRowClick && detail) ? 'cursor-pointer hover:bg-primary/5' : 'hover:bg-primary/5'}
                       ${needsAttention?.(row) ? 'bg-primary/6 shadow-[inset_3px_0_0_0_var(--color-primary)]' : ''}
@@ -292,7 +292,7 @@ export function DataTable<T>({
                     ))}
                   </tr>
                   {isExpanded && detail && (
-                    <tr className="border-b border-[#f0e8d8]">
+                    <tr className="border-b border-row-line">
                       <td colSpan={colSpan} className="bg-neutral-light/40 px-4 py-3">
                         {detail}
                       </td>
@@ -346,7 +346,7 @@ export function DataTable<T>({
 
       {/* ── Pagination footer ───────────────────────────────────────────────── */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-[#f0e8d8] text-xs font-body">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-row-line text-xs font-body">
           <p className="text-neutral-gray">
             Showing <span className="text-text-dark font-semibold">{sliceStart + 1}</span>
             {'–'}
@@ -389,7 +389,7 @@ export function DataTable<T>({
       )}
 
       {totalPages === 1 && (
-        <div className="px-4 py-2.5 border-t border-[#f0e8d8] text-xs font-body text-neutral-gray">
+        <div className="px-4 py-2.5 border-t border-row-line text-xs font-body text-neutral-gray">
           {sorted.length} row{sorted.length !== 1 ? 's' : ''}
         </div>
       )}
@@ -425,7 +425,7 @@ function PhoneList<T>({
   return (
     <div className="md:hidden font-body">
       {sortable.length > 0 && (
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-[#f0e8d8]">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-row-line">
           <label htmlFor={sort.id} className="text-xs font-semibold text-neutral-gray whitespace-nowrap">Sort by</label>
           <div className="flex-1 min-w-0">
             <CustomSelect
@@ -442,13 +442,13 @@ function PhoneList<T>({
             type="button"
             onClick={sort.turn}
             aria-label={sort.dir === 'asc' ? 'Ascending. Turn the order round' : 'Descending. Turn the order round'}
-            className="min-h-11 min-w-11 flex items-center justify-center rounded-xl border border-[#e3ddd0] text-text-dark cursor-pointer"
+            className="min-h-11 min-w-11 flex items-center justify-center rounded-xl border border-hairline-mid text-text-dark cursor-pointer"
           >
             {sort.dir === 'asc' ? <ArrowUpIcon size={16} /> : <ArrowDownIcon size={16} />}
           </button>
         </div>
       )}
-      <ul className="divide-y divide-[#f0e8d8]">
+      <ul className="divide-y divide-row-line">
         {rows.map((row, idx) => (
           <li
             key={rowKey ? rowKey(row, first + idx) : first + idx}
@@ -620,7 +620,7 @@ export function RowActionsMenu({ actions }: { actions: RowAction[] }) {
           <div
             ref={menuRef}
             style={{ position: 'fixed', top: coords.top, right: coords.right, zIndex: 9999 }}
-            className="min-w-35 bg-neutral-card border border-[#f0e8d8] rounded-xl shadow-lg overflow-hidden"
+            className="min-w-35 bg-neutral-card border border-hairline rounded-xl shadow-lg overflow-hidden"
           >
             {actions.map((action, i) => (
               <button

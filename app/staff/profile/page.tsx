@@ -203,7 +203,7 @@ export default function StaffProfilePage() {
                         <button
                             type="submit"
                             disabled={pwLoading}
-                            className="flex items-center justify-center gap-2 w-full sm:w-auto sm:self-end px-6 py-2.5 bg-primary hover:bg-primary-hover disabled:opacity-50 text-brand-darker text-sm font-bold font-body rounded-xl transition-colors cursor-pointer"
+                            className="flex items-center justify-center gap-2 w-full sm:w-auto sm:self-end px-6 py-2.5 bg-primary hover:bg-primary-hover disabled:opacity-50 text-brand-darker sales:text-white text-sm font-bold font-body rounded-xl transition-colors cursor-pointer"
                         >
                             <FloppyDiskIcon size={16} weight="bold" />
                             {pwLoading ? 'Saving…' : 'Update Password'}

@@ -5,6 +5,11 @@
    before. The difference is that a person can now override it. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Only on a page the sales staff frame is mounted on. For the few places a
+   colour pairing that works on the warm orange fails on the sales red, such as
+   dark text on a primary fill. */
+@custom-variant sales (&:where(:root:has(.cb-sales) *));
+
 /* ═══════════════════════════════════════════════════════════════════════════
    LAYER 1 — PRIMITIVES
    Raw brand ramps. Nothing outside layer 2 may reference these directly.
@@ -111,6 +116,13 @@
   --cb-fg-subtle:      #a89c8d;
   --cb-border:         #f0e8d8;
   --cb-border-strong:  #ddd2bd;
+  /* Two more lines the kit hand-typed. `border-mid` outlines a small control.
+     `row-line` runs between table rows and is the same as `border` here; the
+     sales staff scope draws it lighter than the frame around it. */
+  --cb-border-mid:     #e3ddd0;
+  --cb-row-line:       var(--cb-border);
+  /* The selected tab in SegmentedTabs. */
+  --cb-tab-selected:   var(--cb-paper);
 
   --cb-primary:         var(--cb-warm-orange);
   --cb-primary-hover:   var(--cb-warm-orange-hi);
@@ -201,6 +213,61 @@
   --cb-success-ink:    #a8c072;
   --cb-danger-ink:     #ff8a80;
   --cb-danger-soft:    #3a1512;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SALES STAFF: a white page and the sales red, for the sales staff frame only
+
+   The frame in app/staff/_components/SalesFrame.tsx renders an element with
+   `cb-sales`. The values sit on the root, not on that element, so drawers,
+   sheets and dialogs that render into document.body get them too. A class on
+   the frame would leave them cream. Admin and branch manager never mount the
+   frame, so nothing here reaches them. Plan: docs/STAFF_PORTAL_BUILD.md.
+
+   (0,2,0) beats `:root` and `.dark`, so the order of this block is free.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root:has(.cb-sales) {
+  --cb-bg:             #ffffff;
+  /* Not white. It is also the kit's hover, the table's head row and the
+     loading bars, and white would hide all three. */
+  --cb-paper:          #f5f5f5;
+  --cb-card:           #ffffff;
+  --cb-surface:        #ffffff;
+  --cb-surface-sunken: #f5f5f5;
+
+  --cb-border:         #e2e2e2;
+  --cb-border-mid:     #e2e2e2;
+  --cb-row-line:       #ededed;
+  --cb-border-strong:  #c4c4c4;
+
+  --cb-fg:             #242424;
+  /* 5.7:1 on white and 5.0:1 on the red tint. #6e6e6e is 4.4:1 on the tint. */
+  --cb-fg-muted:       #666666;
+  --cb-fg-subtle:      #767676;
+
+  /* White on #a51c1f is 7.5:1. Dark text on it fails: see the `sales` variant. */
+  --cb-primary:        #a51c1f;
+  --cb-primary-fill:   #a51c1f;
+  --cb-primary-hover:  #8b1a1c;
+  --cb-primary-ink:    #a51c1f;
+  --cb-primary-soft:   #f9eceb;
+  --cb-focus:          #a51c1f;
+
+  --cb-tab-selected:   #f9eceb;
+}
+
+:root:has(.cb-sales) * {
+  scrollbar-color: rgba(36, 36, 36, 0.25) transparent;
+}
+:root:has(.cb-sales) *::-webkit-scrollbar-thumb {
+  background-color: rgba(36, 36, 36, 0.25);
+}
+/* The rail's list scrolls on a POS. A dark thumb would vanish on the red. */
+:root:has(.cb-sales) .cb-rail-scroll {
+  scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
+}
+:root:has(.cb-sales) .cb-rail-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.4);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -376,7 +443,10 @@
   --color-fg-muted:        var(--cb-fg-muted);
   --color-fg-subtle:       var(--cb-fg-subtle);
   --color-hairline:        var(--cb-border);
+  --color-hairline-mid:    var(--cb-border-mid);
   --color-hairline-strong: var(--cb-border-strong);
+  --color-row-line:        var(--cb-row-line);
+  --color-tab-selected:    var(--cb-tab-selected);
   --color-primary-fill:    var(--cb-primary-fill);
   --color-primary-ink:     var(--cb-primary-ink);
   --color-primary-soft:    var(--cb-primary-soft);

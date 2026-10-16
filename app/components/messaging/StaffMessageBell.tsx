@@ -74,7 +74,7 @@ export function StaffMessageBell({
                         className={`absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-4.5 h-4.5 px-1 rounded-full text-[10px] font-bold font-body leading-none text-white ${
                             // A caution waiting on a confirmation is a different
                             // thing from an unread notice, and the badge says so.
-                            pending > 0 ? 'bg-error animate-pulse' : 'bg-primary text-brand-darker'
+                            pending > 0 ? 'bg-error animate-pulse' : 'bg-primary text-brand-darker sales:text-white'
                         }`}
                     >
                         {unread > 9 ? '9+' : unread}

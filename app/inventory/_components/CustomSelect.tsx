@@ -77,7 +77,7 @@ export function CustomSelect({
         className={`
           ${widthClass} ${triggerHeight}
           flex items-center justify-between gap-2 px-3.5
-          border border-[#f0e8d8] rounded-xl
+          border border-hairline rounded-xl
           text-sm font-body text-text-dark bg-neutral-card
           hover:border-primary/40 transition-colors cursor-pointer
           focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10
@@ -98,7 +98,7 @@ export function CustomSelect({
         <div
           className="
             absolute z-50 mt-1.5 w-full min-w-full
-            bg-neutral-card border border-[#f0e8d8] rounded-xl shadow-lg
+            bg-neutral-card border border-hairline rounded-xl shadow-lg
             py-1 max-h-64 overflow-y-auto
           "
           role="listbox"

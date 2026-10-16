@@ -27,7 +27,7 @@ export function SegmentedTabsLink({ items }: { items: SegmentedTabItem[] }) {
   const pathname = usePathname();
 
   return (
-    <div className="inline-flex flex-wrap gap-1 bg-neutral-card border border-[#f0e8d8] rounded-xl p-1">
+    <div className="inline-flex flex-wrap gap-1 bg-neutral-card border border-hairline rounded-xl p-1">
       {items.map((item) => {
         const active = item.activeWhen
           ? item.activeWhen(pathname)
@@ -42,7 +42,7 @@ export function SegmentedTabsLink({ items }: { items: SegmentedTabItem[] }) {
               flex items-center gap-2 px-4 py-2 rounded-lg
               text-sm font-medium font-body transition-all cursor-pointer whitespace-nowrap
               ${active
-                ? 'bg-neutral-light text-text-dark shadow-sm'
+                ? 'bg-tab-selected text-text-dark shadow-sm'
                 : 'text-neutral-gray hover:text-text-dark'}
             `}
           >
@@ -69,7 +69,7 @@ export function SegmentedTabs<T extends string>({
   onChange,
 }: SegmentedTabsProps<T>) {
   return (
-    <div className="inline-flex flex-wrap gap-1 bg-neutral-card border border-[#f0e8d8] rounded-xl p-1">
+    <div className="inline-flex flex-wrap gap-1 bg-neutral-card border border-hairline rounded-xl p-1">
       {options.map((option) => {
         const active = option.value === value;
         return (
@@ -81,7 +81,7 @@ export function SegmentedTabs<T extends string>({
               flex items-center gap-2 px-4 py-2 rounded-lg
               text-sm font-medium font-body transition-all cursor-pointer whitespace-nowrap
               ${active
-                ? 'bg-neutral-light text-text-dark shadow-sm'
+                ? 'bg-tab-selected text-text-dark shadow-sm'
                 : 'text-neutral-gray hover:text-text-dark'}
             `}
           >

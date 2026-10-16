@@ -25,7 +25,7 @@ export function SearchBar({
         placeholder={placeholder}
         className="
           w-full pl-10 pr-4 py-2.5 rounded-xl min-h-11
-          border border-[#f0e8d8] bg-neutral-card
+          border border-hairline bg-neutral-card
           text-sm font-body text-text-dark placeholder:text-neutral-gray/60
           focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-shadow
         "
@@ -36,7 +36,7 @@ export function SearchBar({
 
 export function FilterBar({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl p-3 mb-5 flex flex-wrap items-center gap-3">
+    <div className="bg-neutral-card border border-hairline rounded-2xl p-3 mb-5 flex flex-wrap items-center gap-3">
       {children}
     </div>
   );

@@ -26,7 +26,7 @@ export function PageHeader({
       {secondaryAction && (
         <button
           onClick={secondaryAction.onClick}
-          className="flex items-center gap-2 bg-neutral-card border border-[#e3ddd0] text-text-dark px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:border-neutral-gray/50 transition-colors min-h-11 cursor-pointer shrink-0"
+          className="flex items-center gap-2 bg-neutral-card border border-hairline-mid text-text-dark px-4 py-2.5 rounded-xl text-sm font-semibold font-body hover:border-neutral-gray/50 transition-colors min-h-11 cursor-pointer shrink-0"
         >
           {secondaryAction.icon}
           {secondaryAction.label}
