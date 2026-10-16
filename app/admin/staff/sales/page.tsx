@@ -1,283 +1,268 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import {
-    CaretLeftIcon,
-    CaretRightIcon,
-    UsersThreeIcon,
-    CurrencyCircleDollarIcon,
-    ShoppingBagIcon,
-    SpinnerGapIcon,
-    UserCircleIcon,
-    DeviceMobileIcon,
-    MoneyIcon,
-    ProhibitIcon,
-    CreditCardIcon,
-    HandCoinsIcon,
-    BuildingsIcon,
-    MagnifyingGlassIcon,
-    XIcon,
-} from '@phosphor-icons/react';
+import { useMemo, useState } from 'react';
+import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
-import { useAdminStaffSales, type AnalyticsPeriod } from '@/lib/api/hooks/useAnalytics';
-import type { AdminStaffSalesRow } from '@/lib/api/services/analytics.service';
+import { getDateRange, type AnalyticsPeriod } from '@/lib/api/hooks/useAnalytics';
+import { useAdminShiftSales, type ShiftSalesRow } from '@/lib/api/hooks/useShiftSales';
+import type { MoneyGroup } from '@/lib/api/services/staff.service';
+import { formatGHS } from '@/lib/utils/currency';
+import {
+    DataTable, FilterBar, FilterSelect, PageHeader, SearchBar, SegmentedTabs, type DataTableColumn,
+} from '@/app/inventory/_components';
+import { TONE } from '@/app/inventory/_components/status-tokens';
+import { BranchMoneyBlock } from '@/app/staff/_components/BranchMoneyBlock';
+import { ShiftReview } from '@/app/staff/_components/ShiftReview';
+import { StatePill } from '@/app/staff/_components/StatePill';
+import { lengthOf } from '@/app/staff/_components/ClockOut';
+import { clockOutState, managerState, spanOf, waitsOn } from '@/app/staff/_components/shiftSalesFormat';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Staff Sales, the admin's end (staff portal Section 6, D30), in the admin's
+// own look and kit. Each shift, as its person confirmed it at Clock out and as
+// their manager confirmed it, side by side. Or each person, opening to their
+// shifts. At a branch with no manager, the admin confirms (Q2).
 
-function formatGHS(n: number): string {
-    return `₵${n.toFixed(2)}`;
-}
-
-// ─── Period options ───────────────────────────────────────────────────────────
-
-const PERIODS: { value: AnalyticsPeriod; label: string }[] = [
-    { value: 'today',      label: 'Today' },
-    { value: 'yesterday',  label: 'Yesterday' },
-    { value: 'week',       label: 'This Week' },
-    { value: 'last_week',  label: 'Last Week' },
-    { value: 'month',      label: 'This Month' },
-    { value: 'last_month', label: 'Last Month' },
-    { value: '30d',        label: 'Last 30 Days' },
+const PERIODS: { value: AnalyticsPeriod; label: string; money: string }[] = [
+    { value: 'today', label: 'Today', money: 'Money taken today' },
+    { value: 'yesterday', label: 'Yesterday', money: 'Money taken yesterday' },
+    { value: 'week', label: 'This Week', money: 'Money taken this week' },
+    { value: 'last_week', label: 'Last Week', money: 'Money taken last week' },
+    { value: 'month', label: 'This Month', money: 'Money taken this month' },
+    { value: 'last_month', label: 'Last Month', money: 'Money taken last month' },
+    { value: '30d', label: 'Last 30 Days', money: 'Money taken in the last 30 days' },
 ];
 
-// ─── Payment method config ────────────────────────────────────────────────────
+type Lines = 'shift' | 'person';
+type Tab = 'all' | 'on' | 'not' | 'manager' | 'both' | 'note';
 
-const METHODS = [
-    { key: 'momo',         label: 'MoMo',        icon: DeviceMobileIcon, color: 'text-yellow-600',  bg: 'bg-yellow-600/8' },
-    { key: 'cash',         label: 'Cash',        icon: MoneyIcon,        color: 'text-secondary',   bg: 'bg-secondary/8' },
-    { key: 'manual_momo',  label: 'Direct MoMo', icon: HandCoinsIcon,    color: 'text-orange-600',  bg: 'bg-orange-600/8' },
-    { key: 'no_charge',    label: 'No Charge',   icon: ProhibitIcon,     color: 'text-teal-600',    bg: 'bg-teal-600/8' },
-    { key: 'card',         label: 'Card',        icon: CreditCardIcon,   color: 'text-blue-600',    bg: 'bg-blue-600/8' },
-] as const;
+const ms = (iso: string) => Date.parse(iso);
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+const inTab: Record<Tab, (r: ShiftSalesRow) => boolean> = {
+    all: () => true,
+    on: r => r.on_shift,
+    not: r => !r.on_shift && !r.clock_out,
+    manager: r => !r.on_shift && !r.is_manager && !r.manager_confirm,
+    both: r => !!r.clock_out && !!r.manager_confirm,
+    note: r => !!r.clock_out?.note || !!r.manager_confirm?.note,
+};
+
+const METHOD_COLUMNS: { group: MoneyGroup; header: string }[] = [
+    { group: 'cash', header: 'Cash' },
+    { group: 'momo', header: 'MoMo' },
+    { group: 'ussd', header: 'USSD' },
+    { group: 'manual_momo', header: 'Direct' },
+];
+
+type Person = {
+    employee_id: number;
+    staff_name: string;
+    branches: string;
+    shifts: ShiftSalesRow[];
+    money: Record<MoneyGroup, number>;
+    total: number;
+    ms: number;
+};
+
+function people(rows: ShiftSalesRow[]): Person[] {
+    const map = new Map<number, Person>();
+    for (const r of rows) {
+        const p = map.get(r.employee_id) ?? {
+            employee_id: r.employee_id,
+            staff_name: r.staff_name,
+            branches: '',
+            shifts: [],
+            money: { cash: 0, momo: 0, ussd: 0, manual_momo: 0, card: 0, other: 0 },
+            total: 0,
+            ms: 0,
+        };
+        p.shifts.push(r);
+        (Object.keys(p.money) as MoneyGroup[]).forEach(g => { p.money[g] += r.money[g]?.amount ?? 0; });
+        p.total += r.total;
+        p.ms += (r.logout_at ? ms(r.logout_at) : Date.now()) - ms(r.login_at);
+        p.branches = [...new Set(p.shifts.map(s => s.branch_name).filter(Boolean))].join(', ');
+        map.set(r.employee_id, p);
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total);
+}
 
 export default function AdminStaffSalesPage() {
+    const { staffUser } = useStaffAuth();
+    const meId = staffUser?.id ? Number(staffUser.id) : null;
     const { branches } = useBranchesApi();
+
     const [period, setPeriod] = useState<AnalyticsPeriod>('today');
-    const [branchFilter, setBranchFilter] = useState<number | undefined>(undefined);
+    const [branchId, setBranchId] = useState<number | null>(null);
     const [search, setSearch] = useState('');
+    const [lines, setLines] = useState<Lines>('shift');
+    const [tab, setTab] = useState<Tab>('all');
 
-    const { data: rawRows, isLoading } = useAdminStaffSales(period, branchFilter);
-    const rows = (rawRows ?? []) as AdminStaffSalesRow[];
+    const range = getDateRange(period);
+    const oneDay = range.date_from === range.date_to;
+    const { data, isLoading } = useAdminShiftSales({ ...range, branch_id: branchId });
 
-    // Filter by search
-    const filteredRows = useMemo(() => {
-        if (!search.trim()) return rows;
-        const q = search.toLowerCase();
-        return rows.filter(r => r.staff_name.toLowerCase().includes(q));
-    }, [rows, search]);
+    const rows = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        return (data ?? []).filter(r => !q || r.staff_name.toLowerCase().includes(q));
+    }, [data, search]);
+    const shown = useMemo(() => rows.filter(inTab[tab]), [rows, tab]);
+    const waiting = rows.filter(r => waitsOn(r, meId, 'admin'));
 
-    // Grand totals
-    const totals = useMemo(() => {
-        return filteredRows.reduce(
-            (acc, r) => ({
-                orders: acc.orders + r.total_orders,
-                revenue: acc.revenue + r.total_revenue,
-                momo: acc.momo + r.momo_total,
-                cash: acc.cash + r.cash_total,
-                manualMomo: acc.manualMomo + r.manual_momo_total,
-                noCharge: acc.noCharge + r.no_charge_total,
-                card: acc.card + r.card_total,
-            }),
-            { orders: 0, revenue: 0, momo: 0, cash: 0, manualMomo: 0, noCharge: 0, card: 0 },
-        );
-    }, [filteredRows]);
+    const when = (r: ShiftSalesRow) => oneDay
+        ? spanOf(r)
+        : `${new Date(ms(r.login_at)).toLocaleDateString('en-GB', { timeZone: 'Africa/Accra', weekday: 'short', day: 'numeric', month: 'short' })} · ${spanOf(r)}`;
+
+    const moneyColumns = <T,>(pick: (row: T, g: MoneyGroup) => number): DataTableColumn<T>[] =>
+        METHOD_COLUMNS.map(m => ({
+            key: m.group,
+            header: m.header,
+            align: 'right' as const,
+            hideBelow: '2xl' as const,
+            cell: (row: T) => <span className="tabular-nums">{formatGHS(pick(row, m.group))}</span>,
+        }));
+
+    const shiftColumns = (withStaff: boolean): DataTableColumn<ShiftSalesRow>[] => [
+        ...(withStaff ? [{
+            key: 'staff',
+            header: 'Staff',
+            cell: (r: ShiftSalesRow) => (
+                <span className="whitespace-nowrap">
+                    <span className="font-semibold">{r.staff_name}</span>
+                    {r.is_manager && <span className="text-neutral-gray"> · Manager</span>}
+                    {(r.clock_out?.note || r.manager_confirm?.note) && <span className="font-semibold text-amber-700"> · Note</span>}
+                </span>
+            ),
+        }, {
+            key: 'branch',
+            header: 'Branch',
+            hideBelow: 'md' as const,
+            cell: (r: ShiftSalesRow) => r.branch_name ?? 'No branch',
+        }] : []),
+        { key: 'shift', header: 'Shift', cell: r => <span className="tabular-nums whitespace-nowrap">{when(r)}</span> },
+        ...moneyColumns<ShiftSalesRow>((r, g) => r.money[g]?.amount ?? 0),
+        { key: 'total', header: 'Total', align: 'right', cell: r => <span className="font-bold tabular-nums">{formatGHS(r.total)}</span> },
+        { key: 'clock', header: 'Clock out', cell: r => <StatePill state={clockOutState(r)} /> },
+        { key: 'manager', header: 'Manager', cell: r => <StatePill state={managerState(r, meId, 'admin')} /> },
+    ];
+
+    const personColumns: DataTableColumn<Person>[] = [
+        { key: 'staff', header: 'Staff', cell: p => <span className="font-semibold whitespace-nowrap">{p.staff_name}</span> },
+        { key: 'branch', header: 'Branch', hideBelow: 'md', cell: p => p.branches || 'No branch' },
+        {
+            key: 'shifts',
+            header: 'Shifts',
+            cell: p => <span className="tabular-nums whitespace-nowrap">{p.shifts.length} · {lengthOf(0, p.ms)}</span>,
+        },
+        ...moneyColumns<Person>((p, g) => p.money[g]),
+        { key: 'total', header: 'Total', align: 'right', cell: p => <span className="font-bold tabular-nums">{formatGHS(p.total)}</span> },
+        {
+            key: 'clock',
+            header: 'Clock out',
+            cell: p => {
+                const ended = p.shifts.filter(s => !s.on_shift);
+                const done = ended.filter(s => s.clock_out).length;
+                if (ended.length === 0) return <StatePill state={{ label: 'On shift', ...TONE.neutral }} />;
+                return <StatePill state={{ label: `${done} of ${ended.length} confirmed`, ...(done === ended.length ? TONE.done : TONE.waiting) }} />;
+            },
+        },
+        {
+            key: 'manager',
+            header: 'Manager',
+            cell: p => {
+                if (p.shifts.every(s => s.on_shift)) return <StatePill state={{ label: 'On shift', ...TONE.neutral }} />;
+                const open = p.shifts.filter(s => !s.on_shift && !s.is_manager && !s.manager_confirm).length;
+                return <StatePill state={open > 0 ? { label: `${open} to confirm`, ...TONE.waiting } : { label: 'All confirmed', ...TONE.done }} />;
+            },
+        },
+    ];
+
+    const counts = (t: Tab) => rows.filter(inTab[t]).length;
+    const periodInfo = PERIODS.find(p => p.value === period) ?? PERIODS[0];
 
     return (
-        <div className="px-4 md:px-8 py-6 max-w-6xl mx-auto">
+        <div className="px-4 md:px-8 py-6 max-w-7xl mx-auto flex flex-col gap-5">
+            <PageHeader
+                title="Staff Sales"
+                subtitle="Each shift, as the person confirmed it at clock out and as their manager confirmed it."
+            />
 
-            {/* Header */}
-            <div className="flex items-start justify-between mb-6">
-                <div>
-                    <h1 className="text-text-dark text-xl font-bold font-body">Staff Sales</h1>
-                    <p className="text-neutral-gray text-sm font-body mt-0.5">
-                        Sales count for whoever rang them up. Money counts for whoever took it.
-                    </p>
-                </div>
-            </div>
+            <FilterBar>
+                <SearchBar value={search} onChange={setSearch} placeholder="Search staff" />
+                <FilterSelect
+                    value={period === 'today' ? '' : period}
+                    onChange={v => setPeriod((v || 'today') as AnalyticsPeriod)}
+                    placeholder="Today"
+                    options={PERIODS.filter(p => p.value !== 'today').map(p => ({ value: p.value, label: p.label }))}
+                />
+                <FilterSelect
+                    value={branchId ? String(branchId) : ''}
+                    onChange={v => setBranchId(v ? Number(v) : null)}
+                    placeholder="All branches"
+                    options={branches.map(b => ({ value: String(b.id), label: b.name }))}
+                />
+            </FilterBar>
 
-            {/* Filters row */}
-            <div className="flex flex-wrap items-center gap-3 mb-6">
-                {/* Period selector */}
-                <select
-                    value={period}
-                    onChange={e => setPeriod(e.target.value as AnalyticsPeriod)}
-                    className="bg-neutral-card border border-[#f0e8d8] rounded-xl px-3 py-2 text-sm font-body text-text-dark focus:outline-none focus:border-primary/50 cursor-pointer"
-                >
-                    {PERIODS.map(p => (
-                        <option key={p.value} value={p.value}>{p.label}</option>
-                    ))}
-                </select>
+            <BranchMoneyBlock
+                title={periodInfo.money}
+                note={waiting.length > 0 ? `${waiting.length} ${waiting.length === 1 ? 'shift waits' : 'shifts wait'} for you to confirm: no manager` : undefined}
+                rows={rows}
+            />
 
-                {/* Branch filter */}
-                <select
-                    value={branchFilter ?? ''}
-                    onChange={e => setBranchFilter(e.target.value ? Number(e.target.value) : undefined)}
-                    className="bg-neutral-card border border-[#f0e8d8] rounded-xl px-3 py-2 text-sm font-body text-text-dark focus:outline-none focus:border-primary/50 cursor-pointer"
-                >
-                    <option value="">All Branches</option>
-                    {branches.map(b => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                </select>
-
-                {/* Staff search */}
-                <div className="relative flex-1 max-w-xs">
-                    <MagnifyingGlassIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-gray" />
-                    <input
-                        type="text"
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        placeholder="Search staff..."
-                        className="w-full pl-8 pr-8 py-2 bg-neutral-card border border-[#f0e8d8] rounded-xl text-sm font-body text-text-dark placeholder:text-neutral-gray/50 focus:outline-none focus:border-primary/50"
+            <div className="flex flex-wrap items-center gap-3">
+                <SegmentedTabs<Lines>
+                    value={lines}
+                    onChange={setLines}
+                    options={[{ value: 'shift', label: 'Each shift' }, { value: 'person', label: 'Each person' }]}
+                />
+                {lines === 'shift' && (
+                    <SegmentedTabs<Tab>
+                        value={tab}
+                        onChange={setTab}
+                        options={[
+                            { value: 'all', label: `All ${rows.length}` },
+                            { value: 'on', label: `On shift ${counts('on')}` },
+                            { value: 'not', label: `Not confirmed ${counts('not')}` },
+                            { value: 'manager', label: `Manager to confirm ${counts('manager')}` },
+                            { value: 'both', label: `Both confirmed ${counts('both')}` },
+                            { value: 'note', label: `With a note ${counts('note')}` },
+                        ]}
                     />
-                    {search && (
-                        <button
-                            type="button"
-                            onClick={() => setSearch('')}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-gray hover:text-text-dark cursor-pointer"
-                        >
-                            <XIcon size={12} weight="bold" />
-                        </button>
-                    )}
-                </div>
+                )}
             </div>
 
-            {/* Summary row */}
-            {!isLoading && filteredRows.length > 0 && (
-                <div className="grid grid-cols-3 gap-3 mb-6">
-                    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3 text-center">
-                        <p className="text-text-dark text-xl font-bold font-body">{filteredRows.length}</p>
-                        <p className="text-neutral-gray text-xs font-body mt-0.5">Staff Members</p>
-                    </div>
-                    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3 text-center">
-                        <p className="text-text-dark text-xl font-bold font-body">{totals.orders}</p>
-                        <p className="text-neutral-gray text-xs font-body mt-0.5">Total Orders</p>
-                    </div>
-                    <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3 text-center">
-                        <p className="text-primary text-xl font-bold font-body">{formatGHS(totals.revenue)}</p>
-                        <p className="text-neutral-gray text-xs font-body mt-0.5">Revenue</p>
-                        {totals.noCharge > 0 && (
-                            <p className="text-teal-600 text-[10px] font-body mt-0.5">+ {formatGHS(totals.noCharge)} no-charge</p>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Content */}
-            {isLoading ? (
-                <div className="py-16 flex items-center justify-center gap-2 text-neutral-gray text-sm font-body">
-                    <SpinnerGapIcon size={18} className="animate-spin" />
-                    Loading staff sales...
-                </div>
-            ) : filteredRows.length === 0 ? (
-                <div className="py-16 text-center">
-                    <UsersThreeIcon size={32} weight="thin" className="text-neutral-gray/30 mx-auto mb-3" />
-                    <p className="text-text-dark text-sm font-medium font-body">No sales recorded</p>
-                    <p className="text-neutral-gray text-sm font-body mt-1">
-                        {search
-                            ? `No staff matching "${search}".`
-                            : 'No staff sales data for the selected period.'
-                        }
-                    </p>
-                </div>
+            {lines === 'shift' ? (
+                <DataTable<ShiftSalesRow>
+                    key={`shift|${tab}|${period}|${branchId}|${search}`}
+                    data={shown}
+                    columns={shiftColumns(true)}
+                    rowKey={r => r.id}
+                    isLoading={isLoading}
+                    expandedContent={r => <ShiftReview row={r} meId={meId} viewer="admin" />}
+                    expandOnRowClick
+                    oneOpenAtATime
+                    emptyState={<p className="py-12 text-center text-sm text-neutral-gray">No shifts match that.</p>}
+                />
             ) : (
-                <div className="space-y-3">
-                    {filteredRows.map((row) => (
-                        <div
-                            key={row.employee_id}
-                            className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-5 py-4"
-                        >
-                            {/* Staff header */}
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                                        <UserCircleIcon size={22} weight="fill" className="text-primary" />
-                                    </div>
-                                    <div>
-                                        <p className="text-text-dark text-sm font-semibold font-body">{row.staff_name}</p>
-                                        {/* Sales are theirs by who rang them up; the money below
-                                            by who took it (D44). */}
-                                        <p className="text-neutral-gray text-xs font-body tabular-nums">
-                                            {row.total_orders} order{row.total_orders !== 1 ? 's' : ''}
-                                            {(row.rounds_added ?? 0) > 0 ? ` and ${row.rounds_added} added round${row.rounds_added !== 1 ? 's' : ''}` : ''}
-                                            {' · rang up '}{formatGHS(row.sales_total ?? 0)}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-primary text-lg font-bold font-body">{formatGHS(row.total_revenue)}</p>
-                                    <p className="text-neutral-gray text-[10px] font-body">money taken</p>
-                                </div>
-                            </div>
-
-                            {/* Payment breakdown */}
-                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                                {METHODS.map(m => {
-                                    const total = row[`${m.key}_total` as keyof AdminStaffSalesRow] as number;
-                                    const count = row[`${m.key}_count` as keyof AdminStaffSalesRow] as number;
-                                    if (count === 0) return (
-                                        <div key={m.key} className="rounded-xl bg-neutral-light/60 px-3 py-2">
-                                            <div className="flex items-center gap-1.5 mb-1">
-                                                <m.icon size={12} weight="fill" className="text-neutral-gray/40" />
-                                                <span className="text-neutral-gray/40 text-[10px] font-body">{m.label}</span>
-                                            </div>
-                                            <p className="text-neutral-gray/40 text-xs font-body">—</p>
-                                        </div>
-                                    );
-                                    return (
-                                        <div key={m.key} className={`rounded-xl ${m.bg} px-3 py-2`}>
-                                            <div className="flex items-center gap-1.5 mb-1">
-                                                <m.icon size={12} weight="fill" className={m.color} />
-                                                <span className={`${m.color} text-[10px] font-bold font-body`}>{m.label}</span>
-                                                <span className="text-neutral-gray text-[10px] font-body ml-auto">×{count}</span>
-                                            </div>
-                                            <p className={`${m.color} text-sm font-bold font-body`}>{formatGHS(total)}</p>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    ))}
-
-                    {/* Grand total footer */}
-                    <div className="bg-brown/5 border border-brown/15 rounded-2xl px-5 py-4">
-                        <div className="flex items-center justify-between mb-3">
-                            <p className="text-text-dark text-sm font-bold font-body">Revenue</p>
-                            <p className="text-primary text-lg font-bold font-body">{formatGHS(totals.revenue)}</p>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-body">
-                            <div className="flex items-center gap-1.5">
-                                <DeviceMobileIcon size={12} weight="fill" className="text-yellow-600" />
-                                <span className="text-text-dark">MoMo: {formatGHS(totals.momo)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <MoneyIcon size={12} weight="fill" className="text-secondary" />
-                                <span className="text-text-dark">Cash: {formatGHS(totals.cash)}</span>
-                            </div>
-                            {totals.manualMomo > 0 && (
-                                <div className="flex items-center gap-1.5">
-                                    <HandCoinsIcon size={12} weight="fill" className="text-orange-600" />
-                                    <span className="text-text-dark">Direct MoMo: {formatGHS(totals.manualMomo)}</span>
-                                </div>
-                            )}
-                            <div className="flex items-center gap-1.5">
-                                <CreditCardIcon size={12} weight="fill" className="text-blue-600" />
-                                <span className="text-text-dark">Card: {formatGHS(totals.card)}</span>
-                            </div>
-                        </div>
-                        {totals.noCharge > 0 && (
-                            <div className="mt-3 pt-3 border-t border-brown/10 flex items-center justify-between">
-                                <div className="flex items-center gap-1.5 text-xs font-body">
-                                    <ProhibitIcon size={12} weight="fill" className="text-teal-600" />
-                                    <span className="text-teal-600 font-medium">No Charge (Loss)</span>
-                                </div>
-                                <span className="text-teal-600 text-sm font-bold font-body">{formatGHS(totals.noCharge)}</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <DataTable<Person>
+                    key={`person|${period}|${branchId}|${search}`}
+                    data={people(rows)}
+                    columns={personColumns}
+                    rowKey={p => p.employee_id}
+                    isLoading={isLoading}
+                    expandedContent={p => (
+                        <DataTable<ShiftSalesRow>
+                            data={p.shifts}
+                            columns={shiftColumns(false)}
+                            rowKey={r => r.id}
+                            framed={false}
+                            expandedContent={r => <ShiftReview row={r} meId={meId} viewer="admin" />}
+                            expandOnRowClick
+                            oneOpenAtATime
+                        />
+                    )}
+                    expandOnRowClick
+                    oneOpenAtATime
+                    emptyState={<p className="py-12 text-center text-sm text-neutral-gray">No shifts match that.</p>}
+                />
             )}
         </div>
     );

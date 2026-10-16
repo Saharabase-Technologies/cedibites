@@ -20,6 +20,8 @@ import {
 import { getShiftService, type StaffShift } from '@/lib/services/shifts/shift.service';
 import { useBranchesApi } from '@/lib/api/hooks/useBranchesApi';
 import ShiftsCalendar, { type DayShiftSummary } from '@/app/staff/manager/shifts/ShiftsCalendar';
+import { StatePill } from '@/app/staff/_components/StatePill';
+import { TONE } from '@/app/inventory/_components/status-tokens';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -110,6 +112,21 @@ function ShiftCard({ shift, isLast }: { shift: StaffShift; isLast: boolean }) {
                             {shift.branchName}
                         </span>
                     </div>
+                    {/* The two sign-offs (staff portal D29, D30). */}
+                    {shift.logoutAt && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                            <StatePill
+                                state={shift.clockedOutAt
+                                    ? { label: `Clocked out ${formatTime(shift.clockedOutAt)}`, ...TONE.done }
+                                    : { label: 'Not clocked out', ...TONE.waiting }}
+                            />
+                            <StatePill
+                                state={shift.managerConfirmedAt
+                                    ? { label: `Manager confirmed ${formatTime(shift.managerConfirmedAt)}`, ...TONE.done }
+                                    : { label: 'Manager to confirm', ...TONE.waiting }}
+                            />
+                        </div>
+                    )}
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
                     <div className="text-center">
@@ -122,9 +139,9 @@ function ShiftCard({ shift, isLast }: { shift: StaffShift; isLast: boolean }) {
                     <div className="text-center">
                         <div className="flex items-center gap-1 justify-center">
                             <CurrencyCircleDollarIcon size={12} weight="fill" className="text-primary" />
-                            <p className="text-primary text-sm font-bold font-body">{formatGHS(shift.totalSales)}</p>
+                            <p className="text-primary text-sm font-bold font-body">{formatGHS(shift.goodsSales)}</p>
                         </div>
-                        <p className="text-neutral-gray text-[10px] font-body">sales</p>
+                        <p className="text-neutral-gray text-[10px] font-body">order value</p>
                     </div>
                 </div>
             </div>
@@ -186,7 +203,7 @@ export default function AdminShiftsPage() {
                     next.set(date, {
                         count: dayShifts.length,
                         orders: dayShifts.reduce((s, sh) => s + sh.orderCount, 0),
-                        sales: dayShifts.reduce((s, sh) => s + sh.totalSales, 0),
+                        sales: dayShifts.reduce((s, sh) => s + sh.goodsSales, 0),
                         hasActive: dayShifts.some(sh => !sh.logoutAt),
                     });
                 }
@@ -235,7 +252,7 @@ export default function AdminShiftsPage() {
     // ── Derived stats ────────────────────────────────────────────────────────
     const activeShifts = filteredShifts.filter(s => !s.logoutAt);
     const todayOrders = filteredShifts.reduce((s, sh) => s + sh.orderCount, 0);
-    const todaySales = filteredShifts.reduce((s, sh) => s + sh.totalSales, 0);
+    const todaySales = filteredShifts.reduce((s, sh) => s + sh.goodsSales, 0);
 
     const handleSelectDate = useCallback((date: string) => {
         setSelectedDate(date);
@@ -333,8 +350,8 @@ export default function AdminShiftsPage() {
                                     <p className="text-neutral-gray text-[10px] font-body">Orders</p>
                                 </div>
                                 <div className="bg-white/50 rounded-xl px-3 py-2.5 text-center">
-                                    <p className="text-primary text-lg font-bold font-body">{formatGHS(activeShifts.reduce((s, sh) => s + sh.totalSales, 0))}</p>
-                                    <p className="text-neutral-gray text-[10px] font-body">Sales</p>
+                                    <p className="text-primary text-lg font-bold font-body">{formatGHS(activeShifts.reduce((s, sh) => s + sh.goodsSales, 0))}</p>
+                                    <p className="text-neutral-gray text-[10px] font-body">Order Value</p>
                                 </div>
                             </div>
                         </div>
@@ -357,7 +374,7 @@ export default function AdminShiftsPage() {
                             {[
                                 { label: 'Sessions', value: filteredShifts.length.toString(), icon: ClockIcon },
                                 { label: 'Orders', value: todayOrders.toString(), icon: ShoppingBagIcon },
-                                { label: 'Revenue', value: formatGHS(todaySales), icon: CurrencyCircleDollarIcon },
+                                { label: 'Order Value', value: formatGHS(todaySales), icon: CurrencyCircleDollarIcon },
                             ].map(({ label, value, icon: Icon }) => (
                                 <div key={label} className="bg-neutral-card border border-[#f0e8d8] rounded-2xl px-4 py-3.5 text-center">
                                     <Icon size={14} weight="fill" className="text-primary mx-auto mb-1.5" />
