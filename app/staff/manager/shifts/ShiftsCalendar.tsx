@@ -87,9 +87,9 @@ export default function ShiftsCalendar({
     };
 
     return (
-        <div className="bg-neutral-card border border-[#f0e8d8] rounded-2xl overflow-hidden">
+        <div className="bg-neutral-card border border-hairline rounded-2xl overflow-hidden">
             {/* Month header */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#f0e8d8]">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-row-line">
                 <button
                     type="button"
                     onClick={prevMonth}
@@ -109,7 +109,7 @@ export default function ShiftsCalendar({
             </div>
 
             {/* Day-of-week headers */}
-            <div className="grid grid-cols-7 border-b border-[#f0e8d8]">
+            <div className="grid grid-cols-7 border-b border-row-line">
                 {DAYS_OF_WEEK.map(d => (
                     <div key={d} className="text-center text-[10px] font-bold font-body text-neutral-gray uppercase tracking-wider py-2">
                         {d}
@@ -120,7 +120,7 @@ export default function ShiftsCalendar({
             {/* Weeks */}
             <div>
                 {weeks.map((week, wi) => (
-                    <div key={wi} className="grid grid-cols-7 border-b border-[#f0e8d8] last:border-b-0">
+                    <div key={wi} className="grid grid-cols-7 border-b border-row-line last:border-b-0">
                         {week.map((day, di) => {
                             if (!day) {
                                 return <div key={`empty-${di}`} className="min-h-18 sm:min-h-20 bg-neutral-light/30" />;
@@ -141,7 +141,7 @@ export default function ShiftsCalendar({
                                     onClick={() => !isFuture && onSelectDate(iso)}
                                     className={`
                                         min-h-18 sm:min-h-20 p-1.5 sm:p-2 text-left cursor-pointer
-                                        border-r border-[#f0e8d8] last:border-r-0
+                                        border-r border-row-line last:border-r-0
                                         transition-colors relative
                                         ${isFuture ? 'opacity-30 cursor-default' : 'hover:bg-primary/5'}
                                         ${isSelected ? 'bg-primary/10 ring-2 ring-primary ring-inset' : ''}

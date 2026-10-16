@@ -193,13 +193,13 @@ export default function SalesMyShiftsView() {
     }, [shifts]);
 
     const sessionColumns = (orders: Order[]): DataTableColumn<StaffShift>[] => [
-        { key: 'start', header: 'Started', cell: s => <span className="tabular-nums">{timeOf(s.loginAt)}</span> },
+        { key: 'start', header: 'Started', cell: s => <span className="tabular-nums whitespace-nowrap">{timeOf(s.loginAt)}</span> },
         {
             key: 'end',
             header: 'Ended',
             cell: s => s.logoutAt
-                ? <span className="tabular-nums">{timeOf(s.logoutAt)}</span>
-                : <span className="font-bold text-primary">On shift now</span>,
+                ? <span className="tabular-nums whitespace-nowrap">{timeOf(s.logoutAt)}</span>
+                : <span className="font-bold text-primary whitespace-nowrap">On shift now</span>,
         },
         { key: 'length', header: 'Length', cell: s => <span className="tabular-nums">{lengthOf(s.loginAt, s.logoutAt ?? now)}</span> },
         { key: 'orders', header: 'Orders', align: 'right', cell: s => <span className="tabular-nums">{figuresIn(orders, s.loginAt, s.logoutAt ?? now).orders}</span> },
@@ -246,7 +246,7 @@ export default function SalesMyShiftsView() {
 
                 {active && current && (
                     <div className="flex flex-wrap items-end justify-between gap-3">
-                        <div className="flex-1 min-w-0">
+                        <div className="w-full sm:w-auto sm:flex-1 min-w-0">
                             <QuietRow
                                 label="This session"
                                 figures={[

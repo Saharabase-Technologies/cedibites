@@ -38,7 +38,7 @@ export function ReplyPanel({
                 <CheckIcon size={15} weight="bold" className="text-secondary shrink-0 mt-0.5" />
                 <p className="font-body text-xs text-neutral-gray">
                     <span className="text-text-dark font-semibold">You replied</span>
-                    {' — '}
+                    {': '}
                     {message.quick_reply}
                     {message.quick_reply && message.reply_body ? '. ' : ''}
                     {message.reply_body}
@@ -68,7 +68,7 @@ export function ReplyPanel({
                             className={`px-3.5 py-2 rounded-xl text-sm font-body border transition-colors cursor-pointer ${
                                 quickReply === text
                                     ? 'bg-text-dark text-neutral-card border-text-dark font-semibold'
-                                    : 'bg-neutral-card text-text-dark border-[#e3ddd0] hover:border-neutral-gray/60'
+                                    : 'bg-neutral-card text-text-dark border-hairline-mid hover:border-neutral-gray/60'
                             }`}
                         >
                             {text}
@@ -86,7 +86,7 @@ export function ReplyPanel({
                     onChange={(event) => setBody(event.target.value)}
                     rows={3}
                     placeholder={needsAck ? 'Add something, if you want to' : 'Write a reply…'}
-                    className="w-full mt-4 bg-neutral-card border border-[#e3ddd0] rounded-xl px-3.5 py-3 text-sm font-body text-text-dark placeholder:text-neutral-gray/70 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-colors resize-none"
+                    className="w-full mt-4 bg-neutral-card border border-hairline-mid rounded-xl px-3.5 py-3 text-sm font-body text-text-dark placeholder:text-neutral-gray/70 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-colors resize-none"
                 />
             )}
 

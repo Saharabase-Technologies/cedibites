@@ -29,8 +29,8 @@ function initials(name: string) {
 
 function SectionCard({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
     return (
-        <div className="bg-neutral-card border border-brown-light/15 rounded-2xl overflow-hidden">
-            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-brown-light/10">
+        <div className="bg-neutral-card border border-brown-light/15 sales:border-hairline rounded-2xl overflow-hidden">
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-brown-light/10 sales:border-row-line">
                 <Icon size={16} weight="fill" className="text-primary shrink-0" />
                 <h2 className="text-text-dark text-sm font-bold font-body">{title}</h2>
             </div>
@@ -43,7 +43,7 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: Rea
 
 function FieldRow({ label, value, readonly }: { label: string; value: string; readonly?: boolean }) {
     return (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 py-2.5 border-b border-brown-light/10 last:border-0">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 py-2.5 border-b border-brown-light/10 sales:border-row-line last:border-0">
             <p className="text-neutral-gray text-xs font-medium font-body sm:w-32 shrink-0">{label}</p>
             <p className={`text-sm font-body ${readonly ? 'text-neutral-gray/70' : 'text-text-dark'}`}>{value}</p>
         </div>
@@ -66,7 +66,7 @@ function PasswordInput({ label, value, onChange, placeholder, error }: {
                     value={value}
                     onChange={e => onChange(e.target.value)}
                     placeholder={placeholder}
-                    className={`w-full bg-neutral-light border rounded-xl pl-9 pr-10 py-3 text-sm font-body text-text-dark placeholder:text-neutral-gray/40 focus:outline-none focus:border-primary transition-colors ${error ? 'border-error/50' : 'border-brown-light/20'}`}
+                    className={`w-full bg-neutral-light border rounded-xl pl-9 pr-10 py-3 text-sm font-body text-text-dark placeholder:text-neutral-gray/40 focus:outline-none focus:border-primary transition-colors ${error ? 'border-error/50' : 'border-brown-light/20 sales:border-hairline-mid'}`}
                 />
                 <button
                     type="button"

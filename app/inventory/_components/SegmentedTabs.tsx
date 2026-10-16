@@ -27,7 +27,7 @@ export function SegmentedTabsLink({ items }: { items: SegmentedTabItem[] }) {
   const pathname = usePathname();
 
   return (
-    <div className="inline-flex flex-wrap gap-1 bg-neutral-card border border-hairline rounded-xl p-1">
+    <div className="inline-flex flex-wrap gap-1 bg-neutral-card border border-hairline rounded-xl p-1 sales:flex-nowrap sales:max-w-full sales:overflow-x-auto">
       {items.map((item) => {
         const active = item.activeWhen
           ? item.activeWhen(pathname)
@@ -69,7 +69,7 @@ export function SegmentedTabs<T extends string>({
   onChange,
 }: SegmentedTabsProps<T>) {
   return (
-    <div className="inline-flex flex-wrap gap-1 bg-neutral-card border border-hairline rounded-xl p-1">
+    <div className="inline-flex flex-wrap gap-1 bg-neutral-card border border-hairline rounded-xl p-1 sales:flex-nowrap sales:max-w-full sales:overflow-x-auto">
       {options.map((option) => {
         const active = option.value === value;
         return (

@@ -131,7 +131,7 @@ function CautionCard({
                         </span>
                     </header>
 
-                    <div className="h-px bg-[#f0e8d8]" />
+                    <div className="h-px bg-hairline" />
 
                     {/* ── What it says ──────────────────────────────────── */}
                     <div className="px-6 py-5 font-body text-[15px] text-text-dark leading-relaxed">
@@ -144,12 +144,12 @@ function CautionCard({
                                 width={800}
                                 height={600}
                                 unoptimized
-                                className="mt-4 w-full h-auto rounded-xl border border-[#e3ddd0]"
+                                className="mt-4 w-full h-auto rounded-xl border border-hairline-mid"
                             />
                         )}
                     </div>
 
-                    <div className="h-px bg-[#f0e8d8]" />
+                    <div className="h-px bg-hairline" />
 
                     {/* ── What to do about it ───────────────────────────── */}
                     <div className="px-6 py-5">
@@ -162,7 +162,7 @@ function CautionCard({
                 </div>
 
                 {remaining > 0 && (
-                    <footer className="px-6 py-3 border-t border-[#f0e8d8] bg-neutral-light shrink-0">
+                    <footer className="px-6 py-3 border-t border-hairline bg-neutral-light shrink-0">
                         <p className="font-body text-[11px] text-neutral-gray">
                             {remaining} more {remaining === 1 ? 'message' : 'messages'} after this
                         </p>

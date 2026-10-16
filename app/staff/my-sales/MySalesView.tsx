@@ -134,7 +134,7 @@ export default function MySalesView() {
                 />
 
                 <div className="flex flex-col gap-2.5 mt-4">
-                    <div className="self-start">
+                    <div className="self-start max-w-full">
                         <SegmentedTabs<Tab>
                             value={tab}
                             onChange={setTab}

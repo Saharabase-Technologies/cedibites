@@ -132,7 +132,7 @@ export default function SalesOrdersView() {
                 </label>
             </div>
 
-            <div className="self-start">
+            <div className="self-start max-w-full">
                 <SegmentedTabs<Tab>
                     value={tab}
                     onChange={setTab}

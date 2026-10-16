@@ -49,18 +49,18 @@ export default function CancelOrderModal({
     const isDark = theme === 'dark';
     const presets = context === 'staff' ? STAFF_REASON_PRESETS : REASON_PRESETS;
 
-    const bg = isDark ? 'bg-brown border-brown-light/20' : 'bg-white border-[#f0e8d8]';
+    const bg = isDark ? 'bg-brown border-brown-light/20' : 'bg-white border-hairline';
     const titleColor = isDark ? 'text-text-light' : 'text-text-dark';
     const subColor = isDark ? 'text-neutral-gray' : 'text-neutral-gray';
     const chipBase = isDark
         ? 'border border-brown-light/20 text-neutral-gray hover:text-text-light hover:border-brown-light/40'
-        : 'border border-[#f0e8d8] text-neutral-gray hover:text-text-dark hover:border-primary/30';
+        : 'border border-hairline text-neutral-gray hover:text-text-dark hover:border-primary/30';
     const chipActive = isDark
         ? 'border-error/50 bg-error/10 text-error'
         : 'border-error/40 bg-error/8 text-error';
     const inputClass = isDark
         ? 'bg-brand-dark border border-brown-light/20 text-text-light placeholder:text-neutral-gray/50 focus:border-error/40'
-        : 'bg-neutral-light border border-[#f0e8d8] text-text-dark placeholder:text-neutral-gray focus:border-error/40';
+        : 'bg-neutral-light border border-hairline text-text-dark placeholder:text-neutral-gray focus:border-error/40';
 
     // Synchronous guard to prevent double-submission from fast double-clicks
     const submittingRef = useRef(false);
@@ -178,7 +178,7 @@ export default function CancelOrderModal({
                                 type="button"
                                 onClick={onCancel}
                                 disabled={isLoading}
-                                className={`flex-1 py-2.5 rounded-full text-sm font-semibold font-body transition-colors cursor-pointer disabled:opacity-40 ${isDark ? 'border border-brown-light/25 text-neutral-gray hover:text-text-light' : 'border border-[#f0e8d8] text-neutral-gray hover:text-text-dark'}`}
+                                className={`flex-1 py-2.5 rounded-full text-sm font-semibold font-body transition-colors cursor-pointer disabled:opacity-40 ${isDark ? 'border border-brown-light/25 text-neutral-gray hover:text-text-light' : 'border border-hairline text-neutral-gray hover:text-text-dark'}`}
                             >
                                 Keep Order
                             </button>

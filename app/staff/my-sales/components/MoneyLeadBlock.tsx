@@ -6,6 +6,7 @@ import {
 import type { MoneyLine, MyMoney } from '@/lib/api/services/staff.service';
 import { formatGHS } from '@/lib/utils/currency';
 import { LEAD_LINE, LEAD_TINT } from '@/app/staff/_components/salesTones';
+import { lastOfOdd } from '@/app/staff/_components/QuietRow';
 
 // My Sales' lead block: the money the person took today, by method (staff
 // portal D14, D15, D23, D24). The total is money only. No Charge sits beside
@@ -86,8 +87,8 @@ export function MoneyLeadBlock({ money }: { money: MyMoney | undefined }) {
             </div>
 
             <div className={`grid grid-cols-2 sm:grid-flow-col sm:auto-cols-fr gap-px ${LEAD_LINE}`}>
-                {columns.map(({ key, label, note, icon: Icon, line }) => (
-                    <div key={key} className={`${LEAD_TINT} flex flex-col gap-1.5 px-3 py-2 sm:px-4 sm:py-0.5 sm:first:pl-0 sm:last:pr-0`}>
+                {columns.map(({ key, label, note, icon: Icon, line }, i) => (
+                    <div key={key} className={`${LEAD_TINT} flex flex-col gap-1.5 px-3 py-2 sm:px-4 sm:py-0.5 sm:first:pl-0 sm:last:pr-0 ${lastOfOdd(i, columns.length)}`}>
                         <span className="flex items-center gap-1.5 text-xs font-bold text-neutral-gray">
                             <Icon size={15} aria-hidden />
                             {label}

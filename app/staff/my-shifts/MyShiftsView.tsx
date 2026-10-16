@@ -25,10 +25,10 @@ function formatTime(ts: number): string {
 }
 
 function formatDuration(loginAt: number, logoutAt?: number): string {
-    if (!loginAt || loginAt <= 0) return '—';
+    if (!loginAt || loginAt <= 0) return '0m';
     const end = logoutAt != null && logoutAt > 0 ? logoutAt : Date.now();
     const mins = Math.floor((end - loginAt) / 60000);
-    if (!Number.isFinite(mins) || mins < 0) return '—';
+    if (!Number.isFinite(mins) || mins < 0) return '0m';
     if (mins < 60) return `${mins}m`;
     const h = Math.floor(mins / 60);
     const m = mins % 60;

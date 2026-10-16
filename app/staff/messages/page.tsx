@@ -97,7 +97,7 @@ export default function StaffMessagesPage() {
                 )}
 
                 {summary.pending.length > 0 && (
-                    <div className="mb-5 flex items-start gap-3 bg-neutral-card border border-[#e3ddd0] rounded-2xl px-4 py-3">
+                    <div className="mb-5 flex items-start gap-3 bg-neutral-card border border-hairline-mid rounded-2xl px-4 py-3">
                         <WarningCircleIcon size={18} weight="fill" className="text-primary shrink-0 mt-0.5" />
                         <p className="font-body text-sm text-text-dark">
                             {summary.pending.length} {summary.pending.length === 1 ? 'message needs' : 'messages need'}{' '}
@@ -278,7 +278,7 @@ function MessageCard({
 
             {expanded && (
                 <>
-                    <div className="h-px bg-[#f0e8d8]" />
+                    <div className="h-px bg-hairline" />
 
                     <div className="px-5 py-4 font-body text-sm text-text-dark leading-relaxed">
                         {renderMessageBody(message.body)}
@@ -290,12 +290,12 @@ function MessageCard({
                                 width={800}
                                 height={600}
                                 unoptimized
-                                className="mt-3 w-full h-auto rounded-xl border border-[#e3ddd0]"
+                                className="mt-3 w-full h-auto rounded-xl border border-hairline-mid"
                             />
                         )}
                     </div>
 
-                    <div className="h-px bg-[#f0e8d8]" />
+                    <div className="h-px bg-hairline" />
 
                     <div className="px-5 py-4">
                         <ReplyPanel message={message} busy={busy} onSubmit={onSubmit} />
