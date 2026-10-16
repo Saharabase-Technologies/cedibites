@@ -1,215 +1,180 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
-import {
-    ClockIcon,
-    ReceiptIcon,
-    CurrencyCircleDollarIcon,
-    WarningCircleIcon,
-    SpinnerGapIcon,
-    ProhibitIcon,
-    ClockCounterClockwiseIcon,
-    TruckIcon,
-    MoneyIcon,
-    DeviceMobileIcon,
-    CreditCardIcon,
-    HandCoinsIcon,
-    BankIcon,
-} from '@phosphor-icons/react';
-import type { Order, PaymentMethod } from '@/types/order';
+import { useMemo, useState } from 'react';
+import { SpinnerGapIcon } from '@phosphor-icons/react';
+import type { Order } from '@/types/order';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import { useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
 import { useMySalesOrders } from '@/app/staff/hooks/useStaffOrders';
 import { useMyMoney } from '@/lib/api/hooks/useMyMoney';
-import { formatGHS, formatDate } from './utils';
-import StatCard from './components/StatCard';
-import SourcePills from './components/SourcePills';
-import SalesTable from './components/SalesTable';
-import OrderDrawer from './components/OrderDrawer';
+import { formatGHS } from '@/lib/utils/currency';
+import { serverToday } from '@/lib/utils/serverClock';
+import { PageHeader, SegmentedTabs, DataTable, type DataTableColumn } from '@/app/inventory/_components';
+import { QuietRow } from '@/app/staff/_components/QuietRow';
+import { OrderStatusPill } from '@/app/staff/_components/OrderStatusPill';
+import { OpenedOrder, OPENED_PANEL, OPENED_ROW } from '@/app/staff/_components/OpenedOrder';
+import { dayLabel, goodsOf, isNoCharge, owedOn, paidBy, phoneOf, timeOf } from '@/app/staff/_components/orderFormat';
+import { OWES } from '@/app/staff/_components/salesTones';
+import { MoneyLeadBlock } from './components/MoneyLeadBlock';
 
-// ─── Payment method display config ─────────────────────────────────────────────
+// My Sales, for sales staff (staff portal Section 6). The money the person
+// took today leads. A quiet row of four figures sits under it, then their
+// orders, each opening in place. Today is the server's day (D21).
 
-const PAYMENT_BREAKDOWN_CONFIG: {
-    key: PaymentMethod;
-    label: string;
-    sub: string;
-    icon: typeof MoneyIcon;
-}[] = [
-    { key: 'cash',         label: 'Cash Collected',    sub: 'Physical cash received',      icon: MoneyIcon },
-    { key: 'mobile_money', label: 'POS MoMo',          sub: 'Paid via POS prompt',          icon: DeviceMobileIcon },
-    { key: 'manual_momo',  label: 'Direct MoMo',       sub: 'Sent to branch number',        icon: HandCoinsIcon },
-    { key: 'card',         label: 'Card Payments',     sub: 'POS card terminal',            icon: CreditCardIcon },
-    { key: 'no_charge',    label: 'No Charge',         sub: 'Complimentary / staff meals',  icon: BankIcon },
-];
+type Tab = 'all' | 'owed' | 'cancelled';
+
+function plural(n: number, one: string, many: string): string {
+    return `${n} ${n === 1 ? one : many}`;
+}
 
 export default function MySalesView() {
     const { staffUser } = useStaffAuth();
-    const { isLoading } = useOrderStore();
-    const rawMySales = useMySalesOrders(staffUser?.id ?? '');
+    const { isLoading, refresh } = useOrderStore();
     const { data: myMoney } = useMyMoney();
-    const myOrders = useMemo(
-        () => [...rawMySales].sort((a, b) => b.placedAt - a.placedAt),
-        [rawMySales],
-    );
+    const today = myMoney?.date ?? serverToday();
 
-    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const mine = useMySalesOrders(staffUser?.id ?? '', today);
+    const orders = useMemo(() => [...mine].sort((a, b) => b.placedAt - a.placedAt), [mine]);
+    const [tab, setTab] = useState<Tab>('all');
 
-    const handleClose = useCallback(() => setSelectedOrder(null), []);
-    const handleSelect = useCallback((order: Order) => {
-        setSelectedOrder(prev => prev?.id === order.id ? null : order);
-    }, []);
-
-    const activeOrders = useMemo(() => myOrders.filter(o => o.status !== 'cancelled'), [myOrders]);
-    const cancelledOrders = useMemo(() => myOrders.filter(o => o.status === 'cancelled'), [myOrders]);
-    const completedOrders = useMemo(() => myOrders.filter(o => o.status === 'completed' || o.status === 'delivered'), [myOrders]);
-    // Restaurant revenue = value of goods only. Third-party delivery fees are a
-    // pass-through to riders and are never counted as revenue.
-    const goodsRevenue = (o: Order) => o.total - (o.deliveryFee ?? 0);
-    const totalRevenue = useMemo(() => activeOrders.filter(o => o.paymentMethod !== 'no_charge').reduce((s, o) => s + goodsRevenue(o), 0), [activeOrders]);
-    const deliveryFeesCollected = useMemo(() => activeOrders.filter(o => o.paymentMethod !== 'no_charge').reduce((s, o) => s + (o.deliveryFee ?? 0), 0), [activeOrders]);
-
-    // The money this person took today, from the server's payments (D9): a
-    // payment they took on someone else's order counts here, and one somebody
-    // else took on their order does not. Staff count their cash against these.
-    // No Charge is not money. It is the value given away on their own orders.
-    const paymentBreakdown = useMemo((): Record<string, number> => {
-        const taken = myMoney?.money;
+    const figures = useMemo(() => {
+        const live = orders.filter(o => o.status !== 'cancelled');
+        const owing = live.filter(o => owedOn(o) > 0);
         return {
-            cash: taken?.cash.amount ?? 0,
-            // USSD has its own group since the staff portal's Phase 2. This
-            // screen has no column for it until Phase 3 replaces it.
-            mobile_money: (taken?.momo.amount ?? 0) + (taken?.ussd?.amount ?? 0),
-            manual_momo: taken?.manual_momo.amount ?? 0,
-            card: taken?.card.amount ?? 0,
-            no_charge: activeOrders
-                .filter(o => o.paymentMethod === 'no_charge')
-                .reduce((s, o) => s + goodsRevenue(o), 0),
+            attended: live.length,
+            value: live.filter(o => !isNoCharge(o)).reduce((s, o) => s + goodsOf(o), 0),
+            owing,
+            owed: owing.reduce((s, o) => s + owedOn(o), 0),
+            cancelled: orders.filter(o => o.status === 'cancelled').length,
+            waiting: orders.filter(o => o.status === 'cancel_requested').length,
         };
-    }, [myMoney, activeOrders]);
+    }, [orders]);
 
-    const sourceBreakdown = useMemo(() => {
-        const map: Record<string, number> = {};
-        activeOrders.forEach(o => { map[o.source] = (map[o.source] ?? 0) + 1; });
-        return Object.entries(map).sort((a, b) => b[1] - a[1]);
-    }, [activeOrders]);
+    const shown = useMemo(() => {
+        if (tab === 'owed') return figures.owing;
+        if (tab === 'cancelled') return orders.filter(o => o.status === 'cancelled' || o.status === 'cancel_requested');
+        return orders;
+    }, [tab, orders, figures.owing]);
 
-    // Filter payment configs to only show methods that have orders
-    const visiblePaymentCards = useMemo(() => {
-        return PAYMENT_BREAKDOWN_CONFIG.filter(p => (paymentBreakdown[p.key] ?? 0) > 0);
-    }, [paymentBreakdown]);
+    const columns: DataTableColumn<Order>[] = [
+        {
+            key: 'order',
+            header: 'Order',
+            cell: o => (
+                <>
+                    <div className="font-bold">#{o.orderNumber}</div>
+                    <div className="text-xs text-neutral-gray tabular-nums">{timeOf(o.placedAt)}</div>
+                </>
+            ),
+        },
+        {
+            key: 'customer',
+            header: 'Customer',
+            cell: o => (
+                <>
+                    <div className="font-semibold">{o.contact.name || 'Walk-in'}</div>
+                    {o.contact.phone && <div className="text-xs text-neutral-gray tabular-nums">{phoneOf(o)}</div>}
+                </>
+            ),
+        },
+        {
+            key: 'paid',
+            header: 'Paid by',
+            cell: o => {
+                const p = paidBy(o);
+                return (
+                    <>
+                        <div className={p.owes ? `font-bold ${OWES}` : ''}>{p.label}</div>
+                        {p.sub && <div className={`text-xs tabular-nums ${p.owes ? OWES : 'text-neutral-gray'}`}>{p.sub}</div>}
+                    </>
+                );
+            },
+        },
+        {
+            key: 'total',
+            header: 'Total',
+            align: 'right',
+            cell: o => (
+                <span className={`font-bold tabular-nums ${o.status === 'cancelled' ? 'text-neutral-gray line-through' : ''}`}>
+                    {formatGHS(goodsOf(o))}
+                </span>
+            ),
+        },
+        { key: 'status', header: 'Status', cell: o => <OrderStatusPill status={o.status} /> },
+    ];
 
-    if (isLoading) {
-        return (
-            <div className="px-4 md:px-8 py-16 flex items-center justify-center gap-2 text-neutral-gray text-sm font-body">
-                <SpinnerGapIcon size={18} className="animate-spin" />
-                Loading your sales…
-            </div>
-        );
-    }
+    const owedCount = figures.owing.length;
+    const cancelledOrAsked = figures.cancelled + figures.waiting;
 
     return (
-        <>
-            <div className="px-4 md:px-8 py-6 max-w-6xl mx-auto">
+        <div className="px-4 py-4 md:px-6 md:py-5 xl:px-10 xl:py-7">
+            <PageHeader title="My Sales" subtitle={`Today only · ${dayLabel(today)}`} />
 
-                {/* ── Header ────────────────────────────────────────────────── */}
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
-                    <div>
-                        <h1 className="text-text-dark dark:text-text-light text-xl font-bold font-body">My Sales</h1>
-                        <p className="text-neutral-gray text-sm font-body mt-0.5 flex items-center gap-1.5">
-                            <ClockIcon size={13} weight="fill" />
-                            {formatDate(new Date())}
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2 bg-warning/10 border border-warning/25 rounded-xl px-3 py-2 w-fit">
-                        <WarningCircleIcon size={14} weight="fill" className="text-warning shrink-0" />
-                        <p className="text-warning text-xs font-body font-medium">Today only · 24-hour view</p>
-                    </div>
-                </div>
+            <div className="flex flex-col gap-4.5">
+                <MoneyLeadBlock money={myMoney} />
 
-                {/* ── Primary Stats ─────────────────────────────────────────── */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-                    <StatCard
-                        icon={ReceiptIcon}
-                        label="Orders Placed"
-                        value={String(activeOrders.length)}
-                        sub={cancelledOrders.length > 0 ? `${cancelledOrders.length} cancelled` : 'No cancellations'}
-                        accent="text-text-light"
-                    />
-                    <StatCard
-                        icon={CurrencyCircleDollarIcon}
-                        label="Revenue Generated"
-                        value={formatGHS(totalRevenue)}
-                        sub="Goods only · excl. cancelled"
-                        accent="text-text-light dark:text-text-light/75"
-                    />
-                    <StatCard
-                        icon={TruckIcon}
-                        label="Delivery Fees"
-                        value={formatGHS(deliveryFeesCollected)}
-                        sub="Pass-through to 3rd-party riders"
-                        accent="text-text-light dark:text-text-light/75"
-                    />
-                    <StatCard
-                        icon={ClockCounterClockwiseIcon}
-                        label="Completed"
-                        value={String(completedOrders.length)}
-                        sub="fulfilled orders"
-                        accent="text-text-light dark:text-text-light/75"
-                    />
-                    <StatCard
-                        icon={ProhibitIcon}
-                        label="Cancelled"
-                        value={String(cancelledOrders.length)}
-                        sub={cancelledOrders.length > 0 ? 'orders voided' : 'none today'}
-                        accent="text-text-light dark:text-text-light/75"
-                    />
-                </div>
-
-                {/* ── Revenue Breakdown by Payment Method ────────────────────── */}
-                {visiblePaymentCards.length > 0 && (
-                    <div className="mb-6">
-                        <p className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-widest mb-3">
-                            Money you took today
-                        </p>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                            {visiblePaymentCards.map(({ key, label, sub, icon: Icon }) => (
-                                <div
-                                    key={key}
-                                    className="bg-neutral-card dark:bg-brand-dark border border-[#f0e8d8] dark:border-brown-light/15 rounded-2xl px-4 py-3.5"
-                                >
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <Icon size={14} weight="fill" className="text-primary shrink-0" />
-                                        <span className="text-neutral-gray text-[10px] font-bold font-body uppercase tracking-wide">{label}</span>
-                                    </div>
-                                    <p className="text-text-dark dark:text-text-light text-lg font-bold font-body leading-none">
-                                        {formatGHS(paymentBreakdown[key] ?? 0)}
-                                    </p>
-                                    <p className="text-neutral-gray text-[10px] font-body mt-1">{sub}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* ── Source breakdown pills ────────────────────────────────── */}
-                <SourcePills breakdown={sourceBreakdown} />
-
-                {/* ── Orders table ──────────────────────────────────────────── */}
-                <SalesTable
-                    activeOrders={activeOrders}
-                    cancelledOrders={cancelledOrders}
-                    totalRevenue={totalRevenue}
-                    selectedId={selectedOrder?.id ?? null}
-                    onSelect={handleSelect}
+                <QuietRow
+                    label="Your orders today"
+                    figures={[
+                        { label: 'Orders Attended', value: String(figures.attended), note: 'Placed or accepted' },
+                        { label: 'Order Value', value: formatGHS(figures.value), note: 'Food on those orders' },
+                        {
+                            label: 'Still Owed',
+                            value: formatGHS(figures.owed),
+                            note: owedCount > 0 ? plural(owedCount, 'order', 'orders') : 'Nothing owed',
+                            noteOwes: owedCount > 0,
+                        },
+                        {
+                            label: 'Cancelled',
+                            value: String(figures.cancelled),
+                            note: figures.waiting > 0 ? `${figures.waiting} waiting` : 'None waiting',
+                            noteOwes: figures.waiting > 0,
+                        },
+                    ]}
                 />
 
-                <p className="text-neutral-gray/40 text-xs font-body text-center mt-6">
-                    Shows only orders you placed today · Click any row for full detail · Contact your branch manager for historical data.
-                </p>
+                <div className="flex flex-col gap-2.5 mt-4">
+                    <div className="self-start">
+                        <SegmentedTabs<Tab>
+                            value={tab}
+                            onChange={setTab}
+                            options={[
+                                { value: 'all', label: `All ${orders.length}` },
+                                { value: 'owed', label: `Still owed ${owedCount}` },
+                                { value: 'cancelled', label: `Cancelled and asked ${cancelledOrAsked}` },
+                            ]}
+                        />
+                    </div>
 
+                    {isLoading && orders.length === 0 ? (
+                        <div className="flex items-center justify-center gap-2 py-12 text-sm text-neutral-gray">
+                            <SpinnerGapIcon size={18} className="animate-spin" />
+                            Loading your orders
+                        </div>
+                    ) : (
+                        <DataTable<Order>
+                            key={tab}
+                            data={shown}
+                            columns={columns}
+                            rowKey={o => o.id}
+                            pageSize={7}
+                            expandedContent={o => <OpenedOrder order={o} onCancelAsked={refresh} />}
+                            expandOnRowClick
+                            caretAt="end"
+                            oneOpenAtATime
+                            openRowClassName={OPENED_ROW}
+                            openPanelClassName={OPENED_PANEL}
+                            emptyState={
+                                <p className="py-12 text-center text-sm text-neutral-gray">
+                                    {tab === 'owed' ? 'Nothing is owed on your orders.'
+                                        : tab === 'cancelled' ? 'Nothing cancelled or asked today.'
+                                            : 'No orders on your name today yet.'}
+                                </p>
+                            }
+                        />
+                    )}
+                </div>
             </div>
-
-            <OrderDrawer order={selectedOrder} onClose={handleClose} />
-        </>
+        </div>
     );
 }

@@ -64,3 +64,20 @@ export function serverNow(): Date {
 export function clockSkewSeconds(): number | null {
   return learned ? Math.round(offsetMs / 1000) : null;
 }
+
+/**
+ * Today's date by the server's clock, YYYY-MM-DD.
+ *
+ * Ghana is UTC+0 all year, so the UTC date of the server's now is the
+ * server's day. Read as UTC, a machine set to the wrong time zone cannot move
+ * it either.
+ */
+export function serverToday(): string {
+  return serverNow().toISOString().slice(0, 10);
+}
+
+/** The first and last millisecond of a YYYY-MM-DD day in Ghana. */
+export function ghanaDayBounds(date: string): { from: number; to: number } {
+  const from = Date.parse(`${date}T00:00:00Z`);
+  return { from, to: from + 86_400_000 - 1 };
+}

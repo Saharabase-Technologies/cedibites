@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { useOrderStore } from '@/app/components/providers/OrderStoreProvider';
 import type { Order, OrderFilter } from '@/types/order';
+import { ghanaDayBounds } from '@/lib/utils/serverClock';
 
 /**
  * Returns orders for the staff kanban, optionally filtered by branch.
@@ -19,37 +20,22 @@ export function useStaffOrders(branchName?: string): Order[] {
     }, [getOrdersByFilter, branchName]);
 }
 
-/** Start of today in local calendar (Unix ms). */
-function startOfToday(): number {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.getTime();
-}
-
-/** End of today in local calendar (Unix ms). */
-function endOfToday(): number {
-    const d = new Date();
-    d.setHours(23, 59, 59, 999);
-    return d.getTime();
-}
-
 /**
- * Returns orders assigned to this staff member for the current local calendar day (My Sales / daily reconciliation).
+ * Orders assigned to this staff member on one day, by the server's calendar
+ * (staff portal D21). The caller passes the day, from `serverToday()` or a date
+ * the server sent, so a POS with a wrong clock still shows the right day.
  */
-export function useMySalesOrders(staffId: string): Order[] {
+export function useMySalesOrders(staffId: string, date: string): Order[] {
     const { getOrdersByFilter } = useOrderStore();
 
     return useMemo(() => {
-        if (!staffId) {
+        if (!staffId || !date) {
             return [];
         }
 
-        return getOrdersByFilter({
-            staffId,
-            dateFrom: startOfToday(),
-            dateTo: endOfToday(),
-        });
-    }, [getOrdersByFilter, staffId]);
+        const { from, to } = ghanaDayBounds(date);
+        return getOrdersByFilter({ staffId, dateFrom: from, dateTo: to });
+    }, [getOrdersByFilter, staffId, date]);
 }
 
 /**

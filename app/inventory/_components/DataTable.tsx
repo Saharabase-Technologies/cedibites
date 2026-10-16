@@ -67,6 +67,14 @@ export type DataTableProps<T> = {
    * ignored.
    */
   expandOnRowClick?: boolean;
+  /** Where the caret sits. The sales staff screens put it at the row's end. */
+  caretAt?: 'start' | 'end';
+  /** Classes for a row whose detail is open, in place of the faint primary wash. */
+  openRowClassName?: string;
+  /** Classes for the cell holding an open row's detail, padding included. */
+  openPanelClassName?: string;
+  /** Opening a row closes the one that was open. */
+  oneOpenAtATime?: boolean;
   /**
    * Draw the table on its own card. On by default. Turn it off for a table
    * that sits inside a panel which is already a card, so there is never a
@@ -105,6 +113,10 @@ export function DataTable<T>({
   showIndex,
   expandedContent,
   expandOnRowClick,
+  caretAt = 'start',
+  openRowClassName,
+  openPanelClassName,
+  oneOpenAtATime,
   framed = true,
   stickyFirst,
   stackOnPhone,
@@ -123,6 +135,7 @@ export function DataTable<T>({
 
   const toggleExpanded = (key: string | number) =>
     setExpandedKeys((prev) => {
+      if (oneOpenAtATime) return new Set(prev.has(key) ? [] : [key]);
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
@@ -200,7 +213,7 @@ export function DataTable<T>({
         <table className="w-full text-sm font-body">
           <thead>
             <tr className="border-b border-row-line">
-              {expandedContent && <th className="w-9 py-3 px-2" aria-label="Expand" />}
+              {expandedContent && caretAt === 'start' && <th className="w-9 py-3 px-2" aria-label="Expand" />}
               {showIndex && (
                 <th className="text-neutral-gray text-[10px] font-bold uppercase tracking-wider py-3 px-4 text-left w-10 select-none">
                   #
@@ -228,6 +241,7 @@ export function DataTable<T>({
                   </th>
                 );
               })}
+              {expandedContent && caretAt === 'end' && <th className="w-14 py-3 px-2" aria-label="Open" />}
             </tr>
           </thead>
           <tbody>
@@ -236,6 +250,30 @@ export function DataTable<T>({
               const detail = expandedContent?.(row);
               const isExpanded = expandedKeys.has(key);
               const colSpan = columns.length + (showIndex ? 1 : 0) + (expandedContent ? 1 : 0);
+              const caretCell = expandedContent && (
+                <td className={caretAt === 'end' ? 'py-1 pl-0 pr-2 align-middle' : 'py-3 pl-3 pr-0 align-middle'}>
+                  {detail ? (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleExpanded(key); }}
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
+                      className={`
+                        flex items-center justify-center cursor-pointer text-neutral-gray hover:text-text-dark transition-colors
+                        ${caretAt === 'end' ? 'w-11 h-11 rounded-xl ml-auto' : 'w-6 h-6 rounded-lg hover:bg-neutral-light'}
+                      `}
+                    >
+                      <CaretRightIcon
+                        size={caretAt === 'end' ? 14 : 12}
+                        weight="bold"
+                        className={`transition-transform ${
+                          caretAt === 'end' ? (isExpanded ? '-rotate-90' : 'rotate-90') : (isExpanded ? 'rotate-90' : '')
+                        }`}
+                      />
+                    </button>
+                  ) : null}
+                </td>
+              );
               return (
                 <Fragment key={key}>
                   <tr
@@ -247,31 +285,15 @@ export function DataTable<T>({
                           : undefined
                     }
                     className={`
-                      border-b border-row-line transition-colors
-                      ${isExpanded ? 'bg-primary/5' : ''}
-                      ${onRowClick || (expandOnRowClick && detail) ? 'cursor-pointer hover:bg-primary/5' : 'hover:bg-primary/5'}
+                      transition-colors
+                      ${isExpanded && openRowClassName ? '' : 'border-b border-row-line'}
+                      ${isExpanded ? (openRowClassName ?? 'bg-primary/5') : ''}
+                      ${onRowClick || (expandOnRowClick && detail) ? 'cursor-pointer' : ''}
+                      ${isExpanded && openRowClassName ? '' : 'hover:bg-primary/5'}
                       ${needsAttention?.(row) ? 'bg-primary/6 shadow-[inset_3px_0_0_0_var(--color-primary)]' : ''}
                     `}
                   >
-                    {expandedContent && (
-                      <td className="py-3 pl-3 pr-0 align-middle">
-                        {detail ? (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); toggleExpanded(key); }}
-                            aria-expanded={isExpanded}
-                            aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
-                            className="w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer text-neutral-gray hover:text-text-dark hover:bg-neutral-light transition-colors"
-                          >
-                            <CaretRightIcon
-                              size={12}
-                              weight="bold"
-                              className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                            />
-                          </button>
-                        ) : null}
-                      </td>
-                    )}
+                    {caretAt === 'start' && caretCell}
                     {showIndex && (
                       <td className="py-3 px-4 text-neutral-gray/60 text-xs">
                         {sliceStart + idx + 1}
@@ -290,10 +312,11 @@ export function DataTable<T>({
                         {col.cell(row, sliceStart + idx)}
                       </td>
                     ))}
+                    {caretAt === 'end' && caretCell}
                   </tr>
                   {isExpanded && detail && (
                     <tr className="border-b border-row-line">
-                      <td colSpan={colSpan} className="bg-neutral-light/40 px-4 py-3">
+                      <td colSpan={colSpan} className={openPanelClassName ?? 'bg-neutral-light/40 px-4 py-3'}>
                         {detail}
                       </td>
                     </tr>
@@ -349,7 +372,7 @@ export function DataTable<T>({
         <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-row-line text-xs font-body">
           <p className="text-neutral-gray">
             Showing <span className="text-text-dark font-semibold">{sliceStart + 1}</span>
-            {'–'}
+            {' to '}
             <span className="text-text-dark font-semibold">
               {Math.min(sliceStart + pageSize, sorted.length)}
             </span>
@@ -498,6 +521,7 @@ function PageButton({
       className={`
         min-w-7 h-7 px-2 rounded-lg text-xs font-medium font-body transition-colors cursor-pointer
         flex items-center justify-center
+        sales:min-w-11 sales:h-11 sales:rounded-xl sales:text-sm
         ${active
           ? 'bg-primary text-white'
           : 'text-neutral-gray hover:text-text-dark hover:bg-neutral-light'}
