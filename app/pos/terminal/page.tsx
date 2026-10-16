@@ -30,7 +30,6 @@ import {
   ArrowsSplitIcon,
   WarningCircleIcon,
   HandCoinsIcon,
-  LightningIcon,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { usePOS } from '../context';
@@ -39,6 +38,7 @@ import apiClient from '@/lib/api/client';
 import { toast } from '@/lib/utils/toast';
 import type { PaymentMethod, Order, OrderSource } from '@/types/order';
 import { TONE } from '@/app/inventory/_components/status-tokens';
+import { BoltMarkIcon } from '@/app/components/icons/BoltMarkIcon';
 import {
   PhoneIcon,
   WhatsappLogoIcon,
@@ -62,7 +62,7 @@ const ORDER_SOURCE_OPTIONS: { id: OrderSource; label: string; icon: React.Elemen
   { id: 'phone', label: 'Phone', icon: PhoneIcon },
   { id: 'whatsapp', label: 'WhatsApp', icon: WhatsappLogoIcon },
   { id: 'social_media', label: 'Social', icon: ShareNetworkIcon },
-  { id: 'bolt', label: 'Bolt', icon: LightningIcon },
+  { id: 'bolt', label: 'Bolt', icon: BoltMarkIcon },
 ];
 
 /** A branch till takes walk-ins and Bolt's tablet. The call centre takes the rest. */
@@ -633,6 +633,12 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
     }, 0))
     : 0;
   const appliedDiscount = isBolt ? boltDiscount : addTarget ? 0 : promoDiscount;
+
+  // Head office has five channels. As icons they fit one row, and the one
+  // chosen is named beside the heading. A till has two, which keep their names.
+  const sourceOptions = isCompanyWide ? ORDER_SOURCE_OPTIONS : TILL_SOURCE_OPTIONS;
+  const sourcesAsIcons = sourceOptions.length > 2;
+  const chosenSource = sourceOptions.find(opt => opt.id === orderSource);
   const boltCodeReady = BOLT_CODE.test(boltReference.replace(/\s+/g, '').toUpperCase());
 
   // A Bolt order is paid already, to Bolt, so it skips the payment step.
@@ -1320,7 +1326,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
             </div>
           ) : isBolt && branchMenuItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-6 text-center text-neutral-gray">
-              <LightningIcon className="w-12 h-12 mb-4 opacity-40" />
+              <BoltMarkIcon className="w-12 h-12 mb-4 opacity-40" />
               <p className="font-medium text-text-dark">No dish has a Bolt price yet</p>
               <p className="mt-1 text-sm max-w-xs">
                 An administrator sets them on Menu, Bolt.
@@ -1478,29 +1484,37 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
             That is why the options follow isCompanyWide while everything else
             here reads isRemoteOrder: this is the control, not the consequence. */}
         {!addTarget && (
-          <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15">
-            <p className="text-[10px] font-bold text-neutral-gray uppercase tracking-wider mb-2">
-              How did this order come in?
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {(isCompanyWide ? ORDER_SOURCE_OPTIONS : TILL_SOURCE_OPTIONS).map(opt => {
+          <div className="shrink-0 px-4 py-2.5 border-b border-neutral-gray/15">
+            <div className="flex items-baseline justify-between gap-2 mb-2">
+              <p className="text-[10px] font-bold text-neutral-gray uppercase tracking-wider">
+                How did this order come in?
+              </p>
+              {sourcesAsIcons && chosenSource && (
+                <p className="text-xs font-semibold text-text-dark">{chosenSource.label}</p>
+              )}
+            </div>
+            <div className={`grid gap-1.5 ${sourcesAsIcons ? 'grid-cols-5' : 'grid-cols-2'}`}>
+              {sourceOptions.map(opt => {
                 // A Bolt order is rung as it comes in, never recorded afterwards.
                 const unavailable = opt.id === 'bolt' && isManualEntry;
+                const chosen = orderSource === opt.id;
                 return (
                   <button
                     key={opt.id}
                     type="button"
                     onClick={() => setOrderSource(opt.id)}
                     disabled={unavailable}
-                    title={unavailable ? 'A Bolt order is rung as it comes in, not recorded afterwards.' : undefined}
+                    aria-label={opt.label}
+                    aria-pressed={chosen}
+                    title={unavailable ? 'A Bolt order is rung as it comes in, not recorded afterwards.' : opt.label}
                     className={`flex items-center justify-center gap-1.5 min-h-11 rounded-lg text-xs font-semibold transition-colors cursor-pointer border disabled:opacity-40 disabled:cursor-not-allowed ${
-                      orderSource === opt.id
+                      chosen
                         ? 'bg-primary text-white border-primary'
                         : 'bg-neutral-light text-neutral-gray border-neutral-gray/20 hover:border-primary/40'
                     }`}
                   >
-                    <opt.icon className="w-4 h-4" />
-                    {opt.label}
+                    <opt.icon className={sourcesAsIcons ? 'w-5 h-5' : 'w-4 h-4'} />
+                    {!sourcesAsIcons && opt.label}
                   </button>
                 );
               })}
@@ -1514,7 +1528,7 @@ export default function POSTerminalPage({ embedded = false }: { embedded?: boole
         {isBolt && !addTarget && (
           <div className="shrink-0 px-4 py-3 border-b border-neutral-gray/15 space-y-2">
             <div className="relative">
-              <LightningIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
+              <BoltMarkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-gray" />
               <input
                 type="text"
                 placeholder="Bolt order code * (e.g. WWJ98)"

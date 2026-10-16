@@ -9,8 +9,8 @@ import {
     GlobeIcon,
     DeviceMobileIcon,
     ClockIcon,
-    LightningIcon,
 } from '@phosphor-icons/react';
+import { BoltMarkIcon } from '@/app/components/icons/BoltMarkIcon';
 import type { OrderStatus, OrderSource, PaymentMethod, FulfillmentType, KanbanColumn } from '@/types/order';
 
 // ─── Status display config ──────────────────────────────────────────────────
@@ -59,7 +59,7 @@ export const SOURCE_CONFIG: Record<OrderSource, SourceDisplayConfig> = {
     social_media: { label: 'Social Media', icon: ShareNetworkIcon },
     pos:          { label: 'Walk-in',      icon: DeviceMobileIcon },
     manual_entry: { label: 'Manual Entry', icon: ClockIcon },
-    bolt:         { label: 'Bolt',         icon: LightningIcon },
+    bolt:         { label: 'Bolt',         icon: BoltMarkIcon },
 };
 
 // Convenience re-exports for backward compat
