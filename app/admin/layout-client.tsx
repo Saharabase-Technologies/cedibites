@@ -41,6 +41,7 @@ import {
     ChatCircleTextIcon,
     XIcon,
     DoorOpenIcon,
+    FileTextIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { StaffAuthProvider, useStaffAuth } from '@/app/components/providers/StaffAuthProvider';
@@ -56,6 +57,8 @@ const ADMIN_GROUPS = [
             { href: '/admin/analytics',  label: 'Analytics',  icon: ChartBarIcon    },
             // A banknote, not a dollar sign: the money here is cedis.
             { href: '/admin/finance',    label: 'Finance',    icon: MoneyIcon       },
+            // Written reports, each at a public address the admin can send on.
+            { href: '/admin/reports',    label: 'Reports',    icon: FileTextIcon    },
         ],
     },
     {
